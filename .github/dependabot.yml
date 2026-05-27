@@ -6,12 +6,21 @@ updates:
       interval: 'weekly'
     open-pull-requests-limit: 5
     versioning-strategy: 'increase'
-    # `@types/node` is pinned to the major matching `engines.node` in package.json.
-    # Bumping past the engines floor would expose Node API types that don't exist at
-    # runtime on the supported Node major, turning typecheck-pass into runtime-fail.
-    # Minor and patch updates within the supported major still flow through.
+    # Suppress semver-major bumps for dependencies that are pinned by design.
+    # Minor and patch updates within each pinned major still flow through.
+    #
+    # - `@types/node`: pinned to the major matching `engines.node`. Bumping past
+    #   the engines floor would expose Node API types that don't exist at runtime
+    #   on the supported Node major, turning typecheck-pass into runtime-fail.
+    # - `vite`: pinned to ^7 to avoid Vite 8's Rolldown bundler, which triggers a
+    #   Rust panic ("memory allocation of N bytes failed") on the macos-latest
+    #   GHA runner. Re-evaluate when Rolldown stabilises on macOS — see the
+    #   scheduled "vite-rolldown-recheck" reminder.
     ignore:
       - dependency-name: '@types/node'
+        update-types:
+          - 'version-update:semver-major'
+      - dependency-name: 'vite'
         update-types:
           - 'version-update:semver-major'
     groups:
