@@ -39,11 +39,23 @@ jobs:
       - name: Build
         run: pnpm run build
 
-      - name: Create release PR or publish
+      - name: Create release PR (publish disabled until first manual bootstrap)
         uses: changesets/action@e4156907cdd269dcaa37f03263be504a3570994d # v1.6.0
         with:
           version: pnpm changeset version
-          publish: pnpm changeset publish
+          # publish: pnpm changeset publish
+          #
+          # The `publish` input is intentionally disabled.
+          #
+          # changesets/action's behavior when `publish` is set AND no changesets
+          # are pending is to fall back to "publish any unpublished packages to
+          # npm" — which fails with E404 on a fresh monorepo where no version
+          # has ever been pushed to the registry, and breaks every release-
+          # workflow run until the bootstrap publish happens.
+          #
+          # Re-enable this line (and set the NPM_TOKEN repo secret) when you
+          # are ready to publish the first real release. Until then, this
+          # workflow only opens "Version Packages" PRs from pending changesets.
           title: 'chore: version packages'
           commit: 'chore: version packages'
         env:

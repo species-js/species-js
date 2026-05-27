@@ -482,8 +482,10 @@ would never lint until CI failed.
 
 - **`ci.yml`** — runs on push to `main` and on every PR targeting `main`. Cross-OS matrix
   (Ubuntu, macOS, Windows), full pipeline per OS.
-- **`release.yml`** — runs on push to `main` only. Uses `changesets/action` to either open
-  a "Version Packages" PR or publish queued versions to npm with provenance attestation.
+- **`release.yml`** — runs on push to `main` only. Uses `changesets/action` to open
+  "Version Packages" PRs from pending changesets. The `publish` input is **currently
+  disabled** (see _Publish bootstrap_ below); when re-enabled, the same workflow publishes
+  queued versions to npm with provenance attestation.
   `concurrency.cancel-in-progress: false` — release jobs must not be cancelled
   mid-publish.
 
@@ -611,6 +613,29 @@ safety net:
 
 The cost (~30–60s per release for redundant rebuilds in CI) is worth the defensive
 posture.
+
+### Publish bootstrap — why `publish:` is currently disabled
+
+`changesets/action` has a documented fallback behavior: when the `publish` input is set
+**and** no pending changesets exist, it attempts to publish "any unpublished packages to
+npm." On a fresh monorepo where no `@species-js/*` package has ever been pushed to the
+registry, every such attempt fails with `E404 Not Found` (anonymous PUT against a missing
+package name), and every release-workflow run goes red.
+
+To keep the workflow's red/green signal meaningful before any real publish has happened,
+the `publish:` input is commented out in `.github/workflows/release.yml`. The workflow
+still runs `version:` on every push to `main` — opening a "Version Packages" PR whenever
+pending changesets exist — but it never tries to publish.
+
+**When to re-enable:**
+
+1. The first real package version is ready (i.e. not the `0.0.0` placeholder).
+2. The `NPM_TOKEN` repo secret is configured (Settings → Secrets and variables → Actions).
+3. The first publish has been bootstrapped manually so at least one version of each
+   `@species-js/*` package exists on the registry.
+
+Then uncomment the `publish: pnpm changeset publish` line in `release.yml` and the
+workflow takes over fully.
 
 ### npm publish with provenance
 
