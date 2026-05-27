@@ -40,7 +40,7 @@
     "typecheck": "pnpm -r --sort run typecheck",
     "changeset": "changeset",
     "version-packages": "changeset version",
-    "release": "pnpm run build && changeset publish --provenance"
+    "release": "pnpm run build && changeset publish"
   },
   "devDependencies": {
     "@changesets/changelog-github": "^0.7.0",
@@ -63,7 +63,7 @@
     "typedoc": "^0.28.19",
     "typescript": "^6.0.3",
     "typescript-eslint": "^8.60.0",
-    "vite": "^8.0.14",
+    "vite": "^7.3.3",
     "vitest": "^4.1.7"
   },
   "lint-staged": {

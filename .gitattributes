@@ -1,0 +1,5 @@
+# Normalize line endings to LF on checkout and in the index.
+# Required so prettier --check passes on windows-latest CI runners,
+# where git's default core.autocrlf=true would otherwise convert text
+# files to CRLF on checkout and break the format gate.
+* text=auto eol=lf

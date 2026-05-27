@@ -483,7 +483,7 @@ would never lint until CI failed.
 - **`ci.yml`** — runs on push to `main` and on every PR targeting `main`. Cross-OS matrix
   (Ubuntu, macOS, Windows), full pipeline per OS.
 - **`release.yml`** — runs on push to `main` only. Uses `changesets/action` to either open
-  a "Version Packages" PR or publish queued versions to npm with `--provenance`.
+  a "Version Packages" PR or publish queued versions to npm with provenance attestation.
   `concurrency.cancel-in-progress: false` — release jobs must not be cancelled
   mid-publish.
 
@@ -586,7 +586,8 @@ Packages are versioned and published via `@changesets/cli`:
 2. A `.changeset/*.md` file is committed with the PR.
 3. On merge to main, the release workflow opens a "Version Packages" PR that bumps
    versions and generates per-package changelogs.
-4. When the version PR is merged, packages are published to npm with `--provenance`.
+4. When the version PR is merged, packages are published to npm with provenance
+   attestation.
 
 **Why Changesets over release-please:** inter-package dependencies require granular
 control. When `@species-js/type-detection` ships a breaking change, changesets
@@ -613,10 +614,18 @@ posture.
 
 ### npm publish with provenance
 
-The release workflow uses `--provenance` for npm publish. This generates a Sigstore
-attestation proving the package was built in GitHub Actions, not on a local machine.
-Requires `id-token: write` permission in the workflow. Consumers can verify provenance via
-`npm audit signatures`.
+The release workflow publishes with **automatic Sigstore provenance attestation** — no
+explicit `--provenance` flag is passed to `changeset publish`. `@changesets/cli` does not
+accept that flag (its surface is `[--tag <name>] [--otp <code>] [--no-git-tag]`);
+attempting to pass it breaks the publish step. Provenance auto-enables when three
+conditions hold simultaneously in the workflow environment:
+
+1. `id-token: write` is granted in the workflow's `permissions` block (it is).
+2. `"access": "public"` is set in `.changeset/config.json` (it is).
+3. npm ≥9.5 is the publishing client (the `changesets/action` runner uses a recent npm).
+
+When all three line up, npm emits the Sigstore attestation proving the package was built
+in GitHub Actions, not on a local machine. Consumers verify via `npm audit signatures`.
 
 ---
 
