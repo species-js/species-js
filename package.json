@@ -1,0 +1,78 @@
+{
+  "name": "species-js",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Runtime type detection, function introspection, and type identity for JavaScript — monorepo.",
+  "type": "module",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/species-js/species-js.git"
+  },
+  "packageManager": "pnpm@10.11.0",
+  "engines": {
+    "node": ">=22.0.0",
+    "pnpm": ">=10.0.0"
+  },
+  "scripts": {
+    "build": "pnpm -r --sort run build",
+    "build:node": "pnpm -r --sort run build:node",
+    "build:browser": "pnpm -r --sort run build:browser",
+    "build:umd": "pnpm -r --sort run build:umd",
+    "audit": "pnpm audit --prod --audit-level high",
+    "bench": "vitest bench",
+    "check": "pnpm run typecheck && pnpm run lint && pnpm run format:check && pnpm run docs:check && pnpm run audit && pnpm run test:coverage",
+    "check:full": "pnpm run check && pnpm run build && pnpm run pack:check",
+    "clean": "pnpm -r --sort run clean && node -e \"import('node:fs').then(fs => fs.rmSync('coverage', { recursive: true, force: true }))\"",
+    "docs": "typedoc",
+    "docs:check": "typedoc --emit none",
+    "docs:watch": "typedoc --watch",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "lint": "eslint .",
+    "lint:fix": "eslint --fix .",
+    "pack:check": "pnpm -r exec npm pack --dry-run",
+    "prepare": "husky",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "test:watch": "vitest",
+    "test:ui": "vitest --ui",
+    "typecheck": "pnpm -r --sort run typecheck",
+    "changeset": "changeset",
+    "version-packages": "changeset version",
+    "release": "pnpm run build && changeset publish --provenance"
+  },
+  "devDependencies": {
+    "@changesets/changelog-github": "^0.7.0",
+    "@changesets/cli": "^2.31.0",
+    "@commitlint/cli": "^21.0.1",
+    "@commitlint/config-conventional": "^21.0.1",
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^22.15.21",
+    "@vitest/coverage-v8": "^4.1.7",
+    "@vitest/ui": "^4.1.7",
+    "cross-env": "^10.1.0",
+    "esbuild": "^0.28.0",
+    "eslint": "^10.4.0",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-jsdoc": "^63.0.0",
+    "globals": "^17.6.0",
+    "husky": "^9.1.7",
+    "lint-staged": "^16.4.0",
+    "prettier": "^3.8.3",
+    "typedoc": "^0.28.19",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.60.0",
+    "vite": "^8.0.14",
+    "vitest": "^4.1.7"
+  },
+  "lint-staged": {
+    "*.{js,cjs,mjs,ts,cts,mts,d.ts}": [
+      "eslint --fix",
+      "prettier --write"
+    ],
+    "*.{json,md,yml,yaml,css,html}": [
+      "prettier --write"
+    ]
+  }
+}

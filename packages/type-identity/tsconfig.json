@@ -1,0 +1,12 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": ".",
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["src/*"]
+    }
+  },
+  "files": ["./src/index.js", "./src/index.d.ts"],
+  "include": ["src/**/*.js", "src/**/*.d.ts", "test/**/*.js", "vite.config.js"]
+}

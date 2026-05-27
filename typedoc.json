@@ -1,0 +1,33 @@
+{
+  "$schema": "https://typedoc.org/schema.json",
+  "tsconfig": "./tsconfig.docs.json",
+  "entryPointStrategy": "packages",
+  "entryPoints": ["packages/*"],
+  "out": "docs/api",
+  "name": "Species JS — API Documentation",
+  "includeVersion": true,
+  "excludePrivate": true,
+  "excludeProtected": true,
+  "excludeInternal": true,
+  "excludeExternals": true,
+  "searchInComments": true,
+  "categorizeByGroup": true,
+  "defaultCategory": "Other",
+  "categoryOrder": ["Core", "Detection", "Introspection", "Identity", "Domain", "*"],
+  "sort": ["source-order", "alphabetical"],
+  "githubPages": false,
+  "hideGenerator": true,
+  "navigation": {
+    "includeCategories": true,
+    "includeGroups": true
+  },
+  "lightHighlightTheme": "github-light",
+  "darkHighlightTheme": "github-dark",
+  "validation": {
+    "invalidLink": true,
+    "notDocumented": true,
+    "notExported": true,
+    "rewrittenLink": true
+  },
+  "treatWarningsAsErrors": true
+}

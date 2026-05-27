@@ -1,0 +1,9 @@
+# CODEOWNERS
+#
+# Routes pull-request reviews to specified GitHub users/teams.
+# Each line is a glob pattern followed by one or more owners.
+#
+# See: https://docs.github.com/en/repositories/managing-your-repositories-settings-and-features/customizing-your-repository/about-code-owners
+#
+# Default owner for everything in the repo
+*           @petsel

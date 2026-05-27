@@ -1,0 +1,59 @@
+{
+  "name": "@species-js/custom-domain",
+  "version": "0.0.0",
+  "description": "Customizable prototype-less namespace objects for sealed method grouping.",
+  "type": "module",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/species-js/species-js.git",
+    "directory": "packages/custom-domain"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "main": "./dist/node/index.cjs",
+  "module": "./dist/node/index.js",
+  "types": "./src/index.d.ts",
+  "unpkg": "./dist/umd/index.umd.js",
+  "jsdelivr": "./dist/umd/index.umd.js",
+  "exports": {
+    ".": {
+      "types": "./src/index.d.ts",
+      "browser": {
+        "import": "./dist/browser/index.js"
+      },
+      "node": {
+        "import": "./dist/node/index.js",
+        "require": "./dist/node/index.cjs"
+      },
+      "default": "./dist/node/index.js"
+    }
+  },
+  "sideEffects": false,
+  "files": [
+    "dist",
+    "src"
+  ],
+  "browserslist": [
+    "chrome >= 80",
+    "firefox >= 74",
+    "safari >= 13.1",
+    "edge >= 80"
+  ],
+  "dependencies": {
+    "@species-js/type-detection": "workspace:*"
+  },
+  "scripts": {
+    "build": "pnpm run build:node && pnpm run build:browser && pnpm run build:umd",
+    "build:node": "cross-env SPECIES_BUILD_TARGET=node vite build",
+    "build:browser": "cross-env SPECIES_BUILD_TARGET=browser vite build",
+    "build:umd": "cross-env SPECIES_BUILD_TARGET=umd vite build",
+    "clean": "node -e \"import('node:fs').then(fs => { for (const d of ['dist', 'coverage']) fs.rmSync(d, { recursive: true, force: true }); })\"",
+    "prepublishOnly": "pnpm run build",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "test:watch": "vitest",
+    "typecheck": "tsc -p tsconfig.json --pretty"
+  }
+}
