@@ -26,9 +26,12 @@ updates:
           - 'minor'
           - 'patch'
     commit-message:
-      prefix: 'chore'
-      prefix-development: 'chore'
-      include: 'scope'
+      # Hard-code the `(deps)` scope for both prod and dev so PR titles
+      # match the commitlint scope-enum. `include: 'scope'` would otherwise
+      # append `(deps-dev)` to dev-dep PRs — which is not in scope-enum
+      # (consolidated into `deps` per SCAFFOLD.md → Commitlint scopes).
+      prefix: 'chore(deps)'
+      prefix-development: 'chore(deps)'
 
   - package-ecosystem: 'github-actions'
     directory: '/'
