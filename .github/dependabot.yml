@@ -6,6 +6,14 @@ updates:
       interval: 'weekly'
     open-pull-requests-limit: 5
     versioning-strategy: 'increase'
+    # `@types/node` is pinned to the major matching `engines.node` in package.json.
+    # Bumping past the engines floor would expose Node API types that don't exist at
+    # runtime on the supported Node major, turning typecheck-pass into runtime-fail.
+    # Minor and patch updates within the supported major still flow through.
+    ignore:
+      - dependency-name: '@types/node'
+        update-types:
+          - 'version-update:semver-major'
     groups:
       prod-deps:
         dependency-type: 'production'
