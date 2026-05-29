@@ -18,8 +18,52 @@ depend on these packages.
 - **Manually crafted `.js` and `.d.ts` pairs** — vanilla JS with `// @ts-check` paired
   with sibling declaration files that define contracts; no transpilation, no codegen on
   either side
-- **JSDoc** — `@typedef` imports from `.d.ts`; types live in declarations, not in JSDoc
-- **`@/` alias** — resolves to `src/` in each package (tsc paths + vite alias)
+- **File-level headers** — `.js` opens with `// @ts-check` (line 1), then an `@module`
+  JSDoc block. `.d.ts` opens with the same `@module` JSDoc block. Both files name the
+  module, give a one-paragraph description, and include an `@example` block where the
+  module's surface warrants one.
+- **Parallel JSDoc in `.js` and `.d.ts`** — both files document every export. The `.d.ts`
+  is the canonical surface (typedoc consumes it) and wins on conflicts; the `.js`
+  documentation is parallel, not optional. Each file earns its documentation:
+  - `.d.ts` describes the **contract** from a consumer's perspective.
+  - `.js` describes the **implementation's relationship to the contract** — free to
+    include details like "from the module-scoped `WeakMap`", "registered in the realm's
+    `WeakSet`", or other internal mechanics that don't belong in consumer-facing docs.
+  - Descriptions may differ in phrasing or detail, but never in semantics — if they
+    diverge, `.d.ts` is the source of truth.
+- **Types live where the file's syntax expects them** — `.js` carries types via JSDoc
+  `@param {…}` and `@returns {…}`; `.d.ts` carries types via native TS parameter/return
+  signatures with JSDoc `@param name - desc` and `@returns desc` (description only, no
+  inline type — the type is in the TS signature). Inline `/** @type {…} */ (expr)` casts
+  in `.js` are the standard tool for type-narrowing and lib-gap acknowledgement (the
+  `objectHasOwn` pattern). Use `@typedef {import('@/module').Name} Name` at the top of
+  `.js` files to bring named types (a sibling `.d.ts` or another module) into JSDoc scope.
+  Like every module reference in the package, these use the `@/` alias.
+- **`@internal` tag** — present in both files for non-public surface. Place it on its own
+  line, **last** (after the description and any other tags), in both `.js` and `.d.ts`.
+  Never put it first (the following description is then parsed as the tag's content →
+  `jsdoc/empty-tags`) and never inline on a single-line block (→
+  `jsdoc/escape-inline-tags`). A documented internal export is therefore always a
+  multi-line block, even when the description is a single line.
+- **Section separators** — multi-block ASCII, identical shape in `.js` and `.d.ts`,
+  matching the sibling `es-async-types` convention:
+  ```
+  // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
+  //
+  //  Property Descriptor Options
+  //
+  // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
+  ```
+  Tight two-line form (open + close dashes only, no title) is acceptable as a thematic
+  divider between adjacent sections of the same surface.
+- **No commented-out code in committed files** — git history is the archive. If an
+  alternative was deliberately rejected and is worth recording, capture it as prose in a
+  JSDoc block or in SCAFFOLD.md, never as `//`-commented code.
+- **`@/` alias** — resolves to `src/` in each package (tsc paths + vite alias). Used
+  uniformly in **both** `.js` and `.d.ts` (imports and JSDoc `import()` specifiers); no
+  relative-path exception. A phantom `TS2307` on a `@/` import in a freshly-created
+  `.d.ts` is an IDE TS-server indexing artifact — tsc and vite resolve it — so restart the
+  TS service / re-index rather than switching to a relative path.
 - **Per-domain barrel layout** — each package has `src/index.{js,d.ts}` plus sibling
   `name.{js,d.ts}` pairs (or `name/index.{js,d.ts}` for substantial subdomains); each
   subdomain gets its own subpath export. See `SCAFFOLD.md` → "Per-package subdomain
@@ -73,13 +117,36 @@ Run tests for a single package: `pnpm --filter @species-js/type-detection run te
 
 ## Collaboration model
 
-- **Do not auto-start coding** — wait for direction
-- **AI handles volume** — docs, tests, mechanical audits, analysis
-- **User owns design** — contracts, naming, API surface, architecture
-- **Think-aloud sessions are real work** — engage fully, push back honestly
-- **"Recall" means synthesize from context** — don't re-read files
-- **Thorough audit = mechanical completeness first** — check EVERY declaration, then
-  semantics
+We pair. User has first and last word on architectural decisions; AI is the throughput
+multiplier for everything else. Different parts of the work flow in different directions —
+sometimes user leads, sometimes AI advises and leads tactical execution — but design
+authority stays with the user.
+
+- **Session start** — restore context from memory, wait for direction before starting new
+  work. Within a session, normal pair-programming flow applies: AI proposes, user confirms
+  or redirects, AI executes.
+- **AI handles volume** — specs, tests, documentation, mechanical audits, cross-file
+  consistency work, repetitive refactors, scoped migrations. Offloading volume is the
+  point; it keeps the user's focus where it belongs — on design coherence and semantic
+  precision.
+- **User owns design** — architectural decisions, contracts, naming, API surface,
+  structural rules. AI proposes options with trade-offs; user decides.
+- **Migrations are paired, not solo** — user keeps design control (what moves where,
+  naming, ordering, sequencing); AI does the mechanical work (file moves, config wiring,
+  reference updates, batch edits) once direction is clear. The user doesn't have to grind
+  through every file move alone — that drains the focus they need for design.
+- **Think-aloud sessions are real work** — casual exploration produces real design
+  outcomes (executionPath → error-context infrastructure in es-async-types; the `.js`-only
+  include rule in species-js). Engage fully, push back honestly, don't redirect toward
+  "concrete tasks". The concrete outcomes emerge from the exploration.
+- **"Recall" means synthesize from context** — don't batch-read every memory file unless a
+  specific detail is missing.
+- **Thorough audit = mechanical completeness first** — check EVERY declaration for
+  docs/types, then the semantic pass. Don't conflate the two or skip the boring one.
+- **Empirical verification when stakes warrant** — for genuinely novel structural rules
+  with monorepo-wide blast radius (tsconfig shape, build-pipeline changes), test on one
+  representative case before adopting everywhere. Day-to-day pair work doesn't need this
+  gate.
 
 ## Architecture notes
 

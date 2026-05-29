@@ -16,7 +16,9 @@ export default defineConfig({
         ? { index: resolve(import.meta.dirname, 'src/index.js') }
         : {
             index: resolve(import.meta.dirname, 'src/index.js'),
-            utility: resolve(import.meta.dirname, 'src/utility.js'),
+            config: resolve(import.meta.dirname, 'src/config/index.js'),
+            utility: resolve(import.meta.dirname, 'src/utility/index.js'),
+            function: resolve(import.meta.dirname, 'src/function.js'),
           },
       fileName: (format, entryName) => {
         if (format === 'cjs') {

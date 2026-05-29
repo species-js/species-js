@@ -7,11 +7,5 @@
       "@/*": ["src/*"]
     }
   },
-  "files": [
-    "./src/index.js",
-    "./src/index.d.ts",
-    "./src/utility.js",
-    "./src/utility.d.ts"
-  ],
-  "include": ["src/**/*.js", "src/**/*.d.ts", "test/**/*.js", "vite.config.js"]
+  "include": ["src/**/*.js", "test/**/*.js", "vite.config.js"]
 }

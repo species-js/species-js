@@ -29,16 +29,27 @@
       },
       "default": "./dist/node/index.js"
     },
-    "./utility": {
-      "types": "./src/utility.d.ts",
+    "./config": {
+      "types": "./src/config/index.d.ts",
       "browser": {
-        "import": "./dist/browser/utility.js"
+        "import": "./dist/browser/config.js"
       },
       "node": {
-        "import": "./dist/node/utility.js",
-        "require": "./dist/node/utility.cjs"
+        "import": "./dist/node/config.js",
+        "require": "./dist/node/config.cjs"
       },
-      "default": "./dist/node/utility.js"
+      "default": "./dist/node/config.js"
+    },
+    "./function": {
+      "types": "./src/function.d.ts",
+      "browser": {
+        "import": "./dist/browser/function.js"
+      },
+      "node": {
+        "import": "./dist/node/function.js",
+        "require": "./dist/node/function.cjs"
+      },
+      "default": "./dist/node/function.js"
     }
   },
   "sideEffects": false,

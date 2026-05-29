@@ -56,27 +56,53 @@ This buys time until TS 7, at which point the migration path is Node subpath imp
 (`"imports"` in `package.json` with `#` prefix) or dropping the alias in favour of
 relative paths.
 
-### Per-package tsconfig `files` array — load-bearing
+### Per-package tsconfig — `.js`-only include, no `files` array
 
-Each package's `tsconfig.json` declares an explicit `files` array:
+Each package's `tsconfig.json` includes `.js` files only and declares no `files` array:
 
 ```json
-"files": ["./src/index.js", "./src/index.d.ts"],
-"include": ["src/**/*.js", "src/**/*.d.ts", "test/**/*.js", "vite.config.js"]
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": { "rootDir": ".", "baseUrl": ".", "paths": { "@/*": ["src/*"] } },
+  "include": ["src/**/*.js", "test/**/*.js", "vite.config.js"]
+}
 ```
 
-**Why this is required:** when `src/index.js` and `src/index.d.ts` share a basename and
-both are matched by `include`, TypeScript treats the `.d.ts` as the authoritative type
-source and **silently drops the `.js` from the program**. Verified via
-`tsc -p tsconfig.json --listFiles --noEmit`. Consequences when this happens:
+**Why exclude `.d.ts` from `include`:** when `src/foo.js` and `src/foo.d.ts` share a
+basename and **both** are matched by `include`, TypeScript treats the `.d.ts` as the
+authoritative type source and **silently drops the `.js` from the program**. The trap is
+symmetric — by removing `.d.ts` from `include`, the dedup pass that would drop the `.js`
+never runs. Consequences if you don't sidestep this:
 
-1. `// @ts-check` on `src/index.js` is inert — tsc never loads the file.
+1. `// @ts-check` on `src/foo.js` becomes inert — tsc never loads the file.
 2. typescript-eslint's `parserOptions.project` rejects the file as "not found in any
    project", breaking type-aware lint on the entire implementation surface.
 
-Listing the pair explicitly under `files` forces tsc to keep both as program roots. This
-mirrors the pattern in the sibling `es-async-types` project. The `include` block still
-matches everything else (extra modules under `src/`, tests, the vite config).
+**How `.d.ts` files reach the program anyway:** TypeScript module resolution. When a `.js`
+file imports `./foo`, tsc resolves to `src/foo.js`, then automatically looks for a sibling
+`src/foo.d.ts` (or `src/foo/index.d.ts`) to use as that module's type declaration. The
+`.d.ts` arrives as a referenced file (not a program root), and tsc cross-validates the
+`.js` implementation against it. This works identically for sibling-pair (`foo.{js,d.ts}`)
+and folder-barrel (`foo/index.{js,d.ts}`) forms.
+
+**Why no `files` array:** the `.js`-only `include` glob already picks up every `.js` file
+at any nesting depth — sibling pairs, folder barrels, sub-subdomains — without hitting the
+basename-shadow trap. Adding a new subdomain requires **zero** tsconfig edits.
+
+**Verified 2026-05-27** on `packages/type-detection` via `tsc --listFiles` (confirmed
+`.js` files at all three nesting forms loaded), `pnpm run typecheck` (clean), and a
+deliberate type-error injection in a brand-new `.js` file (tsc caught it at exact
+line/column with `TS2322`). The same verification confirmed typescript-eslint's
+`parserOptions.project` resolves correctly — previously-broken `config/index.js` lints
+cleanly under the new rule.
+
+**Edge case — orphan `.d.ts` files:** a `.d.ts` with no `.js` sibling and nothing
+importing it is _not_ in the per-package program (it isn't matched by `include` and no
+`.js` triggers sibling resolution). For documentation purposes this is fine — typedoc
+still sees orphan `.d.ts` via `tsconfig.docs.json`'s separate include. But type-aware
+ESLint _will_ fail to parse an orphan `.d.ts` with "file not found in any project". The
+remedy: every `.d.ts` should have a matching `.js` sibling in the steady state.
+Mid-migration stub `.d.ts` files awaiting deletion are the only routine exception.
 
 ### No `tsconfig.source.json`
 
@@ -239,22 +265,17 @@ Two structural choices per subdomain:
   their own internal subdivisions.
 
 A subdomain that starts as a file pair becomes a folder by moving the pair to
-`<name>/index.*` and adding siblings. Only the `tsconfig.json` `files` array entries and
-the `exports` map subpath target need updating; the public import path stays identical for
-consumers.
+`<name>/index.*` and adding siblings. Only the `exports` map subpath target needs
+updating; tsconfig and vite pick up the new path automatically via their respective globs.
+The public import path stays identical for consumers.
 
 ### Three configs participate in the layout
 
-1. **`tsconfig.json` `files` array** — every `.js`/`.d.ts` pair must be listed explicitly
-   because of the basename-shadow behavior documented above under _TypeScript
-   configuration_. Adding a subdomain costs two lines:
-
-   ```json
-   "files": [
-     "./src/index.js",   "./src/index.d.ts",
-     "./src/utility.js", "./src/utility.d.ts"
-   ]
-   ```
+1. **`tsconfig.json` — automatic.** The `.js`-only `include` glob picks up every new `.js`
+   file at any nesting depth (sibling pair, folder barrel, sub-subdomain) and TypeScript
+   loads the matching `.d.ts` siblings through module resolution. No `files` array, no
+   per-subdomain edits. See _TypeScript configuration_ → "Per-package tsconfig —
+   `.js`-only include, no `files` array" for the full rationale.
 
 2. **`package.json` `exports` map** — each subdomain that should be reachable by external
    consumers gets its own subpath entry, mirroring the shape of `.`:
@@ -358,23 +379,56 @@ the workspace layout.
 `@typescript-eslint/no-explicit-any` lands at `error` automatically via
 `strictTypeChecked` (the project's "`unknown` over `any`" rule).
 
+`@typescript-eslint/unbound-method` is turned **off** project-wide. Its premise — that
+referencing a method without immediately calling it may lose `this` — is precisely the
+codebase's intentional pattern: cross-realm-sensitive prototype methods are captured at
+module load (`const toString = Object.prototype.toString`) and invoked via `.call(value)`
+(see _Module system & runtime floor_ → cached prototype references, and CLAUDE.md). The
+rule fights that load-bearing convention rather than catching real bugs here, so it is
+disabled rather than worked around per call site.
+
 ### ESLint: TypeScript-flavored JSDoc
 
 `eslint-plugin-jsdoc` is loaded via `flat/recommended-typescript-flavor`. The project
 writes vanilla JS with TypeScript-style JSDoc (`@typedef` imports from `.d.ts`), and this
 preset matches that dialect. Two side effects:
 
-- `jsdoc/require-param-type` and `jsdoc/require-returns-type` are automatically off —
-  types come from TypeScript declarations, not JSDoc strings.
+- `jsdoc/require-param-type` and `jsdoc/require-returns-type` stay **on** under this
+  preset. Unlike the plain `typescript` preset, the _flavor_ preset assumes types live in
+  JSDoc strings — correct for `.js`, where there is no TS signature to carry them. They
+  are explicitly turned **off** for `.d.ts` in the declaration-file block below, where the
+  native TS signature carries the type and JSDoc is description-only. Net effect: `.js`
+  requires `@param {…}` / `@returns {…}` types; `.d.ts` uses description-only
+  `@param name - …` / `@returns …`. This is the lint expression of the parallel-JSDoc
+  convention (CLAUDE.md → "Types live where the file's syntax expects them").
 - TS intrinsic types (`unknown`, `void`, `never`, etc.) are recognized without a manual
   `definedTypes` whitelist.
+- `jsdoc/tag-lines` is relaxed project-wide to `['warn', 'any', { startLines: null }]`.
+  The preset's default (no blank line after the block description, none between tags) is
+  too tight for the readable JSDoc spacing used here and in es-async-types.
+  `startLines: null` permits — but does not force — a blank line after the description,
+  and `'any'` permits blank lines between tags, so both compact and spaced JSDoc blocks
+  pass.
 
 ### ESLint: `.d.ts` coverage
 
 A dedicated block targets `**/*.ts` and `**/*.d.ts` so project rules (consistent type
-imports, no-explicit-any, etc.) apply to the contract surface. JSDoc-presence rules are
-turned off for declaration files — `.d.ts` is the contract; JSDoc requirements belong on
-the implementation.
+imports, no-explicit-any, etc.) apply to the contract surface. Several rule categories are
+turned off there:
+
+- **JSDoc-presence** (`require-jsdoc`, `require-param`, `require-returns`) — the
+  parallel-JSDoc convention (CLAUDE.md → "Parallel JSDoc in `.js` and `.d.ts`") requires
+  descriptions in both files, but that's enforced by audit discipline and typedoc's strict
+  validation, not by ESLint flagging every declaration.
+- **Inline JSDoc types** (`require-param-type`, `require-returns-type`) — in `.d.ts` the
+  native TS signature carries the type; JSDoc is description-only. These belong on `.js`,
+  not here (see the JSDoc section above).
+- **`@typescript-eslint/prefer-function-type`** — the function-type hierarchy (`Callable`,
+  `CallableOrNewable`, `VerifiedFunction`, …) uses call-signature interfaces for
+  declaration-merging extensibility. A pure-call-signature interface is intentional, not a
+  candidate for the function-type shorthand.
+- **`no-undefined-types`, `check-tag-names`** — avoid false positives against the
+  TS-native declaration surface.
 
 ### ESLint: test file overrides
 

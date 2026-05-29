@@ -22,6 +22,28 @@ export default tseslint.config(
     },
   },
   {
+    // Allow a blank line after the block description and blank lines between
+    // tags — the readable JSDoc spacing used across both this project and the
+    // sibling es-async-types. The recommended-typescript-flavor preset is
+    // stricter by default; this relaxes it project-wide without forcing blank
+    // lines into short JSDoc blocks (`startLines: null` = no requirement).
+    rules: {
+      'jsdoc/tag-lines': ['warn', 'any', { startLines: null }],
+    },
+  },
+  {
+    // `@typescript-eslint/unbound-method` is off project-wide. Its premise —
+    // "referencing a method without calling it may lose `this`" — is exactly
+    // what this codebase does on purpose: it captures cross-realm-sensitive
+    // prototype methods at module load (`const toString = Object.prototype.toString`)
+    // and invokes them via `.call(value)`. That cached-prototype-reference
+    // pattern is a load-bearing convention (CLAUDE.md → "Cached prototype
+    // references"), so the rule fights the design rather than catching bugs here.
+    rules: {
+      '@typescript-eslint/unbound-method': 'off',
+    },
+  },
+  {
     files: ['**/*.js', '**/*.mjs', '**/*.cjs'],
     languageOptions: {
       ecmaVersion: 'latest',
@@ -83,7 +105,7 @@ export default tseslint.config(
       'jsdoc/check-tag-names': 'error',
     },
   },
-  // --- .d.ts coverage: project rules apply, JSDoc rules off ---
+  // --- .d.ts coverage: project rules apply; JSDoc-presence + inline-type rules off ---
   {
     files: ['**/*.ts', '**/*.d.ts'],
     rules: {
@@ -92,6 +114,16 @@ export default tseslint.config(
       'jsdoc/require-returns': 'off',
       'jsdoc/no-undefined-types': 'off',
       'jsdoc/check-tag-names': 'off',
+      // In `.d.ts`, types live in the native TS signature; JSDoc is
+      // description-only (per CLAUDE.md → "Parallel JSDoc in `.js` and
+      // `.d.ts`"). The inline-type rules belong on `.js`, not here.
+      'jsdoc/require-param-type': 'off',
+      'jsdoc/require-returns-type': 'off',
+      // The function-type hierarchy (Callable, CallableOrNewable, …) uses
+      // call-signature interfaces for declaration-merging extensibility; the
+      // pure-call-signature interface is intentional, not a candidate for the
+      // function-type shorthand.
+      '@typescript-eslint/prefer-function-type': 'off',
     },
   },
   // --- Tests: JSDoc rules off ---
