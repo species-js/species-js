@@ -9,32 +9,35 @@
 import type { NewableFunction } from '@/function';
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
+//
+//  Property Descriptor Types
+//
+// ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 
 /**
- * Mirrors TypeScript's built-in `PropertyDescriptor` for JSDoc usage.
- * This allows JSDoc type annotations to reference `PropertyDescriptor`
- * without ESLint's `jsdoc/no-undefined-types` rule complaining.
- *
- * A property descriptor describes the attributes of a property on an object.
+ * A property descriptor — the shape `Object.getOwnPropertyDescriptor` returns
+ * and `Object.defineProperty` accepts. Mirrors TypeScript's built-in
+ * `PropertyDescriptor` so it can be named from JSDoc; the `value` slot defaults
+ * to `unknown` per the package's typing discipline.
  */
 export interface PropertyDescriptor {
-  /** The value associated with the property (data descriptors only) */
+  /** Data-descriptor value; mutually exclusive with `get` / `set`. */
   value?: unknown;
-  /** Whether the property value can be changed (data descriptors only) */
+  /** Whether the value may be reassigned (data descriptors only). */
   writable?: boolean;
-  /** A function serving as a getter for the property (accessor descriptors only) */
+  /** Accessor getter; mutually exclusive with `value` / `writable`. */
   get?: () => unknown;
-  /** A function serving as a setter for the property (accessor descriptors only) */
+  /** Accessor setter; mutually exclusive with `value` / `writable`. */
   set?: (v: unknown) => void;
-  /** Whether the property shows up during enumeration (for...in, Object.keys) */
+  /** Whether the property surfaces in `for…in` / `Object.keys`. */
   enumerable?: boolean;
-  /** Whether the property descriptor can be changed and property can be deleted */
+  /** Whether the descriptor itself may be redefined or the property deleted. */
   configurable?: boolean;
 }
 
 /**
- * A record of property-descriptors keyed by property-name.
- * This is the return type of `Object.getOwnPropertyDescriptors()`.
+ * A record of {@link PropertyDescriptor}s keyed by string or symbol — the shape
+ * `Object.getOwnPropertyDescriptors` returns.
  */
 export interface PropertyDescriptorMap {
   [key: string]: PropertyDescriptor;
@@ -42,31 +45,37 @@ export interface PropertyDescriptorMap {
 }
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
+//
+//  Object-Shape Types
+//
+// ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 
 /**
- * Represents an object with no properties, typically created via
- * `Object.create(null)`.
- *
- * Note: TypeScript cannot express the absence of a prototype chain
- * at the type level - that's a runtime characteristic. This type
- * indicates an object where no properties are expected to exist.
+ * An object whose properties are *typed away* — `Record<PropertyKey, never>`
+ * makes every key statically unreachable. The intended runtime carrier is
+ * `Object.create(null)`, but the absence of a prototype chain is a runtime
+ * characteristic TypeScript cannot express; this type only marks an object's
+ * static surface as empty.
  */
 export type BlankType = Record<PropertyKey, never>;
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
+//
+//  Type-Name String Aliases
+//
+// ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 
 /**
- * The constructor-name of a JavaScript type.
+ * A constructor function's `name` — the string read from a value's
+ * constructor.
  */
 export type ConstructorName = string;
 
 /**
- * The string-value representation of a JavaScript type ...
- *  - as defined by the `[Symbol.toStringTag]` key,
- *     e.g., `const obj = { [Symbol.toStringTag]: 'CustomType' };`
- *  - and as returned within the type-signature via
- *    the invocation of `Object.prototype.toString.call`,
- *     e.g., `Object.prototype.toString.call(obj) === '[object CustomType]' // true`
+ * A `Symbol.toStringTag` value — the string inside the `[object …]` wrapper
+ * that `Object.prototype.toString.call` returns. Maybe a built-in tag
+ * (`'Array'`, `'Date'`, `'Promise'`, …) or a custom tag installed via the
+ * well-known symbol.
  */
 export type TaggedType = string;
 
@@ -79,49 +88,70 @@ export type TaggedType = string;
 export type ResolvedType = string;
 
 /**
- * The _type-signature_ string-value that represents a JavaScript object-type as returned
- * by the invocation of `Object.prototype.toString.call`, e.g., `'[object Promise]'`.
+ * The `[object Tag]` string `Object.prototype.toString.call` returns — a
+ * template-literal type built from {@link TaggedType}, so the structural
+ * distinction `'[object Array]' !== 'Array'` survives in the type system.
  */
 export type TypeSignature = `[object ${TaggedType}]`;
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
+//
+//  Prototype-Property Predicates
+//
+// ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 
 /**
- * Detects whether a passed value features an own `prototype` property.
- * @param value - An optionally passed value of an unknown type.
- * @returns A boolean value that indicates whether the
- *  passed value features an own `prototype` property.
+ * Detects an own `prototype` property on the value. Inherited prototypes (e.g.,
+ * arrow functions inheriting from `Function.prototype`) are deliberately
+ * excluded — the test reads the descriptor directly, not the inheritance
+ * chain.
+ *
+ * @param value - the value to test; omitted is treated as `undefined`, which
+ *  has no own prototype
+ * @returns `true` when the value carries an own `prototype` property; `false`
+ *  otherwise
  */
 export function hasOwnPrototype(value?: unknown): boolean;
 
 /**
- * Detects whether a passed value features an own, truly `writable`
- * `prototype` property.
- * @param value - An optionally passed value of an unknown type.
- * @returns A boolean value that indicates whether a passed value
- * features an own, truly `writable` `prototype` property.
+ * Detects an own `prototype` property whose descriptor is `writable: true` —
+ * the structural tell of an `ES3Function` versus a `ClassConstructor` (whose
+ * own `prototype` is read-only).
+ *
+ * @param value - the value to test; omitted is treated as `undefined`, which
+ *  has no own prototype
+ * @returns `true` when the value's own `prototype` exists and is writable;
+ *  `false` otherwise
  */
 export function hasOwnWritablePrototype(value?: unknown): boolean;
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
+//
+//  Property-Key Utilities
+//
+// ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 
 /**
- * Detects whether a passed value is a valid JavaScript property key.
- * @param value - The value to validate.
- * @returns Whether the value can be safely used as a property key.
+ * Narrows a value to `PropertyKey` — accepts strings, symbols, and *finite*
+ * numbers. `NaN` and `±Infinity` are excluded because they cannot serve as
+ * enumerated property keys without coercion surprises.
+ *
+ * @param value - the value to test; omitted is treated as `undefined`, which
+ *  is not a property key
+ * @returns `true` when the value can be safely used as a property key,
+ *  narrowing `value` to `PropertyKey`; `false` otherwise
  */
 export function isValidPropertyKey(value?: unknown): value is PropertyKey;
 
 /**
- * Returns the next available property descriptor for the given property key by
- * inspecting the passed object's own properties first and then walking its
- * prototype chain.
+ * Returns the {@link PropertyDescriptor} for the next reachable property under
+ * `key`, walking own properties first and then the prototype chain. Accessor
+ * descriptors are returned intact — the getter is *not* invoked.
  *
- * Accessor properties are not invoked. Their descriptor is returned as-is.
- * Invalid property keys return `undefined`.
- * @param value - The object whose descriptor chain should be inspected.
- * @param key - The property key to resolve.
- * @returns The resolved property descriptor, if present.
+ * @param value - the object whose descriptor chain should be inspected
+ * @param key - the property key to resolve; invalid keys yield `undefined`
+ * @returns the first descriptor found while walking up the chain; `undefined`
+ *  if none exists
  */
 export function getNextAvailablePropertyDescriptor(
   value: object,
@@ -129,89 +159,116 @@ export function getNextAvailablePropertyDescriptor(
 ): PropertyDescriptor | undefined;
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
+//
+//  Type-Signature Readers
+//
+// ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 
 /**
- * Returns the internal `[[Class]]` type signature of a value
- * by utilizing `Object.prototype.toString.call`.
- * @param value - The value to get the type signature for.
- * @returns The type signature string, e.g., `"[object Promise]"`.
+ * Returns the value's internal `[[Class]]` signature via
+ * `Object.prototype.toString.call` — the realm-independent read of a value's
+ * built-in type, immune to a missing or overridden instance `toString`.
+ *
+ * @param value - the value to read
+ * @returns the `[object Tag]` string for the value
+ * @example
+ * getTypeSignature([]);                // '[object Array]'
+ * getTypeSignature(null);              // '[object Null]'
+ * getTypeSignature(Promise.resolve()); // '[object Promise]'
  */
 export function getTypeSignature(value: unknown): TypeSignature;
 
 /**
- * Returns the `undefined` value when called with no arguments.
+ * The no-argument overload — returns `undefined`, distinguishing an *omitted*
+ * call from one that passed `undefined` explicitly.
  */
 export function getTypeSignature(): undefined;
 
 /**
- * Returns the tag name extracted from a value's internal type signature.
+ * Returns the tag portion of a value's type signature — wraps
+ * {@link getTypeSignature} and extracts the substring inside the `[object …]`
+ * wrapper. Custom tags installed via `Symbol.toStringTag` are honored.
  *
- * Wraps `getTypeSignature` and extracts the `[[Class]]` tag name -
- * e.g., `'Array'` for arrays, `'Date'` for dates, or custom tags
- * defined via `Symbol.toStringTag`.
- * @param value - The value to get the tagged type for.
- * @returns The extracted tag name (e.g., `'Array'`, `'Date'`).
+ * @param value - the value whose tag should be extracted
+ * @returns the tag substring
  * @example
- * getTaggedType([]); // 'Array'
- * getTaggedType(new Date()); // 'Date'
+ * getTaggedType([]);                                 // 'Array'
+ * getTaggedType(new Date());                         // 'Date'
  * getTaggedType({ [Symbol.toStringTag]: 'Custom' }); // 'Custom'
  */
 export function getTaggedType(value: unknown): TaggedType;
 
 /**
- * Returns `undefined` when called with no arguments.
+ * The no-argument overload — returns `undefined`, mirroring
+ * {@link getTypeSignature}'s contract.
  */
 export function getTaggedType(): undefined;
 
+// ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
+//
+//  Constructor Inspection
+//
+// ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
+
 /**
- * Retrieves a value's constructor function if available.
+ * Walks the value to its constructor function, defending against tampered
+ * `constructor` slots and prototype-less objects. Inspects the value's own
+ * `constructor` descriptor first; if that yields a non-callable, falls back to
+ * the prototype's `constructor`; if still nothing, returns `undefined`.
  *
- * Traverses the prototype chain to find a valid constructor,
- * handling edge cases like manipulated `constructor` slots
- * and objects created via `Object.create(null)`.
- * @param value - An optionally passed value of any type.
- * @returns The constructor function if available, otherwise `undefined`.
+ * The return type is {@link NewableFunction} because a real constructor is by
+ * definition newable, but the runtime guard verifies callability only — the
+ * `[[Construct]]` slot cannot be probed without invoking, so the result is
+ * asserted rather than verified.
+ *
+ * @param value - the value whose constructor should be retrieved
+ * @returns the constructor function when reachable; `undefined` otherwise
  * @example
- * getDefinedConstructor([]); // Array
- * getDefinedConstructor(new Date()); // Date
+ * getDefinedConstructor([]);                  // Array
+ * getDefinedConstructor(new Date());          // Date
  * getDefinedConstructor(Object.create(null)); // undefined
  */
 export function getDefinedConstructor(value?: unknown): NewableFunction | undefined;
 
 /**
- * Returns the constructor-function name of the passed value.
+ * Returns the constructor's `name` via its property descriptor — so an
+ * instance-level shadow cannot spoof a frozen, branded constructor name. An
+ * unnamed function returns the empty string `''`; a value with no reachable
+ * constructor returns `undefined`.
  *
- * Retrieves the `name` property from the value's constructor function.
- * The name is obtained from the function's property descriptor,
- * which by default is non-writable, non-enumerable, but configurable.
- * @param value - An optionally passed value of any type.
- * @returns The constructor-function name, or `undefined` if not available.
- *   Unnamed functions return an empty string `''`.
+ * @param value - the value whose constructor name should be retrieved
+ * @returns the constructor's name string when reachable; `undefined` otherwise
  * @example
- * getDefinedConstructorName([]); // 'Array'
+ * getDefinedConstructorName([]);         // 'Array'
  * getDefinedConstructorName(new Date()); // 'Date'
- * getDefinedConstructorName(null); // undefined
+ * getDefinedConstructorName(null);       // undefined
  */
 export function getDefinedConstructorName(value?: unknown): ConstructorName | undefined;
 
+// ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
+//
+//  Type Resolution
+//
+// ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
+
 /**
- * Resolves the passed value's type-name through a combined, balanced approach
- * of retrieving either the value's constructor-function name or its `toString` tag.
+ * Resolves a value to its type-name — its constructor-name when reachable,
+ * falling back to the tagged-type. Works for every built-in; for custom types
+ * to remain stable across minification, freeze both the constructor's `name`
+ * descriptor and the prototype's `Symbol.toStringTag`.
  *
- * Works for every built-in type. For custom types to remain stable across
- * code minification, constructor functions should have their `name` property
- * and `Symbol.toStringTag` branded and frozen.
- * @param value - The value to resolve the type for.
- * @returns The resolved type name (constructor name or tagged type).
+ * @param value - the value whose type-name should be resolved
+ * @returns the resolved type-name (constructor-name or tagged-type)
  * @example
- * resolveType([]); // 'Array'
+ * resolveType([]);                // 'Array'
  * resolveType(Promise.resolve()); // 'Promise'
- * resolveType(null); // 'Null'
+ * resolveType(null);              // 'Null'
  */
 export function resolveType(value: unknown): ResolvedType;
 
 /**
- * Returns `undefined` when called with no arguments.
+ * The no-argument overload — returns `undefined`, distinguishing an *omitted*
+ * call from one that passed `undefined` explicitly.
  */
 export function resolveType(): undefined;
 

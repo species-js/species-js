@@ -95,137 +95,84 @@ export function isCallable(value?: unknown): value is Callable;
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 
 /**
- * Represents any value where `typeof value === 'function'` AND it may
- * also be newable (has `[[Construct]]` internal slot).
+ * The union shape between pure callability and constructibility — a
+ * {@link Callable} whose `[[Construct]]` internal method may *or may not* be
+ * present. The `new` signature is marked optional to express that uncertainty
+ * structurally; this interface promises nothing about the
+ * `Function.prototype` method set.
  *
- * This covers both regular callables and constructors but makes no
- * guarantees about the `Function.prototype` methods.
+ * Use this as a target only when an API genuinely accepts both
+ * call-only-or-also-constructor shapes; for stronger guarantees, narrow further
+ * to {@link ES3Function} / {@link ClassConstructor} / {@link NewableFunction}.
  *
- * @template Args - The argument types
- * @template R - The return value type (when called without `new`)
- * @template T - The instance type (when called with `new`)
+ * @template Args - the parameter / constructor-argument tuple
+ * @template R - the return type when invoked without `new`
+ * @template T - the instance type when invoked with `new`
  */
 export interface CallableOrNewable<
   Args extends unknown[] = unknown[],
   R = unknown,
   T = object,
 > {
-  /** The [[Call]] internal method */
+  /** `[[Call]]` — the floor guarantee inherited from {@link Callable}. */
   (...args: Args): R;
-  /** The [[Construct]] internal method (optional) */
+  /** `[[Construct]]` — optional; presence is not promised by this type. */
   new?(...args: Args): T;
 }
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 
 /**
- * Represents a verified Function - passes `typeof === 'function'` AND
- * has proper `call`, `apply`, `bind` methods that are themselves functions.
+ * A {@link Callable} whose own `call`, `apply`, and `bind` are themselves
+ * callable — the verified Function-interface shape that survives prototype
+ * tampering on those three members.
  *
- * Use this type for:
- * - The return type of `isFunction` type guard (the robust check)
- * - When you need to use `.call()`, `.apply()`, or `.bind()` on the value
+ * `VerifiedFunction` sits one layer above {@link Callable}: it adds the three
+ * `Function.prototype` methods *as observed on the instance*, each verified to
+ * be a function in its own right. This is the narrow target for
+ * {@link isFunction}: a value where `.call(…)` / `.apply(…)` / `.bind(…)` are
+ * guaranteed invocable, regardless of whether the originals were shadowed,
+ * deleted, or replaced.
  *
- * This is what `isFunction` verifies at runtime:
- * ```js
- * typeof value === 'function' &&
- * typeof value.call === 'function' &&
- * typeof value.apply === 'function' &&
- * typeof value.bind === 'function'
- * ```
+ * The verification is *observational*, not nominal — `VerifiedFunction` does
+ * not promise the methods are *the* `Function.prototype.*`, only that something
+ * callable answers at those names. A strict-identity variant (members
+ * `=== Function.prototype.*`) is a separate concern, deliberately not modeled
+ * here.
  *
- * @template ThisType - The type of `this` context
- * @template Args - The argument types
- * @template R - The return value type
- *
- * @example
- * function isFunction(value: unknown): value is VerifiedFunction {
- *   return (
- *     typeof value === 'function' &&
- *     typeof value.call === 'function' &&
- *     typeof value.apply === 'function' &&
- *     typeof value.bind === 'function'
- *   );
- * }
+ * @template ThisType - the dynamic `this` context
+ * @template Args - the parameter tuple
+ * @template R - the return type
  */
 export interface VerifiedFunction<
   ThisType = unknown,
   Args extends unknown[] = unknown[],
   R = unknown,
 > {
-  /** The [[Call]] internal method */
+  /** `[[Call]]` — the floor guarantee inherited from {@link Callable}. */
   (this: ThisType, ...args: Args): R;
-
-  /** Verified to be a function (typeof === 'function') */
+  /** Verified callable — invoke with an explicit `this`. */
   call: (thisArg: ThisType, ...args: Args) => R;
-
-  /** Verified to be a function (typeof === 'function') */
+  /** Verified callable — invoke with an explicit `this` and an arguments-array. */
   apply: (thisArg: ThisType, args: Args) => R;
-
-  /** Verified to be a function (typeof === 'function') */
+  /** Verified callable — produce a bound function with a fixed `this`. */
   bind: (thisArg: ThisType, ...args: unknown[]) => VerifiedFunction<ThisType, Args, R>;
-
-  /** The function name */
   readonly name: string;
-
-  /** The number of formal parameters */
   readonly length: number;
 }
 
 /**
- * Type guard that checks whether a value is a function.
- * Performs a thorough check ensuring the value has `bind`, `call`, and `apply` methods.
- * @param value - The value to check.
- * @returns `true` if the value is a function, `false` otherwise.
+ * Narrows a value to {@link VerifiedFunction} — verifies that `value` is
+ * {@link Callable} *and* its own `call`, `apply`, and `bind` are themselves
+ * callable. The strict-Function-interface guard that survives prototype
+ * tampering on those three members.
+ *
+ * @param value - the value to test; omitted is treated as `undefined`, which is
+ *  not callable
+ * @returns `true` when `value` is callable and exposes callable `call` /
+ *  `apply` / `bind`, narrowing to {@link VerifiedFunction}; `false` otherwise
  */
 export function isFunction(value?: unknown): value is VerifiedFunction;
-
-// ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
-
-// /**
-//  * Represents a strictly verified Function - the `call`, `apply`, `bind`
-//  * methods are not just functions, but are THE original `Function.prototype`
-//  * methods (not overwritten or replaced).
-//  *
-//  * This is the strictest verification level, ensuring the function has not
-//  * been tampered with.
-//  *
-//  * This is what `isStrictFunction` verifies at runtime:
-//  * ```js
-//  * typeof value === 'function' &&
-//  * value.call === Function.prototype.call &&
-//  * value.apply === Function.prototype.apply &&
-//  * value.bind === Function.prototype.bind
-//  * ```
-//  *
-//  * @template ThisType - The type of `this` context
-//  * @template Args - The argument types
-//  * @template R - The return value type
-//  *
-//  * @example
-//  * function isStrictFunction(value: unknown): value is StrictFunction {
-//  *   return (
-//  *     typeof value === 'function' &&
-//  *     value.call === Function.prototype.call &&
-//  *     value.apply === Function.prototype.apply &&
-//  *     value.bind === Function.prototype.bind
-//  *   );
-//  * }
-//  */
-// export interface StrictFunction<
-//   ThisType = unknown,
-//   Args extends unknown[] = unknown[],
-//   R = unknown
-// > extends VerifiedFunction<ThisType, Args, R> {
-//   /** Guaranteed to be Function.prototype.call */
-//   call: typeof Function.prototype.call;
-//
-//   /** Guaranteed to be Function.prototype.apply */
-//   apply: typeof Function.prototype.apply;
-//
-//   /** Guaranteed to be Function.prototype.bind */
-//   bind: typeof Function.prototype.bind;
-// }
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 //

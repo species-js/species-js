@@ -11,6 +11,7 @@
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 
 /** @typedef {import('@/function').Callable} Callable */
+/** @typedef {import('@/function').VerifiedFunction} VerifiedFunction */
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 
@@ -35,19 +36,23 @@ export function isCallable(value) {
 }
 
 /**
- * Type guard that checks whether a value is a fully function-compliant
- * type with all standard methods - `call`, `apply` and `bind`.
- * @param {unknown} [value]
- *  An optionally passed value that will be type-checked.
- * @returns {value is VerifiedFunction}
- *  A boolean value which indicates whether the
- *  tested value is a fully function-compliant type.
+ * Narrows a value to {@link VerifiedFunction} — composes four
+ * {@link isCallable} checks: the value itself, then its own `bind`, `call`,
+ * and `apply` properties. Each layer is a `typeof === 'function'` read, so the
+ * guard stays realm-independent and indifferent to whether the three methods
+ * come from `Function.prototype`, from a subclass, or from a substitute
+ * object answering at those names.
+ *
+ * @param {unknown} [value] - the value to test; omitted is treated as
+ *  `undefined`, which is not callable
+ * @returns {value is VerifiedFunction} `true` when all four `isCallable` checks
+ *  pass, narrowing `value` to {@link VerifiedFunction}; `false` otherwise
  * @example
- * isFunction(() => {}); // true
- * isFunction(function() {}); // true
- * isFunction(class Foo {}); // true
- * isFunction({ bind: () => {} }); // false
- * isFunction(null); // false
+ * isFunction(() => {});             // true
+ * isFunction(function () {});       // true
+ * isFunction(class Foo {});         // true
+ * isFunction({ bind: () => {} });   // false (typeof not function)
+ * isFunction(null);                 // false
  */
 export function isFunction(value) {
   return (

@@ -45,6 +45,27 @@ depend on these packages.
   `jsdoc/empty-tags`) and never inline on a single-line block (→
   `jsdoc/escape-inline-tags`). A documented internal export is therefore always a
   multi-line block, even when the description is a single line.
+- **Doc voice and tag form** — one-line `@param name - desc` / `@returns desc` (lowercase
+  start, no trailing period; the type is in the TS signature for `.d.ts`, in the JSDoc
+  `{…}` for `.js`). Multi-paragraph prose uses em-dash (`—`) for asides; backticks for
+  code, types, and internal slots (`[[Call]]`, `[[Construct]]`). Lead descriptions with
+  what the symbol _is_ or _does_ ("The floor of JavaScript callability…", "Narrows a value
+  to…"), not meta-framing ("Type guard that checks whether…"). When a predicate has
+  meaningful boundaries — what it deliberately does NOT verify — name them; what a check
+  _refuses_ to claim is first-class information. Interface-member docs name the role
+  (`/** The sole guarantee — the [[Call]] internal method. */`), never restate the type;
+  omit member docs that would just repeat the signature. `@example` is _earned_ — added
+  when narrowing flow, edge cases, or typical returns are non-obvious, not added to every
+  export. `## Subsection` markdown headings are allowed inside long doc blocks for
+  enumerated lists. Implementation comments inside `.js` bodies follow the same "WHY
+  non-obvious" rule as elsewhere — drop `// guard.` / `// explicitly return undefined`
+  style noise; keep substantive context (fallthrough rationale, replaced-slot semantics).
+  Reference examples of the unified style: `function.{js,d.ts}`, `primitive.{js,d.ts}`,
+  `utility/index.{js,d.ts}`, `config/index.{js,d.ts}`. Markdown emphasis (`*italic*`) in
+  `.js` JSDoc trips `jsdoc/no-multi-asterisks`; use plain text or backticks instead.
+  Cross-module `{@link Foo}` in a `.d.ts` only resolves cleanly when `Foo` is in TS scope
+  (imported and _used_ as a TS type); if the import would be unused (`noUnusedLocals`
+  flag), fall back to backticks rather than a contrived use.
 - **Section separators** — multi-block ASCII, identical shape in `.js` and `.d.ts`,
   matching the sibling `es-async-types` convention:
   ```
