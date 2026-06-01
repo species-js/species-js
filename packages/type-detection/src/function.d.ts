@@ -446,3 +446,115 @@ export function isBuiltInClass(value?: unknown): value is ClassConstructor;
 export function isES3Function(value?: unknown): value is ES3Function;
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
+//
+//  Async Function Family
+//
+// ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
+
+/**
+ * The `%AsyncFunction%` intrinsic — any callable whose `[[Prototype]]`
+ * traces to `%AsyncFunction.prototype%`. Admits every callable produced by
+ * async syntax, regardless of the source form:
+ *
+ * - `async function name() { … }` (async function declaration)
+ * - `async function() { … }` (async function expression)
+ * - `async () => …` (async arrow function)
+ * - `{ async method() { … } }` (async concise method)
+ *
+ * …**plus the bound variants of each.** These four source forms are
+ * structurally identical at the runtime level — same `Symbol.toStringTag`,
+ * no own `prototype`, no `[[Construct]]`. The distinctions between them
+ * (dynamic vs. lexical `this`, source layout) are visible only via source
+ * inspection (`Function.prototype.toString`), which is
+ * characterization-quality data; the source-regex predicates that
+ * discriminate the four therefore live in
+ * `@species-js/function-introspection`, not in this package.
+ *
+ * **Bound async functions are admitted** — this is an honest consequence of
+ * spec mechanics, not an oversight. `bind` sets the bound function's
+ * `[[Prototype]]` to the *target's* `[[Prototype]]`
+ * (`%AsyncFunction.prototype%` in the async case), so the bound function
+ * inherits `Symbol.toStringTag` and resolves the same constructor name via
+ * the prototype walk. This is asymmetric with {@link ClassConstructor} and
+ * {@link ES3Function}, whose bound variants are *rejected* — but the
+ * asymmetry is forced by where each family puts its discriminator: the
+ * newable side's tells (own-prototype descriptors) are stripped by `bind`;
+ * the async side's tells (prototype-chain tag and constructor) are
+ * preserved by it. Without source inspection there is no structural way to
+ * tell a bound async function from a non-bound one — and source inspection
+ * is introspection's job, not type-detection's.
+ *
+ * **Async-generator functions are NOT in this family**, despite the shared
+ * "Async" prefix in the name. `async function* () { … }` is a *generator*
+ * function: it synchronously returns an `AsyncGenerator` instance whose
+ * `.next()` yields promises. Structurally it has its own `Symbol.toStringTag`
+ * (`'AsyncGeneratorFunction'`), an own writable `prototype`, and traces to
+ * the `%AsyncGeneratorFunction%` intrinsic — none of which `%AsyncFunction%`
+ * does. Async-generator functions are kin to sync generator functions, not
+ * to this predicate; the "Async" in their name describes what their
+ * iterator *yields*, not the function itself.
+ *
+ * @template ThisType - the `this` context at the call site (dynamic for the
+ *  non-arrow forms; ignored at runtime for arrow forms — the type cannot
+ *  distinguish them, since the discrimination is source-based)
+ * @template Args - the parameter tuple
+ * @template R - the resolved Promise value type
+ */
+export interface AsyncFunction<
+  ThisType = unknown,
+  Args extends unknown[] = unknown[],
+  R = unknown,
+> {
+  /** `[[Call]]` — returns a `Promise` resolving to `R`. */
+  (this: ThisType, ...args: Args): Promise<R>;
+  /** Async functions do not have own `prototype`. */
+  readonly prototype: undefined;
+  /** The function's `name`. */
+  readonly name: string;
+  /** The number of declared formal parameters. */
+  readonly length: number;
+  /** Invoke with an explicit `this`. */
+  call(thisArg: ThisType, ...args: Args): Promise<R>;
+  /** Invoke with an explicit `this` and an arguments-array. */
+  apply(thisArg: ThisType, args: Args): Promise<R>;
+  /** Produce a bound async function with a fixed `this`. */
+  bind(thisArg: ThisType, ...args: unknown[]): AsyncFunction<ThisType, Args, R>;
+}
+
+/**
+ * Narrows a value to {@link AsyncFunction} — composite check using both
+ * `Symbol.toStringTag` (`getTypeSignature(value) === '[object AsyncFunction]'`)
+ * and constructor name (`getDefinedConstructorName(value) === 'AsyncFunction'`).
+ * Both are required to match; the redundant `!hasOwnPrototype` /
+ * `!hasConstructSlot` checks reinforce the spec invariants of the family
+ * (no own prototype, not newable). Defensive against single-slot spoofing:
+ * a tampered tag without a matching constructor chain (or vice versa) is
+ * rejected.
+ *
+ * **Admits** all four source forms (`async function` declarations,
+ * expressions, async arrows, async concise methods) and their bound
+ * variants alike. See the {@link AsyncFunction} doc for the lattice framing
+ * and the spec-mechanics rationale for bound-admission.
+ *
+ * **Does not admit async-generator functions** — those are *generator*
+ * functions in the species-js taxonomy (different intrinsic, different
+ * `Symbol.toStringTag`, own writable `prototype`), not a near-variant of
+ * `AsyncFunction`. The shared "Async" prefix in their name describes what
+ * their iterator yields, not the function. See the generator predicates
+ * for that family.
+ *
+ * @param value - the value to test; omitted is treated as `undefined`, which
+ *  is not an async function
+ * @returns `true` when the value is an async function in the species-js
+ *  taxonomy, narrowing to {@link AsyncFunction}; `false` otherwise
+ * @example
+ * declare const value: unknown;
+ *
+ * if (isAsyncFunction(value)) {
+ *   const result = value(); // result: Promise<unknown>
+ *   result.then((resolved) => { ... });
+ * }
+ */
+export function isAsyncFunction(value?: unknown): value is AsyncFunction;
+
+// ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----

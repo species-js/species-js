@@ -9,7 +9,12 @@
  */
 
 import { getOwnPropertyDescriptor, toFunctionString } from '@/config';
-import { hasOwnWritablePrototype } from '@/utility';
+import {
+  getDefinedConstructorName,
+  getTypeSignature,
+  hasOwnPrototype,
+  hasOwnWritablePrototype,
+} from '@/utility';
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 
@@ -18,6 +23,7 @@ import { hasOwnWritablePrototype } from '@/utility';
 /** @typedef {import('@/function').NewableFunction} NewableFunction */
 /** @typedef {import('@/function').ClassConstructor} ClassConstructor */
 /** @typedef {import('@/function').ES3Function} ES3Function */
+/** @typedef {import('@/function').AsyncFunction} AsyncFunction */
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 //
@@ -208,6 +214,52 @@ export function isBuiltInClass(value) {
  */
 export function isES3Function(value) {
   return isNewableFunction(value) && hasOwnWritablePrototype(value);
+}
+
+// ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
+//
+//  Async Function Family
+//
+// ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
+
+/**
+ * Narrows a value to {@link AsyncFunction} — composite check using both
+ * `Symbol.toStringTag` (via {@link getTypeSignature}) and constructor name
+ * (via {@link getDefinedConstructorName}), both required to equal
+ * `'AsyncFunction'`. The redundant `!hasOwnPrototype(value) &&
+ * !hasConstructSlot(value)` checks reinforce the spec invariants of the
+ * family (no own prototype, not newable). Defensive against single-slot
+ * spoofing: a tampered tag without a matching constructor chain (or vice
+ * versa) is rejected.
+ *
+ * Admits all four source forms AND their bound variants — `bind` preserves
+ * the prototype chain, so the tag and constructor-name resolution survive.
+ * Async-generator functions are *not* in this family: they trace to
+ * `%AsyncGeneratorFunction%`, a kin of sync `function*`, not of
+ * `%AsyncFunction%`. Use the generator predicates for those.
+ *
+ * @param {unknown} [value] - the value to test; omitted is treated as
+ *  `undefined`, which is not an async function
+ * @returns {value is AsyncFunction} `true` when the value is an async
+ *  function in the species-js taxonomy; `false` otherwise
+ * @example
+ * isAsyncFunction(async () => {});                // true
+ * isAsyncFunction(async function () {});          // true
+ * isAsyncFunction({ async m() {} }.m);            // true
+ * isAsyncFunction((async () => 1).bind(null));    // true — bound forms admitted
+ * isAsyncFunction(() => Promise.resolve());       // false — returns a Promise,
+ *                                                 // but not tagged AsyncFunction
+ * isAsyncFunction(async function* () {});         // false — generator-family
+ *                                                 // intrinsic, not async-family
+ */
+export function isAsyncFunction(value) {
+  return (
+    isFunction(value) &&
+    !hasOwnPrototype(value) &&
+    !hasConstructSlot(value) &&
+    getTypeSignature(value) === '[object AsyncFunction]' &&
+    getDefinedConstructorName(value) === 'AsyncFunction'
+  );
 }
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
