@@ -10,6 +10,7 @@
 
 import { getOwnPropertyDescriptor, toFunctionString } from '@/config';
 import {
+  getDefinedConstructor,
   getDefinedConstructorName,
   getTypeSignature,
   hasOwnPrototype,
@@ -223,17 +224,46 @@ export function isES3Function(value) {
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 
 /**
- * Narrows a value to {@link AsyncFunction} — composite check using both
- * `Symbol.toStringTag` (via {@link getTypeSignature}) and constructor name
- * (via {@link getDefinedConstructorName}), both required to equal
- * `'AsyncFunction'`. The redundant `!hasOwnPrototype(value) &&
- * !hasConstructSlot(value)` checks reinforce the spec invariants of the
- * family (no own prototype, not newable). Defensive against single-slot
- * spoofing: a tampered tag without a matching constructor chain (or vice
- * versa) is rejected.
+ * Tests whether a value carries the runtime "shape" of the `%AsyncFunction%`
+ * intrinsic — composes the four realm-independent markers any such value
+ * must exhibit: no own `prototype`, no `[[Construct]]`, `Symbol.toStringTag`
+ * equals `'AsyncFunction'`, and the resolved constructor name equals
+ * `'AsyncFunction'`. Returns plain `boolean`; narrowing is
+ * {@link isAsyncFunction}'s job, which also runs the same-realm `instanceof`
+ * fast path before delegating here.
+ *
+ * Standalone — does not pre-gate via {@link isFunction}, so the helper can
+ * be tested directly against any value. Non-callables fall through the
+ * marker chain and return `false` (no own prototype, no `[[Construct]]`,
+ * non-matching tag).
+ *
+ * @param {unknown} [value] - the value to inspect
+ * @returns {boolean} `true` when all four markers match; `false` otherwise
+ * @internal
+ */
+export function hasAsyncFunctionShape(value) {
+  return (
+    !hasOwnPrototype(value) &&
+    !hasConstructSlot(value) &&
+    getTypeSignature(value) === '[object AsyncFunction]' &&
+    getDefinedConstructorName(value) === 'AsyncFunction'
+  );
+}
+
+/**
+ * Narrows a value to {@link AsyncFunction} — orchestrates three phases:
+ * the `isFunction` gate, a same-realm `instanceof` fast path against the
+ * captured `%AsyncFunction%` intrinsic, then the realm-independent
+ * structural check via {@link hasAsyncFunctionShape}. The fast path lands
+ * the common case in one `[[Prototype]]` walk; the shape check is the
+ * cross-realm fallback (foreign-realm async functions have a different
+ * `%AsyncFunction%` identity but the same observable markers).
  *
  * Admits all four source forms AND their bound variants — `bind` preserves
- * the prototype chain, so the tag and constructor-name resolution survive.
+ * the prototype chain, so the local-realm fast path admits bound async
+ * functions directly and the cross-realm fallback admits foreign-realm
+ * bound async functions via the shape check.
+ *
  * Async-generator functions are *not* in this family: they trace to
  * `%AsyncGeneratorFunction%`, a kin of sync `function*`, not of
  * `%AsyncFunction%`. Use the generator predicates for those.
@@ -255,11 +285,12 @@ export function isES3Function(value) {
 export function isAsyncFunction(value) {
   return (
     isFunction(value) &&
-    !hasOwnPrototype(value) &&
-    !hasConstructSlot(value) &&
-    getTypeSignature(value) === '[object AsyncFunction]' &&
-    getDefinedConstructorName(value) === 'AsyncFunction'
+    (value instanceof AsyncFunctionConstructor || hasAsyncFunctionShape(value))
   );
 }
+
+const AsyncFunctionConstructor = /** @type {AsyncFunction} */ (
+  getDefinedConstructor(async () => Promise.resolve())
+);
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----

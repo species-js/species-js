@@ -522,14 +522,43 @@ export interface AsyncFunction<
 }
 
 /**
- * Narrows a value to {@link AsyncFunction} — composite check using both
- * `Symbol.toStringTag` (`getTypeSignature(value) === '[object AsyncFunction]'`)
- * and constructor name (`getDefinedConstructorName(value) === 'AsyncFunction'`).
- * Both are required to match; the redundant `!hasOwnPrototype` /
- * `!hasConstructSlot` checks reinforce the spec invariants of the family
- * (no own prototype, not newable). Defensive against single-slot spoofing:
- * a tampered tag without a matching constructor chain (or vice versa) is
- * rejected.
+ * Tests whether a value carries the runtime "shape" of the `%AsyncFunction%`
+ * intrinsic — the four realm-independent markers any such value must
+ * exhibit: no own `prototype`, no `[[Construct]]`, `Symbol.toStringTag`
+ * equals `'AsyncFunction'`, and the resolved constructor name equals
+ * `'AsyncFunction'`. Returns plain `boolean` (not a narrowing predicate);
+ * narrowing belongs to {@link isAsyncFunction}, which also orchestrates the
+ * same-realm `instanceof` fast path before delegating here.
+ *
+ * Defensive against single-slot spoofing: tampering with the tag without a
+ * matching change to the constructor chain (or vice versa) is rejected.
+ * Multi-slot coordinated tampering (override both `Symbol.toStringTag` and
+ * the prototype chain) passes — but at that point the value's spec-level
+ * inheritance also passes, so the result is consistent with `instanceof`.
+ *
+ * Independent of {@link isFunction} — accepts any value, returns `false`
+ * for non-callable inputs. The standalone signature is deliberate so each
+ * marker can be exercised in isolation by tests.
+ *
+ * @param value - the value to inspect
+ * @returns `true` when all four markers match; `false` otherwise
+ * @internal
+ */
+export function hasAsyncFunctionShape(value?: unknown): boolean;
+
+/**
+ * Narrows a value to {@link AsyncFunction} — orchestrates three phases:
+ *
+ * 1. `isFunction` gate — short-circuits for non-callable inputs.
+ * 2. Same-realm fast path — `value instanceof %AsyncFunction%` walks the
+ *    `[[Prototype]]` chain. Passes for any value whose inheritance traces
+ *    to the local realm's `%AsyncFunction.prototype%` (including bound
+ *    variants — `bind` preserves the chain).
+ * 3. Realm-independent fallback — delegates to
+ *    {@link hasAsyncFunctionShape}, which verifies the four spec-derived
+ *    markers. This is the cross-realm code path: foreign-realm async
+ *    functions have a different `%AsyncFunction%` identity but the same
+ *    observable markers.
  *
  * **Admits** all four source forms (`async function` declarations,
  * expressions, async arrows, async concise methods) and their bound
