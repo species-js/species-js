@@ -8,7 +8,7 @@
  * callability test; richer function classification builds on top of it.
  */
 
-import { getOwnPropertyDescriptor } from '@/config';
+import { getOwnPropertyDescriptor, toFunctionString } from '@/config';
 import { hasOwnWritablePrototype } from '@/utility';
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
@@ -18,6 +18,27 @@ import { hasOwnWritablePrototype } from '@/utility';
 /** @typedef {import('@/function').NewableFunction} NewableFunction */
 /** @typedef {import('@/function').ClassConstructor} ClassConstructor */
 /** @typedef {import('@/function').ES3Function} ES3Function */
+
+// ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
+//
+//  Internal Helpers
+//
+// ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
+
+/**
+ * Reads a function's source via `toFunctionString.call(value).trim()` — the
+ * realm-fixed `Function.prototype.toString` capture, so a tampered instance
+ * `toString` cannot deflect the read. The trim strips surrounding whitespace;
+ * `[native code]` markers in the body are preserved (callers use them to tell
+ * native from user code).
+ *
+ * @param {Callable} value - the function whose source should be read
+ * @returns {string} the function's source as a trimmed string
+ * @internal
+ */
+export function getFunctionSource(value) {
+  return toFunctionString.call(value).trim();
+}
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 
@@ -111,16 +132,20 @@ export function isNewableFunction(value) {
 }
 
 /**
- * Narrows a value to {@link ClassConstructor} — builds on
+ * Narrows a value to {@link ClassConstructor} — covers both custom
+ * (`class`-syntax) constructors and built-in class constructors. Builds on
  * {@link isNewableFunction} and verifies the descriptor: an own `prototype`
- * with `writable: false` whose `value.constructor` is the value itself.
+ * with `writable: false` whose `value.constructor` is the value itself. To
+ * tell the two families apart, use {@link isCustomClass} or
+ * {@link isBuiltInClass}.
+ *
  * Bound class constructors fail at the descriptor step (they have no own
  * `prototype`).
  *
  * @param {unknown} [value] - the value to test; omitted is treated as
  *  `undefined`
- * @returns {value is ClassConstructor} `true` when the value is a class-shaped
- *  newable; `false` otherwise
+ * @returns {value is ClassConstructor} `true` when the value is a
+ *  class-shaped newable (built-in or `class`-syntax); `false` otherwise
  */
 export function isClass(value) {
   if (!isNewableFunction(value)) {
@@ -137,6 +162,37 @@ export function isClass(value) {
     (slotValue);
 
   return prototype?.constructor === value;
+}
+
+/**
+ * Narrows a value to a custom (`class`-syntax) constructor — composes
+ * {@link isClass} with a source-prefix check via {@link getFunctionSource}.
+ * Custom classes stringify with `'class'` as their leading keyword; built-in
+ * constructors do not. Bound classes fail {@link isClass} upstream and never
+ * reach this check.
+ *
+ * @param {unknown} [value] - the value to test; omitted is treated as
+ *  `undefined`
+ * @returns {value is ClassConstructor} `true` when the value is a
+ *  custom-class constructor; `false` otherwise
+ */
+export function isCustomClass(value) {
+  return isClass(value) && getFunctionSource(value).startsWith('class');
+}
+
+/**
+ * Narrows a value to a built-in class constructor — composes {@link isClass}
+ * with the inverse source-prefix check from {@link isCustomClass}. Built-in
+ * classes render as `function Foo() { [native code] }` and do not start with
+ * `'class'`. Bound classes fail {@link isClass} upstream.
+ *
+ * @param {unknown} [value] - the value to test; omitted is treated as
+ *  `undefined`
+ * @returns {value is ClassConstructor} `true` when the value is a built-in
+ *  class constructor; `false` otherwise
+ */
+export function isBuiltInClass(value) {
+  return isClass(value) && !getFunctionSource(value).startsWith('class');
 }
 
 /**

@@ -8,6 +8,26 @@
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 //
+//  Internal Helpers
+//
+// ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
+
+/**
+ * Reads a function's source via `toFunctionString.call(value)` — routes
+ * around the instance's `toString` (which may be missing or replaced) by
+ * going through the realm-fixed `Function.prototype.toString` capture
+ * directly. Returns the trimmed source string; `[native code]` markers in
+ * the source are not stripped, since distinguishing native from user-authored
+ * code is precisely why callers reach for this helper.
+ *
+ * @param value - the function whose source should be read
+ * @returns the function's source as a trimmed string
+ * @internal
+ */
+export function getFunctionSource(value: Callable): string;
+
+// ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
+//
 //  Callable vs. Function Interface Types
 //
 //  These types distinguish between the minimal `typeof === 'function'` check
@@ -353,10 +373,14 @@ export function hasConstructSlot(value: unknown): boolean;
 export function isNewableFunction(value?: unknown): value is NewableFunction;
 
 /**
- * Narrows a value to {@link ClassConstructor} — the strict class shape.
- * Builds on {@link isNewableFunction} and adds the structural tell: an own
- * `prototype` descriptor whose `writable` is `false` *and* whose `value`
- * points back to the constructor (`descriptor.value.constructor === value`).
+ * Narrows a value to {@link ClassConstructor} — the strict class shape,
+ * covering both custom (`class`-syntax) constructors and built-in class
+ * constructors (`Array`, `Date`, `Map`, …). Both share the same structural
+ * tell `isClass` verifies: an own `prototype` descriptor whose `writable` is
+ * `false` and whose `value.constructor` points back to the constructor. To
+ * tell the two families apart, use {@link isCustomClass} or
+ * {@link isBuiltInClass} (disjoint refinements that together partition this
+ * surface).
  *
  * Bound class constructors are **deliberately rejected** — they remain
  * newable but have lost their own `prototype` slot, so what you have is no
@@ -368,6 +392,41 @@ export function isNewableFunction(value?: unknown): value is NewableFunction;
  *  `class`-syntax), narrowing to {@link ClassConstructor}; `false` otherwise
  */
 export function isClass(value?: unknown): value is ClassConstructor;
+
+/**
+ * Narrows a value to a custom (`class`-syntax) constructor — builds on
+ * {@link isClass} and adds the source-prefix check: a custom class's
+ * stringified source starts with the literal `'class'` keyword, while a
+ * built-in class constructor (`Array`, `Date`, …) renders as
+ * `function Foo() { [native code] }` and does not.
+ *
+ * `isCustomClass` and {@link isBuiltInClass} are *disjoint refinements* of
+ * {@link isClass} — together they partition the class surface into "authored
+ * via `class` syntax" vs. "built-in." Both narrow to {@link ClassConstructor}.
+ * A bound class fails {@link isClass} upstream, so neither variant admits it.
+ *
+ * @param value - the value to test; omitted is treated as `undefined`
+ * @returns `true` when the value is a custom-class constructor, narrowing to
+ *  {@link ClassConstructor}; `false` otherwise
+ */
+export function isCustomClass(value?: unknown): value is ClassConstructor;
+
+/**
+ * Narrows a value to a built-in class constructor — builds on
+ * {@link isClass} and adds the inverse source-prefix check: built-in classes
+ * (`Array`, `Date`, `Map`, …) render as `function Foo() { [native code] }`
+ * and do not start with `'class'`, while custom (`class`-syntax) constructors
+ * do.
+ *
+ * The dual of {@link isCustomClass}: both narrow to {@link ClassConstructor},
+ * together they partition the {@link isClass} surface, neither admits bound
+ * variants (rejected upstream by {@link isClass}).
+ *
+ * @param value - the value to test; omitted is treated as `undefined`
+ * @returns `true` when the value is a built-in class constructor, narrowing
+ *  to {@link ClassConstructor}; `false` otherwise
+ */
+export function isBuiltInClass(value?: unknown): value is ClassConstructor;
 
 /**
  * Narrows a value to {@link ES3Function} — the strict ES3-function shape.

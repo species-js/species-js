@@ -9,6 +9,8 @@
  * that need the same cross-realm-safe building blocks.
  */
 
+import type { Callable } from '@/function';
+
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 //
 //  Property Descriptor Options
@@ -73,12 +75,13 @@ export declare const sealedDescriptorOptions: {
 export declare const toObjectString: typeof Object.prototype.toString;
 
 /**
- * `Function.prototype.toString`, for `.call(fn)` use. Returns the function's
- * source text — used to tell native from user code and to detect class syntax,
- * regardless of a tampered instance `toString`.
+ * `Function.prototype.toString`, captured at module-load and retyped with
+ * `this: Callable` — the spec-required constraint (calling on non-callable
+ * throws `TypeError`). Used as `toFunctionString.call(fn)` to read a
+ * function's source regardless of a tampered instance `toString`.
  * @internal
  */
-export declare const toFunctionString: typeof Function.prototype.toString;
+export declare const toFunctionString: (this: Callable) => string;
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 //
