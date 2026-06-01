@@ -264,9 +264,9 @@ export function hasAsyncFunctionShape(value) {
  * cross-realm fallback (foreign-realm async functions have a different
  * `%AsyncFunction%` identity but the same observable markers).
  *
- * Admits all four source forms AND their bound variants — `bind` preserves
+ * Admits all four source-forms AND their bound variants — `bind` preserves
  * the prototype chain, so the local-realm fast path admits bound async
- * functions directly and the cross-realm fallback admits foreign-realm
+ * functions directly, and the cross-realm fallback admits foreign-realm
  * bound async functions via the shape check.
  *
  * Async-generator functions are *not* in this family: they trace to
@@ -400,10 +400,10 @@ export function hasAsyncGeneratorFunctionShape(value) {
  * @returns {value is AsyncGeneratorFunction} `true` when the value is an
  *  async-generator function; `false` otherwise
  * @example
- * isAsyncGeneratorFunction(async function* () {});           // true
+ * isAsyncGeneratorFunction(async function* () {});              // true
  * isAsyncGeneratorFunction((async function* () {}).bind(null)); // true
- * isAsyncGeneratorFunction(function* () {});                 // false — sync generator
- * isAsyncGeneratorFunction(async () => {});                  // false — async function
+ * isAsyncGeneratorFunction(function* () {});                    // false — sync generator
+ * isAsyncGeneratorFunction(async () => {});                     // false — async function
  */
 export function isAsyncGeneratorFunction(value) {
   return (
@@ -428,6 +428,12 @@ export function isAsyncGeneratorFunction(value) {
  * @returns {value is AnyGeneratorFunction} `true` when the value is either a
  *  sync or async generator function (including bound variants); `false`
  *  otherwise
+ * @example
+ * isAnyGeneratorFunction(function* () {});              // true — sync generator
+ * isAnyGeneratorFunction(async function* () {});        // true — async generator
+ * isAnyGeneratorFunction((function* () {}).bind(null)); // true — bound forms admitted
+ * isAnyGeneratorFunction(async () => {});               // false — async function
+ * isAnyGeneratorFunction(function () {});               // false — plain function
  */
 export function isAnyGeneratorFunction(value) {
   return (

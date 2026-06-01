@@ -298,23 +298,24 @@ export interface ClassConstructor<Args extends unknown[] = unknown[], T = object
  * `someClassOrES3.bind(…)`, which preserves `[[Construct]]` but loses its
  * own `prototype`).
  *
- * Because bound newables lack own `prototype`, this interface makes **no
- * `prototype` guarantee**. To reach a `prototype` — and to tell the two
+ * Because bound newables lack their own `prototype`, this interface makes
+ * **no `prototype` guarantee**. To reach a `prototype` — and to tell the two
  * non-bound species apart — narrow further to {@link ES3Function} (own
  * writable `prototype`) or {@link ClassConstructor} (own readonly
  * `prototype`). Both of those guards deliberately reject bound variants on
  * exactly that ground: a bound class is no longer a class-shape, a bound ES3
  * function is no longer an ES3-shape; both remain newable but become a third
  * species — a bound-newable — that this package does not name as its own
- * type. The introspection layer can, with the caveats "is-bound" detection
- * carries (the only spec-reliable tell is `[[BoundTargetFunction]]`, which
- * isn't observable; every visible fingerprint is spoofable).
+ * type. The introspection layer can name it explicitly, though "is-bound"
+ * detection carries real caveats: the only spec-reliable tell is
+ * `[[BoundTargetFunction]]`, which isn't observable; every visible
+ * fingerprint is spoofable.
  *
  * Modeling note — `NewableFunction` is deliberately a lenient base interface,
- * not the union `ES3Function | ClassConstructor`. The union would
- * over-promise (both branches carry a `prototype` bound variants don't), so
- * it would be the wrong narrow target. TypeScript cannot infer `[[Construct]]`
- * for a plain `function` either (it types them call-only); the runtime guard
+ * not the union `ES3Function | ClassConstructor`. The union would overpromise
+ * (both branches carry a `prototype` bound variants don't), so it would be
+ * the wrong narrow target. TypeScript cannot infer `[[Construct]]` for a
+ * plain `function` either (it types them call-only); the runtime guard
  * {@link isNewableFunction} asserts what the compiler cannot derive. Arrow
  * functions, methods, async, and generator functions are **not** newable —
  * they lack `[[Construct]]` in both the type system and the runtime.
@@ -336,13 +337,12 @@ export interface NewableFunction<Args extends unknown[] = unknown[], T = object>
 }
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
-// ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 
 /**
  * Probes the value's `[[Construct]]` internal method without invoking the
  * value itself. Builds a `Proxy` whose `construct` trap returns an empty
  * object, then attempts `new proxy(…)`: if `[[Construct]]` is reachable on
- * the proxy's target, the construction succeeds and the function returns
+ * the proxy's target, the construction succeeds, and the function returns
  * `true`; otherwise the `new` throws and the function returns `false`.
  *
  * The MDN-cited invariant — "the `target` used to initialize the proxy must
@@ -453,21 +453,20 @@ export function isES3Function(value?: unknown): value is ES3Function;
 
 /**
  * The `%AsyncFunction%` intrinsic — any callable whose `[[Prototype]]`
- * traces to `%AsyncFunction.prototype%`. Admits every callable produced by
- * async syntax, regardless of the source form:
+ * traces to `%AsyncFunction.prototype%`. Admits every callable produced
+ * by async syntax, regardless of the source-form:
  *
  * - `async function name() { … }` (async function declaration)
  * - `async function() { … }` (async function expression)
  * - `async () => …` (async arrow function)
  * - `{ async method() { … } }` (async concise method)
  *
- * …**plus the bound variants of each.** These four source forms are
- * structurally identical at the runtime level — same `Symbol.toStringTag`,
+ * … **plus the bound variants of each.** These four source-forms are
+ * structurally identical at the runtime level — the same `Symbol.toStringTag`,
  * no own `prototype`, no `[[Construct]]`. The distinctions between them
  * (dynamic vs. lexical `this`, source layout) are visible only via source
- * inspection (`Function.prototype.toString`), which is
- * characterization-quality data; the source-regex predicates that
- * discriminate the four therefore live in
+ * inspection (`Function.prototype.toString`), which is characterization-quality
+ * data; the source-regex predicates that discriminate the four therefore live in
  * `@species-js/function-introspection`, not in this package.
  *
  * **Bound async functions are admitted** — this is an honest consequence of
@@ -560,7 +559,7 @@ export function hasAsyncFunctionShape(value?: unknown): boolean;
  *    functions have a different `%AsyncFunction%` identity but the same
  *    observable markers.
  *
- * **Admits** all four source forms (`async function` declarations,
+ * **Admits** all four source-forms (`async function` declarations,
  * expressions, async arrows, async concise methods) and their bound
  * variants alike. See the {@link AsyncFunction} doc for the lattice framing
  * and the spec-mechanics rationale for bound-admission.
@@ -595,8 +594,8 @@ export function isAsyncFunction(value?: unknown): value is AsyncFunction;
 /**
  * The `Generator` instance — the object a sync generator function (`function*`)
  * returns when invoked. Re-modeled in species-js rather than extending
- * `globalThis.Generator` so the Tier-S contract is owned by this package and
- * consumers' lib config does not affect shape stability. Minimal lib
+ * `globalThis.Generator` so the Tier-S contract is owned by this package,
+ * and consumers' lib config does not affect shape stability. Minimal lib
  * dependencies: `IteratorResult`, `Symbol.iterator` (both ES2015 spec
  * primitives).
  *
@@ -641,7 +640,6 @@ export interface AsyncGenerator<T = unknown, TReturn = unknown, TNext = unknown>
   readonly [Symbol.toStringTag]: 'AsyncGenerator';
 }
 
-// ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 
 /**
@@ -768,7 +766,6 @@ export interface AsyncGeneratorFunction<
 export type AnyGeneratorFunction = GeneratorFunction | AsyncGeneratorFunction;
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
-// ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 
 /**
  * Tests whether a value carries the runtime "shape" of the
@@ -812,6 +809,13 @@ export function hasGeneratorFunctionShape(value?: unknown): boolean;
  *  is not a generator function
  * @returns `true` when the value is a sync-generator function, narrowing to
  *  {@link GeneratorFunction}; `false` otherwise
+ * @example
+ * declare const value: unknown;
+ *
+ * if (isGeneratorFunction(value)) {
+ *   const gen = value(); // gen: Generator<unknown, unknown, unknown>
+ *   for (const item of gen) { ... }
+ * }
  */
 export function isGeneratorFunction(value?: unknown): value is GeneratorFunction;
 
@@ -849,6 +853,13 @@ export function hasAsyncGeneratorFunctionShape(value?: unknown): boolean;
  *  is not an async-generator function
  * @returns `true` when the value is an async-generator function, narrowing
  *  to {@link AsyncGeneratorFunction}; `false` otherwise
+ * @example
+ * declare const value: unknown;
+ *
+ * if (isAsyncGeneratorFunction(value)) {
+ *   const gen = value(); // gen: AsyncGenerator<unknown, unknown, unknown>
+ *   for await (const item of gen) { ... }
+ * }
  */
 export function isAsyncGeneratorFunction(
   value?: unknown,
@@ -868,6 +879,14 @@ export function isAsyncGeneratorFunction(
  * @returns `true` when the value is either a sync or an async generator
  *  function (including bound variants), narrowing to
  *  {@link AnyGeneratorFunction}; `false` otherwise
+ * @example
+ * declare const value: unknown;
+ *
+ * if (isAnyGeneratorFunction(value)) {
+ *   // value: GeneratorFunction | AsyncGeneratorFunction — narrow further
+ *   // with isGeneratorFunction or isAsyncGeneratorFunction before calling,
+ *   // since the call-result types differ (Generator vs. AsyncGenerator).
+ * }
  */
 export function isAnyGeneratorFunction(value?: unknown): value is AnyGeneratorFunction;
 
