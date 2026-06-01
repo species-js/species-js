@@ -25,6 +25,11 @@ import {
 /** @typedef {import('@/function').ClassConstructor} ClassConstructor */
 /** @typedef {import('@/function').ES3Function} ES3Function */
 /** @typedef {import('@/function').AsyncFunction} AsyncFunction */
+/** @typedef {import('@/function').Generator} Generator */
+/** @typedef {import('@/function').AsyncGenerator} AsyncGenerator */
+/** @typedef {import('@/function').GeneratorFunction} GeneratorFunction */
+/** @typedef {import('@/function').AsyncGeneratorFunction} AsyncGeneratorFunction */
+/** @typedef {import('@/function').AnyGeneratorFunction} AnyGeneratorFunction */
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 //
@@ -289,8 +294,162 @@ export function isAsyncFunction(value) {
   );
 }
 
-const AsyncFunctionConstructor = /** @type {AsyncFunction} */ (
+const AsyncFunctionConstructor = /** @type {NewableFunction} */ (
   getDefinedConstructor(async () => Promise.resolve())
+);
+
+// ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
+//
+//  Generator Function Family
+//
+// ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
+
+/**
+ * Tests whether a value carries the runtime "shape" of the
+ * `%GeneratorFunction%` intrinsic — composes the three realm-independent
+ * markers: no `[[Construct]]`, `Symbol.toStringTag === 'GeneratorFunction'`,
+ * and the resolved constructor name `=== 'GeneratorFunction'`.
+ *
+ * No prototype-slot check (unlike {@link hasAsyncFunctionShape}) — unbound
+ * generator functions carry an own writable `prototype`, bound ones don't;
+ * `bind` strips own slots, so admitting both forms requires omitting any
+ * prototype-slot assertion. The tag and constructor-name resolution are
+ * preserved via the prototype chain in both cases.
+ *
+ * Returns plain `boolean`; narrowing is {@link isGeneratorFunction}'s job.
+ *
+ * @param {unknown} [value] - the value to inspect
+ * @returns {boolean} `true` when all three markers match; `false` otherwise
+ * @internal
+ */
+export function hasGeneratorFunctionShape(value) {
+  return (
+    !hasConstructSlot(value) &&
+    getTypeSignature(value) === '[object GeneratorFunction]' &&
+    getDefinedConstructorName(value) === 'GeneratorFunction'
+  );
+}
+
+/**
+ * Narrows a value to {@link GeneratorFunction} — orchestrates the three
+ * phases: `isFunction` gate, same-realm `instanceof` fast path against the
+ * captured `%GeneratorFunction%` intrinsic, then the realm-independent
+ * fallback via {@link hasGeneratorFunctionShape}.
+ *
+ * Admits sync-generator function declarations, expressions, concise-method
+ * forms, AND their bound variants — `bind` preserves the prototype chain.
+ * Async-generator functions are *not* in this family: they trace to
+ * `%AsyncGeneratorFunction%`. Use {@link isAsyncGeneratorFunction} or
+ * {@link isAnyGeneratorFunction}.
+ *
+ * @param {unknown} [value] - the value to test; omitted is treated as
+ *  `undefined`, which is not a generator function
+ * @returns {value is GeneratorFunction} `true` when the value is a
+ *  sync-generator function; `false` otherwise
+ * @example
+ * isGeneratorFunction(function* () {});            // true
+ * isGeneratorFunction((function* () {}).bind(null)); // true — bound forms admitted
+ * isGeneratorFunction(async function* () {});      // false — async-generator family
+ * isGeneratorFunction(async () => {});             // false — async-function family
+ */
+export function isGeneratorFunction(value) {
+  return (
+    isFunction(value) &&
+    (value instanceof GeneratorFunctionConstructor || hasGeneratorFunctionShape(value))
+  );
+}
+
+/**
+ * Tests whether a value carries the runtime "shape" of the
+ * `%AsyncGeneratorFunction%` intrinsic — composes the three realm-independent
+ * markers: no `[[Construct]]`,
+ * `Symbol.toStringTag === 'AsyncGeneratorFunction'`, and the resolved
+ * constructor name `=== 'AsyncGeneratorFunction'`. Same no-prototype-slot
+ * rationale as {@link hasGeneratorFunctionShape} (bound vs. unbound differ
+ * on the slot; both should be admitted).
+ *
+ * Returns plain `boolean`; narrowing is {@link isAsyncGeneratorFunction}'s
+ * job.
+ *
+ * @param {unknown} [value] - the value to inspect
+ * @returns {boolean} `true` when all three markers match; `false` otherwise
+ * @internal
+ */
+export function hasAsyncGeneratorFunctionShape(value) {
+  return (
+    !hasConstructSlot(value) &&
+    getTypeSignature(value) === '[object AsyncGeneratorFunction]' &&
+    getDefinedConstructorName(value) === 'AsyncGeneratorFunction'
+  );
+}
+
+/**
+ * Narrows a value to {@link AsyncGeneratorFunction} — orchestrates the
+ * three phases: `isFunction` gate, same-realm `instanceof` fast path
+ * against the captured `%AsyncGeneratorFunction%` intrinsic, then the
+ * realm-independent fallback via {@link hasAsyncGeneratorFunctionShape}.
+ *
+ * Admits `async function*` declarations, expressions, async concise
+ * methods, AND their bound variants. NOT a member: async functions (they
+ * trace to `%AsyncFunction%`, a different intrinsic — see
+ * {@link isAsyncFunction}); sync generator functions (use
+ * {@link isGeneratorFunction}).
+ *
+ * @param {unknown} [value] - the value to test; omitted is treated as
+ *  `undefined`, which is not an async-generator function
+ * @returns {value is AsyncGeneratorFunction} `true` when the value is an
+ *  async-generator function; `false` otherwise
+ * @example
+ * isAsyncGeneratorFunction(async function* () {});           // true
+ * isAsyncGeneratorFunction((async function* () {}).bind(null)); // true
+ * isAsyncGeneratorFunction(function* () {});                 // false — sync generator
+ * isAsyncGeneratorFunction(async () => {});                  // false — async function
+ */
+export function isAsyncGeneratorFunction(value) {
+  return (
+    isFunction(value) &&
+    (value instanceof AsyncGeneratorFunctionConstructor ||
+      hasAsyncGeneratorFunctionShape(value))
+  );
+}
+
+/**
+ * Narrows a value to {@link AnyGeneratorFunction} — the umbrella over both
+ * sync and async generator-function species. Composes the two single-family
+ * orchestrator pieces: `isFunction` gate + EITHER instanceof fast path
+ * passes OR EITHER shape helper passes.
+ *
+ * No dedicated `hasAnyGeneratorFunctionShape` helper — the umbrella's job is
+ * exactly the union, and composing the two single-family shape helpers is
+ * the codified pattern (recorded in `project_function_type_hierarchy`).
+ *
+ * @param {unknown} [value] - the value to test; omitted is treated as
+ *  `undefined`, which is not a generator function
+ * @returns {value is AnyGeneratorFunction} `true` when the value is either a
+ *  sync or async generator function (including bound variants); `false`
+ *  otherwise
+ */
+export function isAnyGeneratorFunction(value) {
+  return (
+    isFunction(value) &&
+    (value instanceof GeneratorFunctionConstructor ||
+      value instanceof AsyncGeneratorFunctionConstructor ||
+      hasGeneratorFunctionShape(value) ||
+      hasAsyncGeneratorFunctionShape(value))
+  );
+}
+
+const GeneratorFunctionConstructor = /** @type {NewableFunction} */ (
+  getDefinedConstructor(function* () {
+    yield;
+  })
+);
+
+const AsyncGeneratorFunctionConstructor = /** @type {NewableFunction} */ (
+  getDefinedConstructor(async function* () {
+    await Promise.resolve();
+    yield;
+  })
 );
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----

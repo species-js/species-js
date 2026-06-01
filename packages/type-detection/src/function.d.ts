@@ -587,3 +587,288 @@ export function hasAsyncFunctionShape(value?: unknown): boolean;
 export function isAsyncFunction(value?: unknown): value is AsyncFunction;
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
+//
+//  Generator Function Family
+//
+// ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
+
+/**
+ * The `Generator` instance — the object a sync generator function (`function*`)
+ * returns when invoked. Re-modeled in species-js rather than extending
+ * `globalThis.Generator` so the Tier-S contract is owned by this package and
+ * consumers' lib config does not affect shape stability. Minimal lib
+ * dependencies: `IteratorResult`, `Symbol.iterator` (both ES2015 spec
+ * primitives).
+ *
+ * @template T - the yielded value type
+ * @template TReturn - the value the generator returns when complete
+ * @template TNext - the value sent to `.next(value)`
+ */
+export interface Generator<T = unknown, TReturn = unknown, TNext = unknown> {
+  /** Advance the generator; returns `{ value, done }` synchronously. */
+  next(...args: [] | [TNext]): IteratorResult<T, TReturn>;
+  /** Force completion with the given return value. */
+  return(value: TReturn): IteratorResult<T, TReturn>;
+  /** Inject an exception at the current yield point. */
+  throw(e: unknown): IteratorResult<T, TReturn>;
+  /** Iterator protocol — a generator is its own iterator. */
+  [Symbol.iterator](): Generator<T, TReturn, TNext>;
+  /** Spec-mandated tag — `'[object Generator]'`. */
+  readonly [Symbol.toStringTag]: 'Generator';
+}
+
+/**
+ * The `AsyncGenerator` instance — the object an async generator function
+ * (`async function*`) returns when invoked. Re-modeled in species-js rather
+ * than extending `globalThis.AsyncGenerator`. Minimal lib dependencies:
+ * `IteratorResult`, `Promise`, `PromiseLike`, `Symbol.asyncIterator` (all
+ * ES2015 / ES2018 spec primitives).
+ *
+ * @template T - the yielded value type
+ * @template TReturn - the value the generator returns when complete
+ * @template TNext - the value sent to `.next(value)`
+ */
+export interface AsyncGenerator<T = unknown, TReturn = unknown, TNext = unknown> {
+  /** Advance the generator; returns a Promise resolving to `{ value, done }`. */
+  next(...args: [] | [TNext]): Promise<IteratorResult<T, TReturn>>;
+  /** Force completion with the given return value (Promise-resolved). */
+  return(value: TReturn | PromiseLike<TReturn>): Promise<IteratorResult<T, TReturn>>;
+  /** Inject an exception at the current yield point (Promise-resolved). */
+  throw(e: unknown): Promise<IteratorResult<T, TReturn>>;
+  /** Async-iterator protocol — an async-generator is its own async-iterator. */
+  [Symbol.asyncIterator](): AsyncGenerator<T, TReturn, TNext>;
+  /** Spec-mandated tag — `'[object AsyncGenerator]'`. */
+  readonly [Symbol.toStringTag]: 'AsyncGenerator';
+}
+
+// ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
+// ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
+
+/**
+ * The `%GeneratorFunction%` intrinsic — any callable whose `[[Prototype]]`
+ * traces to `%GeneratorFunction.prototype%`. Synchronously returns a
+ * {@link Generator} when invoked; the generator's `.next()` yields values
+ * synchronously. The function itself is fully synchronous — there is no
+ * Promise at the call site.
+ *
+ * Admits `function* name() {}` (declaration), `function*() {}` (expression),
+ * concise generator methods (`{ *m() {} }.m`, class generator methods), and
+ * their bound variants — `bind` preserves the prototype chain, so the tag
+ * and constructor-name resolution survive on bound forms.
+ *
+ * Structurally: own writable `prototype` (carrying a {@link Generator}
+ * instance shape), `Symbol.toStringTag === 'GeneratorFunction'`, no
+ * `[[Construct]]` (generator functions are not newable per spec).
+ *
+ * Sibling intrinsic: {@link AsyncGeneratorFunction} (returns
+ * {@link AsyncGenerator}). The two share structural traits and call
+ * mechanics but trace to distinct intrinsics. Do **not** confuse
+ * `%AsyncGeneratorFunction%` with {@link AsyncFunction} — the "Async"
+ * prefix on `AsyncGeneratorFunction` describes the *iterator*'s yield
+ * behavior (`.next()` returns promises), not the function itself; the
+ * function's *return* is synchronous (an AsyncGenerator object handed back
+ * immediately). See {@link AsyncGeneratorFunction}'s doc for the explicit
+ * disambiguation.
+ *
+ * @template ThisType - the `this` context at the call site (dynamic)
+ * @template Args - the parameter tuple
+ * @template T - the yielded value type
+ * @template TReturn - the value the generator returns when complete
+ * @template TNext - the value sent to the generator's `.next(value)`
+ */
+export interface GeneratorFunction<
+  ThisType = unknown,
+  Args extends unknown[] = unknown[],
+  T = unknown,
+  TReturn = unknown,
+  TNext = unknown,
+> {
+  /** `[[Call]]` — synchronously returns a {@link Generator} instance. */
+  (this: ThisType, ...args: Args): Generator<T, TReturn, TNext>;
+  /** Own writable prototype — the generator-instance prototype. */
+  prototype: Generator<T, TReturn, TNext>;
+  /** The function's `name`. */
+  readonly name: string;
+  /** The number of declared formal parameters. */
+  readonly length: number;
+  /** Invoke with an explicit `this`. */
+  call(thisArg: ThisType, ...args: Args): Generator<T, TReturn, TNext>;
+  /** Invoke with an explicit `this` and an arguments-array. */
+  apply(thisArg: ThisType, args: Args): Generator<T, TReturn, TNext>;
+  /** Produce a bound generator function with a fixed `this`. */
+  bind(
+    thisArg: ThisType,
+    ...args: unknown[]
+  ): GeneratorFunction<ThisType, Args, T, TReturn, TNext>;
+}
+
+/**
+ * The `%AsyncGeneratorFunction%` intrinsic — any callable whose
+ * `[[Prototype]]` traces to `%AsyncGeneratorFunction.prototype%`.
+ * Synchronously returns an {@link AsyncGenerator} when invoked; the
+ * generator's `.next()` returns `Promise<IteratorResult>`.
+ *
+ * **Kin to {@link GeneratorFunction}, NOT to {@link AsyncFunction}**,
+ * despite the shared "Async" prefix. The function's *return* is synchronous
+ * — an AsyncGenerator object handed back immediately at the call site; only
+ * the iterator's per-step yield is async (its `.next()` returns a Promise).
+ * `%AsyncFunction%` instead returns a Promise *directly* from the call site
+ * and is unrelated structurally (different intrinsic, no own prototype,
+ * different `Symbol.toStringTag`).
+ *
+ * Admits `async function* name() {}` (declaration), `async function*() {}`
+ * (expression), concise async-generator methods, and their bound variants —
+ * `bind` preserves the prototype chain.
+ *
+ * Structurally: own writable `prototype` (carrying an {@link AsyncGenerator}
+ * instance shape), `Symbol.toStringTag === 'AsyncGeneratorFunction'`, no
+ * `[[Construct]]`.
+ *
+ * @template ThisType - the `this` context at the call site (dynamic)
+ * @template Args - the parameter tuple
+ * @template T - the yielded value type
+ * @template TReturn - the value the generator returns when complete
+ * @template TNext - the value sent to the generator's `.next(value)`
+ */
+export interface AsyncGeneratorFunction<
+  ThisType = unknown,
+  Args extends unknown[] = unknown[],
+  T = unknown,
+  TReturn = unknown,
+  TNext = unknown,
+> {
+  /** `[[Call]]` — synchronously returns an {@link AsyncGenerator} instance. */
+  (this: ThisType, ...args: Args): AsyncGenerator<T, TReturn, TNext>;
+  /** Own writable prototype — the async-generator-instance prototype. */
+  prototype: AsyncGenerator<T, TReturn, TNext>;
+  /** The function's `name`. */
+  readonly name: string;
+  /** The number of declared formal parameters. */
+  readonly length: number;
+  /** Invoke with an explicit `this`. */
+  call(thisArg: ThisType, ...args: Args): AsyncGenerator<T, TReturn, TNext>;
+  /** Invoke with an explicit `this` and an arguments-array. */
+  apply(thisArg: ThisType, args: Args): AsyncGenerator<T, TReturn, TNext>;
+  /** Produce a bound async-generator function with a fixed `this`. */
+  bind(
+    thisArg: ThisType,
+    ...args: unknown[]
+  ): AsyncGeneratorFunction<ThisType, Args, T, TReturn, TNext>;
+}
+
+/**
+ * The umbrella of both generator-function species —
+ * {@link GeneratorFunction} | {@link AsyncGeneratorFunction}. They share
+ * structural traits (own writable prototype, no `[[Construct]]`, callable
+ * surface) but trace to distinct intrinsics. {@link isAnyGeneratorFunction}
+ * narrows to this type; use the strict refinements
+ * {@link isGeneratorFunction} or {@link isAsyncGeneratorFunction} to
+ * discriminate further when needed.
+ */
+export type AnyGeneratorFunction = GeneratorFunction | AsyncGeneratorFunction;
+
+// ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
+// ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
+
+/**
+ * Tests whether a value carries the runtime "shape" of the
+ * `%GeneratorFunction%` intrinsic — the **three** realm-independent markers:
+ * no `[[Construct]]`, `Symbol.toStringTag === 'GeneratorFunction'`, and the
+ * resolved constructor name `=== 'GeneratorFunction'`.
+ *
+ * **No prototype-slot check.** Unlike {@link hasAsyncFunctionShape}, this
+ * helper does NOT include `!hasOwnPrototype` or `hasOwnWritablePrototype`.
+ * The reason: unbound generator functions *have* an own writable
+ * `prototype` (carrying the {@link Generator} instance proto), bound ones
+ * don't — `bind` strips own slots. Either check would split bound from
+ * unbound, but the helper is meant to admit both (lenient by spec
+ * mechanics — `bind` preserves the prototype chain, so the tag and
+ * constructor-name remain inherited intact in both cases).
+ *
+ * Returns plain `boolean`; narrowing belongs to {@link isGeneratorFunction}.
+ * Independent of {@link isFunction} — accepts any value, returns `false`
+ * for non-callable inputs.
+ *
+ * @param value - the value to inspect
+ * @returns `true` when all three markers match; `false` otherwise
+ * @internal
+ */
+export function hasGeneratorFunctionShape(value?: unknown): boolean;
+
+/**
+ * Narrows a value to {@link GeneratorFunction} — orchestrator: `isFunction`
+ * gate, same-realm `instanceof` fast path against the captured
+ * `%GeneratorFunction%` intrinsic, cross-realm fallback via
+ * {@link hasGeneratorFunctionShape}.
+ *
+ * Admits sync generator function declarations, expressions,
+ * concise-method forms, and their bound variants.
+ *
+ * Does NOT admit async-generator functions — those trace to
+ * `%AsyncGeneratorFunction%`. Use {@link isAsyncGeneratorFunction} for that
+ * species or {@link isAnyGeneratorFunction} for the umbrella.
+ *
+ * @param value - the value to test; omitted is treated as `undefined`, which
+ *  is not a generator function
+ * @returns `true` when the value is a sync-generator function, narrowing to
+ *  {@link GeneratorFunction}; `false` otherwise
+ */
+export function isGeneratorFunction(value?: unknown): value is GeneratorFunction;
+
+/**
+ * Tests whether a value carries the runtime "shape" of the
+ * `%AsyncGeneratorFunction%` intrinsic — the three realm-independent
+ * markers: no `[[Construct]]`, `Symbol.toStringTag` equals
+ * `'AsyncGeneratorFunction'`, and the resolved constructor name equals
+ * `'AsyncGeneratorFunction'`.
+ *
+ * Same "no prototype-slot check" rationale as {@link hasGeneratorFunctionShape}
+ * — unbound async-generator functions carry an own writable `prototype`,
+ * bound ones don't; admitting both requires omitting that check.
+ *
+ * Returns plain `boolean`; narrowing belongs to
+ * {@link isAsyncGeneratorFunction}.
+ *
+ * @param value - the value to inspect
+ * @returns `true` when all three markers match; `false` otherwise
+ * @internal
+ */
+export function hasAsyncGeneratorFunctionShape(value?: unknown): boolean;
+
+/**
+ * Narrows a value to {@link AsyncGeneratorFunction} — orchestrator:
+ * `isFunction` gate, same-realm `instanceof` fast path against the captured
+ * `%AsyncGeneratorFunction%` intrinsic, cross-realm fallback via
+ * {@link hasAsyncGeneratorFunctionShape}.
+ *
+ * Admits `async function*` declarations, expressions, async concise methods,
+ * and their bound variants. Does NOT admit sync generator functions, async
+ * functions, or any other family — those have different intrinsics.
+ *
+ * @param value - the value to test; omitted is treated as `undefined`, which
+ *  is not an async-generator function
+ * @returns `true` when the value is an async-generator function, narrowing
+ *  to {@link AsyncGeneratorFunction}; `false` otherwise
+ */
+export function isAsyncGeneratorFunction(
+  value?: unknown,
+): value is AsyncGeneratorFunction;
+
+/**
+ * Narrows a value to {@link AnyGeneratorFunction} — the umbrella over both
+ * sync and async generator-function species. Composes
+ * {@link isGeneratorFunction} and {@link isAsyncGeneratorFunction}: passes
+ * if either fast path or either shape helper succeeds. No dedicated
+ * `hasAnyGeneratorFunctionShape` helper — the umbrella's job is exactly the
+ * union, and composing the two single-family helpers is the codified
+ * pattern.
+ *
+ * @param value - the value to test; omitted is treated as `undefined`, which
+ *  is not a generator function
+ * @returns `true` when the value is either a sync or an async generator
+ *  function (including bound variants), narrowing to
+ *  {@link AnyGeneratorFunction}; `false` otherwise
+ */
+export function isAnyGeneratorFunction(value?: unknown): value is AnyGeneratorFunction;
+
+// ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
