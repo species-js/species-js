@@ -8,10 +8,16 @@
  * callability test; richer function classification builds on top of it.
  */
 
+import { getOwnPropertyDescriptor } from '@/config';
+import { hasOwnWritablePrototype } from '@/utility';
+
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 
 /** @typedef {import('@/function').Callable} Callable */
 /** @typedef {import('@/function').VerifiedFunction} VerifiedFunction */
+/** @typedef {import('@/function').NewableFunction} NewableFunction */
+/** @typedef {import('@/function').ClassConstructor} ClassConstructor */
+/** @typedef {import('@/function').ES3Function} ES3Function */
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 
@@ -61,6 +67,91 @@ export function isFunction(value) {
     isCallable(value.call) &&
     isCallable(value.apply)
   );
+}
+
+// ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
+//
+//  Newable Function Predicates
+//
+// ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
+
+/**
+ * Probes the value's `[[Construct]]` internal method via a `Proxy` `construct`
+ * trap — attempts `new (new Proxy(value, { construct: () => ({}) }))()` inside
+ * a `try` / `catch`. Success means the target had `[[Construct]]`; failure
+ * means it did not. The probe never invokes `value` directly.
+ *
+ * @param {unknown} value - the value to probe
+ * @returns {boolean} `true` when the value carries `[[Construct]]`; `false`
+ *  otherwise
+ */
+export function hasConstructSlot(value) {
+  try {
+    new /** @type {NewableFunction} */ (
+      new Proxy(/** @type {object} */ (value), { construct: () => ({}) })
+    )();
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Narrows a value to the lenient {@link NewableFunction} gate — composes
+ * {@link isFunction} with {@link hasConstructSlot}. Admits all three newable
+ * species: ES3 functions, class constructors, and bound newables.
+ *
+ * @param {unknown} [value] - the value to test; omitted is treated as
+ *  `undefined`, which is not callable
+ * @returns {value is NewableFunction} `true` when the value is callable AND
+ *  carries `[[Construct]]`; `false` otherwise
+ */
+export function isNewableFunction(value) {
+  return isFunction(value) && hasConstructSlot(value);
+}
+
+/**
+ * Narrows a value to {@link ClassConstructor} — builds on
+ * {@link isNewableFunction} and verifies the descriptor: an own `prototype`
+ * with `writable: false` whose `value.constructor` is the value itself.
+ * Bound class constructors fail at the descriptor step (they have no own
+ * `prototype`).
+ *
+ * @param {unknown} [value] - the value to test; omitted is treated as
+ *  `undefined`
+ * @returns {value is ClassConstructor} `true` when the value is a class-shaped
+ *  newable; `false` otherwise
+ */
+export function isClass(value) {
+  if (!isNewableFunction(value)) {
+    return false;
+  }
+  const descriptor = getOwnPropertyDescriptor(value, 'prototype');
+
+  if (descriptor?.writable !== false) {
+    return false;
+  }
+  const slotValue = /** @type {unknown} */ (descriptor.value);
+  const prototype =
+    /** @type {{ constructor?: unknown } | null | undefined} */
+    (slotValue);
+
+  return prototype?.constructor === value;
+}
+
+/**
+ * Narrows a value to {@link ES3Function} — builds on
+ * {@link isNewableFunction} and verifies an own `prototype` with
+ * `writable: true` via {@link hasOwnWritablePrototype}. Bound ES3 functions
+ * fail at the writable-prototype step (they have no own `prototype`).
+ *
+ * @param {unknown} [value] - the value to test; omitted is treated as
+ *  `undefined`
+ * @returns {value is ES3Function} `true` when the value is an ES3-shaped
+ *  newable; `false` otherwise
+ */
+export function isES3Function(value) {
+  return isNewableFunction(value) && hasOwnWritablePrototype(value);
 }
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----

@@ -181,8 +181,8 @@ export function isFunction(value?: unknown): value is VerifiedFunction;
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 
 /**
- * An ES3-style function — the classic `function` declaration/expression that is
- * both callable and newable.
+ * An ES3-style function — the classic `function` declaration/expression that
+ * is both callable and newable.
  *
  * Unlike a class, an `ES3Function` may be invoked with or without `new`. Its
  * structural tell versus {@link ClassConstructor} is a **writable** `prototype`
@@ -190,6 +190,14 @@ export function isFunction(value?: unknown): value is VerifiedFunction;
  * TypeScript types a plain `function` declaration as call-only, so this
  * handwritten shape is what *asserts* the construct signature ES3 functions
  * carry at runtime.
+ *
+ * Bound ES3 functions are **deliberately excluded** from this type. Binding
+ * strips the function's own `prototype` slot — the writable-prototype tell is
+ * gone, so what you have isn't an ES3 shape anymore. It's still newable
+ * (passes {@link isNewableFunction}), but it has become a third species — a
+ * bound-newable — that this package does not name as its own type. The
+ * matching guard {@link isES3Function} reflects this: it rejects bound
+ * variants via the `hasOwnWritablePrototype` check.
  *
  * @template ThisType - the dynamic `this` context (resolved at the call site)
  * @template Args - the parameter / constructor-argument tuple
@@ -221,14 +229,23 @@ export interface ES3Function<
 }
 
 /**
- * An ES6 class constructor — produced by `class` declarations/expressions.
+ * A class constructor — produced by `class` declarations/expressions, or any
+ * built-in constructor whose `prototype` slot is read-only.
  *
- * A `ClassConstructor` is `typeof === 'function'` — it carries `[[Call]]`, which
- * is why {@link isCallable} accepts it — but **must** be invoked with `new`;
- * calling it without `new` throws `TypeError` (its `[[IsClassConstructor]]`
- * slot), so the call signature returns `never`. Its structural tell versus
+ * A `ClassConstructor` is `typeof === 'function'` — it carries `[[Call]]`, so
+ * {@link isCallable} accepts it — but **must** be invoked with `new`; calling
+ * it without `new` throws `TypeError` (its `[[IsClassConstructor]]` slot), so
+ * the call signature returns `never`. Its structural tell versus
  * {@link ES3Function} is a **readonly** `prototype`
  * (`Object.getOwnPropertyDescriptor(cls, 'prototype').writable === false`).
+ *
+ * Bound class constructors are **deliberately excluded** from this type. Once
+ * bound, the result has lost its own `prototype` slot entirely — the
+ * structural tell of a class is gone, so what you have is no longer a class
+ * shape. It is still newable (passes {@link isNewableFunction}, since
+ * `[[Construct]]` survives `bind`), but it has become a third species — a
+ * bound-newable. The matching guard {@link isClass} reflects this: it
+ * rejects bound variants on the descriptor check.
  *
  * @template Args - the constructor-argument tuple
  * @template T - the instance type the constructor produces
@@ -253,25 +270,34 @@ export interface ClassConstructor<Args extends unknown[] = unknown[], T = object
 }
 
 /**
- * The lenient newable gate: any value that is `typeof === 'function'` (callable,
- * with callable `call`/`apply`/`bind`) AND carries the internal `[[Construct]]`
- * method. This is what `isNewableFunction` narrows to — deliberately permissive:
- * it admits **bound** classes and bound ES3 functions, which keep `[[Construct]]`
- * but have lost their own `prototype`.
+ * The lenient newable gate — any value with the internal `[[Construct]]`
+ * method reachable via a `Proxy` `construct` trap (see
+ * {@link hasConstructSlot}). Deliberately permissive: admits the three
+ * species of newable value JavaScript supports — {@link ES3Function},
+ * {@link ClassConstructor}, and **bound newables** (the result of
+ * `someClassOrES3.bind(…)`, which preserves `[[Construct]]` but loses its
+ * own `prototype`).
  *
- * It therefore makes **no `prototype` guarantee**. To reach a `prototype` — and
- * to tell the two strict shapes apart — narrow further to {@link ES3Function}
- * (own *writable* `prototype`) or {@link ClassConstructor} (own *readonly*
- * `prototype`), the shapes that `isES3Function` and `isClass` verify.
+ * Because bound newables lack own `prototype`, this interface makes **no
+ * `prototype` guarantee**. To reach a `prototype` — and to tell the two
+ * non-bound species apart — narrow further to {@link ES3Function} (own
+ * writable `prototype`) or {@link ClassConstructor} (own readonly
+ * `prototype`). Both of those guards deliberately reject bound variants on
+ * exactly that ground: a bound class is no longer a class-shape, a bound ES3
+ * function is no longer an ES3-shape; both remain newable but become a third
+ * species — a bound-newable — that this package does not name as its own
+ * type. The introspection layer can, with the caveats "is-bound" detection
+ * carries (the only spec-reliable tell is `[[BoundTargetFunction]]`, which
+ * isn't observable; every visible fingerprint is spoofable).
  *
- * Modeling note — the union `ES3Function | ClassConstructor` would be *stricter*
- * than this gate (both branches promise a `prototype` that bound variants lack),
- * so the faithful narrow target for `isNewableFunction` is this base interface,
- * not that union. TypeScript can't infer `[[Construct]]` for a plain `function`
- * either (it types them call-only); the runtime guard asserts what the compiler
- * cannot derive. Arrow functions, methods, async, and generator functions are
- * **not** newable — they lack `[[Construct]]` in both the type system and the
- * runtime.
+ * Modeling note — `NewableFunction` is deliberately a lenient base interface,
+ * not the union `ES3Function | ClassConstructor`. The union would
+ * over-promise (both branches carry a `prototype` bound variants don't), so
+ * it would be the wrong narrow target. TypeScript cannot infer `[[Construct]]`
+ * for a plain `function` either (it types them call-only); the runtime guard
+ * {@link isNewableFunction} asserts what the compiler cannot derive. Arrow
+ * functions, methods, async, and generator functions are **not** newable —
+ * they lack `[[Construct]]` in both the type system and the runtime.
  *
  * @template Args - the constructor-argument tuple
  * @template T - the instance type produced by `new`
@@ -288,5 +314,76 @@ export interface NewableFunction<Args extends unknown[] = unknown[], T = object>
   /** Produce a bound newable with a fixed `this`. */
   bind(thisArg: unknown, ...args: unknown[]): NewableFunction<Args, T>;
 }
+
+// ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
+// ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
+
+/**
+ * Probes the value's `[[Construct]]` internal method without invoking the
+ * value itself. Builds a `Proxy` whose `construct` trap returns an empty
+ * object, then attempts `new proxy(…)`: if `[[Construct]]` is reachable on
+ * the proxy's target, the construction succeeds and the function returns
+ * `true`; otherwise the `new` throws and the function returns `false`.
+ *
+ * The MDN-cited invariant — "the `target` used to initialize the proxy must
+ * itself be a valid constructor" — is what makes this a reliable lenient
+ * gate: the proxy can supply a `construct` trap, but the trap is only
+ * exercised if the target has `[[Construct]]` to begin with. Bound newables
+ * count (they preserve `[[Construct]]`); arrow functions, methods, async
+ * functions, and generator functions do not.
+ *
+ * @param value - the value to probe
+ * @returns `true` when the value carries `[[Construct]]`; `false` otherwise
+ */
+export function hasConstructSlot(value: unknown): boolean;
+
+/**
+ * Narrows a value to the lenient {@link NewableFunction} gate — composes
+ * {@link isFunction} (the four-method callability check) with
+ * {@link hasConstructSlot} (the `[[Construct]]` probe). The result admits
+ * all three newable species: {@link ES3Function}, {@link ClassConstructor},
+ * and bound newables.
+ *
+ * @param value - the value to test; omitted is treated as `undefined`, which
+ *  is not callable
+ * @returns `true` when the value is callable, exposes callable `call` /
+ *  `apply` / `bind`, AND carries `[[Construct]]`, narrowing to
+ *  {@link NewableFunction}; `false` otherwise
+ */
+export function isNewableFunction(value?: unknown): value is NewableFunction;
+
+/**
+ * Narrows a value to {@link ClassConstructor} — the strict class shape.
+ * Builds on {@link isNewableFunction} and adds the structural tell: an own
+ * `prototype` descriptor whose `writable` is `false` *and* whose `value`
+ * points back to the constructor (`descriptor.value.constructor === value`).
+ *
+ * Bound class constructors are **deliberately rejected** — they remain
+ * newable but have lost their own `prototype` slot, so what you have is no
+ * longer a class shape. The {@link NewableFunction} gate still admits them;
+ * this guard does not.
+ *
+ * @param value - the value to test; omitted is treated as `undefined`
+ * @returns `true` when the value is a class-shaped newable (built-in or
+ *  `class`-syntax), narrowing to {@link ClassConstructor}; `false` otherwise
+ */
+export function isClass(value?: unknown): value is ClassConstructor;
+
+/**
+ * Narrows a value to {@link ES3Function} — the strict ES3-function shape.
+ * Builds on {@link isNewableFunction} and adds the structural tell: an own
+ * `prototype` descriptor whose `writable` is `true` (verified via
+ * `hasOwnWritablePrototype`).
+ *
+ * Bound ES3 functions are **deliberately rejected** — they remain newable
+ * but have lost their own `prototype` slot, so what you have is no longer
+ * an ES3 shape. The {@link NewableFunction} gate still admits them; this
+ * guard does not.
+ *
+ * @param value - the value to test; omitted is treated as `undefined`
+ * @returns `true` when the value is an ES3-shaped newable, narrowing to
+ *  {@link ES3Function}; `false` otherwise
+ */
+export function isES3Function(value?: unknown): value is ES3Function;
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
