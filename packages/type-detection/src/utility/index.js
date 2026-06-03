@@ -12,20 +12,21 @@
 import {
   getOwnPropertyDescriptors,
   getOwnPropertyDescriptor,
-  objectKeys,
   getPrototypeOf,
+  objectHasOwn,
+  objectKeys,
   toObjectString,
 } from '@/config';
 
-import { isFunction } from '@/function';
+import { isCallable, isFunction } from '@/function';
 import { isNumberValue, isStringValue, isSymbolValue } from '@/primitive';
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 
 /** @typedef {import('./index').PropertyDescriptor} PropertyDescriptor */
+/** @typedef {import('./index').ConstructorName} ConstructorName */
 /** @typedef {import('./index').TypeSignature} TypeSignature */
 /** @typedef {import('./index').TaggedType} TaggedType */
-/** @typedef {import('./index').ConstructorName} ConstructorName */
 /** @typedef {import('./index').ResolvedType} ResolvedType */
 
 /** @typedef {import('@/function').NewableFunction} NewableFunction */
@@ -117,14 +118,16 @@ export function getNextAvailablePropertyDescriptor(value, key) {
   if (!isValidPropertyKey(key)) {
     return void 0;
   }
+  /** @type {PropertyDescriptor | undefined} */
   let descriptor;
 
   /** @type {object | null} */
   let currentValue = value;
 
   while (!descriptor && currentValue !== null) {
-    descriptor = getOwnPropertyDescriptor(currentValue, key);
-
+    descriptor = /** @type {PropertyDescriptor | undefined} */ (
+      getOwnPropertyDescriptor(currentValue, key)
+    );
     currentValue = getPrototypeOf(currentValue) ?? null;
   }
   return descriptor;
@@ -181,6 +184,52 @@ export function getOwnPropertyDescriptorsKeys(value) {
  */
 export function getOwnPropertyDescriptorsKeySet(value) {
   return new Set(getOwnPropertyDescriptorsKeys(value));
+}
+
+// ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
+
+/**
+ * Tests whether the value carries a callable data property at `key`,
+ * reachable through its prototype chain.
+ *
+ * The lookup walks the prototype chain via own-descriptor reads at
+ * each level, matching how ECMA-262 `Get(value, key)` resolves the
+ * property at runtime. A `key` found anywhere along the chain — own
+ * or inherited — satisfies the predicate, provided the descriptor is
+ * a data descriptor whose value is callable.
+ *
+ * "Inert" refers to the inspect-without-invoke guarantee. The check
+ * confirms callability via descriptor reads, never by accessing the
+ * property directly. An accessor `get key()` would fire on access
+ * regardless of whether the getter returns a callable; the predicate
+ * rejects accessor descriptors, so the inspection itself remains inert.
+ *
+ * Used by Promise-contract predicates to verify the spec-defined `then`,
+ * `catch`, and `finally` methods of a _thenable_ or _promise-like_
+ * type without triggering side effects. The helper is general-purpose:
+ * any method-contract predicate that needs the inspect-without-invoke
+ * guarantee should compose it.
+ *
+ * @param {unknown} value - the value to inspect
+ * @param {PropertyKey} key - the property key to resolve through the
+ *  value's prototype chain
+ * @returns {boolean} `true` when the value carries a callable data
+ *  property at `key` in its prototype chain; `false` otherwise
+ * @example
+ * hasInertMethod(Promise.resolve(), 'then');                   // true (inherited)
+ * hasInertMethod({ then: () => {} }, 'then');                  // true (own)
+ * hasInertMethod({}, 'then');                                  // false
+ * hasInertMethod({ get then() { return () => {}; } }, 'then'); // false (accessor)
+ * hasInertMethod(null, 'then');                                // false
+ */
+export function hasInertMethod(value, key) {
+  const descriptor = /** @type {PropertyDescriptor | undefined} */ (
+    (value ?? void 0) &&
+      getNextAvailablePropertyDescriptor(/** @type {object} */ (value), key)
+  );
+  return (
+    !!descriptor && objectHasOwn(descriptor, 'value') && isCallable(descriptor.value)
+  );
 }
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----

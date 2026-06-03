@@ -112,7 +112,7 @@ export type TypeSignature = `[object ${TaggedType}]`;
  * Detects whether the value carries an own `prototype` property.
  *
  * The test reads the descriptor directly, not the inheritance chain.
- * Inherited prototypes — for example an arrow function whose `prototype`
+ * Inherited prototypes — for example, an arrow function whose `prototype`
  * comes from `Function.prototype` — are deliberately excluded.
  *
  * @param value - the value to test; omitted is treated as `undefined`, which
@@ -221,6 +221,44 @@ export function getOwnPropertyDescriptorsKeys(value?: unknown): string[];
 export function getOwnPropertyDescriptorsKeySet(value?: unknown): Set<string>;
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
+
+/**
+ * Tests whether the value carries a callable data property at `key`,
+ * reachable through its prototype chain.
+ *
+ * The lookup walks the prototype chain via own-descriptor reads at
+ * each level, matching how ECMA-262 `Get(value, key)` resolves the
+ * property at runtime. A `key` found anywhere along the chain — own
+ * or inherited — satisfies the predicate, provided the descriptor is
+ * a data descriptor whose value is callable.
+ *
+ * "Inert" refers to the inspect-without-invoke guarantee. The check
+ * confirms callability via descriptor reads, never by accessing the
+ * property directly. An accessor `get key()` would fire on access
+ * regardless of whether the getter returns a callable; the predicate
+ * rejects accessor descriptors, so the inspection itself remains inert.
+ *
+ * Used by Promise-contract predicates to verify the spec-defined `then`,
+ * `catch`, and `finally` methods of a _thenable_ or _promise-like_
+ * type without triggering side effects. The helper is general-purpose:
+ * any method-contract predicate that needs the inspect-without-invoke
+ * guarantee should compose it.
+ *
+ * @param value - the value to inspect
+ * @param key - the property key to resolve through the value's
+ *  prototype chain
+ * @returns `true` when the value carries a callable data property at
+ *  `key` in its prototype chain; `false` otherwise
+ * @example
+ * hasInertMethod(Promise.resolve(), 'then');                   // true (inherited)
+ * hasInertMethod({ then: () => {} }, 'then');                  // true (own)
+ * hasInertMethod({}, 'then');                                  // false
+ * hasInertMethod({ get then() { return () => {}; } }, 'then'); // false (accessor)
+ * hasInertMethod(null, 'then');                                // false
+ */
+export function hasInertMethod(value: unknown, key: PropertyKey): boolean;
+
+// ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 //
 //  Type-Signature Readers
 //
@@ -310,7 +348,7 @@ export function getDefinedConstructor(value?: unknown): NewableFunction | undefi
  * `name` is spec-defined as an own data descriptor on every function
  * (ECMA-262 §10.2.9 `SetFunctionName`), so reading via
  * `getOwnPropertyDescriptor(constructor, 'name').value` returns the data
- * value directly. An accessor on `name` — e.g. a malicious
+ * value directly. An accessor on `name` — e.g., a malicious
  * `Object.defineProperty(Cls, 'name', { get: () => 'Spoofed' })` — leaves
  * the descriptor's `value` undefined and is therefore rejected by the
  * string-check narrow that follows. No direct-access fallback, because
