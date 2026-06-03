@@ -305,10 +305,16 @@ export function getTaggedType(): undefined;
 export function getDefinedConstructor(value?: unknown): NewableFunction | undefined;
 
 /**
- * Returns the constructor's `name`.
+ * Returns the constructor's `name` via its property descriptor.
  *
- * Composes {@link getDefinedConstructor} with a `name` read, then narrows
- * the result via a string check.
+ * `name` is spec-defined as an own data descriptor on every function
+ * (ECMA-262 §10.2.9 `SetFunctionName`), so reading via
+ * `getOwnPropertyDescriptor(constructor, 'name').value` returns the data
+ * value directly. An accessor on `name` — e.g. a malicious
+ * `Object.defineProperty(Cls, 'name', { get: () => 'Spoofed' })` — leaves
+ * the descriptor's `value` undefined and is therefore rejected by the
+ * string-check narrow that follows. No direct-access fallback, because
+ * direct `.name` access would invoke the accessor.
  *
  * Edge cases:
  *

@@ -286,6 +286,14 @@ export function getDefinedConstructor(value = null) {
   if (isFunction(constructor)) {
     return /** @type {NewableFunction} */ (constructor);
   } else {
+    // Meta-constructor fallback. Direct `constructor?.constructor` access is
+    // deliberate, not a defensive miss: `constructor` on the constructor is
+    // inherited via the prototype chain (e.g. `%GeneratorFunction%.constructor`
+    // resolves through `%Function.prototype%` to `%Function%`), and the
+    // engine's prototype-chain walk is the spec-correct resolution. A
+    // descriptor-first read here would return `undefined` for every
+    // inherited case and fall through to direct access anyway. See
+    // [[design-rulings]] "spec-shape determines the access path".
     const creator = /** @type {{ constructor?: unknown } | null | undefined} */ (
       constructor
     )?.constructor;
@@ -311,8 +319,12 @@ export function getDefinedConstructor(value = null) {
   if (isFunction(protoConstructor)) {
     return /** @type {NewableFunction} */ (protoConstructor);
   } else {
-    // Prototype's `constructor` is also unusable; one more level — the
-    // meta-constructor (`constructor.constructor`) — before giving up.
+    // Prototype-side meta-constructor fallback. Same rationale as the
+    // value-side meta-constructor step above: direct access lets the
+    // engine resolve `constructor.constructor` through the prototype
+    // chain, which is the spec-correct path for inherited reciprocal
+    // references (GeneratorFunction↔Generator, etc.). See
+    // [[design-rulings]] "spec-shape determines the access path".
     const protoCreator = /** @type {{ constructor?: unknown } | null | undefined} */ (
       protoConstructor
     )?.constructor;
@@ -351,7 +363,15 @@ export function getDefinedConstructorName(value) {
   if (constructor === null) {
     return void 0;
   }
-  const { name } = constructor;
+  // `name` is spec-defined as an own data descriptor on every function
+  // (ECMA-262 §10.2.9 `SetFunctionName`). Reading via the descriptor
+  // returns the data value directly; an accessor `get name()` — e.g. a
+  // malicious replacement — leaves `descriptor.value` undefined and is
+  // therefore rejected by the `isStringValue` narrow. No direct-access
+  // fallback, because direct access would invoke the accessor.
+  const name = /** @type {unknown} */ (
+    getOwnPropertyDescriptor(/** @type {object} */ (constructor), 'name')?.value
+  );
   if (!isStringValue(name)) {
     return void 0;
   }
