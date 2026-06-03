@@ -185,6 +185,35 @@ propagates `any` should be retyped at the boundary as a single edit, not launder
 `/** @type {unknown} */` at every call site. The `.d.ts` JSDoc on each retyped primitive
 documents the deviation from `typeof Object.X` so the choice is auditable.
 
+### Property-access discipline: own-data vs. inherited
+
+Reading a property from a value is two different operations depending on what the spec
+says about that property. The package keeps the two operations separated so the defensive
+pattern at each call site matches the spec shape of the property being read.
+
+- **Own-data.** `name` on a function — spec-defined as an own data descriptor (ECMA-262
+  §10.2.9 `SetFunctionName`) — is the canonical case in this package. The canonical read
+  is `getOwnPropertyDescriptor(obj, key)?.value`, with no fallback to direct property
+  access. An accessor getter installed at the same key leaves `descriptor.value`
+  undefined, and the downstream narrow correctly rejects the read; falling back to
+  `obj[key]` would invoke the accessor we are trying to refuse.
+  `getDefinedConstructorName` reads `name` this way.
+- **Inherited.** `constructor` on an instance and the meta-constructor
+  `constructor.constructor` are not own data on the value being read. The canonical
+  resolution is the engine's prototype-chain walk via direct property access. A
+  descriptor-first defense here is misaligned with inheritance: the own descriptor returns
+  `undefined` for every inherited case, the `??` fallback to direct access does the actual
+  work every time, and the descriptor read is scaffolding that does not catch the spoof it
+  targets. Reciprocal-reference types make this concrete — `%GeneratorFunction%`'s
+  `constructor` is inherited from `%Function.prototype%`, and the prototype-chain walk is
+  what resolves it to `%Function%`. `getDefinedConstructor`'s meta-constructor fallbacks
+  at steps 2 and 4 use direct access for exactly this reason.
+
+The asymmetry is structural, not stylistic. Picking the wrong access path does not just
+add a function call — it changes which spoofs the predicate catches and which spec
+invariants it honors. Before adding a new descriptor read or shifting an existing one to
+direct access, name which side of this asymmetry the property is on. See decision #020.
+
 ### Realm intrinsics: the `%X%` notation
 
 The doc voice uses `%AsyncFunction%`, `%GeneratorFunction%`, `%AsyncFunction.prototype%`,
@@ -207,12 +236,6 @@ _identity_.
 
 These are not unresolved bugs; they are architectural choices that have not yet been made.
 Each one is the subject of an open question in `DECISION-LOG.md`.
-
-- **Q.001 — `getDefinedConstructorName` accessor-spoof protection.** The impl uses direct
-  property access (`const { name } = constructor`), which an accessor getter on
-  `constructor.name` can spoof. Descriptor-based reading would protect against this, at
-  the cost of one more `getOwnPropertyDescriptor` call. The current `.d.ts` doc is honest
-  about what the impl does; whether to tighten the impl is open.
 
 - **Q.002 — Bound-admission policy for public predicates.** The fingerprint matrix made
   bound detection cheap for every species, eliminating the spec-mechanics-forced asymmetry

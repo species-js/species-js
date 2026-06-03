@@ -339,8 +339,8 @@ export function getDefinedConstructor(value = null) {
 /**
  * Returns the constructor's `name`.
  *
- * Composes {@link getDefinedConstructor} with a property read, then narrows
- * the result via {@link isStringValue}.
+ * Composes {@link getDefinedConstructor} with a descriptor-based `name`
+ * read, then narrows the result via {@link isStringValue}.
  *
  * Edge cases:
  *
