@@ -1,9 +1,13 @@
 /**
  * @module @species-js/type-detection/function
  *
- * Function-shaped value detection. The floor predicate {@link isCallable}
- * narrows any value to {@link Callable} via the minimal, realm-independent
- * callability test; richer function classification builds on top of it.
+ * Function-shaped value detection.
+ *
+ * The floor predicate {@link isCallable} narrows any value to
+ * {@link Callable} via the minimal, realm-independent callability test.
+ * Richer function classification — newability, verified Function-interface
+ * shape, specific species such as async, generator, or class — builds on
+ * top of it.
  */
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
@@ -13,12 +17,17 @@
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 
 /**
- * Reads a function's source via `toFunctionString.call(value)` — routes
- * around the instance's `toString` (which may be missing or replaced) by
- * going through the realm-fixed `Function.prototype.toString` capture
- * directly. Returns the trimmed source string; `[native code]` markers in
- * the source are not stripped, since distinguishing native from user-authored
- * code is precisely why callers reach for this helper.
+ * Returns a function's source string with surrounding whitespace trimmed.
+ *
+ * The read goes through the realm-fixed `toFunctionString.call(value)`
+ * capture rather than the instance's own `toString`. A function whose
+ * instance `toString` has been deleted, replaced, or shadowed still yields
+ * its real source through this helper.
+ *
+ * `[native code]` markers that engines insert for built-in functions are
+ * preserved in the output. Telling native code from user-authored code is
+ * the load-bearing reason callers reach for this helper, so stripping the
+ * markers would defeat the purpose.
  *
  * @param value - the function whose source should be read
  * @returns the function's source as a trimmed string
@@ -28,7 +37,7 @@ export function getFunctionSource(value: Callable): string;
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 //
-//  Callable vs. Function Interface Types
+//  Callable vs. Function Interface Types and Predicates
 //
 //  These types distinguish between the minimal `typeof === 'function'` check
 //  and progressively stricter verification of the Function interface.
@@ -36,57 +45,65 @@ export function getFunctionSource(value: Callable): string;
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 
 /**
- * The floor of JavaScript callability: any value for which
- * `typeof value === 'function'` holds.
+ * The floor of JavaScript callability. Any value for which
+ * `typeof value === 'function'` holds satisfies `Callable`.
  *
- * A `Callable` is guaranteed exactly one thing — it has the internal
- * `[[Call]]` method, so invocation is *defined* on it. Defined is not the
- * same as *returning*: a class constructor is a `Callable` whose `[[Call]]`
- * is hardwired to throw (`[[IsClassConstructor]]` → `TypeError`), so invoking
- * it never yields a value. The floor promises that `[[Call]]` exists, not that
- * it returns. It promises **nothing** else:
- * - no `[[Construct]]` — it may or may not be newable;
- * - no `call` / `apply` / `bind` — those may be absent, deleted, or replaced;
- * - no particular `this` binding — lexical vs. dynamic is not expressed here.
+ * The single guarantee is the `[[Call]]` internal method: invocation is
+ * defined on the value. Defined is not the same as returning. A class
+ * constructor satisfies `Callable` because it carries `[[Call]]`, but its
+ * `[[Call]]` is hardwired to throw `TypeError` via the
+ * `[[IsClassConstructor]]` slot, so invoking it never yields a value. The
+ * floor promises that `[[Call]]` exists, not that it produces a result.
  *
- * Because `typeof === 'function'` is realm-independent — unlike
- * `instanceof Function`, which breaks across realms — `Callable` is the
- * foundation every cross-realm function check in this package builds on.
- * It is deliberately the *minimal* type; richer guarantees (newability, a
- * verified `Function.prototype` method set, a specific classification such
- * as generator/async/class) are the job of stricter types layered above it.
- * {@link isCallable} is the guard that narrows an `unknown` to this type.
+ * Everything else is unpromised:
+ *
+ * - No `[[Construct]]`. The value may or may not be newable.
+ * - No `call` / `apply` / `bind`. Those may be absent, deleted, or
+ *   replaced on the instance.
+ * - No particular `this` binding. Lexical vs. dynamic is not modeled at
+ *   this layer.
+ *
+ * `Callable` is the cross-realm-safe floor because `typeof === 'function'`
+ * works across realms, unlike `instanceof Function`. Every other function
+ * check in this package builds on it. Richer guarantees — newability, a
+ * verified `Function.prototype` method set, a specific classification
+ * such as generator, async, or class — are the job of stricter types
+ * layered above. {@link isCallable} is the guard that narrows an
+ * `unknown` to this type.
  *
  * ## Runtime values that satisfy `Callable`
- * - Function declarations and expressions; arrow, async, and async-arrow functions
+ *
+ * - Function declarations and expressions; arrow, async, and async-arrow
+ *   functions
  * - Generator and async-generator functions
- * - Object methods and class (concise) methods
+ * - Object methods and class concise methods
  * - Class constructors
  * - Bound functions (`fn.bind(…)`)
  * - Proxies whose target is callable
- * - Exotic callable host objects (rare)
- * - Functions whose `call` / `apply` / `bind` have been deleted or reassigned
+ * - Exotic callable host objects
+ * - Functions whose `call` / `apply` / `bind` have been deleted or
+ *   replaced
  *
  * @template Args - the parameter tuple; defaults to `unknown[]`
  * @template R - the return type; defaults to `unknown`
  *
- * Both type parameters default to `unknown` (never `any`) per the package's
- * typing discipline. `R = unknown` is also the *honest* floor for the two
- * outcomes a `[[Call]]` can have: an ordinary callable returns a value; a
- * class constructor throws (`never`). `unknown` is the join of those —
- * `unknown | never === unknown` — so it already subsumes the throwing case
- * rather than glossing over it. The distinction surfaces one layer down, where
- * {@link ClassConstructor} refines its `[[Call]]` to `never` and
- * {@link ES3Function} refines its own to a concrete return; the floor stays
- * `unknown` precisely because it is the supertype that abstracts over both.
- * Invoking a bare `Callable` therefore yields `unknown`, forcing the caller to
- * narrow the result before use.
+ * Both type parameters default to `unknown` (never `any`) per the
+ * package's typing discipline. `R = unknown` is also the honest floor for
+ * the two outcomes that `[[Call]]` can have: an ordinary callable returns
+ * a value, a class constructor throws (`never`). `unknown | never`
+ * collapses to `unknown`, so the floor already subsumes the throwing case
+ * without glossing over it. The distinction surfaces one layer down,
+ * where {@link ClassConstructor} refines its `[[Call]]` to `never` and
+ * {@link ES3Function} refines its own to a concrete return. The floor
+ * stays `unknown` because it is the supertype that abstracts over both.
+ * Invoking a bare `Callable` therefore yields `unknown`, forcing the
+ * caller to narrow the result before use.
  *
  * @example
  * declare const value: unknown;
  *
  * if (isCallable(value)) {
- *   // `value` is narrowed to `Callable` — safe to invoke
+ *   // `value` is narrowed to `Callable` — safe to invoke.
  *   const result = value(1, 2, 3); // result: unknown
  * }
  */
@@ -96,14 +113,13 @@ export interface Callable<Args extends unknown[] = unknown[], R = unknown> {
 }
 
 /**
- * Narrows an unknown value to {@link Callable} by the minimal callability
- * test — `typeof value === 'function'`.
+ * Narrows an unknown value to {@link Callable} via the minimal callability
+ * test, `typeof value === 'function'`.
  *
- * The floor-level guard: it confirms the `[[Call]]` internal method is present
- * (the value can be invoked) and nothing more. It does not verify
- * `[[Construct]]`, the `Function.prototype` method set, or any specific
- * function classification — those are the job of stricter guards layered
- * above it.
+ * The floor-level guard. It confirms that the `[[Call]]` internal method is
+ * present and nothing more. It does not verify `[[Construct]]`, the
+ * `Function.prototype` method set, or any specific function classification.
+ * Those checks belong to stricter guards layered above this one.
  *
  * @param value - the value to test; omitted is treated as `undefined`, which
  *  is not callable
@@ -115,15 +131,16 @@ export function isCallable(value?: unknown): value is Callable;
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 
 /**
- * The union shape between pure callability and constructibility — a
- * {@link Callable} whose `[[Construct]]` internal method may *or may not* be
- * present. The `new` signature is marked optional to express that uncertainty
- * structurally; this interface promises nothing about the
+ * The union of pure callability and constructibility. A {@link Callable}
+ * whose `[[Construct]]` internal method may or may not be present.
+ *
+ * The `new` signature is marked optional to express that uncertainty
+ * structurally. This interface promises nothing about the
  * `Function.prototype` method set.
  *
- * Use this as a target only when an API genuinely accepts both
- * call-only-or-also-constructor shapes; for stronger guarantees, narrow further
- * to {@link ES3Function} / {@link ClassConstructor} / {@link NewableFunction}.
+ * Use this only when an API genuinely accepts both call-only and
+ * also-constructor shapes. For stronger guarantees, narrow further to
+ * {@link ES3Function}, {@link ClassConstructor}, or {@link NewableFunction}.
  *
  * @template Args - the parameter / constructor-argument tuple
  * @template R - the return type when invoked without `new`
@@ -144,21 +161,21 @@ export interface CallableOrNewable<
 
 /**
  * A {@link Callable} whose own `call`, `apply`, and `bind` are themselves
- * callable — the verified Function-interface shape that survives prototype
+ * callable. The verified Function-interface shape that survives prototype
  * tampering on those three members.
  *
- * `VerifiedFunction` sits one layer above {@link Callable}: it adds the three
- * `Function.prototype` methods *as observed on the instance*, each verified to
- * be a function in its own right. This is the narrow target for
- * {@link isFunction}: a value where `.call(…)` / `.apply(…)` / `.bind(…)` are
- * guaranteed invocable, regardless of whether the originals were shadowed,
- * deleted, or replaced.
+ * `VerifiedFunction` sits one layer above {@link Callable}. It adds the
+ * three `Function.prototype` methods as observed on the instance, each
+ * verified to be a function in its own right. This is the narrow target
+ * for {@link isFunction}: a value where `.call(…)`, `.apply(…)`, and
+ * `.bind(…)` are guaranteed invocable, regardless of whether the
+ * originals were shadowed, deleted, or replaced.
  *
- * The verification is *observational*, not nominal — `VerifiedFunction` does
- * not promise the methods are *the* `Function.prototype.*`, only that something
- * callable answers at those names. A strict-identity variant (members
- * `=== Function.prototype.*`) is a separate concern, deliberately not modeled
- * here.
+ * The verification is observational, not nominal. `VerifiedFunction` does
+ * not promise the methods are the `Function.prototype.*` members, only
+ * that something callable answers at those names. A strict-identity
+ * variant (members `=== Function.prototype.*`) is a separate concern,
+ * deliberately not modeled here.
  *
  * @template ThisType - the dynamic `this` context
  * @template Args - the parameter tuple
@@ -182,44 +199,48 @@ export interface VerifiedFunction<
 }
 
 /**
- * Narrows a value to {@link VerifiedFunction} — verifies that `value` is
- * {@link Callable} *and* its own `call`, `apply`, and `bind` are themselves
- * callable. The strict-Function-interface guard that survives prototype
- * tampering on those three members.
+ * Narrows a value to {@link VerifiedFunction}.
+ *
+ * Verifies that `value` is {@link Callable} and that its own `call`,
+ * `apply`, and `bind` are themselves callable. This is the
+ * strict-Function-interface guard that survives prototype tampering on
+ * those three members.
  *
  * @param value - the value to test; omitted is treated as `undefined`, which is
  *  not callable
- * @returns `true` when `value` is callable and exposes callable `call` /
- *  `apply` / `bind`, narrowing to {@link VerifiedFunction}; `false` otherwise
+ * @returns `true` when `value` is callable and exposes callable `call`,
+ *  `apply`, and `bind`, narrowing to {@link VerifiedFunction}; `false`
+ *  otherwise
  */
 export function isFunction(value?: unknown): value is VerifiedFunction;
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 //
-//  Newable Function Types
+//  Newable Function Types and Predicates
 //
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 
 /**
- * An ES3-style function — the classic `function` declaration/expression that
- * is both callable and newable.
+ * An ES3-style function. The classic `function` declaration or expression
+ * that is both callable and newable.
  *
- * Unlike a class, an `ES3Function` may be invoked with or without `new`. Its
- * structural tell versus {@link ClassConstructor} is a **writable** `prototype`
+ * Unlike a class, an `ES3Function` may be invoked with or without `new`.
+ * The structural tell that separates it from {@link ClassConstructor} is
+ * a **writable** `prototype`
  * (`Object.getOwnPropertyDescriptor(fn, 'prototype').writable === true`).
  * TypeScript types a plain `function` declaration as call-only, so this
- * handwritten shape is what *asserts* the construct signature ES3 functions
+ * handwritten shape is what asserts the construct signature ES3 functions
  * carry at runtime.
  *
- * Bound ES3 functions are **deliberately excluded** from this type. Binding
- * strips the function's own `prototype` slot — the writable-prototype tell is
- * gone, so what you have isn't an ES3 shape anymore. It's still newable
- * (passes {@link isNewableFunction}), but it has become a third species — a
- * bound-newable — that this package does not name as its own type. The
- * matching guard {@link isES3Function} reflects this: it rejects bound
- * variants via the `hasOwnWritablePrototype` check.
+ * Bound ES3 functions are deliberately excluded. Binding strips the
+ * function's own `prototype` slot, which removes the writable-prototype
+ * tell entirely, so the value is no longer an ES3 shape. It remains
+ * newable and still passes {@link isNewableFunction}, but it has become a
+ * third species — a bound-newable — that this package does not name as
+ * its own type. The matching guard {@link isES3Function} reflects this by
+ * rejecting bound variants via the `hasOwnWritablePrototype` check.
  *
- * @template ThisType - the dynamic `this` context (resolved at the call site)
+ * @template ThisType - the dynamic `this` context, resolved at the call site
  * @template Args - the parameter / constructor-argument tuple
  * @template R - the return type when called without `new`
  * @template T - the instance type when called with `new`
@@ -249,23 +270,24 @@ export interface ES3Function<
 }
 
 /**
- * A class constructor — produced by `class` declarations/expressions, or any
- * built-in constructor whose `prototype` slot is read-only.
+ * A class constructor. Produced by `class` declarations and expressions,
+ * or by any built-in constructor whose `prototype` slot is read-only.
  *
- * A `ClassConstructor` is `typeof === 'function'` — it carries `[[Call]]`, so
- * {@link isCallable} accepts it — but **must** be invoked with `new`; calling
- * it without `new` throws `TypeError` (its `[[IsClassConstructor]]` slot), so
- * the call signature returns `never`. Its structural tell versus
- * {@link ES3Function} is a **readonly** `prototype`
+ * A `ClassConstructor` is `typeof === 'function'`, so it carries `[[Call]]`
+ * and {@link isCallable} accepts it. But it must be invoked with `new`.
+ * Calling it without `new` throws `TypeError` via the
+ * `[[IsClassConstructor]]` slot, so the call signature returns `never`.
+ * The structural tell that separates it from {@link ES3Function} is a
+ * **readonly** `prototype`
  * (`Object.getOwnPropertyDescriptor(cls, 'prototype').writable === false`).
  *
- * Bound class constructors are **deliberately excluded** from this type. Once
- * bound, the result has lost its own `prototype` slot entirely — the
- * structural tell of a class is gone, so what you have is no longer a class
- * shape. It is still newable (passes {@link isNewableFunction}, since
- * `[[Construct]]` survives `bind`), but it has become a third species — a
- * bound-newable. The matching guard {@link isClass} reflects this: it
- * rejects bound variants on the descriptor check.
+ * Bound class constructors are deliberately excluded. Once bound, the
+ * result has lost its own `prototype` slot entirely, so the structural
+ * tell of a class is gone and the value is no longer a class shape. It
+ * remains newable (still passes {@link isNewableFunction}, since
+ * `[[Construct]]` survives `bind`), but it has become a third species —
+ * a bound-newable. The matching guard {@link isClass} reflects this by
+ * rejecting bound variants on the descriptor check.
  *
  * @template Args - the constructor-argument tuple
  * @template T - the instance type the constructor produces
@@ -290,35 +312,40 @@ export interface ClassConstructor<Args extends unknown[] = unknown[], T = object
 }
 
 /**
- * The lenient newable gate — any value with the internal `[[Construct]]`
+ * The lenient newable gate. Any value with the internal `[[Construct]]`
  * method reachable via a `Proxy` `construct` trap (see
- * {@link hasConstructSlot}). Deliberately permissive: admits the three
- * species of newable value JavaScript supports — {@link ES3Function},
- * {@link ClassConstructor}, and **bound newables** (the result of
- * `someClassOrES3.bind(…)`, which preserves `[[Construct]]` but loses its
- * own `prototype`).
+ * {@link hasConstructSlot}).
+ *
+ * Deliberately permissive. Admits the three species of newable value
+ * JavaScript supports:
+ *
+ * - {@link ES3Function}
+ * - {@link ClassConstructor}
+ * - Bound newables, the result of `someClassOrES3.bind(…)`, which
+ *   preserves `[[Construct]]` but loses its own `prototype`.
  *
  * Because bound newables lack their own `prototype`, this interface makes
- * **no `prototype` guarantee**. To reach a `prototype` — and to tell the two
+ * no `prototype` guarantee. To reach a `prototype` — and to tell the two
  * non-bound species apart — narrow further to {@link ES3Function} (own
  * writable `prototype`) or {@link ClassConstructor} (own readonly
- * `prototype`). Both of those guards deliberately reject bound variants on
- * exactly that ground: a bound class is no longer a class-shape, a bound ES3
- * function is no longer an ES3-shape; both remain newable but become a third
- * species — a bound-newable — that this package does not name as its own
- * type. The introspection layer can name it explicitly, though "is-bound"
+ * `prototype`). Both of those guards reject bound variants on exactly that
+ * ground. A bound class is no longer a class shape; a bound ES3 function
+ * is no longer an ES3 shape; both remain newable but become a third
+ * species, a bound-newable, that this package does not name as its own
+ * type. The introspection layer can name it explicitly, but `is-bound`
  * detection carries real caveats: the only spec-reliable tell is
- * `[[BoundTargetFunction]]`, which isn't observable; every visible
+ * `[[BoundTargetFunction]]`, which is not observable, and every visible
  * fingerprint is spoofable.
  *
- * Modeling note — `NewableFunction` is deliberately a lenient base interface,
- * not the union `ES3Function | ClassConstructor`. The union would overpromise
- * (both branches carry a `prototype` bound variants don't), so it would be
- * the wrong narrow target. TypeScript cannot infer `[[Construct]]` for a
- * plain `function` either (it types them call-only); the runtime guard
- * {@link isNewableFunction} asserts what the compiler cannot derive. Arrow
- * functions, methods, async, and generator functions are **not** newable —
- * they lack `[[Construct]]` in both the type system and the runtime.
+ * `NewableFunction` is deliberately a lenient base interface, not the
+ * union `ES3Function | ClassConstructor`. The union would overpromise:
+ * both branches carry a `prototype` that bound variants do not, so it
+ * would be the wrong narrow target. TypeScript cannot infer
+ * `[[Construct]]` for a plain `function` either (it types them call-only);
+ * the runtime guard {@link isNewableFunction} asserts what the compiler
+ * cannot derive. Arrow functions, methods, async, and generator functions
+ * are not newable — they lack `[[Construct]]` in both the type system and
+ * the runtime.
  *
  * @template Args - the constructor-argument tuple
  * @template T - the instance type produced by `new`
@@ -340,16 +367,18 @@ export interface NewableFunction<Args extends unknown[] = unknown[], T = object>
 
 /**
  * Probes the value's `[[Construct]]` internal method without invoking the
- * value itself. Builds a `Proxy` whose `construct` trap returns an empty
- * object, then attempts `new proxy(…)`: if `[[Construct]]` is reachable on
- * the proxy's target, the construction succeeds, and the function returns
- * `true`; otherwise the `new` throws and the function returns `false`.
+ * value itself.
  *
- * The MDN-cited invariant — "the `target` used to initialize the proxy must
+ * Builds a `Proxy` whose `construct` trap returns an empty object, then
+ * attempts `new proxy(…)`. If `[[Construct]]` is reachable on the proxy's
+ * target, the construction succeeds and the function returns `true`.
+ * Otherwise the `new` throws and the function returns `false`.
+ *
+ * The MDN-cited invariant — "the target used to initialize the proxy must
  * itself be a valid constructor" — is what makes this a reliable lenient
- * gate: the proxy can supply a `construct` trap, but the trap is only
- * exercised if the target has `[[Construct]]` to begin with. Bound newables
- * count (they preserve `[[Construct]]`); arrow functions, methods, async
+ * gate. The proxy can supply a `construct` trap, but the trap only fires
+ * if the target has `[[Construct]]` to begin with. Bound newables count,
+ * since they preserve `[[Construct]]`. Arrow functions, methods, async
  * functions, and generator functions do not.
  *
  * @param value - the value to probe
@@ -358,85 +387,31 @@ export interface NewableFunction<Args extends unknown[] = unknown[], T = object>
 export function hasConstructSlot(value: unknown): boolean;
 
 /**
- * Narrows a value to the lenient {@link NewableFunction} gate — composes
- * {@link isFunction} (the four-method callability check) with
+ * Narrows a value to the lenient {@link NewableFunction} gate.
+ *
+ * Composes {@link isFunction} (the four-method callability check) with
  * {@link hasConstructSlot} (the `[[Construct]]` probe). The result admits
  * all three newable species: {@link ES3Function}, {@link ClassConstructor},
  * and bound newables.
  *
  * @param value - the value to test; omitted is treated as `undefined`, which
  *  is not callable
- * @returns `true` when the value is callable, exposes callable `call` /
- *  `apply` / `bind`, AND carries `[[Construct]]`, narrowing to
+ * @returns `true` when the value is callable, exposes callable `call`,
+ *  `apply`, and `bind`, and carries `[[Construct]]`, narrowing to
  *  {@link NewableFunction}; `false` otherwise
  */
 export function isNewableFunction(value?: unknown): value is NewableFunction;
 
 /**
- * Narrows a value to {@link ClassConstructor} — the strict class shape,
- * covering both custom (`class`-syntax) constructors and built-in class
- * constructors (`Array`, `Date`, `Map`, …). Both share the same structural
- * tell `isClass` verifies: an own `prototype` descriptor whose `writable` is
- * `false` and whose `value.constructor` points back to the constructor. To
- * tell the two families apart, use {@link isCustomClass} or
- * {@link isBuiltInClass} (disjoint refinements that together partition this
- * surface).
+ * Narrows a value to {@link ES3Function}, the strict ES3-function shape.
  *
- * Bound class constructors are **deliberately rejected** — they remain
- * newable but have lost their own `prototype` slot, so what you have is no
- * longer a class shape. The {@link NewableFunction} gate still admits them;
- * this guard does not.
+ * Builds on {@link isNewableFunction} and adds the structural tell: an
+ * own `prototype` descriptor whose `writable` is `true`, verified through
+ * `hasOwnWritablePrototype`.
  *
- * @param value - the value to test; omitted is treated as `undefined`
- * @returns `true` when the value is a class-shaped newable (built-in or
- *  `class`-syntax), narrowing to {@link ClassConstructor}; `false` otherwise
- */
-export function isClass(value?: unknown): value is ClassConstructor;
-
-/**
- * Narrows a value to a custom (`class`-syntax) constructor — builds on
- * {@link isClass} and adds the source-prefix check: a custom class's
- * stringified source starts with the literal `'class'` keyword, while a
- * built-in class constructor (`Array`, `Date`, …) renders as
- * `function Foo() { [native code] }` and does not.
- *
- * `isCustomClass` and {@link isBuiltInClass} are *disjoint refinements* of
- * {@link isClass} — together they partition the class surface into "authored
- * via `class` syntax" vs. "built-in." Both narrow to {@link ClassConstructor}.
- * A bound class fails {@link isClass} upstream, so neither variant admits it.
- *
- * @param value - the value to test; omitted is treated as `undefined`
- * @returns `true` when the value is a custom-class constructor, narrowing to
- *  {@link ClassConstructor}; `false` otherwise
- */
-export function isCustomClass(value?: unknown): value is ClassConstructor;
-
-/**
- * Narrows a value to a built-in class constructor — builds on
- * {@link isClass} and adds the inverse source-prefix check: built-in classes
- * (`Array`, `Date`, `Map`, …) render as `function Foo() { [native code] }`
- * and do not start with `'class'`, while custom (`class`-syntax) constructors
- * do.
- *
- * The dual of {@link isCustomClass}: both narrow to {@link ClassConstructor},
- * together they partition the {@link isClass} surface, neither admits bound
- * variants (rejected upstream by {@link isClass}).
- *
- * @param value - the value to test; omitted is treated as `undefined`
- * @returns `true` when the value is a built-in class constructor, narrowing
- *  to {@link ClassConstructor}; `false` otherwise
- */
-export function isBuiltInClass(value?: unknown): value is ClassConstructor;
-
-/**
- * Narrows a value to {@link ES3Function} — the strict ES3-function shape.
- * Builds on {@link isNewableFunction} and adds the structural tell: an own
- * `prototype` descriptor whose `writable` is `true` (verified via
- * `hasOwnWritablePrototype`).
- *
- * Bound ES3 functions are **deliberately rejected** — they remain newable
- * but have lost their own `prototype` slot, so what you have is no longer
- * an ES3 shape. The {@link NewableFunction} gate still admits them; this
+ * Bound ES3 functions are deliberately rejected. They remain newable but
+ * have lost their own `prototype` slot, so what remains is no longer an
+ * ES3 shape. The {@link NewableFunction} gate still admits them; this
  * guard does not.
  *
  * @param value - the value to test; omitted is treated as `undefined`
@@ -445,6 +420,68 @@ export function isBuiltInClass(value?: unknown): value is ClassConstructor;
  */
 export function isES3Function(value?: unknown): value is ES3Function;
 
+/**
+ * Narrows a value to {@link ClassConstructor}, the strict class shape.
+ *
+ * Covers both custom (`class`-syntax) constructors and built-in class
+ * constructors such as `Array`, `Date`, and `Map`. Both share the same
+ * structural tell: an own `prototype` descriptor whose `writable` is
+ * `false`. This is the only spec-given discriminator between a class
+ * constructor (frozen own `prototype`) and a good-old ES3 function
+ * (writable own `prototype`). To tell the two class families apart, use
+ * {@link isCustomClass} or {@link isBuiltInClass} — disjoint refinements
+ * that together partition this surface.
+ *
+ * Bound class constructors are deliberately rejected. They remain newable
+ * but have lost their own `prototype` slot, so what remains is no longer
+ * a class shape. The {@link NewableFunction} gate still admits them; this
+ * guard does not.
+ *
+ * @param value - the value to test; omitted is treated as `undefined`
+ * @returns `true` when the value is a class-shaped newable (built-in or
+ *  `class`-syntax), narrowing to {@link ClassConstructor}; `false` otherwise
+ */
+export function isClass(value?: unknown): value is ClassConstructor;
+
+/**
+ * Narrows a value to a custom (`class`-syntax) constructor.
+ *
+ * Builds on {@link isClass} and adds the source-prefix check. A custom
+ * class's stringified source starts with the literal `'class'` keyword.
+ * A built-in class constructor's source does not; it always takes the
+ * form `function Foo() { [native code] }`.
+ *
+ * `isCustomClass` and {@link isBuiltInClass} are disjoint refinements of
+ * {@link isClass}. Together they partition the class surface into
+ * authored-via-`class`-syntax and built-in. Both narrow to
+ * {@link ClassConstructor}. A bound class fails {@link isClass} upstream,
+ * so neither variant admits it.
+ *
+ * @param value - the value to test; omitted is treated as `undefined`
+ * @returns `true` when the value is a custom-class constructor, narrowing to
+ *  {@link ClassConstructor}; `false` otherwise
+ */
+export function isCustomClass(value?: unknown): value is ClassConstructor;
+
+/**
+ * Narrows a value to a built-in class constructor.
+ *
+ * Builds on {@link isClass} and adds the inverse source-prefix check.
+ * A built-in class constructor's stringified source always takes the
+ * form `function Foo() { [native code] }`. A custom (`class`-syntax)
+ * constructor's source does not; it starts with the literal `'class'`
+ * keyword.
+ *
+ * The dual of {@link isCustomClass}. Both narrow to {@link ClassConstructor};
+ * together they partition the {@link isClass} surface. Neither admits bound
+ * variants, which are rejected upstream by {@link isClass}.
+ *
+ * @param value - the value to test; omitted is treated as `undefined`
+ * @returns `true` when the value is a built-in class constructor, narrowing
+ *  to {@link ClassConstructor}; `false` otherwise
+ */
+export function isBuiltInClass(value?: unknown): value is ClassConstructor;
+
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 //
 //  Async Function Family
@@ -452,50 +489,53 @@ export function isES3Function(value?: unknown): value is ES3Function;
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 
 /**
- * The `%AsyncFunction%` intrinsic — any callable whose `[[Prototype]]`
- * traces to `%AsyncFunction.prototype%`. Admits every callable produced
- * by async syntax, regardless of the source-form:
+ * The `%AsyncFunction%` intrinsic. Any callable whose `[[Prototype]]`
+ * traces to `%AsyncFunction.prototype%`.
+ *
+ * Admits every callable produced by async syntax, regardless of the
+ * source-form:
  *
  * - `async function name() { … }` (async function declaration)
  * - `async function() { … }` (async function expression)
  * - `async () => …` (async arrow function)
  * - `{ async method() { … } }` (async concise method)
  *
- * … **plus the bound variants of each.** These four source-forms are
- * structurally identical at the runtime level — the same `Symbol.toStringTag`,
- * no own `prototype`, no `[[Construct]]`. The distinctions between them
- * (dynamic vs. lexical `this`, source layout) are visible only via source
- * inspection (`Function.prototype.toString`), which is characterization-quality
- * data; the source-regex predicates that discriminate the four therefore live in
+ * Plus the bound variant of each. These four source-forms are structurally
+ * identical at the runtime level: the same `Symbol.toStringTag`, no own
+ * `prototype`, no `[[Construct]]`. The distinctions between them — dynamic
+ * vs. lexical `this`, source layout — are visible only via source
+ * inspection through `Function.prototype.toString`, which is
+ * characterization-quality data. The source-regex predicates that
+ * discriminate the four therefore live in
  * `@species-js/function-introspection`, not in this package.
  *
- * **Bound async functions are admitted** — this is an honest consequence of
- * spec mechanics, not an oversight. `bind` sets the bound function's
- * `[[Prototype]]` to the *target's* `[[Prototype]]`
+ * Bound async functions are admitted, which is an honest consequence of
+ * spec mechanics rather than an oversight. `bind` sets the bound
+ * function's `[[Prototype]]` to the target's `[[Prototype]]`
  * (`%AsyncFunction.prototype%` in the async case), so the bound function
  * inherits `Symbol.toStringTag` and resolves the same constructor name via
  * the prototype walk. This is asymmetric with {@link ClassConstructor} and
- * {@link ES3Function}, whose bound variants are *rejected* — but the
- * asymmetry is forced by where each family puts its discriminator: the
+ * {@link ES3Function}, whose bound variants are rejected, but the
+ * asymmetry is forced by where each family puts its discriminator. The
  * newable side's tells (own-prototype descriptors) are stripped by `bind`;
  * the async side's tells (prototype-chain tag and constructor) are
  * preserved by it. Without source inspection there is no structural way to
- * tell a bound async function from a non-bound one — and source inspection
+ * tell a bound async function from a non-bound one, and source inspection
  * is introspection's job, not type-detection's.
  *
- * **Async-generator functions are NOT in this family**, despite the shared
- * "Async" prefix in the name. `async function* () { … }` is a *generator*
- * function: it synchronously returns an `AsyncGenerator` instance whose
- * `.next()` yields promises. Structurally it has its own `Symbol.toStringTag`
+ * Async-generator functions are NOT in this family, despite the shared
+ * "Async" prefix. `async function* () { … }` is a generator function: it
+ * synchronously returns an `AsyncGenerator` instance whose `.next()`
+ * yields promises. It has its own `Symbol.toStringTag`
  * (`'AsyncGeneratorFunction'`), an own writable `prototype`, and traces to
- * the `%AsyncGeneratorFunction%` intrinsic — none of which `%AsyncFunction%`
- * does. Async-generator functions are kin to sync generator functions, not
- * to this predicate; the "Async" in their name describes what their
- * iterator *yields*, not the function itself.
+ * the `%AsyncGeneratorFunction%` intrinsic — none of which is true of
+ * `%AsyncFunction%`. Async-generator functions are kin to sync generator
+ * functions, not to this predicate; the "Async" in their name describes
+ * what their iterator yields, not the function itself.
  *
- * @template ThisType - the `this` context at the call site (dynamic for the
- *  non-arrow forms; ignored at runtime for arrow forms — the type cannot
- *  distinguish them, since the discrimination is source-based)
+ * @template ThisType - the `this` context at the call site (dynamic for
+ *  the non-arrow forms; ignored at runtime for arrow forms — the type
+ *  cannot distinguish them, since the discrimination is source-based)
  * @template Args - the parameter tuple
  * @template R - the resolved Promise value type
  */
@@ -521,55 +561,118 @@ export interface AsyncFunction<
 }
 
 /**
- * Tests whether a value carries the runtime "shape" of the `%AsyncFunction%`
- * intrinsic — the four realm-independent markers any such value must
- * exhibit: no own `prototype`, no `[[Construct]]`, `Symbol.toStringTag`
- * equals `'AsyncFunction'`, and the resolved constructor name equals
- * `'AsyncFunction'`. Returns plain `boolean` (not a narrowing predicate);
- * narrowing belongs to {@link isAsyncFunction}, which also orchestrates the
- * same-realm `instanceof` fast path before delegating here.
+ * Tests the two identity-signal labels an `%AsyncFunction%` value carries.
  *
- * Defensive against single-slot spoofing: tampering with the tag without a
- * matching change to the constructor chain (or vice versa) is rejected.
- * Multi-slot coordinated tampering (override both `Symbol.toStringTag` and
- * the prototype chain) passes — but at that point the value's spec-level
- * inheritance also passes, so the result is consistent with `instanceof`.
+ * `Symbol.toStringTag`, read via the cached
+ * `Object.prototype.toString.call`, must resolve to
+ * `'[object AsyncFunction]'`, and the resolved constructor name must
+ * equal `'AsyncFunction'`. Both labels are spec-invariant across realms
+ * and survive `bind`, since the relevant prototype chain is preserved.
+ * The pair is the realm-independent _"tells-what-it-is"_ for any genuine
+ * `%AsyncFunction%`, so tampering with one label without matching the
+ * other is rejected.
  *
- * Independent of {@link isFunction} — accepts any value, returns `false`
- * for non-callable inputs. The standalone signature is deliberate so each
- * marker can be exercised in isolation by tests.
+ * Called as the third link of {@link hasAsyncFunctionShape}'s `&&` chain,
+ * after the descriptor-presence floor (`!hasOwnPrototype`,
+ * `!hasConstructSlot`) and before the proto-side membership check
+ * ({@link hasAsyncFunctionPrototypeSurface}).
+ *
+ * @param value - the value whose identity-labels should be read
+ * @returns `true` when both labels match; `false` otherwise
+ * @internal
+ */
+export function hasAsyncFunctionIdentitySignal(value: unknown): boolean;
+
+/**
+ * Tests whether the value's `[[Prototype]]` matches the own-key structure
+ * of `%AsyncFunction.prototype%`: `'constructor'` present and `'prototype'`
+ * absent.
+ *
+ * The proto-side check uses set-membership semantics, so a prototype with
+ * extra own keys is admitted as long as both conditions hold. The spec
+ * promises which keys `%AsyncFunction.prototype%` exhibits, not that
+ * those are the only keys.
+ *
+ * Called only as the last link of {@link hasAsyncFunctionShape}'s `&&`
+ * chain, so by the time `getPrototypeOf` runs the upstream `[[Class]]`
+ * check has already rejected `null` and `undefined`.
+ *
+ * @param value - the value whose `[[Prototype]]` should be inspected
+ * @returns `true` when both membership conditions hold; `false` otherwise
+ * @internal
+ */
+export function hasAsyncFunctionPrototypeSurface(value: unknown): boolean;
+
+/**
+ * Detects whether a value has the runtime shape of an `%AsyncFunction%`.
+ *
+ * The check is structural, not identity-based. It does not require the
+ * value to descend from this realm's `%AsyncFunction%` intrinsic, so it
+ * admits async functions originating in foreign realms.
+ *
+ * Six realm-independent markers must hold:
+ *
+ * 1. No own `prototype` property.
+ * 2. No `[[Construct]]` internal method.
+ * 3. `Symbol.toStringTag` resolves to `'AsyncFunction'`.
+ * 4. The resolved constructor name is `'AsyncFunction'`.
+ * 5. The value's `[[Prototype]]` has an own `'constructor'` key.
+ * 6. The value's `[[Prototype]]` has no own `'prototype'` key.
+ *
+ * Markers 1–4 are spec invariants. Markers 5 and 6 are conservative
+ * cross-validators that catch single-slot spoofing. A value that spoofs
+ * `Symbol.toStringTag` but leaves its `[[Prototype]]` unmodified would slip
+ * past the spec-invariant floor; the proto-side check rejects it.
+ * Coordinated tampering across both the tag and the prototype surface still
+ * passes here, but `instanceof` against the captured intrinsic accepts
+ * such a value as well, so the result stays consistent across both code
+ * paths.
+ *
+ * The proto-side check uses set membership rather than full-set equality.
+ * A prototype with extra own keys is admitted, provided `'constructor'` is
+ * present and `'prototype'` is absent. The spec promises the keys
+ * `%AsyncFunction.prototype%` exhibits, not that those are the only keys.
+ *
+ * Returns a plain boolean. Narrowing is handled by {@link isAsyncFunction},
+ * which runs the same-realm `instanceof` fast path before falling back to
+ * this structural check. The signature is standalone by design so that
+ * each marker can be tested in isolation; any value can be passed, and
+ * non-callables flow through the marker chain and return `false`.
  *
  * @param value - the value to inspect
- * @returns `true` when all four markers match; `false` otherwise
+ * @returns `true` when all six markers hold
  * @internal
  */
 export function hasAsyncFunctionShape(value?: unknown): boolean;
 
 /**
- * Narrows a value to {@link AsyncFunction} — orchestrates three phases:
+ * Narrows a value to {@link AsyncFunction}.
  *
- * 1. `isFunction` gate — short-circuits for non-callable inputs.
- * 2. Same-realm fast path — `value instanceof %AsyncFunction%` walks the
- *    `[[Prototype]]` chain. Passes for any value whose inheritance traces
- *    to the local realm's `%AsyncFunction.prototype%` (including bound
- *    variants — `bind` preserves the chain).
- * 3. Realm-independent fallback — delegates to
- *    {@link hasAsyncFunctionShape}, which verifies the four spec-derived
- *    markers. This is the cross-realm code path: foreign-realm async
- *    functions have a different `%AsyncFunction%` identity but the same
- *    observable markers.
+ * Orchestrates three phases:
  *
- * **Admits** all four source-forms (`async function` declarations,
- * expressions, async arrows, async concise methods) and their bound
- * variants alike. See the {@link AsyncFunction} doc for the lattice framing
- * and the spec-mechanics rationale for bound-admission.
+ * 1. The `isFunction` gate short-circuits for non-callable inputs.
+ * 2. The same-realm fast path checks `value instanceof %AsyncFunction%`,
+ *    which walks the `[[Prototype]]` chain. It passes for any value whose
+ *    inheritance traces to the local realm's `%AsyncFunction.prototype%`,
+ *    including bound variants — `bind` preserves the chain.
+ * 3. The realm-independent fallback delegates to
+ *    {@link hasAsyncFunctionShape}, which verifies the six spec-derived
+ *    markers (four spec-invariant plus two proto-side key-set
+ *    cross-validators). This is the cross-realm code path. Foreign-realm
+ *    async functions have a different `%AsyncFunction%` identity but the
+ *    same observable markers.
  *
- * **Does not admit async-generator functions** — those are *generator*
- * functions in the species-js taxonomy (different intrinsic, different
- * `Symbol.toStringTag`, own writable `prototype`), not a near-variant of
- * `AsyncFunction`. The shared "Async" prefix in their name describes what
- * their iterator yields, not the function. See the generator predicates
- * for that family.
+ * Admits all four source-forms — `async function` declarations,
+ * expressions, async arrows, and async concise methods — alongside their
+ * bound variants. See the {@link AsyncFunction} doc for the lattice
+ * framing and the spec-mechanics rationale for bound-admission.
+ *
+ * Does not admit async-generator functions. Those are generator functions
+ * in the species-js taxonomy, with a different intrinsic, a different
+ * `Symbol.toStringTag`, and an own writable `prototype`. They are not
+ * a near-variant of `AsyncFunction`. The shared "Async" prefix in their
+ * name describes what their iterator yields, not the function. See the
+ * generator predicates for that family.
  *
  * @param value - the value to test; omitted is treated as `undefined`, which
  *  is not an async function
@@ -592,12 +695,13 @@ export function isAsyncFunction(value?: unknown): value is AsyncFunction;
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 
 /**
- * The `Generator` instance — the object a sync generator function (`function*`)
- * returns when invoked. Re-modeled in species-js rather than extending
- * `globalThis.Generator` so the Tier-S contract is owned by this package,
- * and consumers' lib config does not affect shape stability. Minimal lib
- * dependencies: `IteratorResult`, `Symbol.iterator` (both ES2015 spec
- * primitives).
+ * The `Generator` instance. The object a sync generator function
+ * (`function*`) returns when invoked.
+ *
+ * Re-modeled in species-js rather than extending `globalThis.Generator`,
+ * so the Tier-S contract is owned by this package and consumers' lib
+ * config does not affect shape stability. Lib dependencies are minimal:
+ * `IteratorResult` and `Symbol.iterator`, both ES2015 spec primitives.
  *
  * @template T - the yielded value type
  * @template TReturn - the value the generator returns when complete
@@ -617,11 +721,12 @@ export interface Generator<T = unknown, TReturn = unknown, TNext = unknown> {
 }
 
 /**
- * The `AsyncGenerator` instance — the object an async generator function
- * (`async function*`) returns when invoked. Re-modeled in species-js rather
- * than extending `globalThis.AsyncGenerator`. Minimal lib dependencies:
- * `IteratorResult`, `Promise`, `PromiseLike`, `Symbol.asyncIterator` (all
- * ES2015 / ES2018 spec primitives).
+ * The `AsyncGenerator` instance. The object an async generator function
+ * (`async function*`) returns when invoked.
+ *
+ * Re-modeled in species-js rather than extending `globalThis.AsyncGenerator`.
+ * Lib dependencies are minimal: `IteratorResult`, `Promise`, `PromiseLike`,
+ * and `Symbol.asyncIterator`, all ES2015 or ES2018 spec primitives.
  *
  * @template T - the yielded value type
  * @template TReturn - the value the generator returns when complete
@@ -643,30 +748,31 @@ export interface AsyncGenerator<T = unknown, TReturn = unknown, TNext = unknown>
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 
 /**
- * The `%GeneratorFunction%` intrinsic — any callable whose `[[Prototype]]`
- * traces to `%GeneratorFunction.prototype%`. Synchronously returns a
- * {@link Generator} when invoked; the generator's `.next()` yields values
- * synchronously. The function itself is fully synchronous — there is no
- * Promise at the call site.
+ * The `%GeneratorFunction%` intrinsic. Any callable whose `[[Prototype]]`
+ * traces to `%GeneratorFunction.prototype%`.
+ *
+ * Synchronously returns a {@link Generator} when invoked; the generator's
+ * `.next()` yields values synchronously. The function itself is fully
+ * synchronous — there is no Promise at the call site.
  *
  * Admits `function* name() {}` (declaration), `function*() {}` (expression),
- * concise generator methods (`{ *m() {} }.m`, class generator methods), and
- * their bound variants — `bind` preserves the prototype chain, so the tag
- * and constructor-name resolution survive on bound forms.
+ * concise generator methods (`{ *m() {} }.m`, class generator methods),
+ * and their bound variants. `bind` preserves the prototype chain, so the
+ * tag and constructor-name resolution survive on bound forms.
  *
- * Structurally: own writable `prototype` (carrying a {@link Generator}
- * instance shape), `Symbol.toStringTag === 'GeneratorFunction'`, no
+ * Structurally: an own writable `prototype` carrying a {@link Generator}
+ * instance shape, `Symbol.toStringTag === 'GeneratorFunction'`, and no
  * `[[Construct]]` (generator functions are not newable per spec).
  *
- * Sibling intrinsic: {@link AsyncGeneratorFunction} (returns
- * {@link AsyncGenerator}). The two share structural traits and call
- * mechanics but trace to distinct intrinsics. Do **not** confuse
- * `%AsyncGeneratorFunction%` with {@link AsyncFunction} — the "Async"
- * prefix on `AsyncGeneratorFunction` describes the *iterator*'s yield
- * behavior (`.next()` returns promises), not the function itself; the
- * function's *return* is synchronous (an AsyncGenerator object handed back
- * immediately). See {@link AsyncGeneratorFunction}'s doc for the explicit
- * disambiguation.
+ * The sibling intrinsic is {@link AsyncGeneratorFunction}, which returns
+ * {@link AsyncGenerator}. The two share structural traits and call
+ * mechanics but trace to distinct intrinsics. Do not confuse
+ * `%AsyncGeneratorFunction%` with {@link AsyncFunction}. The "Async"
+ * prefix on `AsyncGeneratorFunction` describes the iterator's yield
+ * behavior (`.next()` returns promises), not the function itself. The
+ * function's return is synchronous: an `AsyncGenerator` object handed
+ * back immediately. See {@link AsyncGeneratorFunction}'s doc for the
+ * explicit disambiguation.
  *
  * @template ThisType - the `this` context at the call site (dynamic)
  * @template Args - the parameter tuple
@@ -701,26 +807,27 @@ export interface GeneratorFunction<
 }
 
 /**
- * The `%AsyncGeneratorFunction%` intrinsic — any callable whose
+ * The `%AsyncGeneratorFunction%` intrinsic. Any callable whose
  * `[[Prototype]]` traces to `%AsyncGeneratorFunction.prototype%`.
+ *
  * Synchronously returns an {@link AsyncGenerator} when invoked; the
  * generator's `.next()` returns `Promise<IteratorResult>`.
  *
- * **Kin to {@link GeneratorFunction}, NOT to {@link AsyncFunction}**,
- * despite the shared "Async" prefix. The function's *return* is synchronous
- * — an AsyncGenerator object handed back immediately at the call site; only
- * the iterator's per-step yield is async (its `.next()` returns a Promise).
- * `%AsyncFunction%` instead returns a Promise *directly* from the call site
- * and is unrelated structurally (different intrinsic, no own prototype,
- * different `Symbol.toStringTag`).
+ * Kin to {@link GeneratorFunction}, NOT to {@link AsyncFunction}, despite
+ * the shared "Async" prefix. The function's return is synchronous: an
+ * `AsyncGenerator` object handed back immediately at the call site. Only
+ * the iterator's per-step yield is async — `.next()` returns a Promise.
+ * `%AsyncFunction%` instead returns a Promise directly from the call site
+ * and is unrelated structurally: a different intrinsic, no own prototype,
+ * a different `Symbol.toStringTag`.
  *
  * Admits `async function* name() {}` (declaration), `async function*() {}`
- * (expression), concise async-generator methods, and their bound variants —
+ * (expression), concise async-generator methods, and their bound variants.
  * `bind` preserves the prototype chain.
  *
- * Structurally: own writable `prototype` (carrying an {@link AsyncGenerator}
- * instance shape), `Symbol.toStringTag === 'AsyncGeneratorFunction'`, no
- * `[[Construct]]`.
+ * Structurally: an own writable `prototype` carrying an {@link AsyncGenerator}
+ * instance shape, `Symbol.toStringTag === 'AsyncGeneratorFunction'`, and
+ * no `[[Construct]]`.
  *
  * @template ThisType - the `this` context at the call site (dynamic)
  * @template Args - the parameter tuple
@@ -755,55 +862,192 @@ export interface AsyncGeneratorFunction<
 }
 
 /**
- * The umbrella of both generator-function species —
- * {@link GeneratorFunction} | {@link AsyncGeneratorFunction}. They share
- * structural traits (own writable prototype, no `[[Construct]]`, callable
- * surface) but trace to distinct intrinsics. {@link isAnyGeneratorFunction}
- * narrows to this type; use the strict refinements
- * {@link isGeneratorFunction} or {@link isAsyncGeneratorFunction} to
- * discriminate further when needed.
+ * The umbrella of both generator-function species:
+ * {@link GeneratorFunction} | {@link AsyncGeneratorFunction}.
+ *
+ * They share structural traits — an own writable `prototype`, no
+ * `[[Construct]]`, and a callable surface — but trace to distinct
+ * intrinsics. {@link isAnyGeneratorFunction} narrows to this type. Use
+ * the strict refinements {@link isGeneratorFunction} or
+ * {@link isAsyncGeneratorFunction} when finer discrimination is needed.
  */
 export type AnyGeneratorFunction = GeneratorFunction | AsyncGeneratorFunction;
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 
 /**
- * Tests whether a value carries the runtime "shape" of the
- * `%GeneratorFunction%` intrinsic — the **three** realm-independent markers:
- * no `[[Construct]]`, `Symbol.toStringTag === 'GeneratorFunction'`, and the
- * resolved constructor name `=== 'GeneratorFunction'`.
+ * Tests the two identity-signal labels a `%GeneratorFunction%` value carries.
  *
- * **No prototype-slot check.** Unlike {@link hasAsyncFunctionShape}, this
- * helper does NOT include `!hasOwnPrototype` or `hasOwnWritablePrototype`.
- * The reason: unbound generator functions *have* an own writable
- * `prototype` (carrying the {@link Generator} instance proto), bound ones
- * don't — `bind` strips own slots. Either check would split bound from
- * unbound, but the helper is meant to admit both (lenient by spec
- * mechanics — `bind` preserves the prototype chain, so the tag and
- * constructor-name remain inherited intact in both cases).
+ * `Symbol.toStringTag` must resolve to `'[object GeneratorFunction]'`, and
+ * the resolved constructor name must equal `'GeneratorFunction'`. Both
+ * labels are spec-invariant across realms and survive `bind`, since the
+ * relevant prototype chain is preserved. The pair is the realm-independent
+ * _"tells-what-it-is"_ for any genuine `%GeneratorFunction%`.
  *
- * Returns plain `boolean`; narrowing belongs to {@link isGeneratorFunction}.
- * Independent of {@link isFunction} — accepts any value, returns `false`
- * for non-callable inputs.
+ * Mirrors the async-family pattern; see
+ * {@link hasAsyncFunctionIdentitySignal}. Called as the second link of
+ * {@link hasGeneratorFunctionShape}'s `&&` chain, after `!hasConstructSlot`
+ * and before {@link hasAnyGeneratorFunctionPrototypeSurface}.
+ *
+ * @param value - the value whose identity-labels should be read
+ * @returns `true` when both labels match; `false` otherwise
+ * @internal
+ */
+export function hasGeneratorFunctionIdentitySignal(value: unknown): boolean;
+
+/**
+ * Tests the two identity-signal labels an `%AsyncGeneratorFunction%` value
+ * carries.
+ *
+ * `Symbol.toStringTag` must resolve to `'[object AsyncGeneratorFunction]'`,
+ * and the resolved constructor name must equal `'AsyncGeneratorFunction'`.
+ * Both labels are spec-invariant across realms and survive `bind`, since
+ * the relevant prototype chain is preserved. The pair is the
+ * realm-independent _"tells-what-it-is"_ for any genuine
+ * `%AsyncGeneratorFunction%`.
+ *
+ * Mirrors {@link hasGeneratorFunctionIdentitySignal}. Called as the second
+ * link of {@link hasAsyncGeneratorFunctionShape}'s `&&` chain, after
+ * `!hasConstructSlot` and before
+ * {@link hasAnyGeneratorFunctionPrototypeSurface}.
+ *
+ * @param value - the value whose identity-labels should be read
+ * @returns `true` when both labels match; `false` otherwise
+ * @internal
+ */
+export function hasAsyncGeneratorFunctionIdentitySignal(value: unknown): boolean;
+
+/**
+ * Tests whether the value's `[[Prototype]]` matches the generator family's
+ * shared own-key structure: `'constructor'` present and `'prototype'`
+ * present.
+ *
+ * Both keys are spec-required on `%GeneratorPrototype%` and on
+ * `%AsyncGeneratorPrototype%`. `'constructor'` points back to
+ * `%GeneratorFunction%` or `%AsyncGeneratorFunction%` respectively;
+ * `'prototype'` points to `%Generator.prototype%` or
+ * `%AsyncGenerator.prototype%`, the iterator-instance or
+ * async-iterator-instance prototype holding `next`, `return`, and `throw`.
+ * The proto-side check uses set-membership semantics, so a prototype with
+ * extra own keys is admitted as long as both required keys are present.
+ *
+ * Shared by {@link hasGeneratorFunctionShape} and
+ * {@link hasAsyncGeneratorFunctionShape}. Both species exhibit the same
+ * proto-side structure, so the proto-surface check is the family-level
+ * invariant. The `[[Class]]` tag, carried via each species' identity-signal
+ * link, is the per-species discriminator.
+ *
+ * The `'prototype'`-on-the-proto presence is the structural discriminator
+ * from the async family. `%AsyncFunction.prototype%` carries only
+ * `'constructor'`, so {@link hasAsyncFunctionPrototypeSurface} asserts
+ * `'prototype'` absent while this helper asserts it present.
+ *
+ * Called only as the last link of both
+ * {@link hasGeneratorFunctionShape}'s and
+ * {@link hasAsyncGeneratorFunctionShape}'s `&&` chains, so by the time
+ * `getPrototypeOf` runs the upstream `[[Class]]` check has already
+ * rejected `null` and `undefined`.
+ *
+ * @param value - the value whose `[[Prototype]]` should be inspected
+ * @returns `true` when both membership conditions hold; `false` otherwise
+ * @internal
+ */
+export function hasAnyGeneratorFunctionPrototypeSurface(value: unknown): boolean;
+
+/**
+ * Detects whether a value has the runtime shape of a `%GeneratorFunction%`.
+ *
+ * The check is structural, not identity-based. It does not require the
+ * value to descend from this realm's `%GeneratorFunction%` intrinsic, so
+ * it admits generator functions originating in foreign realms.
+ *
+ * Five realm-independent markers must hold:
+ *
+ * 1. No `[[Construct]]` internal method.
+ * 2. `Symbol.toStringTag` resolves to `'GeneratorFunction'`.
+ * 3. The resolved constructor name is `'GeneratorFunction'`.
+ * 4. The value's `[[Prototype]]` has an own `'constructor'` key.
+ * 5. The value's `[[Prototype]]` has an own `'prototype'` key.
+ *
+ * Markers 1–3 are spec invariants. Markers 4 and 5 are conservative
+ * cross-validators that catch single-slot spoofing: a value that overrides
+ * the tag without also reshaping its `[[Prototype]]` would slip past the
+ * spec-invariant floor, and the proto-side check rejects it. The
+ * proto-side check uses set membership, so a prototype with extra own
+ * keys is admitted as long as both `'constructor'` and `'prototype'` are
+ * present.
+ *
+ * No prototype-slot check on the value itself. Unlike
+ * {@link hasAsyncFunctionShape}, this helper does not include
+ * `!hasOwnPrototype` or `hasOwnWritablePrototype`. The reason is the
+ * bound-vs-unbound asymmetry: unbound generator functions carry an own
+ * writable `prototype` holding the {@link Generator} instance proto;
+ * bound ones do not, since `bind` strips own slots. Either check would
+ * split bound from unbound, but this helper admits both. Bound forms are
+ * lenient-by-spec-mechanics: `bind` preserves the prototype chain, so the
+ * tag, constructor-name, and proto-surface remain inherited intact.
+ *
+ * Returns a plain boolean. Narrowing belongs to {@link isGeneratorFunction}.
+ * The signature is independent of {@link isFunction} and accepts any
+ * value; non-callables flow through the marker chain and return `false`.
  *
  * @param value - the value to inspect
- * @returns `true` when all three markers match; `false` otherwise
+ * @returns `true` when all five markers hold
  * @internal
  */
 export function hasGeneratorFunctionShape(value?: unknown): boolean;
 
 /**
- * Narrows a value to {@link GeneratorFunction} — orchestrator: `isFunction`
- * gate, same-realm `instanceof` fast path against the captured
- * `%GeneratorFunction%` intrinsic, cross-realm fallback via
+ * Detects whether a value has the runtime shape of an
+ * `%AsyncGeneratorFunction%`.
+ *
+ * The check is structural, not identity-based. It does not require the
+ * value to descend from this realm's `%AsyncGeneratorFunction%` intrinsic,
+ * so it admits async-generator functions originating in foreign realms.
+ *
+ * Five realm-independent markers must hold:
+ *
+ * 1. No `[[Construct]]` internal method.
+ * 2. `Symbol.toStringTag` resolves to `'AsyncGeneratorFunction'`.
+ * 3. The resolved constructor name is `'AsyncGeneratorFunction'`.
+ * 4. The value's `[[Prototype]]` has an own `'constructor'` key.
+ * 5. The value's `[[Prototype]]` has an own `'prototype'` key.
+ *
+ * Markers 1–3 are spec invariants. Markers 4 and 5 are conservative
+ * cross-validators against single-slot spoofing. The proto-surface rule is
+ * identical to {@link hasGeneratorFunctionShape} — the generator and
+ * async-generator families share this proto-side structure, and the
+ * `[[Class]]` tag is the family discriminator.
+ *
+ * The no-prototype-slot-check rationale is the same as
+ * {@link hasGeneratorFunctionShape}: unbound async-generator functions
+ * carry an own writable `prototype`, bound ones do not, and admitting
+ * both requires omitting that check.
+ *
+ * Returns a plain boolean. Narrowing belongs to
+ * {@link isAsyncGeneratorFunction}.
+ *
+ * @param value - the value to inspect
+ * @returns `true` when all five markers hold
+ * @internal
+ */
+export function hasAsyncGeneratorFunctionShape(value?: unknown): boolean;
+
+/**
+ * Narrows a value to {@link GeneratorFunction}.
+ *
+ * Orchestrates three phases: the `isFunction` gate, the same-realm
+ * `instanceof` fast path against the captured `%GeneratorFunction%`
+ * intrinsic, and the cross-realm fallback via
  * {@link hasGeneratorFunctionShape}.
  *
- * Admits sync generator function declarations, expressions,
- * concise-method forms, and their bound variants.
+ * Admits sync generator function declarations, expressions, concise-method
+ * forms, and their bound variants.
  *
- * Does NOT admit async-generator functions — those trace to
- * `%AsyncGeneratorFunction%`. Use {@link isAsyncGeneratorFunction} for that
- * species or {@link isAnyGeneratorFunction} for the umbrella.
+ * Does not admit async-generator functions, which trace to
+ * `%AsyncGeneratorFunction%`. Use {@link isAsyncGeneratorFunction} for
+ * that species, or {@link isAnyGeneratorFunction} for the umbrella over
+ * both.
  *
  * @param value - the value to test; omitted is treated as `undefined`, which
  *  is not a generator function
@@ -820,34 +1064,17 @@ export function hasGeneratorFunctionShape(value?: unknown): boolean;
 export function isGeneratorFunction(value?: unknown): value is GeneratorFunction;
 
 /**
- * Tests whether a value carries the runtime "shape" of the
- * `%AsyncGeneratorFunction%` intrinsic — the three realm-independent
- * markers: no `[[Construct]]`, `Symbol.toStringTag` equals
- * `'AsyncGeneratorFunction'`, and the resolved constructor name equals
- * `'AsyncGeneratorFunction'`.
+ * Narrows a value to {@link AsyncGeneratorFunction}.
  *
- * Same "no prototype-slot check" rationale as {@link hasGeneratorFunctionShape}
- * — unbound async-generator functions carry an own writable `prototype`,
- * bound ones don't; admitting both requires omitting that check.
- *
- * Returns plain `boolean`; narrowing belongs to
- * {@link isAsyncGeneratorFunction}.
- *
- * @param value - the value to inspect
- * @returns `true` when all three markers match; `false` otherwise
- * @internal
- */
-export function hasAsyncGeneratorFunctionShape(value?: unknown): boolean;
-
-/**
- * Narrows a value to {@link AsyncGeneratorFunction} — orchestrator:
- * `isFunction` gate, same-realm `instanceof` fast path against the captured
- * `%AsyncGeneratorFunction%` intrinsic, cross-realm fallback via
+ * Orchestrates three phases: the `isFunction` gate, the same-realm
+ * `instanceof` fast path against the captured `%AsyncGeneratorFunction%`
+ * intrinsic, and the cross-realm fallback via
  * {@link hasAsyncGeneratorFunctionShape}.
  *
- * Admits `async function*` declarations, expressions, async concise methods,
- * and their bound variants. Does NOT admit sync generator functions, async
- * functions, or any other family — those have different intrinsics.
+ * Admits `async function*` declarations, expressions, async concise
+ * methods, and their bound variants. Does not admit sync generator
+ * functions, async functions, or any other family — those trace to
+ * different intrinsics.
  *
  * @param value - the value to test; omitted is treated as `undefined`, which
  *  is not an async-generator function
@@ -866,13 +1093,14 @@ export function isAsyncGeneratorFunction(
 ): value is AsyncGeneratorFunction;
 
 /**
- * Narrows a value to {@link AnyGeneratorFunction} — the umbrella over both
- * sync and async generator-function species. Composes
- * {@link isGeneratorFunction} and {@link isAsyncGeneratorFunction}: passes
- * if either fast path or either shape helper succeeds. No dedicated
- * `hasAnyGeneratorFunctionShape` helper — the umbrella's job is exactly the
- * union, and composing the two single-family helpers is the codified
- * pattern.
+ * Narrows a value to {@link AnyGeneratorFunction}, the umbrella over both
+ * sync and async generator-function species.
+ *
+ * Composes {@link isGeneratorFunction} and {@link isAsyncGeneratorFunction}:
+ * passes if either fast path or either shape helper succeeds. There is no
+ * dedicated `hasAnyGeneratorFunctionShape` helper. The umbrella's job is
+ * exactly the union, and composing the two single-family helpers is the
+ * codified pattern.
  *
  * @param value - the value to test; omitted is treated as `undefined`, which
  *  is not a generator function

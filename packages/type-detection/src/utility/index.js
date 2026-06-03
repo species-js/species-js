@@ -3,12 +3,19 @@
 /**
  * @module @species-js/type-detection/utility
  *
- * Cached prototype references and type-signature helpers, used internally by
- * the package's predicates and exposed via subpath for downstream packages
- * that need the same cross-realm-safe primitives.
+ * Cached prototype references and type-signature helpers.
+ *
+ * Used internally by the package's predicates and exposed via subpath for
+ * downstream packages that need the same cross-realm-safe primitives.
  */
 
-import { getOwnPropertyDescriptor, getPrototypeOf, toObjectString } from '@/config';
+import {
+  getOwnPropertyDescriptors,
+  getOwnPropertyDescriptor,
+  objectKeys,
+  getPrototypeOf,
+  toObjectString,
+} from '@/config';
 
 import { isFunction } from '@/function';
 import { isNumberValue, isStringValue, isSymbolValue } from '@/primitive';
@@ -30,10 +37,12 @@ import { isNumberValue, isStringValue, isSymbolValue } from '@/primitive';
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 
 /**
- * Detects an own `prototype` property — `!!value &&` first to handle nullish
- * (no descriptor lookup on `null` / `undefined`), then a single
- * `Object.getOwnPropertyDescriptor` read. Inherited prototypes are excluded
- * at construction.
+ * Detects whether the value carries an own `prototype` property.
+ *
+ * The implementation guards nullish input with `!!value` first, so no
+ * descriptor lookup runs on `null` or `undefined`. The descriptor read is
+ * a single `getOwnPropertyDescriptor` call; inherited prototypes are
+ * excluded at construction.
  *
  * @param {unknown} [value] - the value to test; omitted is treated as
  *  `undefined`, which has no own prototype
@@ -45,10 +54,12 @@ export function hasOwnPrototype(value) {
 }
 
 /**
- * Detects an own `prototype` property whose descriptor is `writable: true` —
- * the same nullish guard as {@link hasOwnPrototype} plus a direct read of the
- * descriptor's `writable` field. The structural tell of an ES3 function
- * versus a class constructor.
+ * Detects whether the value carries an own `prototype` property whose
+ * descriptor is `writable: true`.
+ *
+ * Uses the same nullish guard as {@link hasOwnPrototype}, plus a direct
+ * read of the descriptor's `writable` field. This is the structural tell
+ * of an ES3 function versus a class constructor.
  *
  * @param {unknown} [value] - the value to test; omitted is treated as
  *  `undefined`, which has no own prototype
@@ -66,15 +77,17 @@ export function hasOwnWritablePrototype(value) {
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 
 /**
- * Narrows a value to `PropertyKey` — composes the three primitive guards
- * (`isStringValue`, `isSymbolValue`, `isNumberValue`) and adds `Number.isFinite`
- * to reject `NaN` and `±Infinity` (which coerce to property keys but introduce
- * lookup surprises).
+ * Narrows a value to `PropertyKey`.
+ *
+ * Composes the three primitive guards `isStringValue`, `isSymbolValue`,
+ * and `isNumberValue`, and adds `Number.isFinite` to reject `NaN` and
+ * `±Infinity`. Those numeric values coerce to property keys but introduce
+ * lookup surprises, so they are excluded.
  *
  * @param {unknown} [value] - the value to test; omitted is treated as
  *  `undefined`, which is not a property key
- * @returns {value is PropertyKey} `true` when the value can be safely used as
- *  a property key; `false` otherwise
+ * @returns {value is PropertyKey} `true` when the value can be safely used
+ *  as a property key; `false` otherwise
  */
 export function isValidPropertyKey(value) {
   return (
@@ -85,16 +98,18 @@ export function isValidPropertyKey(value) {
 }
 
 /**
- * Returns the first {@link PropertyDescriptor} found while walking the value's
- * prototype chain. Uses a typed `currentValue: object | null` local, so the
- * loop's `!== null` check narrows correctly through the `getPrototypeOf`
- * step; accessor descriptors are returned as-is (the getter is never
- * invoked).
+ * Returns the first {@link PropertyDescriptor} found while walking the
+ * value's prototype chain.
+ *
+ * The loop is typed via a `currentValue: object | null` local, so the
+ * `!== null` check narrows correctly through each `getPrototypeOf` step.
+ *
+ * Accessor descriptors are returned as-is. The getter is never invoked.
  *
  * @param {object} value - the object whose descriptor chain should be
  *  inspected
- * @param {PropertyKey} key - the property key to resolve; invalid keys yield
- *  `undefined`
+ * @param {PropertyKey} key - the property key to resolve; invalid keys
+ *  yield `undefined`
  * @returns {PropertyDescriptor | undefined} the first descriptor found while
  *  walking up the chain; `undefined` if none exists
  */
@@ -110,11 +125,62 @@ export function getNextAvailablePropertyDescriptor(value, key) {
   while (!descriptor && currentValue !== null) {
     descriptor = getOwnPropertyDescriptor(currentValue, key);
 
-    currentValue = /** @type {object | null} */ (
-      /** @type {unknown} */ (getPrototypeOf(currentValue)) ?? null
-    );
+    currentValue = getPrototypeOf(currentValue) ?? null;
   }
   return descriptor;
+}
+
+/**
+ * Returns the own string-keyed property names of a value, including
+ * non-enumerable ones.
+ *
+ * Composes the cached `objectKeys` with `getOwnPropertyDescriptors`.
+ * `getOwnPropertyDescriptors` writes every descriptor entry as enumerable
+ * on its returned object, so `objectKeys` over that result surfaces every
+ * own string-keyed name regardless of the source's enumerability.
+ *
+ * Symbol-keyed entries are skipped, since `objectKeys` reads strings only.
+ *
+ * The `value ?? !0` shorthand coerces nullish input to a boxed `true`,
+ * which sidesteps the `TypeError` that `getOwnPropertyDescriptors(null)`
+ * would raise.
+ *
+ * @param {unknown} [value] - the value whose own string-keyed property names
+ *  should be returned; nullish (or omitted) yields `[]`
+ * @returns {string[]} the array of own string-keyed property names
+ * @example
+ * const obj = Object.defineProperty({ a: 1 }, 'b', { value: 2 });
+ * Object.keys(obj);                    // ['a']
+ * getOwnPropertyDescriptorsKeys(obj);  // ['a', 'b']
+ * getOwnPropertyDescriptorsKeys(null); // []
+ */
+export function getOwnPropertyDescriptorsKeys(value) {
+  return objectKeys(getOwnPropertyDescriptors(value ?? !0));
+}
+
+/**
+ * Returns the own string-keyed property names of a value as a `Set<string>`.
+ *
+ * Wraps {@link getOwnPropertyDescriptorsKeys}'s array result in the `Set`
+ * constructor.
+ *
+ * The Set primitive carries set-equality, subset, and superset semantics
+ * natively and supports per-key membership checks (`.has(key)`) directly.
+ * This is the right primitive for shape-comparison checks that read
+ * individual key presence or absence rather than full-shape equality.
+ *
+ * @param {unknown} [value] - the value whose own string-keyed names should
+ *  be returned as a Set; nullish (or omitted) yields an empty `Set`
+ * @returns {Set<string>} a `Set` of the value's own string-keyed property
+ *  names
+ * @example
+ * const obj = Object.defineProperty({ a: 1 }, 'b', { value: 2 });
+ * getOwnPropertyDescriptorsKeySet(obj);   // Set { 'a', 'b' }
+ * getOwnPropertyDescriptorsKeySet({});    // Set {}
+ * getOwnPropertyDescriptorsKeySet(null);  // Set {}
+ */
+export function getOwnPropertyDescriptorsKeySet(value) {
+  return new Set(getOwnPropertyDescriptorsKeys(value));
 }
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
@@ -124,10 +190,12 @@ export function getNextAvailablePropertyDescriptor(value, key) {
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 
 /**
- * Returns the value's internal `[[Class]]` signature via the cached
- * `Object.prototype.toString.call`. Uses `args.length` to distinguish an
- * omitted call from one that explicitly passed `undefined` — the latter yields
- * `'[object Undefined]'`, the former yields `undefined`.
+ * Returns the value's internal `[[Class]]` signature.
+ *
+ * Reads the tag through the cached `Object.prototype.toString.call`. Uses
+ * `args.length` to distinguish an omitted call from one that explicitly
+ * passed `undefined`. Explicit `undefined` yields `'[object Undefined]'`;
+ * an omitted call yields `undefined`.
  *
  * @param {...unknown} args - the first argument (`args[0]`) is the value to
  *  read; presence is detected via `args.length` rather than `!== undefined`
@@ -149,10 +217,11 @@ export function getTypeSignature(...args) {
 }
 
 /**
- * Returns the tag portion of the type signature — calls
- * {@link getTypeSignature} and slices `[object ` / `]` off the result.
- * `isStringValue` short-circuits the no-argument case (where
- * `getTypeSignature` returned `undefined`).
+ * Returns the tag portion of the type signature.
+ *
+ * Calls {@link getTypeSignature} and slices `[object ` and `]` off the
+ * result. The `isStringValue` check short-circuits the no-argument case,
+ * where `getTypeSignature` returned `undefined`.
  *
  * @param {...unknown} args - forwarded as-is to {@link getTypeSignature};
  *  presence is detected from its return value
@@ -180,20 +249,30 @@ export function getTaggedType(...args) {
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 
 /**
- * Walks the value to its constructor function. Tries up to four sources in
- * order: the value's own `constructor` descriptor, its
- * `constructor.constructor` (meta-constructor), the prototype's `constructor`
- * descriptor, and the prototype's `constructor.constructor`. Each candidate is
- * gated by {@link isFunction}; failure at every step returns `undefined`.
+ * Walks the value to its constructor function.
  *
- * The return is cast to {@link NewableFunction} because a real constructor is
- * by definition newable — but `[[Construct]]` cannot be probed without
- * invoking, so this is an assertion grounded in the runtime callability check,
- * not a verified property.
+ * Tries up to four sources in order, gated by {@link isFunction} at each
+ * step:
+ *
+ * 1. The value's own `constructor` descriptor.
+ * 2. Its meta-constructor (`constructor.constructor`).
+ * 3. The prototype's `constructor` descriptor.
+ * 4. The prototype's `constructor.constructor`.
+ *
+ * Failure at every step returns `undefined`.
+ *
+ * The return is cast to {@link NewableFunction} because a real constructor
+ * is newable by definition. `[[Construct]]` cannot be probed without
+ * invoking, so the newable claim is an assertion grounded in the runtime
+ * callability check, not a verified property.
  *
  * @param {unknown} [value] - the value whose constructor should be retrieved
  * @returns {NewableFunction | undefined} the constructor function when
  *  reachable; `undefined` otherwise
+ * @example
+ * getDefinedConstructor([]);                  // Array
+ * getDefinedConstructor(new Date());          // Date
+ * getDefinedConstructor(Object.create(null)); // undefined
  */
 export function getDefinedConstructor(value = null) {
   if (value === null) {
@@ -219,9 +298,7 @@ export function getDefinedConstructor(value = null) {
   // created via `Object.create(null)`. Fall through to the prototype's
   // `constructor` as the next-best source.
 
-  const prototype = /** @type {object | null} */ (
-    /** @type {unknown} */ (getPrototypeOf(value)) ?? null
-  );
+  const prototype = getPrototypeOf(value) ?? null;
 
   if (prototype === null) {
     return void 0;
@@ -248,15 +325,26 @@ export function getDefinedConstructor(value = null) {
 }
 
 /**
- * Returns the constructor's `name` — composes {@link getDefinedConstructor}
- * with a property read, then narrows via {@link isStringValue} so that a
- * non-string `name` (a malicious replacement) yields `undefined` rather than
- * leaking.
+ * Returns the constructor's `name`.
+ *
+ * Composes {@link getDefinedConstructor} with a property read, then narrows
+ * the result via {@link isStringValue}.
+ *
+ * Edge cases:
+ *
+ * - A non-string `name` (for example, a malicious replacement) yields
+ *   `undefined` rather than leaking through.
+ * - An unnamed function returns the empty string `''`.
+ * - A value with no reachable constructor returns `undefined`.
  *
  * @param {unknown} [value] - the value whose constructor name should be
  *  retrieved
- * @returns {ConstructorName | undefined} the constructor's `name` string when
- *  reachable; `undefined` otherwise
+ * @returns {ConstructorName | undefined} the constructor's `name` string
+ *  when reachable; `undefined` otherwise
+ * @example
+ * getDefinedConstructorName([]);         // 'Array'
+ * getDefinedConstructorName(new Date()); // 'Date'
+ * getDefinedConstructorName(null);       // undefined
  */
 export function getDefinedConstructorName(value) {
   const constructor = getDefinedConstructor(value) ?? null;
@@ -277,16 +365,25 @@ export function getDefinedConstructorName(value) {
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 
 /**
- * Resolves the value to its type-name — tries the constructor-name path
- * first, falling back to the tagged-type when the constructor is unreachable
- * or when the constructor slot itself is non-function (i.e., the value's
- * `constructor` was replaced with something non-callable). Uses `args.length`
- * to distinguish an omitted call from an explicit `undefined`.
+ * Resolves the value to its type-name.
+ *
+ * Tries the constructor-name path first. If the constructor is unreachable,
+ * or if the constructor slot itself is non-function (meaning the value's
+ * `constructor` was replaced with something non-callable), the result
+ * falls back to the tagged-type.
+ *
+ * Uses `args.length` to distinguish an omitted call from one that
+ * explicitly passed `undefined`.
  *
  * @param {...unknown} args - the first argument (`args[0]`) is the value;
  *  presence is detected via `args.length`
- * @returns {ResolvedType | undefined} the resolved type-name when an argument
- *  was provided; `undefined` when no argument was passed
+ * @returns {ResolvedType | undefined} the resolved type-name when an
+ *  argument was provided; `undefined` when no argument was passed
+ * @example
+ * resolveType([]);                // 'Array'
+ * resolveType(Promise.resolve()); // 'Promise'
+ * resolveType(null);              // 'Null'
+ * resolveType();                  // undefined
  */
 export function resolveType(...args) {
   const /** @type {unknown} */ value = args[0];

@@ -1,10 +1,12 @@
 /**
  * @module @species-js/type-detection/primitive
  *
- * Primitive-value detection. Realm-independent `typeof` guards that narrow an
- * unknown value to a specific JavaScript primitive type. Primitives carry no
- * cross-realm identity hazard — `typeof` reads the same in every realm — so
- * these are the simplest predicates in the package and the building blocks
+ * Primitive-value detection.
+ *
+ * Realm-independent `typeof` guards that narrow an unknown value to a
+ * specific JavaScript primitive type. Primitives carry no cross-realm
+ * identity hazard, since `typeof` reads the same in every realm. These
+ * are the simplest predicates in the package and the building blocks
  * stricter checks compose from.
  */
 
@@ -17,8 +19,9 @@
 /**
  * Narrows a value to the `string` primitive via `typeof value === 'string'`.
  *
- * Matches the primitive form only; boxed `String` objects (`new String('x')`)
- * report `typeof === 'object'` and are deliberately excluded.
+ * Matches the primitive form only. Boxed `String` objects, such as
+ * `new String('x')`, report `typeof === 'object'` and are deliberately
+ * excluded.
  *
  * @param value - the value to test; omitted is treated as `undefined`, which is
  *  not a string
@@ -33,9 +36,10 @@ export function isStringValue(value?: unknown): value is string;
 /**
  * Narrows a value to the `number` primitive via `typeof value === 'number'`.
  *
- * Matches every numeric primitive, `NaN` and `±Infinity` included; finiteness
- * is a separate concern the caller layers on (e.g. `Number.isFinite`). Boxed
- * `Number` objects report `typeof === 'object'` and are excluded.
+ * Matches every numeric primitive, `NaN` and `±Infinity` included.
+ * Finiteness is a separate concern the caller layers on, for example with
+ * `Number.isFinite`. Boxed `Number` objects report `typeof === 'object'`
+ * and are excluded.
  *
  * @param value - the value to test; omitted is treated as `undefined`, which is
  *  not a number
@@ -50,8 +54,8 @@ export function isNumberValue(value?: unknown): value is number;
 /**
  * Narrows a value to the `symbol` primitive via `typeof value === 'symbol'`.
  *
- * Covers unique, registered (`Symbol.for`), and well-known (`Symbol.iterator`,
- * …) symbols alike.
+ * Covers unique symbols, registered symbols from `Symbol.for`, and
+ * well-known symbols such as `Symbol.iterator` alike.
  *
  * @param value - the value to test; omitted is treated as `undefined`, which is
  *  not a symbol

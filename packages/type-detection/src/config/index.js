@@ -3,12 +3,15 @@
 /**
  * @module @species-js/type-detection/config
  *
- * Realm-fixed references and descriptor presets used by this package's predicates.
- * Capturing `Object` / `Function.prototype` members once at module-load — rather
- * than reaching for `Object.x` at each call site — fixes their identity to this
- * realm and shields the predicates from later tampering with the global `Object`.
- * Every export is an internal primitive, also surfaced for downstream packages
- * that need the same cross-realm-safe building blocks.
+ * Realm-fixed references and descriptor presets used by this package's
+ * predicates.
+ *
+ * Capturing `Object` and `Function.prototype` members once at module-load,
+ * rather than reaching for `Object.x` at each call site, fixes their
+ * identity to this realm and shields the predicates from later tampering
+ * with the global `Object`. Every export is an internal primitive that is
+ * also surfaced for downstream packages needing the same cross-realm-safe
+ * building blocks.
  */
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
@@ -26,9 +29,10 @@ import { isCallable } from '@/function';
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 
 /**
- * Descriptor preset for a hidden-but-mutable property — non-enumerable,
- * writable, configurable. The default shape for defining internal properties
- * that may still be reassigned.
+ * Descriptor preset for a hidden-but-mutable property.
+ *
+ * The default shape for defining internal properties that may still be
+ * reassigned.
  * @type {{ enumerable: false, writable: true, configurable: true }}
  * @internal
  */
@@ -39,8 +43,10 @@ export const defaultDescriptorOptions = {
 };
 
 /**
- * Descriptor preset for a hidden read-only property — non-enumerable,
- * non-writable, but still configurable (can be redefined or deleted).
+ * Descriptor preset for a hidden read-only property.
+ *
+ * Configurable despite being non-writable, so the property can still be
+ * redefined or deleted.
  * @type {{ enumerable: false, writable: false, configurable: true }}
  * @internal
  */
@@ -51,8 +57,9 @@ export const restrictedDescriptorOptions = {
 };
 
 /**
- * Descriptor preset for a hidden accessor (get/set) property — non-enumerable
- * and configurable. Omits `writable`, which is invalid on accessor descriptors.
+ * Descriptor preset for a hidden accessor (get/set) property.
+ *
+ * Omits `writable`, which is invalid on accessor descriptors.
  * @type {{ enumerable: false, configurable: true }}
  * @internal
  */
@@ -62,8 +69,10 @@ export const restrictedAccessorOptions = {
 };
 
 /**
- * Descriptor preset for a sealed property — non-enumerable and non-configurable,
- * so it can be neither redefined nor deleted once set.
+ * Descriptor preset for a sealed property.
+ *
+ * Non-configurable, so the property can be neither redefined nor deleted
+ * once set.
  * @type {{ enumerable: false, configurable: false }}
  * @internal
  */
@@ -83,18 +92,23 @@ const objectPrototype = Object.prototype;
 const hasOwnProperty = objectPrototype.hasOwnProperty;
 
 /**
- * `Object.prototype.toString`, captured for `.call(value)` use. Returns the
- * internal `[[Class]]` tag (e.g. `"[object Array]"`) — the realm-independent
- * read of a value's built-in type, immune to a missing or overridden instance
- * `toString`.
+ * `Object.prototype.toString`, captured for `.call(value)` use.
+ *
+ * Returns the internal `[[Class]]` tag, such as `'[object Array]'`.
+ *
+ * This is the realm-independent read of a value's built-in type, and is
+ * immune to a missing or overridden instance `toString`.
  * @internal
  */
 export const toObjectString = objectPrototype.toString;
 
 /**
- * `Function.prototype.toString`, captured for `.call(fn)` use. Returns the
- * function's source text — used to tell native from user code and to detect
- * class syntax, regardless of a tampered instance `toString`.
+ * `Function.prototype.toString`, captured for `.call(fn)` use.
+ *
+ * Returns the function's source text.
+ *
+ * Used to tell native code from user-authored code and to detect class
+ * syntax, regardless of a tampered instance `toString`.
  * @internal
  */
 export const toFunctionString = Function.prototype.toString;
@@ -120,11 +134,15 @@ const nativeHasOwn = /** @type {objectHasOwnProperty | undefined} */ (
 );
 
 /**
- * Own-property test, ES2020-floor-safe. Prefers the native `Object.hasOwn` when
- * the runtime provides it (Node 22+, modern browsers); otherwise falls back to a
- * closure over the captured `Object.prototype.hasOwnProperty`. The native branch
- * is gated by {@link isCallable} so a non-function `hasOwn` cannot slip through.
- * The call shape is `objectHasOwn(target, key)` either way.
+ * Own-property test, ES2020-floor-safe.
+ *
+ * Prefers the native `Object.hasOwn` when the runtime provides it (Node 22
+ * and later, modern browsers). Otherwise falls back to a closure over the
+ * captured `Object.prototype.hasOwnProperty`.
+ *
+ * The native branch is gated by {@link isCallable} so a non-function
+ * `hasOwn` cannot slip through. The call shape is `objectHasOwn(target,
+ * key)` either way.
  * @type {objectHasOwnProperty}
  * @internal
  */
@@ -189,6 +207,10 @@ export const getOwnPropertySymbols = o.getOwnPropertySymbols;
 
 /**
  * `Object.getPrototypeOf`, realm-fixed at module-load.
+ *
+ * The `.d.ts` retypes the lib's `(o: any) => any` to
+ * `(o: unknown) => object | null` to close the `any`-return cascade at
+ * consumer call sites. The runtime export is the unwrapped native method.
  * @internal
  */
 export const getPrototypeOf = o.getPrototypeOf;
