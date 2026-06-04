@@ -65,7 +65,7 @@ export function getFunctionSource(value) {
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 //
-//  Callable vs. Function Interface Types and Predicates
+//  Callable vs. Function-Interface Types and Predicates
 //
 //  These types distinguish between the minimal `typeof === 'function'` check
 //  and progressively stricter verification of the Function interface.
@@ -141,7 +141,8 @@ export function isFunction(value) {
  * since they preserve `[[Construct]]`. Arrow functions, methods, async
  * functions, and generator functions do not.
  *
- * @param {unknown} value - the value to probe
+ * @param {unknown} [value] - the value to probe; omitted is treated as
+ *  `undefined`, which carries no `[[Construct]]`
  * @returns {boolean} `true` when the value carries `[[Construct]]`; `false`
  *  otherwise
  */
@@ -675,10 +676,10 @@ export function hasAsyncGeneratorFunctionShape(value) {
  *  sync-generator function, narrowing to {@link GeneratorFunction};
  *  `false` otherwise
  * @example
- * isGeneratorFunction(function* () {});            // true
+ * isGeneratorFunction(function* () {});              // true
  * isGeneratorFunction((function* () {}).bind(null)); // true — bound forms admitted
- * isGeneratorFunction(async function* () {});      // false — async-generator family
- * isGeneratorFunction(async () => {});             // false — async-function family
+ * isGeneratorFunction(async function* () {});        // false — async-generator family
+ * isGeneratorFunction(async () => {});               // false — async-function family
  */
 export function isGeneratorFunction(value) {
   return (

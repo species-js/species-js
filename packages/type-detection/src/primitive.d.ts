@@ -28,9 +28,9 @@
  * @returns `true` when `typeof value === 'boolean'`, narrowing `value` to
  *  `boolean`; `false` otherwise
  * @example
- * isBooleanValue(true);  // true
- * isBooleanValue(false); // true
- * isBooleanValue(0);     // false
+ * isBooleanValue(true);              // true
+ * isBooleanValue(false);             // true
+ * isBooleanValue(0);                 // false
  * isBooleanValue(new Boolean(true)); // false
  */
 export function isBooleanValue(value?: unknown): value is boolean;
@@ -40,16 +40,18 @@ export function isBooleanValue(value?: unknown): value is boolean;
  *
  * Matches every numeric primitive, `NaN` and `±Infinity` included.
  * Finiteness is a separate concern the caller layers on, for example, with
- * `Number.isFinite`. Boxed `Number` objects report `typeof === 'object'`
- * and are excluded.
+ * `Number.isFinite`. Boxed `Number` objects, such as `new Number(42)`,
+ * report `typeof === 'object'` and are deliberately excluded.
  *
  * @param value - the value to test; omitted is treated as `undefined`, which is
  *  not a number
  * @returns `true` when `typeof value === 'number'`, narrowing `value` to
  *  `number`; `false` otherwise
  * @example
- * isNumberValue(42); // true
- * isNumberValue(NaN); // true
+ * isNumberValue(42);             // true
+ * isNumberValue(NaN);            // true
+ * isNumberValue('42');           // false
+ * isNumberValue(new Number(42)); // false
  */
 export function isNumberValue(value?: unknown): value is number;
 

@@ -37,7 +37,7 @@ export function getFunctionSource(value: Callable): string;
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 //
-//  Callable vs. Function Interface Types and Predicates
+//  Callable vs. Function-Interface Types and Predicates
 //
 //  These types distinguish between the minimal `typeof === 'function'` check
 //  and progressively stricter verification of the Function interface.
@@ -381,10 +381,11 @@ export interface NewableFunction<Args extends unknown[] = unknown[], T = object>
  * since they preserve `[[Construct]]`. Arrow functions, methods, async
  * functions, and generator functions do not.
  *
- * @param value - the value to probe
+ * @param value - the value to probe; omitted is treated as `undefined`, which
+ *  carries no `[[Construct]]`
  * @returns `true` when the value carries `[[Construct]]`; `false` otherwise
  */
-export function hasConstructSlot(value: unknown): boolean;
+export function hasConstructSlot(value?: unknown): boolean;
 
 /**
  * Narrows a value to the lenient {@link NewableFunction} gate.
