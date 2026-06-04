@@ -562,6 +562,139 @@ the access path."
 
 ---
 
+### 021 — Spec-shape rule extended: predicate over inherited gets descriptor-walk for inspection without invocation (2026-06-04)
+
+**Context.** `hasInertMethod(value, key)` was introduced in the thenable migration as the
+inspect-without-invoke primitive. Its callers (`isThenable`, `doesMatchPromiseContract`)
+read inherited `Promise.prototype` methods (`then`, `catch`, `finally`). Decision #020
+says "inherited → direct access (let the engine resolve)" but direct access would invoke
+any accessor at the key — wrong for a predicate that must inspect without invocation.
+
+**Decision.** Extend the spec-shape rule with a third pattern. The full rule now reads:
+
+- **Own-data → descriptor-first** (no fallback). The descriptor's `value` is the canonical
+  path; an accessor leaves `value` undefined and the downstream narrow rejects it.
+- **Inherited → direct access.** The engine's prototype-chain walk is the spec-correct
+  resolution; descriptor-first would return `undefined` for every inherited case.
+- **Predicate over inherited → descriptor-walk for safety.** A predicate's contract is to
+  inspect without consuming the value, so it cannot invoke accessors. The descriptor-walk
+  pattern reads the chain via `getOwnPropertyDescriptor` at each level (the
+  `getNextAvailablePropertyDescriptor` helper from `@/utility`) and rejects accessor
+  descriptors via `objectHasOwn(descriptor, 'value')`.
+
+**Rationale.** Patterns 1 and 2 govern reads that consume the value — production code
+wants the property's value. Pattern 3 governs reads that inspect the structure to make a
+boolean discrimination — predicate code wants to know "could this be safely consumed?"
+without doing the consumption. The predicate's inspect-without-invoke contract overrides
+the spec-shape access path because the contract requires non-invocation. An accessor at
+the key is exactly the spoof case the predicate must reject; if direct access fires the
+getter, the predicate's defense is gone.
+
+**Consequences.** `hasInertMethod` is the canonical implementation of pattern 3 in this
+package, factored as a `@/utility` primitive (see decision #024). The rule generalizes to
+any future predicate that inspects inherited properties without firing accessors —
+Iterator protocol predicates, EventTarget interface predicates, Error-invariants
+predicates. Codified in [[design-rulings]] as a third pattern alongside the existing two;
+the design-rulings entry carries the forward-applicable framing, this entry carries the
+chronological capture.
+
+---
+
+## type-detection / thenable
+
+### 022 — `PromiseLike<T>` defined as richer than TypeScript's lib `PromiseLike` (2026-06-04)
+
+**Context.** The thenable migration needed a type for "anything Promise-shaped without
+being a Promise instance" — the structural fallback that `isPromiseLike` narrows to.
+TypeScript's lib has `PromiseLike<T>` already (in `lib.es5.d.ts`) but it is structurally
+identical to our `Thenable<T>` (a single `then` method, nothing more).
+
+**Decision.** Define a local `PromiseLike<T>` interface in `thenable.d.ts` that surpasses
+the lib version on four dimensions:
+
+1. Extends `Thenable<T>` with `catch` and `finally` to capture the full
+   `Promise.prototype` method contract (ECMA-262 §27.2).
+2. `out T` variance annotation, making the producer-only role explicit to TypeScript's
+   variance checking.
+3. `unknown` typing on rejection-channel reasons (the lib uses `any`, which leaks through
+   every consumer).
+4. No redundant `| undefined` on optional callbacks (the `?` already widens to
+   `undefined`).
+
+**Rationale.** The lib's `PromiseLike` is structurally identical to our `Thenable`. We
+need a richer type for the middle tier of the lattice (something between `Thenable` and
+`Promise`). Re-using the lib name with a richer structure is acceptable because the lib
+version cannot express the chaining contract anyway — consumers reaching for "PromiseLike"
+want the chaining surface; our definition gives them what they actually need. The variance
+/ `unknown` / no-redundant-undefined precision wins follow the species-js precision
+posture independently.
+
+**Consequences.** Consumers of `@species-js/type-detection/thenable` get the richer
+`PromiseLike`. The lib's `PromiseLike` still exists as a TypeScript global; the local
+export shadows it within this module's imports. The lattice (`Thenable` → `PromiseLike` →
+`Promise`) is captured in ARCHITECTURE.md § type-detection / thenable; the type's own
+JSDoc captures the lib-surpass dimensions. Codified in [[design-rulings]] via the
+contract-vocabulary ruling.
+
+---
+
+### 023 — `isPromise` rejects subclasses by strict constructor-name equality (2026-06-04)
+
+**Context.** `isPromise(v)` uses `getDefinedConstructorName(v) === 'Promise'` as its third
+marker. For a value `new (class MyPromise extends Promise {})((res) => res(1))`, the
+constructor name resolves to `'MyPromise'`, which fails the strict equality.
+
+**Decision.** `isPromise` rejects `Promise` subclasses. The constructor-name check stays
+strict equality, not a constructor-chain walk that would admit subclasses.
+
+**Rationale.** Foundation-tier predicates that downstream packages depend on benefit from
+conservative narrowing — multiple cross-validating markers as bounded-cost insurance
+against single-marker spoofing. Admitting subclasses would broaden the predicate's
+contract without a clear benefit; consumers who specifically want subclass admission can
+compose `isPromise` with `instanceof Promise` or a constructor-chain walk at their level.
+The asymmetry is documented: `isPromiseLike` accepts subclasses (via `instanceof`);
+`isPromise` does not. Each tier has its own discrimination boundary; subclass rejection
+lands at the strictest tier where it makes sense.
+
+**Consequences.** Native `Promise` instances pass; subclasses of `Promise` fail
+`isPromise`. Documented as "deliberate strictness" in the predicate's JSDoc. Consumers
+needing subclass admission compose accordingly. See ARCHITECTURE.md § type-detection /
+thenable conservative-narrowing subsection for the broader posture.
+
+---
+
+### 024 — `hasInertMethod` factored as `@/utility` primitive (2026-06-04)
+
+**Context.** The equip-js source's `isThenable` inlined the descriptor-walk +
+accessor-rejection + callability-check logic. The thenable migration needed the same logic
+for `doesMatchPromiseContract` (three times, for `then`/`catch`/`finally`). Inlining three
+times would duplicate the inspect-without-invoke contract — and any future
+Promise-adjacent or method-contract predicate would duplicate it again.
+
+**Decision.** Factor `hasInertMethod(value, key)` as an `@/utility` primitive. Tests
+whether the value carries a callable data property at `key`, reachable through its
+prototype chain. Composes `getNextAvailablePropertyDescriptor` with
+`objectHasOwn(descriptor, 'value')` rejection of accessor descriptors and
+`isCallable(descriptor.value)` for the callability verification.
+
+**Rationale.** The inspect-without-invoke contract is a reusable primitive, not a local
+choice for one predicate. Extracting it to `@/utility` makes it composable for any future
+method-contract predicate; the thenable module composes it four times (once in
+`isThenable`, three times in `doesMatchPromiseContract`). The name `hasInertMethod` was
+chosen over candidates like `hasTrustedMethod` (overloaded — "trusted against what?") and
+`hasDataMethod` (spec-precise but obscures the safety frame) because "inert" is
+metaphorical-but-universal (chemistry, physics, HTML all share the meaning) and conveys
+the load-bearing safety guarantee without requiring the reader to internalize ECMA-262
+descriptor terminology.
+
+**Consequences.** `hasInertMethod` ships in `@/utility` as a public export. Used by
+`isThenable` and `doesMatchPromiseContract` in the thenable module. Composes naturally for
+any future method-contract predicate. The descriptor-walk pattern it embodies is captured
+in decision #021 (the spec-shape rule's third pattern); the contract vocabulary it enables
+is captured in [[design-rulings]] via the contract-vocabulary ruling.
+
+---
+
 ## Open questions
 
 These are not decisions but acknowledged open questions, kept here so they don't dissolve
@@ -596,7 +729,20 @@ collision the fingerprint schema cannot resolve), and `isBoundFunction` (the
 spec-unreliable bound tell). The package has not yet been scaffolded. Whether it lives as
 a standalone package or as a subpath of type-detection is open.
 
+### Q.004 — `AbortableThenable<T>` deferred to the `@/error` migration
+
+The equip-js source defined `AbortableThenable<T> extends Thenable<T>` with an `onaborted`
+callback typed against `AbortError`. The species-js `Thenable<T>` doc references this as a
+strict refinement reserved for a separate type, but `AbortError` lives in `@/error`, which
+is the next equip-js migration. Once `@/error` lands and `AbortError` is available,
+`AbortableThenable<T>` can extend naturally from the existing `Thenable<T>` — the
+type-system shape and the abort-channel predicate are both deferrable as one round when
+the dependency is in place. Whether `AbortableThenable` ships in `thenable.d.ts`
+(extending the lattice with a fourth tier) or as a separate `abortable-thenable.{js,d.ts}`
+module is open; the question opens once the dependency is in scope.
+
 ---
 
-_End of `type-detection / function` section. Future packages and modules append their
-sections below._
+_End of the decision log. Future package/module decision sections are appended above this
+note (above the `## Open questions` section); open questions for any section live in the
+global `## Open questions` section above._
