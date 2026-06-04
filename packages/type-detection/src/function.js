@@ -67,9 +67,6 @@ export function getFunctionSource(value) {
 //
 //  Callable vs. Function-Interface Types and Predicates
 //
-//  These types distinguish between the minimal `typeof === 'function'` check
-//  and progressively stricter verification of the Function interface.
-//
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 
 /**

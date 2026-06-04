@@ -76,15 +76,18 @@ export function isStringValue(value?: unknown): value is string;
  * Narrows a value to the `symbol` primitive via `typeof value === 'symbol'`.
  *
  * Covers unique symbols, registered symbols from `Symbol.for`, and
- * well-known symbols such as `Symbol.iterator` alike.
+ * well-known symbols such as `Symbol.iterator`. Boxed `Symbol` objects,
+ * such as `Object(Symbol('x'))`, report `typeof === 'object'` and are
+ * deliberately excluded.
  *
  * @param value - the value to test; omitted is treated as `undefined`, which is
  *  not a symbol
  * @returns `true` when `typeof value === 'symbol'`, narrowing `value` to
  *  `symbol`; `false` otherwise
  * @example
- * isSymbolValue(Symbol('x')); // true
- * isSymbolValue('x'); // false
+ * isSymbolValue(Symbol('x'));         // true
+ * isSymbolValue('x');                 // false
+ * isSymbolValue(Object(Symbol('x'))); // false
  */
 export function isSymbolValue(value?: unknown): value is symbol;
 
