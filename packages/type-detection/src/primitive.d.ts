@@ -17,21 +17,23 @@
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 
 /**
- * Narrows a value to the `string` primitive via `typeof value === 'string'`.
+ * Narrows a value to the `boolean` primitive via `typeof value === 'boolean'`.
  *
- * Matches the primitive form only. Boxed `String` objects, such as
- * `new String('x')`, report `typeof === 'object'` and are deliberately
- * excluded.
+ * Matches the primitive form only — both `true` and `false`. Boxed
+ * `Boolean` objects, such as `new Boolean(true)`, report
+ * `typeof === 'object'` and are deliberately excluded.
  *
  * @param value - the value to test; omitted is treated as `undefined`, which is
- *  not a string
- * @returns `true` when `typeof value === 'string'`, narrowing `value` to
- *  `string`; `false` otherwise
+ *  not a boolean
+ * @returns `true` when `typeof value === 'boolean'`, narrowing `value` to
+ *  `boolean`; `false` otherwise
  * @example
- * isStringValue('x'); // true
- * isStringValue(new String('x')); // false
+ * isBooleanValue(true);  // true
+ * isBooleanValue(false); // true
+ * isBooleanValue(0);     // false
+ * isBooleanValue(new Boolean(true)); // false
  */
-export function isStringValue(value?: unknown): value is string;
+export function isBooleanValue(value?: unknown): value is boolean;
 
 /**
  * Narrows a value to the `number` primitive via `typeof value === 'number'`.
@@ -52,6 +54,23 @@ export function isStringValue(value?: unknown): value is string;
 export function isNumberValue(value?: unknown): value is number;
 
 /**
+ * Narrows a value to the `string` primitive via `typeof value === 'string'`.
+ *
+ * Matches the primitive form only. Boxed `String` objects, such as
+ * `new String('x')`, report `typeof === 'object'` and are deliberately
+ * excluded.
+ *
+ * @param value - the value to test; omitted is treated as `undefined`, which is
+ *  not a string
+ * @returns `true` when `typeof value === 'string'`, narrowing `value` to
+ *  `string`; `false` otherwise
+ * @example
+ * isStringValue('x'); // true
+ * isStringValue(new String('x')); // false
+ */
+export function isStringValue(value?: unknown): value is string;
+
+/**
  * Narrows a value to the `symbol` primitive via `typeof value === 'symbol'`.
  *
  * Covers unique symbols, registered symbols from `Symbol.for`, and
@@ -66,3 +85,24 @@ export function isNumberValue(value?: unknown): value is number;
  * isSymbolValue('x'); // false
  */
 export function isSymbolValue(value?: unknown): value is symbol;
+
+/**
+ * Narrows a value to the `bigint` primitive via `typeof value === 'bigint'`.
+ *
+ * Matches the primitive form only — literals (`1n`) and `BigInt()` calls
+ * alike. Boxed `BigInt` objects, such as `Object(1n)`, report
+ * `typeof === 'object'` and are deliberately excluded.
+ *
+ * @param value - the value to test; omitted is treated as `undefined`, which is
+ *  not a bigint
+ * @returns `true` when `typeof value === 'bigint'`, narrowing `value` to
+ *  `bigint`; `false` otherwise
+ * @example
+ * isBigIntValue(1n);          // true
+ * isBigIntValue(BigInt(1));   // true
+ * isBigIntValue(1);           // false
+ * isBigIntValue(Object(1n));  // false
+ */
+export function isBigIntValue(value?: unknown): value is bigint;
+
+// ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----

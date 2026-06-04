@@ -14,6 +14,8 @@
 
 import { hasInertMethod, getTypeSignature, getDefinedConstructorName } from '@/utility';
 
+import { isCallable } from '@/function';
+
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 
 /** @typedef {import('@/thenable').Thenable<unknown>} Thenable */
@@ -21,7 +23,9 @@ import { hasInertMethod, getTypeSignature, getDefinedConstructorName } from '@/u
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 
-const PromiseConstructor = Promise;
+const PromiseConstructor = /** @type {typeof Promise | null} */ (
+  isCallable(Promise) ? Promise : null
+);
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 //
@@ -136,7 +140,9 @@ export function doesMatchPromiseContract(value) {
  */
 export function isPromiseLike(value) {
   return (
-    !!value && (value instanceof PromiseConstructor || doesMatchPromiseContract(value))
+    !!value &&
+    ((!!PromiseConstructor && value instanceof PromiseConstructor) ||
+      doesMatchPromiseContract(value))
   );
 }
 
