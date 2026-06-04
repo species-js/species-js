@@ -19,6 +19,9 @@ export default defineConfig({
             config: resolve(import.meta.dirname, 'src/config/index.js'),
             utility: resolve(import.meta.dirname, 'src/utility/index.js'),
             function: resolve(import.meta.dirname, 'src/function.js'),
+            primitive: resolve(import.meta.dirname, 'src/primitive.js'),
+            evented: resolve(import.meta.dirname, 'src/evented.js'),
+            thenable: resolve(import.meta.dirname, 'src/thenable.js'),
           },
       fileName: (format, entryName) => {
         if (format === 'cjs') {

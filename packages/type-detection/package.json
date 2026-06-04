@@ -40,6 +40,17 @@
       },
       "default": "./dist/node/config.js"
     },
+    "./utility": {
+      "types": "./src/utility/index.d.ts",
+      "browser": {
+        "import": "./dist/browser/utility.js"
+      },
+      "node": {
+        "import": "./dist/node/utility.js",
+        "require": "./dist/node/utility.cjs"
+      },
+      "default": "./dist/node/utility.js"
+    },
     "./function": {
       "types": "./src/function.d.ts",
       "browser": {
@@ -50,6 +61,39 @@
         "require": "./dist/node/function.cjs"
       },
       "default": "./dist/node/function.js"
+    },
+    "./primitive": {
+      "types": "./src/primitive.d.ts",
+      "browser": {
+        "import": "./dist/browser/primitive.js"
+      },
+      "node": {
+        "import": "./dist/node/primitive.js",
+        "require": "./dist/node/primitive.cjs"
+      },
+      "default": "./dist/node/primitive.js"
+    },
+    "./evented": {
+      "types": "./src/evented.d.ts",
+      "browser": {
+        "import": "./dist/browser/evented.js"
+      },
+      "node": {
+        "import": "./dist/node/evented.js",
+        "require": "./dist/node/evented.cjs"
+      },
+      "default": "./dist/node/evented.js"
+    },
+    "./thenable": {
+      "types": "./src/thenable.d.ts",
+      "browser": {
+        "import": "./dist/browser/thenable.js"
+      },
+      "node": {
+        "import": "./dist/node/thenable.js",
+        "require": "./dist/node/thenable.cjs"
+      },
+      "default": "./dist/node/thenable.js"
     }
   },
   "sideEffects": false,
