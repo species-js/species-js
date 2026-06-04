@@ -600,6 +600,81 @@ chronological capture.
 
 ---
 
+### 025 — Parameter-default-to-`null` for strict-equality nullish unification (2026-06-04)
+
+**Context.** During the `hasInertMethod` refactor (post-thenable round, commit `71dff73`),
+chasing the lint friction on a clean nullish guard surfaced the pattern. `value == null`
+is the canonical idiom for catching both `null` and `undefined` in one comparison, but it
+trips `@typescript-eslint/eqeqeq`, which enforces strict equality. Two strict checks
+(`value !== null && value !== undefined`) work but cost a line and read as bookkeeping;
+configuring `eqeqeq` with `null: 'ignore'` would also work but touches eslint config.
+
+**Decision.** When a function accepts an optional or `unknown`-typed value and the body
+benefits from a single nullish check, declare the parameter with a default of `null`
+(`param = null`). An omitted call or an explicit `undefined` argument coerces to `null` at
+the parameter-binding step, so only one nullish value reaches the body. Downstream
+`param !== null` is strict-equality clean and covers both nullish cases via the
+binding-time normalization.
+
+**Rationale.** The trick pushes the normalization to the parameter binding — JS coerces an
+omitted or `undefined` argument to the default — so only `null` reaches the body. The
+resulting strict check covers both nullish cases without lint friction. Bonus: parameters
+typed `unknown` with a `= null` default narrow cleanly through `!== null` to `unknown`
+minus null. Falsy primitives (`0`, `''`, `false`, `NaN`, `0n`) flow through unaffected,
+which is the right behavior for predicates that should treat each value type-correctly.
+The naive alternatives (`!!value`, `(value ?? void 0) && …`) short-circuit on every falsy
+input and silently reject primitives that have legitimate methods (`(0).toString` is
+callable and inherited from `Number.prototype`).
+
+**Consequences.** Applied to `hasInertMethod(type = null, key)` and to
+`getNextAvailablePropertyDescriptor(value = null, key)` — the latter widened from `object`
+to `unknown` to make the cast at the only `hasInertMethod` call site vanish. The pattern
+composes — apply at each helper signature so the normalization happens once at the
+outermost binding, and inner helpers can assume non-null without rechecking. Codified in
+[[design-rulings]] as a forward-applicable rule. The bug fix it carries is real: the
+previous `(value || null) && ...` form rejected `(0).toString` because `0` short-circuited
+the falsy guard despite being a legitimate auto-boxed receiver of the inherited method.
+
+---
+
+### 026 — `isValidPropertyKey` tightened to safe-integer + three new `Number` type-guards in `@/config` (2026-06-04)
+
+**Context.** The previous `isValidPropertyKey` accepted `isStringValue`, `isSymbolValue`,
+and `isNumberValue && Number.isFinite` — any finite number, including non-integer floats
+like `1.5` and integers beyond `Number.MAX_SAFE_INTEGER`. Floats coerce to strings
+(`"1.5"`) at runtime with lookup surprises; integers past `MAX_SAFE_INTEGER` lose
+precision in the round-trip. Both were admissible by the previous predicate; both
+introduce real lookup hazards. The predicate's name connotes "safely usable as a key" —
+the connotation was looser than the implementation.
+
+**Decision.** Tighten `isValidPropertyKey` to accept only safe integers as numeric keys:
+the range `[-(2^53 - 1), 2^53 - 1]` where numeric values round-trip losslessly. To support
+this, add three new cached `Number` type-guards to `@/config`: `isFiniteNumberValue`
+(`Number.isFinite` with `typeof` polyfill fallback), `isIntegerValue` (`Number.isInteger`
+composed over `isFiniteNumberValue`), and `isSafeIntegerValue` (`Number.isSafeInteger`
+composed over `isIntegerValue` with `Math.abs ≤ MAX_SAFE_INTEGER` bound). Each carries a
+polyfill fallback for runtimes lacking the native method.
+
+**Rationale.** Property-key validity is a load-bearing structural claim — the predicate
+gates `getNextAvailablePropertyDescriptor`, which gates `hasInertMethod`, which gates
+every contract predicate that walks the prototype chain. Admitting numbers with hazardous
+runtime semantics propagates the hazard downstream. Restricting to safe integers makes the
+predicate's name honest. The three new primitives form a clean composition hierarchy
+(finite → integer → safe-integer), and each is boundary-retyped in the `.d.ts` per #008 to
+a type-guard `(value: unknown) => value is number` — the lib types `Number.isXxx` as
+`(number: unknown) => boolean` (non-narrowing), which forced casts at consumer sites.
+
+**Consequences.** Contract change visible to downstream consumers:
+`isValidPropertyKey(1.5)` now returns `false`; same for `isValidPropertyKey(2 ** 60)`. The
+`@/utility` callers of `isValidPropertyKey` see the same tightening
+(`getNextAvailablePropertyDescriptor` rejects hazardous keys), which propagates into every
+contract predicate. The three new `@/config` primitives are public exports, available for
+any downstream package that needs the same realm-fixed `Number` type-guards. The
+boundary-retyping pattern from #008 / #017 now has a third instance, reinforcing it as the
+canonical solution for closing lib `any`-/`boolean`-gaps.
+
+---
+
 ## type-detection / thenable
 
 ### 022 — `PromiseLike<T>` defined as richer than TypeScript's lib `PromiseLike` (2026-06-04)
@@ -692,6 +767,146 @@ descriptor terminology.
 any future method-contract predicate. The descriptor-walk pattern it embodies is captured
 in decision #021 (the spec-shape rule's third pattern); the contract vocabulary it enables
 is captured in [[design-rulings]] via the contract-vocabulary ruling.
+
+---
+
+## type-detection / evented
+
+### 027 — `EventTargetLike` / `AbortSignalLike` defined locally rather than re-exporting the DOM globals (2026-06-04)
+
+**Context.** TypeScript's `lib.dom.d.ts` declares global `EventTarget` and `AbortSignal`
+interfaces with the structural shapes the evented module needs. Unlike the thenable
+round's #022 — where the lib's `PromiseLike` was strictly poorer than what we needed — the
+lib's `EventTarget` is structurally compatible with the duck-typed contract: a value
+satisfying our `EventTargetLike` also satisfies the lib's `EventTarget` and vice versa.
+`AbortSignal` is partially compatible — the lib carries more members than the structural
+contract requires (see #030).
+
+**Decision.** Define local `EventTargetLike` and `AbortSignalLike` interfaces in
+`evented.d.ts` rather than re-exporting the DOM globals. `EventTargetLike` mirrors the
+lib's `EventTarget` shape precisely (including `EventListenerOrEventListenerObject`,
+`AddEventListenerOptions`, `EventListenerOptions`). `AbortSignalLike` extends
+`EventTargetLike` with the minimum spec-required testable surface —
+`readonly aborted: boolean` and `throwIfAborted(): void`.
+
+**Rationale.** Three reasons converge:
+
+- **Duck-typing intent at the type-name level.** `isEventTargetLike` narrows to a "Like"
+  name, signaling the structural-contract reading. Re-exporting `EventTarget` would lose
+  the distinction at the predicate site between "is a member of the EventTarget set
+  structurally" and "is the EventTarget intrinsic."
+- **Package-owned predicate target.** The package controls evolution of its type. If
+  `lib.dom.d.ts` adds a method to `EventTarget` in a future TS release, the predicate's
+  contract doesn't automatically change.
+- **Runtime-without-DOM usability.** Environments lacking the DOM lib still get a usable
+  contract type from this package alone.
+
+**Consequences.** Consumers of `@species-js/type-detection/evented` get the local types.
+The lib's globals still exist; the local exports live in their own namespace. The
+`AbortSignalLike` minimum-surface choice — which members are deliberately omitted — is
+captured separately in #030.
+
+---
+
+### 028 — `isEventTarget` / `isAbortSignal` reject subclasses by strict constructor-name equality (2026-06-04)
+
+**Context.** Native `EventTarget` has many DOM subclasses (`Element`, `Document`,
+`Window`, `XMLHttpRequest`, `AudioNode`, etc.); `AbortSignal` is less commonly subclassed
+but the language permits it. Both predicates' impls use
+`getDefinedConstructorName(value) === '<name>'` as a marker. For a subclass instance, the
+constructor name resolves to the subclass name (e.g. `'Element'`, `'Document'`), which
+fails the strict equality.
+
+**Decision.** `isEventTarget` and `isAbortSignal` reject subclasses, consistent with
+`isPromise` (#023). The constructor-name check stays strict equality, not a
+constructor-chain walk that would admit subclasses.
+
+**Rationale.** Same posture as #023. Foundation-tier predicates benefit from conservative
+narrowing — multiple cross-validating markers as bounded-cost insurance against
+single-marker spoofing, and the strict identity marker rules out values that "look right"
+structurally but carry a different class identity. The asymmetry is documented: the
+Like-tier predicates (`isEventTargetLike`, `isAbortSignalLike`) accept subclasses via the
+`instanceof` fast path; the strict-tier predicates do not.
+
+**Consequences.** `isEventTarget(document)` returns `false`; subclass admission is the
+caller's job via `isEventTargetLike`. The strict-vs-lenient asymmetry has been applied at
+three lattice tips now (`isPromise`, `isEventTarget`, `isAbortSignal`), which makes the
+pattern visible at the architectural layer (`ARCHITECTURE.md` § type-detection / thenable
+"Conservative-narrowing in the Promise domain" subsection, and the analogous evented
+section's subsection).
+
+---
+
+### 029 — `aborted` accessor direct-read exception to the spec-shape rule's third pattern (2026-06-04)
+
+**Context.** Decision #021 codified a third pattern for the spec-shape access rule:
+predicates over inherited properties use descriptor-walk for inspection without
+invocation, via `hasInertMethod` and its `objectHasOwn(descriptor, 'value')` rejection of
+accessor descriptors. The pattern's load-bearing claim is "no getter fires during the
+check." `AbortSignalLike` requires verifying that `aborted` is a boolean — but the spec
+defines `aborted` as `[GetterAttribute] readonly attribute boolean`. Native `AbortSignal`
+instances return an accessor descriptor for `aborted`. Using `hasInertMethod` here would
+reject every native `AbortSignal`.
+
+**Decision.** `doesMatchAbortSignalContract` uses a direct `(value).aborted` read for the
+`aborted` boolean check, accepting the spec-defined accessor. The `throwIfAborted` check
+still goes through `hasInertMethod` because `throwIfAborted` is a data-property method on
+`AbortSignal.prototype` and matches the third pattern cleanly.
+
+**Rationale.** This is a documented deviation from #021, not a violation. The third
+pattern's load-bearing contract is "no getter fires that shouldn't fire by spec." For
+`aborted`, the spec REQUIRES the getter — the property IS an accessor by spec definition.
+Rejecting accessor descriptors here would block the spec contract. The `&&` chain in
+`doesMatchAbortSignalContract` ensures the direct read fires only after
+`hasInertMethod(value, 'throwIfAborted')` passes — which guarantees `value` is non-nullish
+via the parameter-default-to-`null` pattern (#025), so the access can't crash on
+null/undefined input.
+
+**Consequences.** Native `AbortSignal` instances correctly pass
+`doesMatchAbortSignalContract`. The `aborted` access still triggers any getter the value
+carries — but a value whose `aborted` getter throws is, by spec, malformed (the spec
+getter just returns the internal state and is side-effect-free). The rule generalizes:
+descriptor-walk when invocation is unsafe per the predicate's contract; direct-read when
+the spec defines the property as an accessor and invocation IS the spec-required path. The
+`&&` chain ordering becomes load-bearing in such cases — the nullish-safe gate must come
+first. Future spec-defined accessor properties on other contracts (e.g., `Iterator`'s
+`done` flag, ReadableStream's `locked` flag) may need similar exception handling.
+
+---
+
+### 030 — `AbortSignalLike` minimum-surface choice — omit `reason`, `onabort`, and typed-event-map overloads (2026-06-04)
+
+**Context.** The lib's `AbortSignal` interface carries `readonly reason: any`,
+`onabort: ((this: AbortSignal, ev: Event) => any) | null`, and the `AbortSignalEventMap`
+overloads for `addEventListener` / `removeEventListener`. Each represents a real spec
+member. The question was which to include in `AbortSignalLike`.
+
+**Decision.** Include only the two members that are spec-required AND structurally
+testable without invoking accessors the spec doesn't require: `readonly aborted: boolean`
+and `throwIfAborted(): void`. Omit `reason`, `onabort`, and the typed-event-map overloads.
+
+**Rationale.** Each omission has its own reason:
+
+- **`reason: any`** — no structural constraint to verify. `any` accepts anything; the
+  predicate has nothing to test beyond presence, and presence alone is uninformative (an
+  absent `reason` is still spec-conformant — its presence depends on whether the signal
+  has been aborted).
+- **`onabort`** — sugar over the EventTarget contract that is already validated.
+  Registering a single-property event listener is convenience over `addEventListener`; the
+  underlying capability is the `addEventListener` already required by `EventTargetLike`.
+- **Typed-event-map overloads** — TypeScript convenience for IDE autocomplete on
+  `addEventListener('abort', …)`; not part of the runtime contract. Including them in the
+  structural interface would not affect runtime detection but would couple the interface
+  to the lib's `AbortSignalEventMap` evolution.
+
+**Consequences.** `AbortSignalLike` is intentionally smaller than the lib's `AbortSignal`.
+Any value satisfying our `AbortSignalLike` satisfies a subset of the lib's `AbortSignal`
+contract — sufficient for the abort-channel scenarios this module supports. Consumers
+needing the full lib interface should narrow further from `AbortSignalLike` to
+`AbortSignal` via `isAbortSignal`. The line is drawn at "what's structurally testable
+without invoking accessors the spec doesn't require." Applicable forward to any future
+interface migrations (Iterator protocol, EventEmitter, etc.) — the same principle of
+"include only the spec-required + structurally-testable surface" applies.
 
 ---
 
