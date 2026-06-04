@@ -145,9 +145,14 @@ export function hasOwnWritablePrototype(value?: unknown): boolean;
 /**
  * Narrows a value to `PropertyKey`.
  *
- * Accepts strings, symbols, and finite numbers. `NaN` and `±Infinity` are
- * excluded because they cannot serve as enumerated property keys without
- * coercion surprises.
+ * Accepts strings, symbols, and safe integers. The safe-integer
+ * restriction means numeric property keys are limited to the range
+ * `[-(2^53 - 1), 2^53 - 1]` where they round-trip losslessly.
+ * Finite-but-non-integer numbers like `1.5` coerce to strings (`"1.5"`)
+ * at runtime with lookup surprises; integers beyond
+ * `Number.MAX_SAFE_INTEGER` lose precision in the round-trip. Both are
+ * excluded. `NaN` and `±Infinity` are also excluded — they fail the
+ * finite check that underlies safe-integer.
  *
  * @param value - the value to test; omitted is treated as `undefined`, which
  *  is not a property key
@@ -163,13 +168,13 @@ export function isValidPropertyKey(value?: unknown): value is PropertyKey;
  * Walks own properties first and then the prototype chain. Accessor
  * descriptors are returned intact. The getter is not invoked.
  *
- * @param value - the object whose descriptor chain should be inspected
+ * @param value - the value whose descriptor chain should be inspected
  * @param key - the property key to resolve; invalid keys yield `undefined`
  * @returns the first descriptor found while walking up the chain;
  *  `undefined` if none exists
  */
 export function getNextAvailablePropertyDescriptor(
-  value: object,
+  value: unknown,
   key: PropertyKey,
 ): PropertyDescriptor | undefined;
 
@@ -244,7 +249,7 @@ export function getOwnPropertyDescriptorsKeySet(value?: unknown): Set<string>;
  * any method-contract predicate that needs the inspect-without-invoke
  * guarantee should compose it.
  *
- * @param value - the value to inspect
+ * @param type - the value to inspect
  * @param key - the property key to resolve through the value's
  *  prototype chain
  * @returns `true` when the value carries a callable data property at
@@ -256,7 +261,7 @@ export function getOwnPropertyDescriptorsKeySet(value?: unknown): Set<string>;
  * hasInertMethod({ get then() { return () => {}; } }, 'then'); // false (accessor)
  * hasInertMethod(null, 'then');                                // false
  */
-export function hasInertMethod(value: unknown, key: PropertyKey): boolean;
+export function hasInertMethod(type: unknown, key: PropertyKey): boolean;
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 //

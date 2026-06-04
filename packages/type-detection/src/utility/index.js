@@ -13,13 +13,13 @@ import {
   getOwnPropertyDescriptors,
   getOwnPropertyDescriptor,
   getPrototypeOf,
-  objectHasOwn,
   objectKeys,
   toObjectString,
+  isSafeIntegerValue,
 } from '@/config';
 
+import { isStringValue, isSymbolValue } from '@/primitive';
 import { isCallable, isFunction } from '@/function';
-import { isNumberValue, isStringValue, isSymbolValue } from '@/primitive';
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 
@@ -80,10 +80,15 @@ export function hasOwnWritablePrototype(value) {
 /**
  * Narrows a value to `PropertyKey`.
  *
- * Composes the three primitive guards `isStringValue`, `isSymbolValue`,
- * and `isNumberValue`, and adds `Number.isFinite` to reject `NaN` and
- * `±Infinity`. Those numeric values coerce to property keys but introduce
- * lookup surprises, so they are excluded.
+ * Composes `isStringValue`, `isSymbolValue`, and `isSafeIntegerValue` —
+ * the last from `@/config`, capturing `Number.isSafeInteger` with a
+ * polyfill fallback. The safe-integer restriction means numeric property
+ * keys are limited to the range `[-(2^53 - 1), 2^53 - 1]` where they
+ * round-trip losslessly. Finite-but-non-integer numbers like `1.5`
+ * coerce to strings (`"1.5"`) at runtime with lookup surprises; integers
+ * beyond `Number.MAX_SAFE_INTEGER` lose precision in the round-trip.
+ * Both are excluded. `NaN` and `±Infinity` are also excluded — they fail
+ * the finite check that underlies safe-integer.
  *
  * @param {unknown} [value] - the value to test; omitted is treated as
  *  `undefined`, which is not a property key
@@ -91,11 +96,7 @@ export function hasOwnWritablePrototype(value) {
  *  as a property key; `false` otherwise
  */
 export function isValidPropertyKey(value) {
-  return (
-    isStringValue(value) ||
-    isSymbolValue(value) ||
-    (isNumberValue(value) && Number.isFinite(value))
-  );
+  return isStringValue(value) || isSymbolValue(value) || isSafeIntegerValue(value);
 }
 
 /**
@@ -107,28 +108,25 @@ export function isValidPropertyKey(value) {
  *
  * Accessor descriptors are returned as-is. The getter is never invoked.
  *
- * @param {object} value - the object whose descriptor chain should be
+ * @param {unknown} value - the value whose descriptor chain should be
  *  inspected
  * @param {PropertyKey} key - the property key to resolve; invalid keys
  *  yield `undefined`
  * @returns {PropertyDescriptor | undefined} the first descriptor found while
  *  walking up the chain; `undefined` if none exists
  */
-export function getNextAvailablePropertyDescriptor(value, key) {
+export function getNextAvailablePropertyDescriptor(value = null, key) {
   if (!isValidPropertyKey(key)) {
     return void 0;
   }
   /** @type {PropertyDescriptor | undefined} */
   let descriptor;
 
-  /** @type {object | null} */
-  let currentValue = value;
-
-  while (!descriptor && currentValue !== null) {
+  while (!descriptor && value !== null) {
     descriptor = /** @type {PropertyDescriptor | undefined} */ (
-      getOwnPropertyDescriptor(currentValue, key)
+      getOwnPropertyDescriptor(value, key)
     );
-    currentValue = getPrototypeOf(currentValue) ?? null;
+    value = getPrototypeOf(value) ?? null;
   }
   return descriptor;
 }
@@ -210,7 +208,7 @@ export function getOwnPropertyDescriptorsKeySet(value) {
  * any method-contract predicate that needs the inspect-without-invoke
  * guarantee should compose it.
  *
- * @param {unknown} value - the value to inspect
+ * @param {unknown} type - the value to inspect
  * @param {PropertyKey} key - the property key to resolve through the
  *  value's prototype chain
  * @returns {boolean} `true` when the value carries a callable data
@@ -222,13 +220,9 @@ export function getOwnPropertyDescriptorsKeySet(value) {
  * hasInertMethod({ get then() { return () => {}; } }, 'then'); // false (accessor)
  * hasInertMethod(null, 'then');                                // false
  */
-export function hasInertMethod(value, key) {
-  const descriptor = /** @type {PropertyDescriptor | undefined} */ (
-    (value ?? void 0) &&
-      getNextAvailablePropertyDescriptor(/** @type {object} */ (value), key)
-  );
+export function hasInertMethod(type = null, key) {
   return (
-    !!descriptor && objectHasOwn(descriptor, 'value') && isCallable(descriptor.value)
+    type !== null && isCallable(getNextAvailablePropertyDescriptor(type, key)?.value)
   );
 }
 

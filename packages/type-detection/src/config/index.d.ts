@@ -215,3 +215,51 @@ export declare const getOwnPropertyDescriptor: typeof Object.getOwnPropertyDescr
  * @internal
  */
 export declare const getOwnPropertyDescriptors: typeof Object.getOwnPropertyDescriptors;
+
+// ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
+//
+//  Number Static Methods
+//
+// ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
+
+/**
+ * `Number.isFinite`, realm-fixed at module-load with a polyfill fallback
+ * for runtimes lacking it.
+ *
+ * Retyped from `typeof Number.isFinite`, which is
+ * `(number: unknown) => boolean` per `lib.es2015.core.d.ts`, to
+ * `(value: unknown) => value is number`. The lib's plain-boolean return
+ * does not propagate narrowing at the call site; the retyped signature
+ * carries the narrow. The polyfill composes the `isNumberValue` typeof
+ * guard with the global `isFinite` check, matching spec semantics when
+ * the native method is missing.
+ * @internal
+ */
+export declare const isFiniteNumberValue: (value: unknown) => value is number;
+
+/**
+ * `Number.isInteger`, realm-fixed at module-load with a polyfill fallback
+ * for runtimes lacking it.
+ *
+ * Retyped to `(value: unknown) => value is number` for the same lib-gap
+ * reason as `isFiniteNumberValue` above. Polyfilled via
+ * `isFiniteNumberValue(value) && Math.floor(value) === value` when the
+ * native method is missing.
+ * @internal
+ */
+export declare const isIntegerValue: (value: unknown) => value is number;
+
+/**
+ * `Number.isSafeInteger`, realm-fixed at module-load with a polyfill
+ * fallback for runtimes lacking it.
+ *
+ * Tests whether `value` is an integer in the range
+ * `[-(2^53 - 1), 2^53 - 1]`, where round-tripping through JavaScript's
+ * `number` representation is lossless. Retyped to
+ * `(value: unknown) => value is number` for the same lib-gap reason as
+ * `isFiniteNumberValue` above. Polyfilled via `isIntegerValue(value) &&
+ * Math.abs(value) <= Number.MAX_SAFE_INTEGER` when the native method is
+ * missing.
+ * @internal
+ */
+export declare const isSafeIntegerValue: (value: unknown) => value is number;
