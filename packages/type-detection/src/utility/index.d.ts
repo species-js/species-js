@@ -162,11 +162,11 @@ export function hasOwnWritablePrototype(value?: unknown): boolean;
 export function isValidPropertyKey(value?: unknown): value is PropertyKey;
 
 /**
- * Returns the {@link PropertyDescriptor} for the next reachable property
- * under `key`.
+ * Returns the first {@link PropertyDescriptor} found while walking the
+ * value's prototype chain.
  *
  * Walks own properties first and then the prototype chain. Accessor
- * descriptors are returned intact. The getter is not invoked.
+ * descriptors are returned as-is. The getter is never invoked.
  *
  * @param value - the value whose descriptor chain should be inspected
  * @param key - the property key to resolve; invalid keys yield `undefined`
@@ -386,12 +386,13 @@ export function getDefinedConstructorName(value?: unknown): ConstructorName | un
 /**
  * Resolves a value to its type-name.
  *
- * Uses the constructor-name when reachable and falls back to the
- * tagged-type otherwise.
+ * Tries the constructor-name when reachable; falls back to the
+ * tagged-type otherwise. The fallback also fires when the value's
+ * `constructor` slot has been replaced with a non-callable.
  *
- * Works for every built-in. Custom types remain stable across minification
- * only if both the constructor's `name` descriptor and the prototype's
- * `Symbol.toStringTag` are frozen.
+ * Works for every built-in. Custom types remain stable across
+ * minification only if both the constructor's `name` descriptor and the
+ * prototype's `Symbol.toStringTag` are frozen.
  *
  * @param value - the value whose type-name should be resolved
  * @returns the resolved type-name (constructor-name or tagged-type)

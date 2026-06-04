@@ -30,6 +30,8 @@ import { isCallable, isFunction } from '@/function';
 /** @typedef {import('./index').ResolvedType} ResolvedType */
 
 /** @typedef {import('@/function').NewableFunction} NewableFunction */
+/** @typedef {import('@/function').ES3Function} ES3Function */
+/** @typedef {import('@/function').ClassConstructor} ClassConstructor */
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 //
@@ -60,7 +62,8 @@ export function hasOwnPrototype(value) {
  *
  * Uses the same nullish guard as {@link hasOwnPrototype}, plus a direct
  * read of the descriptor's `writable` field. This is the structural tell
- * of an ES3 function versus a class constructor.
+ * of an {@link ES3Function} versus a {@link ClassConstructor}, whose own
+ * `prototype` is read-only.
  *
  * @param {unknown} [value] - the value to test; omitted is treated as
  *  `undefined`, which has no own prototype
@@ -103,8 +106,11 @@ export function isValidPropertyKey(value) {
  * Returns the first {@link PropertyDescriptor} found while walking the
  * value's prototype chain.
  *
- * The loop is typed via a `currentValue: object | null` local, so the
- * `!== null` check narrows correctly through each `getPrototypeOf` step.
+ * Uses the parameter-default-to-`null` pattern so the `!== null` loop
+ * guard narrows `value` through each `getPrototypeOf` step. Each
+ * iteration reads the own descriptor at the current level, then steps up
+ * via `getPrototypeOf(value) ?? null`; the loop terminates on the first
+ * descriptor hit or when the chain runs out.
  *
  * Accessor descriptors are returned as-is. The getter is never invoked.
  *
@@ -140,7 +146,7 @@ export function getNextAvailablePropertyDescriptor(value = null, key) {
  * on its returned object, so `objectKeys` over that result surfaces every
  * own string-keyed name regardless of the source's enumerability.
  *
- * Symbol-keyed entries are skipped, since `objectKeys` reads strings only.
+ * Symbol-keyed entries are excluded, since `objectKeys` reads strings only.
  *
  * The `value ?? !0` shorthand coerces nullish input to a boxed `true`,
  * which sidesteps the `TypeError` that `getOwnPropertyDescriptors(null)`
@@ -162,8 +168,7 @@ export function getOwnPropertyDescriptorsKeys(value) {
 /**
  * Returns the own string-keyed property names of a value as a `Set<string>`.
  *
- * Wraps {@link getOwnPropertyDescriptorsKeys}'s array result in the `Set`
- * constructor.
+ * Composes {@link getOwnPropertyDescriptorsKeys} with the `Set` constructor.
  *
  * The Set primitive carries set-equality, subset, and superset semantics
  * natively and supports per-key membership checks (`.has(key)`) directly.
@@ -294,20 +299,20 @@ export function getTaggedType(...args) {
 /**
  * Walks the value to its constructor function.
  *
- * Tries up to four sources in order, gated by {@link isFunction} at each
- * step:
+ * Inspects up to four sources in order, gated by {@link isFunction} at
+ * each step:
  *
  * 1. The value's own `constructor` descriptor.
- * 2. Its meta-constructor (`constructor.constructor`).
+ * 2. The meta-constructor on that value (`constructor.constructor`).
  * 3. The prototype's `constructor` descriptor.
- * 4. The prototype's `constructor.constructor`.
+ * 4. The prototype's meta-constructor.
  *
- * Failure at every step returns `undefined`.
+ * If all four are unreachable or non-callable, the result is `undefined`.
  *
- * The return is cast to {@link NewableFunction} because a real constructor
- * is newable by definition. `[[Construct]]` cannot be probed without
- * invoking, so the newable claim is an assertion grounded in the runtime
- * callability check, not a verified property.
+ * The return type is {@link NewableFunction} because a real constructor is
+ * newable by definition. The runtime guard verifies callability only,
+ * since the `[[Construct]]` slot cannot be probed without invoking, so the
+ * newable claim is asserted rather than verified.
  *
  * @param {unknown} [value] - the value whose constructor should be retrieved
  * @returns {NewableFunction | undefined} the constructor function when
@@ -428,12 +433,15 @@ export function getDefinedConstructorName(value) {
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 
 /**
- * Resolves the value to its type-name.
+ * Resolves a value to its type-name.
  *
- * Tries the constructor-name path first. If the constructor is unreachable,
- * or if the constructor slot itself is non-function (meaning the value's
- * `constructor` was replaced with something non-callable), the result
- * falls back to the tagged-type.
+ * Tries the constructor-name when reachable; falls back to the
+ * tagged-type otherwise. The fallback also fires when the value's
+ * `constructor` slot has been replaced with a non-callable.
+ *
+ * Works for every built-in. Custom types remain stable across
+ * minification only if both the constructor's `name` descriptor and the
+ * prototype's `Symbol.toStringTag` are frozen.
  *
  * Uses `args.length` to distinguish an omitted call from one that
  * explicitly passed `undefined`.

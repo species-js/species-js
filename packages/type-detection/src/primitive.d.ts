@@ -39,7 +39,7 @@ export function isBooleanValue(value?: unknown): value is boolean;
  * Narrows a value to the `number` primitive via `typeof value === 'number'`.
  *
  * Matches every numeric primitive, `NaN` and `±Infinity` included.
- * Finiteness is a separate concern the caller layers on, for example with
+ * Finiteness is a separate concern the caller layers on, for example, with
  * `Number.isFinite`. Boxed `Number` objects report `typeof === 'object'`
  * and are excluded.
  *

@@ -129,7 +129,6 @@ export const toFunctionString = Function.prototype.toString;
 
 const o = Object;
 
-// Native `Object.hasOwn` when the runtime provides it (ES2022+), else `undefined`.
 const nativeHasOwn = /** @type {objectHasOwnProperty | undefined} */ (
   /** @type {{ hasOwn?: objectHasOwnProperty }} */ (o).hasOwn
 );
@@ -137,7 +136,7 @@ const nativeHasOwn = /** @type {objectHasOwnProperty | undefined} */ (
 /**
  * Own-property test, ES2020-floor-safe.
  *
- * Prefers the native `Object.hasOwn` when the runtime provides it (Node 22
+ * Uses the native `Object.hasOwn` when the runtime provides it (Node 22
  * and later, modern browsers). Otherwise, falls back to a closure over the
  * captured `Object.prototype.hasOwnProperty`.
  *

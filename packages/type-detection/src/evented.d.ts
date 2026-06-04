@@ -305,17 +305,23 @@ export function isEventTarget(value?: unknown): value is EventTarget;
  * `EventTargetLike` plus a boolean `aborted` and a callable
  * `throwIfAborted`.
  *
- * Composes `doesMatchEventTargetContract` with two abort-specific
- * markers. Short-circuit `&&` orders the checks: the structural
- * EventTarget contract gates the abort-state markers, since a value
- * that lacks the EventTarget surface cannot be an `AbortSignal` and
- * doesn't merit the additional checks.
+ * Composes two abort-specific markers with `doesMatchEventTargetContract`.
+ * Short-circuit `&&` orders the checks for both nullish-safety and
+ * discrimination cost: `hasInertMethod(value, 'throwIfAborted')` runs first
+ * as a nullish-safe leading gate — its descriptor-walk via the
+ * parameter-default-to-`null` pattern returns `false` for any nullish
+ * input without touching the property surface. The direct `aborted`
+ * value-read runs after, by which point `value` is guaranteed non-nullish.
+ * The three-descriptor-walk `doesMatchEventTargetContract` runs last as
+ * the heaviest discriminator and the structural baseline.
  *
- * The `aborted` check uses `isBoolean(value.aborted)`. Spec defines
- * `aborted` as a read-only data property of type boolean; the predicate
- * accepts it regardless of whether it is `true` or `false`. The
+ * The `aborted` check uses `isBooleanValue(value.aborted)`. Spec defines
+ * `aborted` as a read-only accessor attribute; the predicate accepts
+ * the spec-defined accessor by reading the value directly. The
  * `throwIfAborted` check uses `hasInertMethod` for the standard
- * inspect-without-invoke contract.
+ * inspect-without-invoke contract — `throwIfAborted` is a data-property
+ * method on `AbortSignal.prototype`, so the descriptor-walk pattern
+ * applies without spec friction.
  *
  * Used as the structural fallback inside `isAbortSignalLike` when the
  * realm-fixed `instanceof AbortSignalConstructor` fast path fails — for

@@ -192,21 +192,7 @@ export function isNewableFunction(value) {
  *  newable, narrowing to {@link ES3Function}; `false` otherwise
  */
 export function isES3Function(value) {
-  return (
-    // - A newable function has a `[[Construct]]` slot
-    //   and in addition features an own `prototype`.
-    // - Thus, only class-constructor functions (both
-    //   built-in and custom alike) as well as good
-    //   old ES3-functions do pass this predicate.
-    //
-    // - Note: Bound ES3-functions are getting rejected.
-    isNewableFunction(value) &&
-    // - The own `prototype`-descriptor's `writable` property
-    //   value exclusively distinguishes a good old ES3-function
-    //   (`writable: true`) from both either a built-in or a custom,
-    //   `class`-syntax based constructor-function (`writable: false`).
-    hasOwnWritablePrototype(value)
-  );
+  return isNewableFunction(value) && hasOwnWritablePrototype(value);
 }
 
 /**
@@ -235,18 +221,7 @@ export function isES3Function(value) {
  */
 export function isClass(value) {
   return (
-    // - A newable function has a `[[Construct]]` slot
-    //   and in addition features an own `prototype`.
-    // - Thus, only class-constructor functions (both
-    //   built-in and custom alike) as well as good
-    //   old ES3-functions do pass this predicate.
-    //
-    // - Note: Bound class-constructors are getting rejected.
     isNewableFunction(value) &&
-    // - The descriptor's `writable` property value exclusively
-    //   distinguishes a good old ES3-function (`writable: true`)
-    //   from both either a built-in or a custom, `class`-syntax
-    //   based constructor-function (`writable: false`).
     getOwnPropertyDescriptor(value, 'prototype')?.writable === false
   );
 }
