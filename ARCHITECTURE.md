@@ -225,9 +225,23 @@ absorbed once at the boundary. Boundary-retyping closes the call-side `any`-casc
 predicate's declaration. Both rulings codify "fix at the boundary, not at the call site"
 as a steady-state response to TS's leaky defaults. See decision #031.
 
-The pattern generalizes beyond the function family. Predicates in `thenable`, `evented`,
-and `error` modules are reserved for a follow-up sweep applying the same form. Primitive
-predicates don't benefit (primitives carry no richer shape to preserve) and stay as-is.
+The pattern generalizes beyond the function family. The same form has been applied across
+the `thenable` module (`isThenable`, `isPromiseLike`, `isPromise`), the `evented` module
+(`isEventTargetLike`, `isEventTarget`, `isAbortSignalLike`, `isAbortSignal`), and the
+`error` module (`isGenericError`, `isError`, `isAbortError`) — 21 generic-typed predicates
+across the four type-guard families. See decision #036 for the sweep. Primitive predicates
+(`isStringValue`, `isNumberValue`, etc.) are deliberately not swept because primitives
+carry no richer shape to preserve.
+
+One subtle interaction emerged from the sweep: the `(value = null)` parameter default
+pattern (decision #025) does not compose with the generic-T form when both are wanted in
+the same signature. `value: T | undefined` rejects `null` as a default when `T` is
+generic. The workaround is to drop the default — the `!!value` body guard handles both
+null and undefined identically at runtime, so the runtime semantics are preserved. Three
+non-function predicates required this fix during the sweep: `isEventTargetLike`,
+`isAbortSignalLike`, and `isGenericError`. The parameter-default-to-`null` ruling still
+applies to non-generic predicates that use it for strict-equality nullish unification — it
+just doesn't compose with the generic-T pattern.
 
 ### Property-access discipline: own-data vs. inherited
 
