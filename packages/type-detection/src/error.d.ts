@@ -1,0 +1,339 @@
+/**
+ * @module @species-js/type-detection/error
+ *
+ * Error value detection and abort-error refinement.
+ *
+ * The public predicate {@link isError} narrows any value to
+ * {@link GenericError}, using native ECMA-262 `Error.isError` when the
+ * runtime provides it (Node 23+, modern browsers) and falling back to the
+ * polyfill {@link isGenericError} otherwise. The polyfill composes a
+ * local-realm `instanceof Error` fast path with the structural fallback
+ * {@link doesMatchErrorContract}, which reads the value's `[[Class]]` tag
+ * and — for the `'[object Object]'` edge cases — walks its prototype for
+ * the spec-defined Error shape via {@link hasErrorPrototypeContract}.
+ *
+ * {@link isAbortError} refines {@link isError} via a suffix match against
+ * {@link AbortErrorName}, the template-literal type that captures the
+ * abort-channel naming convention shared by DOM WHATWG `AbortSignal` /
+ * `AbortController` and userland abortable operations.
+ */
+
+// ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
+//
+//  Error Value Types
+//
+// ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
+
+/**
+ * The TypeScript union for values carrying the internal `[[ErrorData]]`
+ * slot — the slot ECMA-262 §20.5.2.2 `Error.isError` reads.
+ *
+ * `[[ErrorData]]` is set by the `Error` constructor and inherited via
+ * `OrdinaryCreateFromConstructor` by every built-in Error subclass
+ * (`TypeError`, `SyntaxError`, `RangeError`, `ReferenceError`,
+ * `URIError`, `EvalError`, `AggregateError`) and by user-defined
+ * `class X extends Error` instances. DOMException is defined by WebIDL
+ * to be an Error variant with its own `[[ErrorData]]` but does not
+ * inherit from `Error` in TypeScript's `lib.dom.d.ts`, so the union
+ * carries it as a separate alternative.
+ *
+ * The union is the TypeScript-side approximation of "anything
+ * `Error.isError` accepts" — the spec-precise slot check is unobservable
+ * from userland and therefore cannot directly be modeled at the type level.
+ * User-defined `class MyError extends Error` instances flow through the
+ * `Error` arm via subtype assignability.
+ *
+ * @see {@link https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Error/isError}
+ */
+export type GenericError = DOMException | Error;
+
+// ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
+
+/**
+ * `ErrorConstructor` extended with an _optional_ ES2025+ `isError` static
+ * method. The honest typing for the global `Error` when the runtime may
+ * or may not provide the static method.
+ *
+ * Used at the polyfill site to read `(Error as ErrorConstructorES2025).isError`
+ * without asserting presence; the subsequent `isFunction` narrow handles
+ * the actual decision. The companion `ErrorConstructorWithIsError`
+ * carries the post-narrow asserted form.
+ *
+ * @see {@link https://tc39.es/ecma262/#sec-error.iserror}
+ * @internal
+ */
+export interface ErrorConstructorES2025 extends ErrorConstructor {
+  /** Optional — present in ES2025+ runtimes, absent otherwise. */
+  isError?(value: unknown): value is GenericError;
+}
+
+/**
+ * `ErrorConstructor` extended with the ES2025+ `isError` static method,
+ * required. The post-narrow form, used once a runtime presence check
+ * (via `isFunction(Error.isError)`) has succeeded against
+ * {@link ErrorConstructorES2025}.
+ *
+ * @see {@link https://tc39.es/ecma262/#sec-error.iserror}
+ * @internal
+ */
+export interface ErrorConstructorWithIsError extends ErrorConstructor {
+  /** Required — the asserted form after the runtime presence check. */
+  isError(value: unknown): value is GenericError;
+}
+
+// ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
+//
+//  AbortError Types
+//
+// ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
+
+/**
+ * An error-name string ending with the `'AbortError'` suffix.
+ *
+ * Captures the abort-channel naming convention spec-defined by DOM
+ * WHATWG: `AbortSignal.abort()` rejects with a `DOMException` whose
+ * `name` is `'AbortError'`; userland abortable operations frequently
+ * prefix their own qualifier (`'TimeoutAbortError'`,
+ * `'UserAbortError'`, `'NavigationAbortError'`) to disambiguate the
+ * cause without losing the convention. The leading `string` admits the
+ * empty case — `'AbortError'` itself — and arbitrary qualifiers alike.
+ *
+ * Template-literal types collapse to `string` at the runtime level, so
+ * this type is structural documentation rather than a runtime guarantee.
+ * The runtime check happens in {@link isAbortError} via
+ * `name.endsWith('AbortError')`.
+ */
+export type AbortErrorName = `${string}AbortError`;
+
+/**
+ * A {@link GenericError} whose `name` ends with `'AbortError'`.
+ *
+ * Layers {@link AbortErrorName} as the `name` field over the base
+ * `GenericError` union via structural intersection, capturing the
+ * abort-channel idiom at the type level. The narrow target of
+ * {@link isAbortError}.
+ */
+export type AbortError = GenericError & {
+  name: AbortErrorName;
+};
+
+// ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
+//
+//  Error Predicates
+//
+// ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
+
+/**
+ * Verifies that the value's `[[Prototype]]` matches the spec-defined
+ * Error shape — the four `Error.prototype` own descriptors plus a
+ * `toString` output ending in `'Error'`, with a recursive fallback when
+ * the prototype is itself an Error.
+ *
+ * Reads the prototype's own descriptors via the cached
+ * `getOwnPropertyDescriptors`, then verifies that each of the four
+ * spec-required `Error.prototype` members (ECMA-262 §20.5.3) is present
+ * with the right value type:
+ *
+ * 1. The own `constructor` descriptor's `value` is callable.
+ * 2. The own `message` descriptor's `value` is a string.
+ * 3. The own `name` descriptor's `value` is a string.
+ * 4. The own `toString` descriptor's `value` is callable.
+ * 5. The prototype's `toString()` output, split on `':'` and trimmed,
+ *    ends with `'Error'`.
+ *
+ * Step 5 is the heuristic that catches custom error-named prototypes
+ * (`'MyError: bad input'.split(':')[0].trim().slice(-5) === 'Error'`)
+ * without committing to a specific subclass name. Falls through to
+ * {@link isError}(prototype) when the descriptor walk fails — the
+ * recursion picks up the case where the prototype is itself an Error
+ * instance the parent check should accept (the canonical case being
+ * `Object.create(new Error())`, whose `[[Prototype]]` is an Error
+ * instance with its own real `[[ErrorData]]`).
+ *
+ * Used as the structural sub-helper inside {@link doesMatchErrorContract}
+ * for values whose `[[Class]]` tag is `'[object Object]'` — the case
+ * covering `Object.create(Error.prototype)` and ES3-style legacy errors
+ * whose prototype was assigned an Error instance instead of going
+ * through the `Error` constructor. Both lack `[[ErrorData]]` and would
+ * be rejected by the spec-precise check, but the polyfill widens to
+ * admit them.
+ *
+ * Does not verify `[[ErrorData]]` — that internal slot is unobservable
+ * from userland. The heuristic admits values lacking `[[ErrorData]]` so
+ * long as they walk and quack like an Error.
+ *
+ * @param value - the value whose prototype should be inspected; omitted
+ *  is treated as `undefined`, which has no prototype
+ * @returns `true` when the prototype matches the Error shape; `false`
+ *  otherwise
+ * @internal
+ */
+export function hasErrorPrototypeContract(value?: unknown): boolean;
+
+/**
+ * Verifies that the value matches the structural Error contract —
+ * either a recognized `[[Class]]` tag (`'[object Error]'` or
+ * `'[object DOMException]'`) OR an `'[object Object]'` tag with a
+ * prototype that satisfies {@link hasErrorPrototypeContract}.
+ *
+ * The three acceptance branches cover the spec-defined error families
+ * the polyfill recognizes:
+ *
+ * - `'[object Error]'` — every value with `[[ErrorData]]` falls under
+ *   ECMA-262 §20.1.3.6 step 17, which forces this tag regardless of
+ *   inheritance. Every built-in Error subclass (`TypeError`,
+ *   `SyntaxError`, etc.) and every `class X extends Error` instance
+ *   tags this way unless explicitly overriding `Symbol.toStringTag`.
+ * - `'[object DOMException]'` — DOMException defines its own
+ *   `Symbol.toStringTag` per WebIDL, so it tags differently despite
+ *   carrying `[[ErrorData]]`.
+ * - `'[object Object]'` with matching prototype — the heuristic
+ *   admission for `Object.create(Error.prototype)` and ES3-style legacy
+ *   errors that never reached the `Error` constructor but inherit from
+ *   `Error.prototype`. Delegated to {@link hasErrorPrototypeContract}.
+ *
+ * Used as the structural fallback inside {@link isGenericError} when the
+ * realm-fixed `instanceof Error` fast path fails — for example, on
+ * cross-realm Error instances (iframes, vm contexts, workers), on
+ * DOMException in environments where it does not inherit `Error`, or on
+ * legacy values that match the Error shape but were never instantiated
+ * via `Error`.
+ *
+ * Does not require the value to be an `instanceof Error` of any realm;
+ * that level of identity narrowing belongs to {@link isGenericError}'s
+ * fast path. `doesMatchErrorContract` is purely structural.
+ *
+ * Does not verify `[[ErrorData]]` — the spec-precise slot check is
+ * unobservable, so the structural fallback is a deliberate superset of
+ * the spec semantic. Values like `Object.create(Error.prototype)` lack
+ * the slot but pass the structural check.
+ *
+ * @param value - the value to inspect; omitted is treated as `undefined`,
+ *  which does not match the Error contract
+ * @returns `true` when the value matches the structural Error contract;
+ *  `false` otherwise
+ * @internal
+ */
+export function doesMatchErrorContract(value?: unknown): boolean;
+
+/**
+ * The {@link isError} polyfill body — the form that runs when the
+ * runtime lacks native `Error.isError`.
+ *
+ * Composes a local-realm `instanceof Error` fast path with the
+ * structural fallback {@link doesMatchErrorContract}. The fast path
+ * catches every Error in this realm in a single prototype walk; the
+ * structural fallback catches cross-realm Errors, DOMException, and the
+ * legacy `Object.create(Error.prototype)` / ES3-style errors via the
+ * tag-and-prototype inspection.
+ *
+ * Cross-realm safe by construction. The `instanceof` branch admits
+ * local-realm instances on identity; the structural fallback admits
+ * foreign-realm instances on contract.
+ *
+ * Exported for testing and for callers that want the polyfill semantics
+ * irrespective of the runtime's native `Error.isError`. The polyfill's
+ * acceptance set is a deliberate _superset_ of the spec-level
+ * `[[ErrorData]]` check: `Object.create(Error.prototype)` and ES3-style
+ * legacy errors lack `[[ErrorData]]` but are admitted via the
+ * prototype-shape heuristic. This widening matches the historical
+ * equip-js behavior. Callers needing strict spec semantics should reach
+ * for {@link isError}, which delegates to the native method when
+ * available.
+ *
+ * @param value - the value to test; omitted is treated as `undefined`,
+ *  which is not a generic error
+ * @returns `true` when the value is a local-realm Error or matches the
+ *  structural Error contract, narrowing `value` to {@link GenericError};
+ *  `false` otherwise
+ * @internal
+ */
+export function isGenericError(value?: unknown): value is GenericError;
+
+/**
+ * Narrows a value to {@link GenericError}.
+ *
+ * The public Error predicate. Captures `Error.isError` at module load
+ * when the runtime provides it (ES2025+ environments — Node 23+, modern
+ * browsers) and binds to the polyfill {@link isGenericError} otherwise.
+ * The capture is realm-fixed: the binding does not re-read from
+ * `globalThis.Error` at each call, so later tampering with the global
+ * `Error` constructor's `isError` does not affect this predicate.
+ *
+ * Native `Error.isError` is the spec-precise check — it reads the
+ * internal `[[ErrorData]]` slot, which userland code cannot observe
+ * directly. The polyfill widens to a heuristic structural check (see
+ * {@link isGenericError}) because the spec-precise slot is unobservable.
+ * Both forms admit the same set in well-behaved code; they diverge only
+ * on the legacy edge cases the polyfill widens for.
+ *
+ * @param value - the value to test; omitted is treated as `undefined`,
+ *  which is not a generic error
+ * @returns `true` when the value carries `[[ErrorData]]` (native) or
+ *  matches the polyfill semantics, narrowing `value` to
+ *  {@link GenericError}; `false` otherwise
+ * @example
+ * isError(new Error('boom'));                   // true
+ * isError(new TypeError('x'));                  // true
+ * isError(new DOMException('msg', 'XError'));   // true
+ * isError(Object.create(Error.prototype));      // true (polyfill widens)
+ * isError({ name: 'Error', message: '' });      // false
+ * isError(null);                                // false
+ * @see {@link https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Error/isError}
+ */
+export function isError(value?: unknown): value is GenericError;
+
+// ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
+//
+//  AbortError Predicates
+//
+// ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
+
+/**
+ * Narrows a value to {@link AbortError} — a {@link GenericError} whose
+ * `name` ends with the `'AbortError'` suffix.
+ *
+ * Composes {@link isError} with a suffix-match on `value.name`. Short-
+ * circuit `&&` runs `isError` first as the cheaper gate; the
+ * `name.endsWith('AbortError')` check fires only after the value is
+ * confirmed to be an Error, which also guarantees `name` is a string.
+ *
+ * Captures the abort-channel naming convention shared by:
+ *
+ * - DOM WHATWG `AbortSignal.abort()`, which rejects with a
+ *   `DOMException` named `'AbortError'`.
+ * - `AbortController.abort()`, which propagates the same name through
+ *   the signal it controls.
+ * - Userland abortable operations that wrap the convention with a
+ *   qualifier prefix (`'TimeoutAbortError'`, `'UserAbortError'`).
+ *
+ * Suffix-match by design — exact equality would reject the legitimate
+ * qualified variants. The empty-prefix case `'AbortError'` is included
+ * by the {@link AbortErrorName} template-literal pattern.
+ *
+ * Does not verify any abort-channel _mechanics_ (no inspection of
+ * `AbortSignal.aborted`, no link to an `AbortController`). The check is
+ * purely on the error's name. Producer-side inspection of the abort
+ * channel belongs to predicates in the `evented` module
+ * (`isAbortSignal`, `isAbortSignalLike`).
+ *
+ * @param value - the value to test; omitted is treated as `undefined`,
+ *  which is not an abort error
+ * @returns `true` when the value is an Error whose `name` ends with
+ *  `'AbortError'`, narrowing `value` to {@link AbortError}; `false`
+ *  otherwise
+ * @example
+ * isAbortError(new DOMException('aborted', 'AbortError')); // true
+ *
+ * class TimeoutAbortError extends Error {
+ *   override name = 'TimeoutAbortError';
+ * }
+ * isAbortError(new TimeoutAbortError());                   // true
+ *
+ * isAbortError(new Error('plain'));                        // false (no suffix)
+ * isAbortError({ name: 'AbortError' });                    // false (not an Error)
+ * isAbortError(null);                                      // false
+ */
+export function isAbortError(value?: unknown): value is AbortError;
+
+// ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----

@@ -19,6 +19,8 @@
  *   `AsyncGeneratorFunction` species).
  * - `@species-js/type-detection/primitive` — `typeof` guards for the
  *   five JavaScript primitive types.
+ * - `@species-js/type-detection/error` — `GenericError` and `AbortError`
+ *   discrimination with the `Error.isError` polyfill.
  * - `@species-js/type-detection/evented` — `EventTarget` and
  *   `AbortSignal` structural lattices.
  * - `@species-js/type-detection/thenable` — `Thenable`, `PromiseLike`,
@@ -34,5 +36,6 @@ export * from '@/function';
 export * from '@/config';
 export * from '@/utility';
 export * from '@/primitive';
+export * from '@/error';
 export * from '@/evented';
 export * from '@/thenable';

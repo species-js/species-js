@@ -73,6 +73,17 @@
       },
       "default": "./dist/node/primitive.js"
     },
+    "./error": {
+      "types": "./src/error.d.ts",
+      "browser": {
+        "import": "./dist/browser/error.js"
+      },
+      "node": {
+        "import": "./dist/node/error.js",
+        "require": "./dist/node/error.cjs"
+      },
+      "default": "./dist/node/error.js"
+    },
     "./evented": {
       "types": "./src/evented.d.ts",
       "browser": {

@@ -20,6 +20,7 @@ export default defineConfig({
             utility: resolve(import.meta.dirname, 'src/utility/index.js'),
             function: resolve(import.meta.dirname, 'src/function.js'),
             primitive: resolve(import.meta.dirname, 'src/primitive.js'),
+            error: resolve(import.meta.dirname, 'src/error.js'),
             evented: resolve(import.meta.dirname, 'src/evented.js'),
             thenable: resolve(import.meta.dirname, 'src/thenable.js'),
           },
