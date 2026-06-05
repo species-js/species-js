@@ -199,13 +199,18 @@ export function doesMatchErrorContract(value = null) {
  * heuristic. Callers needing strict spec semantics should reach for
  * {@link isError}, which delegates to the native method when available.
  *
- * @param {unknown} [value] - the value to test; omitted is treated as
+ * Generic in `T` per the family pattern. The narrow returns
+ * `T & GenericError`; `T = unknown` collapses to `GenericError`.
+ *
+ * @template [T=unknown]
+ * @param {T} [value] - the value to test; omitted is treated as
  *  `undefined`, which is not a generic error
- * @returns {value is GenericError} `true` when the value is a local-realm
- *  Error or matches the structural Error contract; `false` otherwise
+ * @returns {value is T & GenericError} `true` when the value is a
+ *  local-realm Error or matches the structural Error contract; `false`
+ *  otherwise
  * @internal
  */
-export function isGenericError(value = null) {
+export function isGenericError(value) {
   return !!value && (value instanceof Error || doesMatchErrorContract(value));
 }
 
@@ -261,10 +266,14 @@ export const isError = /** @type {import('@/error').isError} */ (
  * `${string}AbortError` template-literal pattern of
  * `import('@/error').AbortErrorName`.
  *
- * @param {unknown} [value] - the value to test; omitted is treated as
+ * Generic in `T` per the family pattern. The narrow returns
+ * `T & AbortError`; `T = unknown` collapses to `AbortError`.
+ *
+ * @template [T=unknown]
+ * @param {T} [value] - the value to test; omitted is treated as
  *  `undefined`, which is not an abort error
- * @returns {value is AbortError} `true` when the value is an Error whose
- *  `name` ends with `'AbortError'`; `false` otherwise
+ * @returns {value is T & AbortError} `true` when the value is an Error
+ *  whose `name` ends with `'AbortError'`; `false` otherwise
  */
 export function isAbortError(value) {
   return isError(value) && value.name.endsWith('AbortError');

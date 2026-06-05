@@ -215,10 +215,15 @@ export interface PromiseLike<out T> extends Thenable<T> {
  * treated as "not a _thenable_ type" even if this very getter returns
  * a callable type.
  *
+ * Generic in `T` per the family pattern set by `isCallable` and
+ * `isFunction` in `@/function`. The narrow returns `T & Thenable<unknown>`;
+ * `T = unknown` collapses to `Thenable<unknown>`.
+ *
+ * @typeParam T - the caller-side type of `value`; defaults to `unknown`
  * @param value - the value to test; omitted is treated as `undefined`,
  *  which is not a _thenable_ type
  * @returns `true` when the value carries a callable `then` data property
- *  in its prototype chain, narrowing `value` to `Thenable<unknown>`;
+ *  in its prototype chain, narrowing `value` to `T & Thenable<unknown>`;
  *  `false` otherwise
  * @example
  * isThenable(Promise.resolve());                   // true (inherited)
@@ -227,7 +232,7 @@ export interface PromiseLike<out T> extends Thenable<T> {
  * isThenable({ get then() { return () => {}; } }); // false (accessor)
  * isThenable(null);                                // false
  */
-export function isThenable(value?: unknown): value is Thenable<unknown>;
+export function isThenable<T = unknown>(value?: T): value is T & Thenable<unknown>;
 
 /**
  * Verifies that the value matches the `Promise.prototype` method
@@ -283,18 +288,22 @@ export function doesMatchPromiseContract(value?: unknown): boolean;
  * value satisfying the `Promise.prototype` method contract is rejected
  * on realm membership alone.
  *
+ * Generic in `T` per the family pattern. The narrow returns
+ * `T & PromiseLike<unknown>`; `T = unknown` collapses to `PromiseLike<unknown>`.
+ *
+ * @typeParam T - the caller-side type of `value`; defaults to `unknown`
  * @param value - the value to test; omitted is treated as `undefined`,
  *  which is not a _promise-like_ type
  * @returns `true` when the value is either a local-realm `Promise`
  *  (or subclass) or satisfies the `Promise.prototype` method contract,
- *  narrowing `value` to `PromiseLike<unknown>`; `false` otherwise
+ *  narrowing `value` to `T & PromiseLike<unknown>`; `false` otherwise
  * @example
  * isPromiseLike(Promise.resolve());                                      // true (instanceof)
  * isPromiseLike({ then: () => {} });                                     // false (no `catch`/`finally`)
  * isPromiseLike({ then: () => {}, catch: () => {}, finally: () => {} }); // true (structural)
  * isPromiseLike(null);                                                   // false
  */
-export function isPromiseLike(value?: unknown): value is PromiseLike<unknown>;
+export function isPromiseLike<T = unknown>(value?: T): value is T & PromiseLike<unknown>;
 
 /**
  * Narrows a value to `Promise<unknown>` via three cross-validating
@@ -330,14 +339,18 @@ export function isPromiseLike(value?: unknown): value is PromiseLike<unknown>;
  * admission should compose with a constructor-chain walk on top of
  * this predicate.
  *
+ * Generic in `T` per the family pattern. The narrow returns
+ * `T & Promise<unknown>`; `T = unknown` collapses to `Promise<unknown>`.
+ *
+ * @typeParam T - the caller-side type of `value`; defaults to `unknown`
  * @param value - the value to test; omitted is treated as `undefined`,
  *  which is not a `Promise`
  * @returns `true` when the value satisfies all three markers, narrowing
- *  `value` to `Promise<unknown>`; `false` otherwise
+ *  `value` to `T & Promise<unknown>`; `false` otherwise
  * @example
  * isPromise(Promise.resolve());                                   // true
  * isPromise({ then: () => {} });                                  // false
  * isPromise({ [Symbol.toStringTag]: 'Promise', then: () => {} }); // false (spoof)
  * isPromise(42);                                                  // false
  */
-export function isPromise(value?: unknown): value is Promise<unknown>;
+export function isPromise<T = unknown>(value?: T): value is T & Promise<unknown>;

@@ -241,14 +241,18 @@ export function doesMatchErrorContract(value?: unknown): boolean;
  * for {@link isError}, which delegates to the native method when
  * available.
  *
+ * Generic in `T` per the family pattern. The narrow returns
+ * `T & GenericError`; `T = unknown` collapses to `GenericError`.
+ *
+ * @typeParam T - the caller-side type of `value`; defaults to `unknown`
  * @param value - the value to test; omitted is treated as `undefined`,
  *  which is not a generic error
  * @returns `true` when the value is a local-realm Error or matches the
- *  structural Error contract, narrowing `value` to {@link GenericError};
+ *  structural Error contract, narrowing `value` to `T & GenericError`;
  *  `false` otherwise
  * @internal
  */
-export function isGenericError(value?: unknown): value is GenericError;
+export function isGenericError<T = unknown>(value?: T): value is T & GenericError;
 
 /**
  * Narrows a value to {@link GenericError}.
@@ -267,11 +271,18 @@ export function isGenericError(value?: unknown): value is GenericError;
  * Both forms admit the same set in well-behaved code; they diverge only
  * on the legacy edge cases the polyfill widens for.
  *
+ * Generic in `T` per the family pattern. The narrow returns
+ * `T & GenericError`; `T = unknown` collapses to `GenericError`. The
+ * generic form is applied to the public signature even though the captured
+ * native `Error.isError` is non-generic per its ES2025 declaration — the
+ * runtime semantics are unchanged; only the type-system surface widens.
+ *
+ * @typeParam T - the caller-side type of `value`; defaults to `unknown`
  * @param value - the value to test; omitted is treated as `undefined`,
  *  which is not a generic error
  * @returns `true` when the value carries `[[ErrorData]]` (native) or
  *  matches the polyfill semantics, narrowing `value` to
- *  {@link GenericError}; `false` otherwise
+ *  `T & GenericError`; `false` otherwise
  * @example
  * isError(new Error('boom'));                   // true
  * isError(new TypeError('x'));                  // true
@@ -281,7 +292,7 @@ export function isGenericError(value?: unknown): value is GenericError;
  * isError(null);                                // false
  * @see {@link https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Error/isError}
  */
-export function isError(value?: unknown): value is GenericError;
+export function isError<T = unknown>(value?: T): value is T & GenericError;
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 //
@@ -317,10 +328,14 @@ export function isError(value?: unknown): value is GenericError;
  * channel belongs to predicates in the `evented` module
  * (`isAbortSignal`, `isAbortSignalLike`).
  *
+ * Generic in `T` per the family pattern. The narrow returns
+ * `T & AbortError`; `T = unknown` collapses to `AbortError`.
+ *
+ * @typeParam T - the caller-side type of `value`; defaults to `unknown`
  * @param value - the value to test; omitted is treated as `undefined`,
  *  which is not an abort error
  * @returns `true` when the value is an Error whose `name` ends with
- *  `'AbortError'`, narrowing `value` to {@link AbortError}; `false`
+ *  `'AbortError'`, narrowing `value` to `T & AbortError`; `false`
  *  otherwise
  * @example
  * isAbortError(new DOMException('aborted', 'AbortError')); // true
@@ -334,6 +349,6 @@ export function isError(value?: unknown): value is GenericError;
  * isAbortError({ name: 'AbortError' });                    // false (not an Error)
  * isAbortError(null);                                      // false
  */
-export function isAbortError(value?: unknown): value is AbortError;
+export function isAbortError<T = unknown>(value?: T): value is T & AbortError;
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----

@@ -50,11 +50,16 @@ const PromiseConstructor = /** @type {typeof Promise | null} */ (
  * treated as "not a _thenable_ type" even if this very getter returns
  * a callable type.
  *
- * @param {unknown} [value] - the value to test; omitted is treated as
+ * Generic in `T` per the family pattern set by {@link isCallable} and
+ * {@link isFunction}. The narrow returns `T & Thenable`; `T = unknown`
+ * collapses to `Thenable`.
+ *
+ * @template [T=unknown]
+ * @param {T} [value] - the value to test; omitted is treated as
  *  `undefined`, which is not a _thenable_ type
- * @returns {value is Thenable} `true` when the value carries a callable
+ * @returns {value is T & Thenable} `true` when the value carries a callable
  *  `then` data property in its prototype chain, narrowing `value` to
- *  `Thenable<unknown>`; `false` otherwise
+ *  `T & Thenable`; `false` otherwise
  * @example
  * isThenable(Promise.resolve());                   // true (inherited)
  * isThenable({ then: () => {} });                  // true (own)
@@ -126,11 +131,15 @@ export function doesMatchPromiseContract(value) {
  * value satisfying the `Promise.prototype` method contract is rejected
  * on realm membership alone.
  *
- * @param {unknown} [value] - the value to test; omitted is treated as
+ * Generic in `T` per the family pattern. The narrow returns
+ * `T & PromiseLike`; `T = unknown` collapses to `PromiseLike`.
+ *
+ * @template [T=unknown]
+ * @param {T} [value] - the value to test; omitted is treated as
  *  `undefined`, which is not a _promise-like_ type
- * @returns {value is PromiseLike} `true` when the value is either a
+ * @returns {value is T & PromiseLike} `true` when the value is either a
  *  local-realm `Promise` (or subclass) or satisfies the `Promise.prototype`
- *  method contract, narrowing `value` to `PromiseLike<unknown>`; `false`
+ *  method contract, narrowing `value` to `T & PromiseLike`; `false`
  *  otherwise
  * @example
  * isPromiseLike(Promise.resolve());                                      // true (instanceof)
@@ -180,10 +189,14 @@ export function isPromiseLike(value) {
  * admission should compose with a constructor-chain walk on top of
  * this predicate.
  *
- * @param {unknown} [value] - the value to test; omitted is treated as
+ * Generic in `T` per the family pattern. The narrow returns
+ * `T & Promise<unknown>`; `T = unknown` collapses to `Promise<unknown>`.
+ *
+ * @template [T=unknown]
+ * @param {T} [value] - the value to test; omitted is treated as
  *  `undefined`, which is not a `Promise`
- * @returns {value is Promise<unknown>} `true` when the value satisfies
- *  all three markers, narrowing `value` to `Promise<unknown>`; `false`
+ * @returns {value is T & Promise<unknown>} `true` when the value satisfies
+ *  all three markers, narrowing `value` to `T & Promise<unknown>`; `false`
  *  otherwise
  * @example
  * isPromise(Promise.resolve());                                   // true

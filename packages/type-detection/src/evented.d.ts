@@ -234,11 +234,15 @@ export function doesMatchEventTargetContract(value?: unknown): boolean;
  * (pre-Node-15 environments, special embeddings); the instanceof
  * branch is then skipped, and only the structural check fires.
  *
+ * Generic in `T` per the family pattern. The narrow returns
+ * `T & EventTargetLike`; `T = unknown` collapses to `EventTargetLike`.
+ *
+ * @typeParam T - the caller-side type of `value`; defaults to `unknown`
  * @param value - the value to test; omitted is treated as `undefined`,
  *  which is not an _event-target-like_ type
  * @returns `true` when the value is either a local-realm `EventTarget`
  *  (or subclass) or satisfies the EventTarget method contract,
- *  narrowing `value` to `EventTargetLike`; `false` otherwise
+ *  narrowing `value` to `T & EventTargetLike`; `false` otherwise
  * @example
  * isEventTargetLike(new EventTarget()); // true (instanceof)
  * isEventTargetLike(document);          // true (subclass)
@@ -250,7 +254,7 @@ export function doesMatchEventTargetContract(value?: unknown): boolean;
  * isEventTargetLike({});                // false
  * isEventTargetLike(null);              // false
  */
-export function isEventTargetLike(value?: unknown): value is EventTargetLike;
+export function isEventTargetLike<T = unknown>(value?: T): value is T & EventTargetLike;
 
 /**
  * Narrows a value to `EventTarget` via three cross-validating
@@ -282,17 +286,21 @@ export function isEventTargetLike(value?: unknown): value is EventTargetLike;
  * needing subclass admission should compose with `isEventTargetLike`,
  * which accepts subclasses via the `instanceof` fast path.
  *
+ * Generic in `T` per the family pattern. The narrow returns
+ * `T & EventTarget`; `T = unknown` collapses to `EventTarget`.
+ *
+ * @typeParam T - the caller-side type of `value`; defaults to `unknown`
  * @param value - the value to test; omitted is treated as `undefined`,
  *  which is not an `EventTarget`
  * @returns `true` when the value satisfies all three markers, narrowing
- *  `value` to `EventTarget`; `false` otherwise
+ *  `value` to `T & EventTarget`; `false` otherwise
  * @example
  * isEventTarget(new EventTarget());                       // true
  * isEventTarget(document);                                // false (subclass)
  * isEventTarget({ [Symbol.toStringTag]: 'EventTarget' }); // false (spoof — no methods)
  * isEventTarget(null);                                    // false
  */
-export function isEventTarget(value?: unknown): value is EventTarget;
+export function isEventTarget<T = unknown>(value?: T): value is T & EventTarget;
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 //
@@ -362,18 +370,22 @@ export function doesMatchAbortSignalContract(value?: unknown): boolean;
  * (pre-Node-15 environments, special embeddings); the instanceof
  * branch is then skipped, and only the structural check fires.
  *
+ * Generic in `T` per the family pattern. The narrow returns
+ * `T & AbortSignalLike`; `T = unknown` collapses to `AbortSignalLike`.
+ *
+ * @typeParam T - the caller-side type of `value`; defaults to `unknown`
  * @param value - the value to test; omitted is treated as `undefined`,
  *  which is not an _abort-signal-like_ type
  * @returns `true` when the value is either a local-realm `AbortSignal`
  *  or satisfies the AbortSignal method contract, narrowing `value` to
- *  `AbortSignalLike`; `false` otherwise
+ *  `T & AbortSignalLike`; `false` otherwise
  * @example
  * isAbortSignalLike(new AbortController().signal); // true (instanceof)
  * isAbortSignalLike(AbortSignal.timeout(1000));    // true (instanceof)
  * isAbortSignalLike(new EventTarget());            // false (no abort surface)
  * isAbortSignalLike(null);                         // false
  */
-export function isAbortSignalLike(value?: unknown): value is AbortSignalLike;
+export function isAbortSignalLike<T = unknown>(value?: T): value is T & AbortSignalLike;
 
 /**
  * Narrows a value to `AbortSignal` via three cross-validating
@@ -396,10 +408,14 @@ export function isAbortSignalLike(value?: unknown): value is AbortSignalLike;
  * needing subclass admission should compose with `isAbortSignalLike`,
  * which accepts subclasses via the `instanceof` fast path.
  *
+ * Generic in `T` per the family pattern. The narrow returns
+ * `T & AbortSignal`; `T = unknown` collapses to `AbortSignal`.
+ *
+ * @typeParam T - the caller-side type of `value`; defaults to `unknown`
  * @param value - the value to test; omitted is treated as `undefined`,
  *  which is not an `AbortSignal`
  * @returns `true` when the value satisfies all three markers, narrowing
- *  `value` to `AbortSignal`; `false` otherwise
+ *  `value` to `T & AbortSignal`; `false` otherwise
  * @example
  * isAbortSignal(new AbortController().signal);            // true
  * isAbortSignal(AbortSignal.timeout(1000));               // true
@@ -407,6 +423,6 @@ export function isAbortSignalLike(value?: unknown): value is AbortSignalLike;
  * isAbortSignal({ [Symbol.toStringTag]: 'AbortSignal' }); // false (spoof)
  * isAbortSignal(null);                                    // false
  */
-export function isAbortSignal(value?: unknown): value is AbortSignal;
+export function isAbortSignal<T = unknown>(value?: T): value is T & AbortSignal;
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----

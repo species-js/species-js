@@ -106,11 +106,15 @@ export function doesMatchEventTargetContract(value) {
  * (pre-Node-15 environments, special embeddings); the instanceof
  * branch is then skipped, and only the structural check fires.
  *
- * @param {unknown} [value] - the value to test; omitted is treated as
+ * Generic in `T` per the family pattern. The narrow returns
+ * `T & EventTargetLike`; `T = unknown` collapses to `EventTargetLike`.
+ *
+ * @template [T=unknown]
+ * @param {T} [value] - the value to test; omitted is treated as
  *  `undefined`, which is not an _event-target-like_ type
- * @returns {value is EventTargetLike} `true` when the value is either a
- *  local-realm `EventTarget` (or subclass) or satisfies the EventTarget
- *  method contract, narrowing `value` to `EventTargetLike`; `false`
+ * @returns {value is T & EventTargetLike} `true` when the value is either
+ *  a local-realm `EventTarget` (or subclass) or satisfies the EventTarget
+ *  method contract, narrowing `value` to `T & EventTargetLike`; `false`
  *  otherwise
  * @example
  * isEventTargetLike(new EventTarget()); // true (instanceof)
@@ -123,7 +127,7 @@ export function doesMatchEventTargetContract(value) {
  * isEventTargetLike({});                // false
  * isEventTargetLike(null);              // false
  */
-export function isEventTargetLike(value = null) {
+export function isEventTargetLike(value) {
   return (
     !!value &&
     ((!!EventTargetConstructor && value instanceof EventTargetConstructor) ||
@@ -161,10 +165,14 @@ export function isEventTargetLike(value = null) {
  * needing subclass admission should compose with `isEventTargetLike`,
  * which accepts subclasses via the `instanceof` fast path.
  *
- * @param {unknown} [value] - the value to test; omitted is treated as
+ * Generic in `T` per the family pattern. The narrow returns
+ * `T & EventTarget`; `T = unknown` collapses to `EventTarget`.
+ *
+ * @template [T=unknown]
+ * @param {T} [value] - the value to test; omitted is treated as
  *  `undefined`, which is not an `EventTarget`
- * @returns {value is EventTarget} `true` when the value satisfies all
- *  three markers, narrowing `value` to `EventTarget`; `false` otherwise
+ * @returns {value is T & EventTarget} `true` when the value satisfies all
+ *  three markers, narrowing `value` to `T & EventTarget`; `false` otherwise
  * @example
  * isEventTarget(new EventTarget());                       // true
  * isEventTarget(document);                                // false (subclass)
@@ -253,18 +261,22 @@ export function doesMatchAbortSignalContract(value) {
  * (pre-Node-15 environments, special embeddings); the instanceof
  * branch is then skipped, and only the structural check fires.
  *
- * @param {unknown} [value] - the value to test; omitted is treated as
+ * Generic in `T` per the family pattern. The narrow returns
+ * `T & AbortSignalLike`; `T = unknown` collapses to `AbortSignalLike`.
+ *
+ * @template [T=unknown]
+ * @param {T} [value] - the value to test; omitted is treated as
  *  `undefined`, which is not an _abort-signal-like_ type
- * @returns {value is AbortSignalLike} `true` when the value is either a
- *  local-realm `AbortSignal` or satisfies the AbortSignal method
- *  contract, narrowing `value` to `AbortSignalLike`; `false` otherwise
+ * @returns {value is T & AbortSignalLike} `true` when the value is either
+ *  a local-realm `AbortSignal` or satisfies the AbortSignal method
+ *  contract, narrowing `value` to `T & AbortSignalLike`; `false` otherwise
  * @example
  * isAbortSignalLike(new AbortController().signal); // true (instanceof)
  * isAbortSignalLike(AbortSignal.timeout(1000));    // true (instanceof)
  * isAbortSignalLike(new EventTarget());            // false (no abort surface)
  * isAbortSignalLike(null);                         // false
  */
-export function isAbortSignalLike(value = null) {
+export function isAbortSignalLike(value) {
   return (
     !!value &&
     ((!!AbortSignalConstructor && value instanceof AbortSignalConstructor) ||
@@ -293,10 +305,14 @@ export function isAbortSignalLike(value = null) {
  * needing subclass admission should compose with `isAbortSignalLike`,
  * which accepts subclasses via the `instanceof` fast path.
  *
- * @param {unknown} [value] - the value to test; omitted is treated as
+ * Generic in `T` per the family pattern. The narrow returns
+ * `T & AbortSignal`; `T = unknown` collapses to `AbortSignal`.
+ *
+ * @template [T=unknown]
+ * @param {T} [value] - the value to test; omitted is treated as
  *  `undefined`, which is not an `AbortSignal`
- * @returns {value is AbortSignal} `true` when the value satisfies all
- *  three markers, narrowing `value` to `AbortSignal`; `false` otherwise
+ * @returns {value is T & AbortSignal} `true` when the value satisfies all
+ *  three markers, narrowing `value` to `T & AbortSignal`; `false` otherwise
  * @example
  * isAbortSignal(new AbortController().signal);            // true
  * isAbortSignal(AbortSignal.timeout(1000));               // true
