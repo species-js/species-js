@@ -675,6 +675,56 @@ canonical solution for closing lib `any`-/`boolean`-gaps.
 
 ---
 
+### 031 — Generic-typed predicates: `<T = unknown>(value?: T): value is T & X` family-wide (2026-06-05)
+
+**Context.** During the error-migration debugging round (commit `667e12b`), the recurring
+_"my narrow flattens to `VerifiedFunction`"_ pain surfaced repeatedly. A consumer with
+`value: ((this: O) => R) | undefined` from an earlier cast would lose that information the
+moment `isFunction(value)` returned `true` — TS's `value is VerifiedFunction` narrow
+_replaces_ the value's type with bare `VerifiedFunction`, discarding the more specific
+caller-side narrowing. The workaround at consumer sites was an outer cast to recover the
+function shape post-narrow — the same cascading-boilerplate pathology the
+boundary-retyping ruling (#008, #017, #026) addresses on the call-side.
+
+**Decision.** All 11 function-family predicates take the generic form
+`<T = unknown>(value?: T): value is T & X`, where `X` is the predicate's previous narrow
+target. Applied: `isCallable`, `isFunction`, `isNewableFunction`, `isES3Function`,
+`isClass`, `isCustomClass`, `isBuiltInClass`, `isAsyncFunction`, `isGeneratorFunction`,
+`isAsyncGeneratorFunction`, `isAnyGeneratorFunction`. The `.d.ts` carries the TS
+signature; the `.js` JSDoc mirrors via `@template [T=unknown]` + `@param {T} [value]` +
+`@returns {value is T & X}`. Each predicate carries a short doc paragraph naming the
+family pattern with backticks for the form and a cross-reference to the family anchor
+({@link isCallable} / {@link isFunction}).
+
+**Rationale.** The intersection `T & X` distributes through `T`'s union:
+`(A | B) & X = (A & X) | (B & X)`. Non-callable arms collapse to `never` —
+`string & Callable = never`, `undefined & VerifiedFunction = never` — while callable arms
+retain `T`'s call signature, augmented with `X`'s structural guarantees. For the common
+case `T = unknown`, the intersection reduces to `X`, matching pre-generic behavior — every
+existing call site is preserved with zero churn. Callers whose `value` already carries a
+more specific function shape keep that shape post-narrow. The pattern is the sibling of
+boundary-retyping on the narrow-side: that closes the call-side `any`-cascade at
+`@/config`; this closes the narrow-side flatten at the predicate's declaration. Both
+rulings address the same pathology — TS's default types are too lossy at a boundary, and
+the cleanup work piles up at every consumer site instead of being absorbed once at the
+boundary.
+
+**Consequences.** All 11 family predicates ship the generic form (commit `9434960`, with
+`isCallable` / `isFunction` precursors landing during the error-migration round's reserved
+working tree). Downstream audit within species-js confirmed safe: all internal call sites
+are `unknown`-typed inputs (in `utility/index.js`, `error.js`, `function.js`, `index.js`)
+except for three `typeof Constructor` checks in `evented.js` / `thenable.js` where the
+narrow yields `typeof Constructor & Callable`, which remains assignable to the outer
+`typeof Constructor | null` cast — no consumer changes needed. The pattern generalizes
+beyond the function family: predicates in `thenable`, `evented`, and `error`
+(`isThenable`, `isPromise`, `isPromiseLike`, `isEventTarget`, `isAbortSignal`, `isError`,
+`isAbortError`, etc.) are reserved for a follow-up sweep applying the same form. Primitive
+predicates (`isStringValue`, `isNumberValue`, etc.) don't benefit — primitives have no
+richer shape to preserve — and stay as-is. Codified in [[generic-predicate-pattern]]
+memory.
+
+---
+
 ## type-detection / thenable
 
 ### 022 — `PromiseLike<T>` defined as richer than TypeScript's lib `PromiseLike` (2026-06-04)
@@ -910,6 +960,238 @@ interface migrations (Iterator protocol, EventEmitter, etc.) — the same princi
 
 ---
 
+## type-detection / error
+
+### 032 — Error predicates: layered composition with native-or-polyfill capture (2026-06-05)
+
+**Context.** The equip-js source had five public exports for error discrimination —
+`isCurrentRealmError`, `isAlienRealmError`, `isGenericError`, `isError`, `isAbortError` —
+plus an internal `hasMatchingErrorPrototype` helper. The first three were the
+realm-fast-path / structural-fallback / composing-polyfill triple. `isError` captured
+native `Error.isError` when available; otherwise it delegated to the polyfill.
+`isAbortError` was a suffix-match refinement. The migration question was whether to port
+all six surfaces verbatim or to consolidate them per the established lattice patterns from
+`thenable` and `evented`.
+
+**Decision.** Collapse the realm-fast-path / structural-fallback split into a single
+polyfill body, mirroring the way `isEventTargetLike` (#027) and `isPromiseLike` (thenable
+round, #022) compose their `instanceof <Constructor>` fast path with
+`doesMatch<X>Contract` structural fallback inside one predicate without exposing the two
+halves separately. The resulting composition stack:
+
+1. `hasErrorPrototypeContract` (`@internal`) — descriptor-walk sub-helper that verifies
+   the four `Error.prototype` own descriptors (`constructor`, `message`, `name`,
+   `toString`) plus a trailing-`'Error'` `name` marker, with a recursive `isError`
+   fallback for the prototype-itself-is-an-Error case (`Object.create(new Error())`).
+2. `doesMatchErrorContract` (`@internal`) — structural fallback dispatcher; admits
+   `[[Class]]` tag `'[object Error]'` (every `[[ErrorData]]`-bearing value per ECMA-262
+   §20.1.3.6 step 17), `'[object DOMException]'` (WebIDL's separate tag), or
+   `'[object Object]'` with prototype passing `hasErrorPrototypeContract` (the legacy
+   `Object.create(Error.prototype)` and ES3-style cases). Parallel to
+   `doesMatchPromiseContract` (thenable), `doesMatchEventTargetContract`,
+   `doesMatchAbortSignalContract` (evented).
+3. `isGenericError` (`@internal`) — polyfill body that composes `value instanceof Error`
+   (realm-fast-path) with `doesMatchErrorContract` (structural fallback) inside a single
+   predicate. Inlines what equip-js had exposed as separate `isCurrentRealmError` and
+   `isAlienRealmError` exports.
+4. `isError` (public) — captures native `Error.isError` at module-load when the runtime
+   provides it (ES2025+); falls back to `isGenericError` otherwise. Bound as
+   `const isError = isFunction(nativeIsError) ? nativeIsError : isGenericError`. The
+   capture is realm-fixed — later tampering with `globalThis.Error.isError` does not reach
+   this binding, mirroring the realm-fixed pattern used for cached `@/config` primitives.
+5. `isAbortError` (public) — refines `isError` via name-suffix match against
+   `AbortErrorName`; see #035.
+
+**Rationale.** Three forces converge on the consolidated shape:
+
+- **Lattice symmetry with thenable / evented.** Each higher-level subdomain has the same
+  shape: `@internal` structural sub-helper(s), `@internal` contract dispatcher, public
+  umbrella predicate, optional refined predicate. Maintaining that symmetry across
+  subdomains keeps the docs and the mental model uniform — a contributor reading one
+  module's structure can navigate any other module's by the same shape.
+- **Surface minimalism.** Equip-js exposed five public predicates where two suffice. The
+  realm-fast-path / structural-fallback split is implementation, not interface; collapsing
+  them into `isGenericError` removes two exports without losing capability (the polyfill
+  body remains exported `@internal` for testing and for callers wanting polyfill semantics
+  irrespective of native).
+- **Native-or-polyfill capture at module-load.** `Error.isError` only exists in ES2025+
+  runtimes (Node 23+, modern browsers). Capturing once at module-load — as opposed to
+  re-reading `globalThis.Error.isError` at each call — makes the binding realm-fixed and
+  immune to later tampering, matching the realm-fixed posture used for cached `@/config`
+  primitives.
+
+**Consequences.** Public surface: `GenericError`, `AbortErrorName`, `AbortError`,
+`isError`, `isAbortError`. `@internal` surface: `ErrorConstructorES2025`,
+`ErrorConstructorWithIsError`, `hasErrorPrototypeContract`, `doesMatchErrorContract`,
+`isGenericError`. Five fewer top-level public surfaces than the equip-js source. The
+polyfill widening semantic — what `isGenericError` admits beyond the spec-precise
+`[[ErrorData]]` check — is captured separately in #033. The `objectCreate` boundary
+retyping that the descriptor walk depends on for clean typing is captured in #034.
+`AbortError` as a name-suffix refinement is captured in #035. See ARCHITECTURE.md §
+type-detection / error for the conceptual map.
+
+---
+
+### 033 — Polyfill widening semantics over the unobservable `[[ErrorData]]` slot (2026-06-05)
+
+**Context.** ECMA-262 §20.5.2.2 `Error.isError(v)` returns `true` if `v` carries the
+internal `[[ErrorData]]` slot. The slot is set by `OrdinaryCreateFromConstructor` inside
+the `Error` constructor (and inherited by every built-in subclass — `TypeError`,
+`SyntaxError`, etc. — plus user-defined `class X extends Error` instances) and by the
+WebIDL `DOMException` spec. The slot is _unobservable_ from userland code; the spec
+predicate cannot be implemented in pure JS without engine support. The polyfill body
+`isGenericError` therefore has to approximate `[[ErrorData]]` with a structural heuristic.
+The migration question was where to draw the polyfill's acceptance line.
+
+**Decision.** The polyfill widens to admit values that lack `[[ErrorData]]` but match the
+structural Error contract. `isGenericError(v)` accepts:
+
+1. `v instanceof Error` (local realm — covers every `[[ErrorData]]`-bearing value in this
+   realm).
+2. `getTypeSignature(v) === '[object Error]'` (every realm's Error-tagged value;
+   `Object.prototype.toString` returns `'[object Error]'` for any value carrying
+   `[[ErrorData]]` per ECMA-262 §20.1.3.6 step 17, so this catches cross-realm Errors).
+3. `getTypeSignature(v) === '[object DOMException]'` (WebIDL's separate tag).
+4. `getTypeSignature(v) === '[object Object]'` AND `hasErrorPrototypeContract(v)` (the
+   legacy widening — `Object.create(Error.prototype)` and ES3-style classical- inheritance
+   Errors whose `[[Prototype]]` walks like an Error prototype but never went through the
+   `Error` constructor and so lack `[[ErrorData]]`).
+
+The first three cases align with the spec; the fourth widens beyond it.
+
+**Rationale.** Two postures are defensible. _Spec-precise_ would reject the legacy cases
+on the grounds that they lack the formal `[[ErrorData]]` invariant, accepting that
+existing JS code relying on `Object.create(Error.prototype)` would silently lose
+recognition. _Polyfill widening_ admits them on the grounds that the heuristic is the best
+userland can do, and the equip-js source has shipped this acceptance set for years in
+production downstream code. The species-js round preserves the equip-js admission set
+because:
+
+- The package is foundation-tier infrastructure. Six downstream packages (`cadence-js`,
+  `equip-js`, `cambium-js`, `talented-js`, `modulate-js`, `inflect-js`) and their
+  consumers may have code that constructs errors via `Object.create(Error.prototype)` or
+  the ES3-classical pattern. Tightening to spec-precise would break recognition silently.
+- The native path is spec-precise. When `Error.isError` is available, `isError` delegates
+  to it — the polyfill widening only affects runtimes where the native method is missing.
+  Modern production runtimes converge on the spec; legacy runtimes get the widened
+  heuristic for backward compatibility.
+- `isGenericError` is exported `@internal` _and_ documented as the polyfill body. A
+  consumer who wants strict spec semantics reaches for the public `isError` (which
+  delegates to native when available); a consumer who wants the widened polyfill semantics
+  irrespective of runtime reaches for `isGenericError` explicitly.
+
+**Consequences.** Values like `Object.create(Error.prototype)` and ES3-style
+classical-inheritance Errors are admitted by `isGenericError` (and by `isError` in
+runtimes lacking native `Error.isError`). The polyfill/native divergence is documented in
+`isError`'s JSDoc: _"The two forms agree on well-behaved code and diverge only on the
+legacy edge cases the polyfill admits."_ The `hasErrorPrototypeContract` sub-helper (see
+#032) carries the descriptor-walk heuristic that implements the widening — its five checks
+(four `Error.prototype` member presence/type assertions plus a trailing- `'Error'` `name`
+marker) are the structural-shape proxy for the unobservable `[[ErrorData]]`. The
+trailing-`'Error'` `name` check reads through the descriptor chain rather than invoking
+`prototype.toString()`, both for the `no-base-to-string` ESLint workaround (see
+[[quality-discipline]]) and because the descriptor read aligns with the spec-shape rule
+(#020, #021) for own-data properties.
+
+---
+
+### 034 — Boundary-retyping at `@/config` for `objectCreate` (2026-06-05)
+
+**Context.** `Object.create` is typed by `lib.es5.d.ts` as `any`-returning on both
+overloads — `(o: object | null) => any` for the no-properties form and
+`(o: object | null, properties: PropertyDescriptorMap & ThisType<any>) => any` for the
+property-bearing form. The `any` return propagates
+`@typescript-eslint/no-unsafe-assignment` cascades at every consumer that captures the
+result for a sentinel or lookup-table object. During the error-migration debugging round,
+the original equip-js implementation used `objectCreate(null)` to construct a
+blank-descriptor sentinel; the `any` return propagated through several intermediate casts
+and lit up the cascade across `error.js`.
+
+**Decision.** Retype the cached primitive at `@/config` to overload-precise return types,
+mirroring the precedents from #008 (`toFunctionString`), #017 (`getPrototypeOf`), and #026
+(the three `Number.isXxx` predicates). `objectCreate(null)` yields
+`Record<PropertyKey, never>` — the prototype-less floor that `BlankType` in `@/utility`
+carries. `objectCreate(prototype)` yields `object`. The two-argument form
+`objectCreate(prototype | null, properties)` yields `object`, with `ThisType<unknown>`
+replacing lib's `ThisType<any>` per the package's typing discipline. The runtime `.js`
+export is unchanged — only the type narrows.
+
+**Rationale.** Same lib-gap pattern as the prior boundary retypings. Call-site casts
+launder the same `any` through the same shape over and over; retyping at the boundary
+fixes it once. The three-overload form preserves spec semantics: `Object.create(null)`
+produces an object with no prototype (structural floor = no keys), and the other forms
+produce objects whose `[[Prototype]]` is the supplied prototype. The
+`Record<PropertyKey, never>` choice for the no-prototype case is the strictest honest type
+— TypeScript cannot express "no prototype chain" at the type level, but it can express "no
+statically-known keys," which is the closest structural proxy and mirrors `BlankType` in
+`@/utility` (used precisely as a blank-descriptor sentinel). The `ThisType<unknown>` swap
+is independent and pedantic — `ThisType` only affects the inferred `this` context inside
+descriptor methods, and the package's typing discipline prefers `unknown` over `any`
+everywhere it can.
+
+**Consequences.** Fourth instance of the boundary-retyping pattern, after #008
+(`toFunctionString`), #017 (`getPrototypeOf`), and #026 (the three `Number.isXxx`
+predicates). The pattern is now consistently applied to every cached `@/config` primitive
+whose lib type would otherwise propagate `any` downstream. Discovered during the
+error-migration debugging round — not during the function, thenable, or evented rounds —
+which suggests there may be other cached primitives whose lib types deserve scrutiny. A
+future sweep through `@/config` for remaining `any`-leaks is worth a pass. Codified in
+[[design-rulings]] alongside the meta-observation about TS lib types being _conservative
+simplifications_ that benefit from boundary closure.
+
+---
+
+### 035 — `AbortError` as a name-suffix refinement via template-literal type (2026-06-05)
+
+**Context.** The DOM WHATWG `AbortSignal.abort()` rejects with a `DOMException` whose
+`name` is `'AbortError'`. `AbortController.abort()` propagates the same convention.
+Userland abortable operations frequently prefix their own qualifier
+(`'TimeoutAbortError'`, `'UserAbortError'`, `'NavigationAbortError'`) to disambiguate the
+cause without losing the convention. The migration question was how to model "the
+abort-channel error naming convention" at both the type and predicate levels.
+
+**Decision.** Model the convention via a template-literal type plus a suffix-match
+predicate.
+`AbortErrorName = `${string}AbortError`` is the public template-literal type carrying the naming convention; it admits the empty-prefix case (`'AbortError'`itself) and arbitrary qualifier prefixes uniformly.`AbortError
+= GenericError & { name: AbortErrorName
+}`is the public structural intersection layering the suffix-typed`name`field over the base error union.`isAbortError(v):
+v is
+AbortError`is the public refined predicate; it composes`isError(v)`with`v.name.endsWith('AbortError')`suffix-match. Short-circuit`&&`runs`isError`first as the cheaper gate; the suffix check fires only after the value is confirmed an Error (which also guarantees`name`
+is a string per the Error contract).
+
+**Rationale.** Three forces converge:
+
+- **Suffix-match over exact equality.** Exact equality (`v.name === 'AbortError'`) would
+  reject the legitimate qualified variants that the convention explicitly permits. The
+  empty-prefix case is included by the template-literal pattern, so the suffix form covers
+  both qualified and unqualified instances uniformly.
+- **Template-literal type over plain `string`.** `${string}AbortError` carries _real_
+  structural information (every assignable string ends with the suffix). It is more
+  informative than `string` at the type level, and it documents the convention at the type
+  signature where consumers see it. Template-literal types collapse to `string` at the
+  runtime level, so the type is structural documentation rather than a runtime guarantee —
+  the runtime guarantee is `isAbortError`'s `endsWith` check.
+- **Separation from abort-channel mechanics.** `isAbortError` checks _error names only_.
+  It does not inspect `AbortSignal.aborted`, link to an `AbortController`, or verify
+  abort-channel mechanics. Producer-side inspection of the abort channel belongs to
+  predicates in the `evented` module (`isAbortSignal`, `isAbortSignalLike` — see #027,
+  #028, #029). The error module discriminates the error _value_; the evented module
+  discriminates the channel _producer_. Keeping that separation clean means consumers
+  doing error-handling reach for `isAbortError`, consumers doing channel inspection reach
+  for `isAbortSignal`, and the two modules don't conflate concerns.
+
+**Consequences.** `isAbortError(new DOMException('aborted', 'AbortError'))` returns
+`true`; same for any custom Error class with a name ending in `'AbortError'`.
+`isAbortError({ name: 'AbortError' })` returns `false` (not an Error — fails the `isError`
+gate). The predicate is the refined narrow target for any consumer discriminating
+abort-channel errors from other errors. The future `AbortableThenable<T>` (Q.004) will
+type its abort-channel reason against `AbortError`, completing the cross-module
+abort-channel surface the thenable round forward-referenced (`AbortSignalLike` in evented;
+`AbortError` here; `AbortableThenable<T>` deferred to its own round). See ARCHITECTURE.md
+§ type-detection / error for the lattice's positioning within the package.
+
+---
+
 ## Open questions
 
 These are not decisions but acknowledged open questions, kept here so they don't dissolve
@@ -955,6 +1237,13 @@ type-system shape and the abort-channel predicate are both deferrable as one rou
 the dependency is in place. Whether `AbortableThenable` ships in `thenable.d.ts`
 (extending the lattice with a fourth tier) or as a separate `abortable-thenable.{js,d.ts}`
 module is open; the question opens once the dependency is in scope.
+
+**Update 2026-06-05** — the `@/error` migration shipped (decisions #032–#035, commit
+`667e12b`). `AbortError`, `AbortErrorName`, and the broader `GenericError` union are now
+available. The dependency that gated this question is in place. The remaining decision —
+whether `AbortableThenable<T>` ships as a fourth tier extending `Thenable<T>` inside
+`thenable.d.ts`, or as a separate `abortable-thenable.{js,d.ts}` module — is now ready to
+be answered in its own round. Reserved for a follow-up session.
 
 ---
 
