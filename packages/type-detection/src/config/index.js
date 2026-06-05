@@ -159,6 +159,12 @@ export const objectAssign = o.assign;
 
 /**
  * `Object.create`, realm-fixed at module-load.
+ *
+ * The `.d.ts` retypes the lib's `any` return on both overloads to
+ * overload-precise return types — `Record<PropertyKey, never>` on the
+ * `null`-prototype variant, `object` otherwise — closing the
+ * `any`-assignment cascade at consumer sites. The runtime export is the
+ * unwrapped native method.
  * @internal
  */
 export const objectCreate = o.create;

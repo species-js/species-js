@@ -128,10 +128,38 @@ export declare const objectHasOwn: (o: object, v: PropertyKey) => boolean;
 export declare const objectAssign: typeof Object.assign;
 
 /**
- * `Object.create`, realm-fixed at module-load.
+ * `Object.create`, realm-fixed at module-load with overload-precise
+ * return types replacing the lib's `any`.
+ *
+ * Retyped from `typeof Object.create`, which returns `any` on both
+ * overloads per `lib.es5.d.ts`, to a three-variant call signature:
+ *
+ * - `objectCreate(null)` returns `Record<PropertyKey, never>` — the
+ *   prototype-less floor `BlankType` in `@/utility` carries. Static
+ *   keys are unreachable, mirroring the runtime characteristic that no
+ *   prototype chain exists to inherit from.
+ * - `objectCreate(prototype)` returns `object` — an instance whose
+ *   `[[Prototype]]` is `prototype`.
+ * - `objectCreate(prototype, properties)` returns `object` — same
+ *   `[[Prototype]]` plus the mixed-in property descriptors.
+ *
+ * The lib's `any` return forces an `@typescript-eslint/no-unsafe-assignment`
+ * cascade at every consumer that captures the result of
+ * `Object.create(null)` for a sentinel or lookup-table object. The
+ * spec-precise return closes the cascade once, here, so consumers
+ * inherit honest typing for free. Same lib-gap pattern as
+ * `getPrototypeOf` and `toFunctionString`.
+ *
+ * `ThisType<unknown>` replaces lib's `ThisType<any>` on the
+ * property-bearing overload, matching the package's `unknown`-over-`any`
+ * discipline for the inferred `this` context inside descriptor methods.
  * @internal
  */
-export declare const objectCreate: typeof Object.create;
+export declare const objectCreate: {
+  (o: null): Record<PropertyKey, never>;
+  (o: object): object;
+  (o: object | null, properties: PropertyDescriptorMap & ThisType<unknown>): object;
+};
 
 /**
  * `Object.freeze`, realm-fixed at module-load.
