@@ -118,12 +118,21 @@ export interface Callable<Args extends unknown[] = unknown[], R = unknown> {
  * `Function.prototype` method set, or any specific function classification.
  * Those checks belong to stricter guards layered above this one.
  *
+ * Generic in the input type so existing caller-side narrowing is preserved
+ * through the predicate. The narrow returns `T & Callable`, an intersection
+ * that distributes through `T`'s union: non-callable arms collapse to
+ * `never` (e.g., `string & Callable = never`), callable arms survive as
+ * intersections that retain `T`'s call signature. For the common case
+ * `T = unknown`, the intersection reduces to `Callable`, matching the
+ * pre-generic behavior.
+ *
+ * @typeParam T - the caller-side type of `value`; defaults to `unknown`
  * @param value - the value to test; omitted is treated as `undefined`, which
  *  is not callable
  * @returns `true` when `typeof value === 'function'`, narrowing `value` to
- *  {@link Callable}; `false` otherwise
+ *  `T & Callable`; `false` otherwise
  */
-export function isCallable(value?: unknown): value is Callable;
+export function isCallable<T = unknown>(value?: T): value is T & Callable;
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 
@@ -203,13 +212,22 @@ export interface VerifiedFunction<
  * strict-Function-interface guard that survives prototype tampering on
  * those three members.
  *
+ * Generic in the input type, mirroring {@link isCallable}. The narrow
+ * returns `T & VerifiedFunction`, so callers whose `value` already
+ * carries a more specific function shape (e.g., `(this: O) => R`) keep
+ * that shape post-narrow rather than collapsing to bare `VerifiedFunction`.
+ * Non-callable arms of `T` collapse to `never` under the intersection;
+ * `T = unknown` reduces to `VerifiedFunction`, matching the pre-generic
+ * behavior.
+ *
+ * @typeParam T - the caller-side type of `value`; defaults to `unknown`
  * @param value - the value to test; omitted is treated as `undefined`, which is
  *  not callable
  * @returns `true` when `value` is callable and exposes callable `call`,
- *  `apply`, and `bind`, narrowing to {@link VerifiedFunction}; `false`
+ *  `apply`, and `bind`, narrowing to `T & VerifiedFunction`; `false`
  *  otherwise
  */
-export function isFunction(value?: unknown): value is VerifiedFunction;
+export function isFunction<T = unknown>(value?: T): value is T & VerifiedFunction;
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 //
@@ -392,13 +410,18 @@ export function hasConstructSlot(value?: unknown): boolean;
  * all three newable species: {@link ES3Function}, {@link ClassConstructor},
  * and bound newables.
  *
+ * Generic in `T` per the family pattern set by {@link isCallable} and
+ * {@link isFunction}. The narrow returns `T & NewableFunction`, preserving
+ * caller-side narrowing; `T = unknown` collapses to `NewableFunction`.
+ *
+ * @typeParam T - the caller-side type of `value`; defaults to `unknown`
  * @param value - the value to test; omitted is treated as `undefined`, which
  *  is not callable
  * @returns `true` when the value is callable, exposes callable `call`,
  *  `apply`, and `bind`, and carries `[[Construct]]`, narrowing to
- *  {@link NewableFunction}; `false` otherwise
+ *  `T & NewableFunction`; `false` otherwise
  */
-export function isNewableFunction(value?: unknown): value is NewableFunction;
+export function isNewableFunction<T = unknown>(value?: T): value is T & NewableFunction;
 
 /**
  * Narrows a value to {@link ES3Function}, the strict ES3-function shape.
@@ -412,11 +435,15 @@ export function isNewableFunction(value?: unknown): value is NewableFunction;
  * ES3 shape. The {@link NewableFunction} gate still admits them; this
  * guard does not.
  *
+ * Generic in `T` per the family pattern. The narrow returns
+ * `T & ES3Function`; `T = unknown` collapses to `ES3Function`.
+ *
+ * @typeParam T - the caller-side type of `value`; defaults to `unknown`
  * @param value - the value to test; omitted is treated as `undefined`
  * @returns `true` when the value is an ES3-shaped newable, narrowing to
- *  {@link ES3Function}; `false` otherwise
+ *  `T & ES3Function`; `false` otherwise
  */
-export function isES3Function(value?: unknown): value is ES3Function;
+export function isES3Function<T = unknown>(value?: T): value is T & ES3Function;
 
 /**
  * Narrows a value to {@link ClassConstructor}, the strict class shape.
@@ -435,11 +462,15 @@ export function isES3Function(value?: unknown): value is ES3Function;
  * a class shape. The {@link NewableFunction} gate still admits them; this
  * guard does not.
  *
+ * Generic in `T` per the family pattern. The narrow returns
+ * `T & ClassConstructor`; `T = unknown` collapses to `ClassConstructor`.
+ *
+ * @typeParam T - the caller-side type of `value`; defaults to `unknown`
  * @param value - the value to test; omitted is treated as `undefined`
  * @returns `true` when the value is a class-shaped newable (built-in or
- *  `class`-syntax), narrowing to {@link ClassConstructor}; `false` otherwise
+ *  `class`-syntax), narrowing to `T & ClassConstructor`; `false` otherwise
  */
-export function isClass(value?: unknown): value is ClassConstructor;
+export function isClass<T = unknown>(value?: T): value is T & ClassConstructor;
 
 /**
  * Narrows a value to a custom (`class`-syntax) constructor.
@@ -455,11 +486,15 @@ export function isClass(value?: unknown): value is ClassConstructor;
  * {@link ClassConstructor}. A bound class fails {@link isClass} upstream,
  * so neither variant admits it.
  *
+ * Generic in `T` per the family pattern. The narrow returns
+ * `T & ClassConstructor`; `T = unknown` collapses to `ClassConstructor`.
+ *
+ * @typeParam T - the caller-side type of `value`; defaults to `unknown`
  * @param value - the value to test; omitted is treated as `undefined`
  * @returns `true` when the value is a custom-class constructor, narrowing to
- *  {@link ClassConstructor}; `false` otherwise
+ *  `T & ClassConstructor`; `false` otherwise
  */
-export function isCustomClass(value?: unknown): value is ClassConstructor;
+export function isCustomClass<T = unknown>(value?: T): value is T & ClassConstructor;
 
 /**
  * Narrows a value to a built-in class constructor.
@@ -474,11 +509,15 @@ export function isCustomClass(value?: unknown): value is ClassConstructor;
  * together they partition the {@link isClass} surface. Neither admits bound
  * variants, which are rejected upstream by {@link isClass}.
  *
+ * Generic in `T` per the family pattern. The narrow returns
+ * `T & ClassConstructor`; `T = unknown` collapses to `ClassConstructor`.
+ *
+ * @typeParam T - the caller-side type of `value`; defaults to `unknown`
  * @param value - the value to test; omitted is treated as `undefined`
  * @returns `true` when the value is a built-in class constructor, narrowing
- *  to {@link ClassConstructor}; `false` otherwise
+ *  to `T & ClassConstructor`; `false` otherwise
  */
-export function isBuiltInClass(value?: unknown): value is ClassConstructor;
+export function isBuiltInClass<T = unknown>(value?: T): value is T & ClassConstructor;
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 //
@@ -672,10 +711,14 @@ export function hasAsyncFunctionShape(value?: unknown): boolean;
  * name describes what their iterator yields, not the function. See the
  * generator predicates for that family.
  *
+ * Generic in `T` per the family pattern. The narrow returns
+ * `T & AsyncFunction`; `T = unknown` collapses to `AsyncFunction`.
+ *
+ * @typeParam T - the caller-side type of `value`; defaults to `unknown`
  * @param value - the value to test; omitted is treated as `undefined`, which
  *  is not an async function
  * @returns `true` when the value is an async function in the species-js
- *  taxonomy, narrowing to {@link AsyncFunction}; `false` otherwise
+ *  taxonomy, narrowing to `T & AsyncFunction`; `false` otherwise
  * @example
  * declare const value: unknown;
  *
@@ -684,7 +727,7 @@ export function hasAsyncFunctionShape(value?: unknown): boolean;
  *   result.then((resolved) => { ... });
  * }
  */
-export function isAsyncFunction(value?: unknown): value is AsyncFunction;
+export function isAsyncFunction<T = unknown>(value?: T): value is T & AsyncFunction;
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 //
@@ -1047,10 +1090,14 @@ export function hasAsyncGeneratorFunctionShape(value?: unknown): boolean;
  * that species, or {@link isAnyGeneratorFunction} for the umbrella over
  * both.
  *
+ * Generic in `T` per the family pattern. The narrow returns
+ * `T & GeneratorFunction`; `T = unknown` collapses to `GeneratorFunction`.
+ *
+ * @typeParam T - the caller-side type of `value`; defaults to `unknown`
  * @param value - the value to test; omitted is treated as `undefined`, which
  *  is not a generator function
  * @returns `true` when the value is a sync-generator function, narrowing to
- *  {@link GeneratorFunction}; `false` otherwise
+ *  `T & GeneratorFunction`; `false` otherwise
  * @example
  * declare const value: unknown;
  *
@@ -1059,7 +1106,9 @@ export function hasAsyncGeneratorFunctionShape(value?: unknown): boolean;
  *   for (const item of gen) { ... }
  * }
  */
-export function isGeneratorFunction(value?: unknown): value is GeneratorFunction;
+export function isGeneratorFunction<T = unknown>(
+  value?: T,
+): value is T & GeneratorFunction;
 
 /**
  * Narrows a value to {@link AsyncGeneratorFunction}.
@@ -1074,10 +1123,15 @@ export function isGeneratorFunction(value?: unknown): value is GeneratorFunction
  * functions, async functions, or any other family — those trace to
  * different intrinsics.
  *
+ * Generic in `T` per the family pattern. The narrow returns
+ * `T & AsyncGeneratorFunction`; `T = unknown` collapses to
+ * `AsyncGeneratorFunction`.
+ *
+ * @typeParam T - the caller-side type of `value`; defaults to `unknown`
  * @param value - the value to test; omitted is treated as `undefined`, which
  *  is not an async-generator function
  * @returns `true` when the value is an async-generator function, narrowing
- *  to {@link AsyncGeneratorFunction}; `false` otherwise
+ *  to `T & AsyncGeneratorFunction`; `false` otherwise
  * @example
  * declare const value: unknown;
  *
@@ -1086,9 +1140,9 @@ export function isGeneratorFunction(value?: unknown): value is GeneratorFunction
  *   for await (const item of gen) { ... }
  * }
  */
-export function isAsyncGeneratorFunction(
-  value?: unknown,
-): value is AsyncGeneratorFunction;
+export function isAsyncGeneratorFunction<T = unknown>(
+  value?: T,
+): value is T & AsyncGeneratorFunction;
 
 /**
  * Narrows a value to {@link AnyGeneratorFunction}, the umbrella over both
@@ -1100,11 +1154,16 @@ export function isAsyncGeneratorFunction(
  * exactly the union, and composing the two single-family helpers is the
  * codified pattern.
  *
+ * Generic in `T` per the family pattern. The narrow returns
+ * `T & AnyGeneratorFunction`; `T = unknown` collapses to
+ * `AnyGeneratorFunction`.
+ *
+ * @typeParam T - the caller-side type of `value`; defaults to `unknown`
  * @param value - the value to test; omitted is treated as `undefined`, which
  *  is not a generator function
  * @returns `true` when the value is either a sync or an async generator
  *  function (including bound variants), narrowing to
- *  {@link AnyGeneratorFunction}; `false` otherwise
+ *  `T & AnyGeneratorFunction`; `false` otherwise
  * @example
  * declare const value: unknown;
  *
@@ -1114,6 +1173,8 @@ export function isAsyncGeneratorFunction(
  *   // since the call-result types differ (Generator vs. AsyncGenerator).
  * }
  */
-export function isAnyGeneratorFunction(value?: unknown): value is AnyGeneratorFunction;
+export function isAnyGeneratorFunction<T = unknown>(
+  value?: T,
+): value is T & AnyGeneratorFunction;
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----

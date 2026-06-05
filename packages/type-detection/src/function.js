@@ -78,10 +78,17 @@ export function getFunctionSource(value) {
  * `Function.prototype` method set, or any specific function classification.
  * Those checks belong to stricter guards layered above this one.
  *
- * @param {unknown} [value] - the value to test; omitted is treated as
+ * Generic in the input type so existing caller-side narrowing is preserved
+ * through the predicate. The narrow returns `T & Callable`; non-callable
+ * arms of `T` collapse to `never` under the intersection, callable arms
+ * retain their call signature. For `T = unknown`, the intersection
+ * reduces to `Callable`, matching the pre-generic behavior.
+ *
+ * @template [T=unknown]
+ * @param {T} [value] - the value to test; omitted is treated as
  *  `undefined`, which is not callable
- * @returns {value is Callable} `true` when `typeof value === 'function'`,
- *  narrowing `value` to {@link Callable}; `false` otherwise
+ * @returns {value is T & Callable} `true` when `typeof value === 'function'`,
+ *  narrowing `value` to `T & Callable`; `false` otherwise
  */
 export function isCallable(value) {
   return typeof value === 'function';
@@ -95,11 +102,18 @@ export function isCallable(value) {
  * strict-Function-interface guard that survives prototype tampering on
  * those three members.
  *
- * @param {unknown} [value] - the value to test; omitted is treated as
+ * Generic in the input type, mirroring {@link isCallable}. The narrow
+ * returns `T & VerifiedFunction`, so callers whose `value` already
+ * carries a more specific function shape keep that shape post-narrow.
+ * Non-callable arms of `T` collapse to `never`; `T = unknown` reduces
+ * to `VerifiedFunction`, matching the pre-generic behavior.
+ *
+ * @template [T=unknown]
+ * @param {T} [value] - the value to test; omitted is treated as
  *  `undefined`, which is not callable
- * @returns {value is VerifiedFunction} `true` when `value` is callable and
- *  exposes callable `call`, `apply`, and `bind`, narrowing to
- *  {@link VerifiedFunction}; `false` otherwise
+ * @returns {value is T & VerifiedFunction} `true` when `value` is callable
+ *  and exposes callable `call`, `apply`, and `bind`, narrowing to
+ *  `T & VerifiedFunction`; `false` otherwise
  * @example
  * isFunction(() => {});             // true
  * isFunction(function () {});       // true
@@ -162,11 +176,15 @@ export function hasConstructSlot(value) {
  * all three newable species: {@link ES3Function}, {@link ClassConstructor},
  * and bound newables.
  *
- * @param {unknown} [value] - the value to test; omitted is treated as
+ * Generic in `T` per the family pattern. The narrow returns
+ * `T & NewableFunction`; `T = unknown` collapses to `NewableFunction`.
+ *
+ * @template [T=unknown]
+ * @param {T} [value] - the value to test; omitted is treated as
  *  `undefined`, which is not callable
- * @returns {value is NewableFunction} `true` when the value is callable,
+ * @returns {value is T & NewableFunction} `true` when the value is callable,
  *  exposes callable `call`, `apply`, and `bind`, and carries
- *  `[[Construct]]`, narrowing to {@link NewableFunction}; `false` otherwise
+ *  `[[Construct]]`, narrowing to `T & NewableFunction`; `false` otherwise
  */
 export function isNewableFunction(value) {
   return isFunction(value) && hasConstructSlot(value);
@@ -184,10 +202,14 @@ export function isNewableFunction(value) {
  * ES3 shape. The {@link NewableFunction} gate still admits them; this
  * guard does not.
  *
- * @param {unknown} [value] - the value to test; omitted is treated as
+ * Generic in `T` per the family pattern. The narrow returns
+ * `T & ES3Function`; `T = unknown` collapses to `ES3Function`.
+ *
+ * @template [T=unknown]
+ * @param {T} [value] - the value to test; omitted is treated as
  *  `undefined`
- * @returns {value is ES3Function} `true` when the value is an ES3-shaped
- *  newable, narrowing to {@link ES3Function}; `false` otherwise
+ * @returns {value is T & ES3Function} `true` when the value is an
+ *  ES3-shaped newable, narrowing to `T & ES3Function`; `false` otherwise
  */
 export function isES3Function(value) {
   return isNewableFunction(value) && hasOwnWritablePrototype(value);
@@ -211,11 +233,15 @@ export function isES3Function(value) {
  * `false`. The {@link NewableFunction} gate still admits bound newables;
  * this guard does not.
  *
- * @param {unknown} [value] - the value to test; omitted is treated as
+ * Generic in `T` per the family pattern. The narrow returns
+ * `T & ClassConstructor`; `T = unknown` collapses to `ClassConstructor`.
+ *
+ * @template [T=unknown]
+ * @param {T} [value] - the value to test; omitted is treated as
  *  `undefined`
- * @returns {value is ClassConstructor} `true` when the value is a
+ * @returns {value is T & ClassConstructor} `true` when the value is a
  *  class-shaped newable (built-in or `class`-syntax), narrowing to
- *  {@link ClassConstructor}; `false` otherwise
+ *  `T & ClassConstructor`; `false` otherwise
  */
 export function isClass(value) {
   return (
@@ -238,10 +264,14 @@ export function isClass(value) {
  * {@link ClassConstructor}. A bound class fails {@link isClass} upstream,
  * so neither variant admits it.
  *
- * @param {unknown} [value] - the value to test; omitted is treated as
+ * Generic in `T` per the family pattern. The narrow returns
+ * `T & ClassConstructor`; `T = unknown` collapses to `ClassConstructor`.
+ *
+ * @template [T=unknown]
+ * @param {T} [value] - the value to test; omitted is treated as
  *  `undefined`
- * @returns {value is ClassConstructor} `true` when the value is a
- *  custom-class constructor, narrowing to {@link ClassConstructor};
+ * @returns {value is T & ClassConstructor} `true` when the value is a
+ *  custom-class constructor, narrowing to `T & ClassConstructor`;
  *  `false` otherwise
  */
 export function isCustomClass(value) {
@@ -261,11 +291,15 @@ export function isCustomClass(value) {
  * together they partition the {@link isClass} surface. Neither admits bound
  * variants, which are rejected upstream by {@link isClass}.
  *
- * @param {unknown} [value] - the value to test; omitted is treated as
+ * Generic in `T` per the family pattern. The narrow returns
+ * `T & ClassConstructor`; `T = unknown` collapses to `ClassConstructor`.
+ *
+ * @template [T=unknown]
+ * @param {T} [value] - the value to test; omitted is treated as
  *  `undefined`
- * @returns {value is ClassConstructor} `true` when the value is a built-in
- *  class constructor, narrowing to {@link ClassConstructor}; `false`
- *  otherwise
+ * @returns {value is T & ClassConstructor} `true` when the value is a
+ *  built-in class constructor, narrowing to `T & ClassConstructor`;
+ *  `false` otherwise
  */
 export function isBuiltInClass(value) {
   return isClass(value) && !getFunctionSource(value).startsWith('class');
@@ -415,10 +449,14 @@ export function hasAsyncFunctionShape(value) {
  * describes what their iterator yields, not the function. See the
  * generator predicates for that family.
  *
- * @param {unknown} [value] - the value to test; omitted is treated as
+ * Generic in `T` per the family pattern. The narrow returns
+ * `T & AsyncFunction`; `T = unknown` collapses to `AsyncFunction`.
+ *
+ * @template [T=unknown]
+ * @param {T} [value] - the value to test; omitted is treated as
  *  `undefined`, which is not an async function
- * @returns {value is AsyncFunction} `true` when the value is an async
- *  function in the species-js taxonomy, narrowing to {@link AsyncFunction};
+ * @returns {value is T & AsyncFunction} `true` when the value is an async
+ *  function in the species-js taxonomy, narrowing to `T & AsyncFunction`;
  *  `false` otherwise
  * @example
  * isAsyncFunction(async () => {});                // true
@@ -667,10 +705,14 @@ export function hasAsyncGeneratorFunctionShape(value) {
  * that species, or {@link isAnyGeneratorFunction} for the umbrella over
  * both.
  *
- * @param {unknown} [value] - the value to test; omitted is treated as
+ * Generic in `T` per the family pattern. The narrow returns
+ * `T & GeneratorFunction`; `T = unknown` collapses to `GeneratorFunction`.
+ *
+ * @template [T=unknown]
+ * @param {T} [value] - the value to test; omitted is treated as
  *  `undefined`, which is not a generator function
- * @returns {value is GeneratorFunction} `true` when the value is a
- *  sync-generator function, narrowing to {@link GeneratorFunction};
+ * @returns {value is T & GeneratorFunction} `true` when the value is a
+ *  sync-generator function, narrowing to `T & GeneratorFunction`;
  *  `false` otherwise
  * @example
  * isGeneratorFunction(function* () {});              // true
@@ -698,10 +740,15 @@ export function isGeneratorFunction(value) {
  * functions, async functions, or any other family — those trace to
  * different intrinsics.
  *
- * @param {unknown} [value] - the value to test; omitted is treated as
+ * Generic in `T` per the family pattern. The narrow returns
+ * `T & AsyncGeneratorFunction`; `T = unknown` collapses to
+ * `AsyncGeneratorFunction`.
+ *
+ * @template [T=unknown]
+ * @param {T} [value] - the value to test; omitted is treated as
  *  `undefined`, which is not an async-generator function
- * @returns {value is AsyncGeneratorFunction} `true` when the value is an
- *  async-generator function, narrowing to {@link AsyncGeneratorFunction};
+ * @returns {value is T & AsyncGeneratorFunction} `true` when the value is
+ *  an async-generator function, narrowing to `T & AsyncGeneratorFunction`;
  *  `false` otherwise
  * @example
  * isAsyncGeneratorFunction(async function* () {});              // true
@@ -730,11 +777,16 @@ export function isAsyncGeneratorFunction(value) {
  * single-family shape helpers is the codified pattern (recorded in
  * `project_function_type_hierarchy`).
  *
- * @param {unknown} [value] - the value to test; omitted is treated as
+ * Generic in `T` per the family pattern. The narrow returns
+ * `T & AnyGeneratorFunction`; `T = unknown` collapses to
+ * `AnyGeneratorFunction`.
+ *
+ * @template [T=unknown]
+ * @param {T} [value] - the value to test; omitted is treated as
  *  `undefined`, which is not a generator function
- * @returns {value is AnyGeneratorFunction} `true` when the value is either
- *  a sync or an async generator function (including bound variants),
- *  narrowing to {@link AnyGeneratorFunction}; `false` otherwise
+ * @returns {value is T & AnyGeneratorFunction} `true` when the value is
+ *  either a sync or an async generator function (including bound variants),
+ *  narrowing to `T & AnyGeneratorFunction`; `false` otherwise
  * @example
  * isAnyGeneratorFunction(function* () {});              // true — sync generator
  * isAnyGeneratorFunction(async function* () {});        // true — async generator
