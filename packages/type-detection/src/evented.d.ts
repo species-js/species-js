@@ -145,15 +145,21 @@ export interface EventTargetLike {
  * validated; the typed-event-map overloads are TypeScript convenience,
  * not part of the runtime contract.
  *
- * ## Future use as the `AbortableThenable<T>` abort channel
+ * ## Producer-side role in the cross-module abort-channel surface
  *
- * The thenable module's `AbortableThenable<T>` (deferred to the
- * `@/error` migration, see DECISION-LOG Q.004) accepts an abort channel
- * typed as `AbortError`. Once `@/error` lands and `AbortableThenable<T>`
- * extends `Thenable<T>` with the abort channel, this module's
- * `AbortSignalLike` and `isAbortSignalLike` become the cross-module
- * surface for validating the abort channel structurally. Plan ahead by
- * keeping the contracts compatible.
+ * The thenable module's `AbortableThenable<T>` (extends `Thenable<T>`
+ * with an `onaborted` callback typed against `AbortError`) is the
+ * consumer-side abortable-thenable contract. This module's
+ * `AbortSignalLike` and `isAbortSignalLike` are the producer-side
+ * structural contract for values that emit abort signals — the inputs
+ * a producer accepts to thread an abort channel through to a chained
+ * `AbortableThenable.then.onaborted` callback.
+ *
+ * The full cross-module abort-channel surface is distributed across
+ * three modules: `@/error` for the rejected-value side (`AbortError`),
+ * `@/evented` for the producer side (this interface), and `@/thenable`
+ * for the consumer-side abortable thenable (`AbortableThenable<T>`).
+ * Consumers building an abortable operation depend on all three.
  */
 export interface AbortSignalLike extends EventTargetLike {
   /**

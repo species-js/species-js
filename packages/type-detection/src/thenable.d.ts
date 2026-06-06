@@ -6,10 +6,15 @@
  * The {@link Thenable} interface captures the structural floor of the
  * Promise resolution protocol: any value with a callable `then` method
  * of the right shape may be adopted by `Promise.resolve` and unwrapped
- * by `await`. Richer _thenable_ type classification — Promise identity,
- * settled-state observability, abort-channel support — is layered on
- * top of this floor.
+ * by `await`. Two independent refinements layer on the floor:
+ * {@link PromiseLike} adds the chaining-method contract (`catch` and
+ * `finally`); {@link AbortableThenable} adds the abort-channel surface
+ * (an optional `onaborted` callback to `then`, typed against
+ * `AbortError`). The realm-fixed `Promise` intrinsic combines the
+ * PromiseLike refinement and is discriminated by {@link isPromise}.
  */
+
+import type { AbortError } from '@/error';
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 //
@@ -190,6 +195,104 @@ export interface PromiseLike<out T> extends Thenable<T> {
    * @returns a `PromiseLike` for the original outcome
    */
   finally(onfinally?: (() => void) | null): PromiseLike<T>;
+}
+
+// ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
+//
+//  AbortableThenable
+//
+// ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
+
+/**
+ * The abort-aware refinement of `Thenable<T>` — adds an optional third
+ * `onaborted` callback to the `then` signature, typed against
+ * {@link AbortError}. A value satisfies `AbortableThenable<T>` when its
+ * `then` method accepts the three-channel callback set: fulfillment,
+ * rejection, and abort.
+ *
+ * `AbortableThenable<T>` and `PromiseLike<T>` are _independent_
+ * refinements of `Thenable<T>`. `PromiseLike<T>` refines the
+ * chaining-method surface (adding `catch` and `finally`);
+ * `AbortableThenable<T>` refines the settlement-channel surface
+ * (adding the abort channel). The two can be combined in a value's type
+ * signature (a value can satisfy both), but neither implies the other.
+ *
+ * ## Cross-module abort-channel surface
+ *
+ * The abort-channel feature is structurally distributed across three
+ * type-detection modules. Each module discriminates one side of the
+ * three-party contract:
+ *
+ * - `@/error` ships {@link AbortError} (and `AbortErrorName`) for the
+ *   rejected-value side — the error type the `onaborted` callback
+ *   receives.
+ * - `@/evented` ships `AbortSignalLike` and `isAbortSignalLike` for the
+ *   producer side — the structural contract of values that emit abort
+ *   signals (`AbortSignal`, `AbortController.signal`, userland abortable
+ *   producers).
+ * - `@/thenable` ships `AbortableThenable<T>` (this interface) — the
+ *   structural contract of consumer-side abortable thenables that
+ *   receive abort signals through their `then.onaborted` callback.
+ *
+ * Consumers building an abortable operation depend on all three;
+ * consumers handling only one side depend on only the relevant module.
+ *
+ * ## Variance and chain preservation
+ *
+ * `AbortableThenable<T>` is declared with covariant variance (`out T`),
+ * matching `Thenable<T>` and `PromiseLike<T>` — an abortable thenable
+ * is a producer of `T` and never a consumer. Chained results from
+ * `then` are typed as `AbortableThenable<...>` rather than degrading to
+ * bare `Thenable<...>`, so the abort channel stays in the type system
+ * through the chain. A consumer who calls `chain.then(_, _, onAborted)`
+ * further down the chain still receives the typed `AbortError` on the
+ * abort callback.
+ *
+ * Whether the producer ACTUALLY propagates abort signals down the chain
+ * is up to the producer — the type system documents the contract but
+ * cannot enforce it. This mirrors how `Promise.then`'s return is
+ * structurally guaranteed to be Promise-like while runtime behavior is
+ * the producer's responsibility.
+ *
+ * ## No structural predicate
+ *
+ * There is no `isAbortableThenable` predicate, by design. A `Thenable`
+ * with a two-argument `then` and one with a three-argument `then` are
+ * structurally indistinguishable at runtime — the third callback is
+ * optional, and a two-argument `then` gracefully ignores any extra
+ * argument. The `.length` property of `then` could be inspected as a
+ * heuristic but is easily spoofed and not spec-required. Consumers
+ * receive `AbortableThenable<T>` because their producer declares it
+ * structurally; there is no runtime test to verify it.
+ *
+ * @typeParam T - the type of the value produced on the fulfillment
+ *  channel
+ */
+export interface AbortableThenable<out T> extends Thenable<T> {
+  /**
+   * Registers callbacks for the fulfillment, rejection, and abort
+   * channels, and returns an `AbortableThenable` for the chained result.
+   *
+   * Refines `Thenable.then` by adding the optional third `onaborted`
+   * callback typed against {@link AbortError}. All three callbacks are
+   * optional; omitted or `null` channels pass through unchanged to the
+   * returned thenable. Each callback may return a direct result or
+   * another `Thenable`, which the resolution algorithm unwraps. The
+   * return type is `AbortableThenable<...>` rather than `Thenable<...>`
+   * to keep the abort channel in the type system through chaining.
+   *
+   * @param onfulfilled - callback for the fulfillment channel
+   * @param onrejected - callback for the rejection channel
+   * @param onaborted - callback for the abort channel; receives the
+   *  spec-conventional `AbortError`
+   * @returns an `AbortableThenable` for the result of whichever channel
+   *  fires, typed as the union of the three callback result types
+   */
+  then<TResult1 = T, TResult2 = never, TResult3 = never>(
+    onfulfilled?: ((value: T) => TResult1 | Thenable<TResult1>) | null,
+    onrejected?: ((reason: unknown) => TResult2 | Thenable<TResult2>) | null,
+    onaborted?: ((reason: AbortError) => TResult3 | Thenable<TResult3>) | null,
+  ): AbortableThenable<TResult1 | TResult2 | TResult3>;
 }
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
