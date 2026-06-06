@@ -333,26 +333,38 @@ callable `then`, has the full `Promise.prototype` method contract, is identifiab
 that share a single conceptual lattice:
 
 ```
-Thenable<T>             (isThenable)      — callable `then` only
-  └── PromiseLike<T>    (isPromiseLike)   — full Promise.prototype method contract
-        └── Promise<T>  (isPromise)       — Promise identity via three markers
+Thenable<T>                  (isThenable)      — callable `then` only
+  ├── PromiseLike<T>         (isPromiseLike)   — full Promise.prototype method contract
+  │     └── Promise<T>       (isPromise)       — Promise identity via three markers
+  └── AbortableThenable<T>   (no predicate)    — `then` with optional `onaborted` callback
 ```
 
-Each tier adds _exactly one_ semantic level. `isThenable` checks for the single `then`
-method; `isPromiseLike` checks for `then` plus `catch` plus `finally` (the full
-Promise-method contract); `isPromise` checks for the Promise-method contract plus the
-`[[Class]]` tag plus the `'Promise'` constructor name. Each tier's check-set is a strict
-superset of the tier above. The internal helper `doesMatchPromiseContract` sits
-structurally between `isThenable` and `isPromiseLike`. It is the structural
-Promise-method-contract predicate without the realm-fixed `instanceof` fast path.
-`isPromiseLike` calls it as the fallback when `instanceof PromiseConstructor` fails
-(cross-realm Promises, userland Promise-likes such as Bluebird or Q).
+Each refinement adds _exactly one_ semantic level on a single axis. `isThenable` checks
+for the single `then` method; `isPromiseLike` checks for `then` plus `catch` plus
+`finally` (the full Promise-method contract); `isPromise` checks for the Promise-method
+contract plus the `[[Class]]` tag plus the `'Promise'` constructor name. `PromiseLike` and
+`Promise` form a strict chain of supersets — each tier's check-set extends the tier above.
 
-The middle tier is novel relative to TypeScript's lib. The lib has nothing between
-`PromiseLike` (just a callable `then`, hence structurally identical to our `Thenable`) and
-`Promise` (the full instance type). Our `PromiseLike` fills that gap by encoding the full
-chaining contract (`catch` + `finally`) the lib version cannot express. See decision #022
-for the rationale of defining this tier as strictly richer than the lib's.
+`AbortableThenable<T>` is a _parallel_ refinement of `Thenable<T>`, independent from the
+`PromiseLike` chain. It adds an optional third `onaborted` callback to `then`, typed
+against `AbortError` from `@/error`. The two refinements are orthogonal axes: a value can
+satisfy both (`PromiseLike & AbortableThenable`), one, or neither (just the `Thenable`
+floor). No `isAbortableThenable` predicate exists — a `Thenable` with a two-argument
+`then` and one with a three-argument `then` are runtime-indistinguishable. See decision
+#037 for the full design.
+
+The internal helper `doesMatchPromiseContract` sits structurally between `isThenable` and
+`isPromiseLike`. It is the structural Promise-method-contract predicate without the
+realm-fixed `instanceof` fast path. `isPromiseLike` calls it as the fallback when
+`instanceof PromiseConstructor` fails (cross-realm Promises, userland Promise-likes such
+as Bluebird or Q).
+
+The middle tier (`PromiseLike`) is novel relative to TypeScript's lib. The lib has nothing
+between `PromiseLike` (just a callable `then`, hence structurally identical to our
+`Thenable`) and `Promise` (the full instance type). Our `PromiseLike` fills that gap by
+encoding the full chaining contract (`catch` + `finally`) the lib version cannot express.
+See decision #022 for the rationale of defining this tier as strictly richer than the
+lib's.
 
 ### Cross-realm safety
 
@@ -469,19 +481,48 @@ The primitive is general-purpose. The thenable module composes it four times (on
 predicate that needs the inspect-without-invoke guarantee should reach for it rather than
 reinventing the descriptor-walk and accessor-rejection composition.
 
+### The AbortableThenable refinement
+
+`AbortableThenable<T>` refines `Thenable<T>` on an axis orthogonal to `PromiseLike<T>`.
+Where `PromiseLike<T>` adds the chaining-method contract (`catch` + `finally`),
+`AbortableThenable<T>` adds the abort-channel contract — an optional third `onaborted`
+callback to `then`, typed against `AbortError` from `@/error`. The two refinements are
+independent: a value can satisfy both, one, or neither (just the `Thenable` floor).
+
+The refinement is type-only. There is no `isAbortableThenable` predicate by design: a
+`Thenable` with a two-argument `then` and one with a three-argument `then` are
+runtime-indistinguishable — the third callback is optional, and a two-argument `then`
+gracefully ignores extra arguments. The `then.length` heuristic could be inspected but is
+spoof-trivial and not spec-required. Consumers receive `AbortableThenable<T>` because
+their producer declares it structurally, not because a predicate verified it. See decision
+#037 for the full rationale.
+
+Chained `then` calls preserve the refinement: `AbortableThenable<T>.then(...)` returns
+`AbortableThenable<TResult1 | TResult2 | TResult3>` rather than degrading to bare
+`Thenable<...>`. The pattern parallels how `PromiseLike.then` returns `PromiseLike<...>` —
+the refinement persists through chaining, so consumers can keep calling
+`.then(_, _, onAborted)` further down without re-narrowing.
+
+The abort-channel feature is structurally distributed across three modules:
+
+- `@/error` ships `AbortError`, `AbortErrorName`, and `isAbortError` for the
+  rejected-value side — the error type the `onaborted` callback receives.
+- `@/evented` ships `AbortSignalLike` / `isAbortSignalLike` / `AbortSignal` /
+  `isAbortSignal` for the producer side — the structural contract of values that emit
+  abort signals.
+- `@/thenable` ships `AbortableThenable<T>` for the consumer side — the structural
+  contract of consumer-side abortable thenables that receive abort signals through their
+  `then.onaborted` callback.
+
+Consumers building an abortable operation depend on all three; consumers handling only one
+side depend on only the relevant module.
+
 ### Open architectural questions
 
-These are not unresolved bugs; they are architectural choices that have not yet been made.
-Each one is the subject of an open question in `DECISION-LOG.md`.
-
-- **Q.004 — `AbortableThenable<T>` deferred to the `@/error` migration.** The equip-js
-  source defined `AbortableThenable<T> extends Thenable<T>` with an `onaborted` callback
-  typed against `AbortError`. The species-js `Thenable<T>` doc references this as a strict
-  refinement reserved for a separate type, but `AbortError` lives in `@/error`, which is
-  the next equip-js migration. Once `@/error` lands and `AbortError` is available,
-  `AbortableThenable<T>` can extend naturally from the existing `Thenable<T>` — the
-  type-system shape and the abort-channel predicate are both deferrable as one round when
-  the dependency is in place.
+_Section currently empty — Q.004 (`AbortableThenable<T>` placement) was resolved
+2026-06-06 by decision #037. See `DECISION-LOG.md` for the answered choices: return
+preserved-abortable, refine `Thenable<T>` independently from `PromiseLike<T>`, ship in
+`thenable.d.ts` type-only with no predicate._
 
 ---
 
@@ -625,24 +666,24 @@ Consumers needing the full lib interface narrow further from `AbortSignalLike` t
 without invoking accessors the spec doesn't require." See decision #030 for the full
 rationale and the forward-applicable framing.
 
-### Forward integration: `AbortableThenable<T>` cross-module surface
+### Producer-side role in the cross-module abort-channel surface
 
-The thenable module's `AbortableThenable<T>` interface (deferred to the `@/error`
-migration; see DECISION-LOG Q.004) will eventually extend `Thenable<T>` with an abort
-channel typed against `AbortError`. When `@/error` lands and `AbortableThenable<T>` ships,
-the evented module's `AbortSignalLike` and `isAbortSignalLike` become the cross-module
-surface for validating the abort channel structurally — independent of `AbortError` (which
-lives on the error/rejection side, not the signal side). The contracts are designed to
-stay compatible across the future merge: the `AbortableThenable<T>` interface accepts the
-abort `AbortSignal`-shaped channel; the evented predicates discriminate it.
+This module's `AbortSignalLike` / `isAbortSignalLike` / `AbortSignal` / `isAbortSignal`
+are the producer-side contract of the cross-module abort-channel surface — the structural
+shape of values that emit abort signals (native `AbortSignal`, `AbortController.signal`,
+userland abortable producers, cross-realm instances). The thenable module's
+`AbortableThenable<T>` (shipped 2026-06-06 in decision #037) is the consumer-side contract
+— the structural shape of thenables that receive abort signals through their
+`then.onaborted` callback. `@/error` ships `AbortError` for the rejected-value side that
+the `onaborted` callback receives.
+
+Consumers building an abortable operation depend on all three modules; consumers handling
+only one side depend on only the relevant module.
 
 ### Open architectural questions
 
-- **Q.004 — `AbortableThenable<T>` deferred to the `@/error` migration.** See DECISION-LOG
-  Q.004. The dependency landed with the error migration (decisions #032–#035);
-  `AbortError` is now available. The remaining question — whether `AbortableThenable<T>`
-  ships as a fourth tier of the thenable lattice or as its own module — is now ready to be
-  answered in a follow-up round.
+_Section currently empty — Q.004 (`AbortableThenable<T>` placement) was resolved
+2026-06-06 by decision #037._
 
 ---
 
@@ -821,29 +862,28 @@ error-handling consumers reach for `isAbortError`; channel-inspection consumers 
 
 ### Cross-module abort-channel surface
 
-Three modules will eventually compose the full abort-channel surface:
+Three modules together compose the full abort-channel surface:
 
-- `evented` ships `AbortSignalLike` and `isAbortSignalLike` — the structural contract for
-  "values that look like an abort signal" (the producer side).
-- `error` (this module) ships `AbortError` and `isAbortError` — the structural contract
-  for "errors that look like abort-channel errors" (the rejected-value side).
-- `thenable` will eventually ship `AbortableThenable<T>` extending `Thenable<T>` with an
-  abort-channel — its abort callback typed against `AbortError`, its abort signal typed
-  against `AbortSignalLike`. The dependency that gated this future tier landed with the
-  current error migration; see Q.004.
+- `evented` ships `AbortSignalLike` / `isAbortSignalLike` / `AbortSignal` /
+  `isAbortSignal` — the structural contract for the producer side ("values that look like
+  an abort signal").
+- `error` (this module) ships `AbortError`, `AbortErrorName`, and `isAbortError` — the
+  structural contract for the rejected-value side ("errors that look like abort-channel
+  errors").
+- `thenable` ships `AbortableThenable<T>` (shipped 2026-06-06 in decision #037) — the
+  consumer-side contract that extends `Thenable<T>` with an `onaborted` callback typed
+  against `AbortError`. Chained `then` returns `AbortableThenable<...>` so the abort
+  channel survives the chain at the type level.
 
 The three-module split keeps the concerns clean: signal producers, error values, and the
-abort-channel-aware Promise composition each live in the module whose vocabulary they
+abort-channel-aware Thenable refinement each live in the module whose vocabulary they
 belong to. Consumers building an abortable operation depend on all three; consumers
 discriminating only one concern depend on only the relevant module.
 
 ### Open architectural questions
 
-- **Q.004 — `AbortableThenable<T>` deferred to the `@/error` migration.** Now unblocked
-  per the error migration shipping (decisions #032–#035). The remaining decision is
-  whether `AbortableThenable<T>` ships as a fourth tier of the thenable lattice (inside
-  `thenable.d.ts`) or as a separate `abortable-thenable.{js,d.ts}` module. See
-  DECISION-LOG Q.004 for the framing.
+_Section currently empty — Q.004 (`AbortableThenable<T>` placement) was resolved
+2026-06-06 by decision #037._
 
 ---
 
