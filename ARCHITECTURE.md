@@ -1012,6 +1012,103 @@ override-with-rationale style in the config. Per the zero-`eslint-disable` polic
 ([[quality-discipline]]), the fix is configuration at the right level, not inline
 suppression. See decision #038 for the full framing.
 
+### The four-marker boxed-primitive discrimination chain
+
+The boxed-primitive predicates use a four-marker chain that adds a spec-precise
+`[[XData]]` internal-slot probe to the three structural markers shipped originally
+(decision #038). The slot probe — a captured `X.prototype.valueOf.call(value)` that throws
+on any value lacking the slot — is the load-bearing spoof-proof discriminator, because the
+`[[XData]]` slot is engine-internal and cannot be installed from userland.
+
+Markers in performance order:
+
+1. `!!value` — O(1) null-rejection gate.
+2. `typeof value === 'object'` — O(1) primitive-rejection gate.
+3. `getTypeSignature(value) === '[object X]'` — `[[Class]]` tag from the realm-fixed
+   `toObjectString.call` capture.
+4. `getDefinedConstructorName(value) === 'X'` — constructor name from the four-source
+   walk.
+5. `doesHaveStrictUnboxed{X}ValueEquality(value)` — slot probe via the captured
+   `prototype.valueOf` reference.
+
+The chain extends the structural-gate-then-identity-markers pattern from `isPromise`
+(decision #023) and `isEventTarget` / `isAbortSignal` (decision #028) with one more tier
+underneath. The conservative-narrowing posture (decision #010) is preserved: the four
+upstream gates are cheap fail-fast rejections; the slot probe is the bottom guarantee. A
+value reaches the slot probe only after the cheaper markers all pass, so the `try`/`catch`
+cost is paid only when the value plausibly _looks_ like a boxed primitive structurally.
+
+The slot probe forecloses the `Symbol.toStringTag`-spoofing surface that the three-marker
+version left open: a value with `[Symbol.toStringTag]: 'String'` on a class named `String`
+would pass markers 1–4 while having no `[[StringData]]`. Marker 5 catches it via the
+`valueOf` throw. See decision #042.
+
+### Per-family equality strategies
+
+Implementing marker 5 surfaced that the equality check between unboxed value and boxed
+value has **four different correct shapes across the five families**, driven by the spec
+mechanics of each constructor's coercion path:
+
+| Family    | Equality form                                   | Spec trap avoided                                                               |
+| --------- | ----------------------------------------------- | ------------------------------------------------------------------------------- |
+| `String`  | `valueOf.call(v) === String(v)`                 | None — both sides unwrap via `ToPrimitive`                                      |
+| `Number`  | `Object.is(valueOf.call(v), Number(v))`         | `NaN !== NaN` for `new Number(NaN)`; `Object.is` is `SameValue`                 |
+| `Boolean` | `String(valueOf.call(v)) === String(v)`         | `ToBoolean(Object) → true` for any object; `String()` unwraps via `ToPrimitive` |
+| `Symbol`  | `valueOf.call(v).description === v.description` | `Symbol(boxedSym)` throws; description equality catches own-property shadowing  |
+| `BigInt`  | `valueOf.call(v) === BigInt(v)`                 | None — `BigInt()` unwraps via `ToPrimitive`                                     |
+
+Five families, four different strategies. The variation is _spec-inherent_, not an
+implementation artifact: the constructor coercion paths genuinely differ across the five
+wrapper types, and attempting unification by parameterizing one helper would either lose
+precision (silently re-introducing the Boolean / NaN regressions) or special-case its way
+back to per-family logic via runtime branches. The species-js form ships five focused
+helpers, each named for its family, each documented with the spec-mechanic rationale. See
+decision #043 and the `[[boxed-primitive-discrimination]]` memory for the per-family
+walkthrough.
+
+Notable in the Symbol case: the description equality is _not_ redundant with the slot
+probe. The valueOf throws on any value lacking `[[SymbolData]]`, but a real boxed Symbol
+whose `description` property has been shadowed by an own data property
+(`Object.defineProperty(boxed, 'description', { value: 'tampered' })`) still passes the
+valueOf. The description cross-check catches that one residual tampering surface —
+`unboxedValue.description` reads from the slot, `value.description` reads through the
+(shadowed) accessor chain, mismatch → reject. Conservative-narrowing posture applied to
+the tampering surface that survives the slot probe.
+
+### Realm-fixed captures: boundary-retyping vs pure capture
+
+`objectIs = Object.is` was added to `@/config` to support the Number-family equality
+strategy. It is a _pure_ realm-fix capture — the lib type for `Object.is` is already
+precise (`(value1: any, value2: any) => boolean`), so no boundary-retyping is needed. This
+is distinct from the boundary-retyping pattern of decisions #008, #017, #026, #034, which
+retype `any` returns to spec-precise types at the `@/config` boundary specifically to
+close consumer-side `any`-cascades.
+
+Both patterns share the realm-fix benefit (pinning the captured reference to this realm's
+identity, immune to later tampering with the global). They differ on the type-system side:
+boundary-retyping changes the captured primitive's declared type at the `@/config`
+boundary; pure capture leaves the type as-is. `objectIs` is the second realm-fix-only
+capture, alongside `toObjectString`'s pure-capture nature in the
+captures-for-cross-realm-tag-reading set. The two patterns coexist within the same
+`@/config` family.
+
+The minor implication: not every `@/config` cached primitive needs a `.d.ts` retyping. The
+boundary-retyping ruling in `[[design-rulings]]` should be read as _"when the lib type
+forces an `any`-cascade, retype at the boundary,"_ not as _"every captured primitive must
+be retyped."_ `objectIs` is the canonical example of the realm-fix-only form: type is
+already precise; only the realm capture matters.
+
+### Module-local capture vs `@/config` promotion
+
+The five `prototype.valueOf` references for the boxed-equality helpers
+(`String.prototype.valueOf`, `Number.prototype.valueOf`, etc.) live at the top of
+`primitive.js` rather than at `@/config`. They share the same realm-fix semantics as
+`@/config`'s captures but stay scoped to where they're used. The rule of thumb: a captured
+primitive earns promotion to `@/config` when a second module needs it. Module-local is the
+default for first-use; promotion is the response to second-use. Today the
+prototype-valueOf captures are first-use; if `@species-js/type-identity` or a future
+module needs them, promotion is mechanical.
+
 ### Open architectural questions
 
 _Section currently empty — the primitive module's surface is complete. Further
@@ -1020,5 +1117,137 @@ when both are `string`) belong in `@species-js/type-identity`, not here (decisio
 
 ---
 
-_End of `type-detection / primitive` section. Future packages and modules append their
+_End of `type-detection / primitive` section._
+
+---
+
+## type-detection / object
+
+### Mental model
+
+`type-detection / object` discriminates non-null, non-function objects into three
+type-system shapes that match three runtime characteristics:
+
+```
+AnyObject               (isObject)               — non-null, non-function object
+  ├── PlainObject       (isPlainObject)          — constructor === Object
+  └── DictionaryObject  (isDictionaryObject)     — no prototype chain
+```
+
+The hierarchy is a real subtype relationship: every `PlainObject` is an `AnyObject`; every
+`DictionaryObject` is an `AnyObject`. `PlainObject` and `DictionaryObject` are mutually
+exclusive at runtime (an object cannot simultaneously have `Object.prototype` as its
+prototype and have no prototype) and at the type level (their `constructor` property
+constraints are disjoint).
+
+The three shapes correspond to three common consumer needs:
+
+- **`AnyObject`** — the structural floor. "I know this isn't `null`, isn't `undefined`,
+  isn't a primitive, isn't a function. I want to index into it."
+- **`PlainObject`** — the lookup-table / record / DTO case. "I want a plain
+  `Object`-constructed value, not a class instance, not an array, not a built-in
+  container."
+- **`DictionaryObject`** — the hashmap case. "I want a prototype-less object so my
+  user-supplied keys can't collide with `Object.prototype` members."
+
+### The structural discriminator: `constructor` property
+
+The type-level discrimination matches the runtime discrimination:
+
+- `PlainObject extends AnyObject` adds `constructor: ObjectConstructor` — required
+  property of the specific built-in `Object` constructor type. Runtime characteristic:
+  `getPrototypeOf(value) === Object.prototype` (local-realm fast path) or the
+  cross-realm-safe `[[Class]]` tag `'[object Object]'` + constructor name `'Object'`.
+
+- `DictionaryObject extends AnyObject` adds `constructor?: never` — optional property
+  typed as `never`, meaning "either absent or, if present, of type `never`." Runtime
+  characteristic: `getPrototypeOf(value) === null` and
+  `getDefinedConstructor(value) === undefined`.
+
+The two types are type-disjoint at the TypeScript level because `ObjectConstructor` is not
+assignable to `never`. No brand, no fiction — the discrimination IS the runtime
+characteristic, modeled at the type level via the constructor property.
+
+This contrasts with the equip-js source's `__objectBrand__: unique symbol` approach, which
+forced the three types into _sibling_ positions (not subtypes), required brand property on
+the values (nothing carries it at runtime), and was unverifiable by any predicate. The
+species-js form rejects branding here for the same reason decision #001 rejected branding
+for type-name string aliases: brands are appropriate only when same-shaped values must not
+be interchanged across a directional flow, and they cannot carry runtime provenance. The
+object-family distinction is structurally real via constructor and the type-level
+discrimination should match that. See decision #040.
+
+### Cross-realm safety
+
+`isObject` is realm-independent — `!!value && typeof value === 'object'` reads the same in
+every realm.
+
+`isPlainObject` composes a local-realm fast path with a cross-realm-safe structural
+fallback:
+
+```js
+isObject(value) &&
+  (getPrototypeOf(value) === Object.prototype ||
+    (getTypeSignature(value) === '[object Object]' &&
+      getDefinedConstructorName(value) === 'Object'));
+```
+
+The fast path (`getPrototypeOf === Object.prototype`) catches the common case in a single
+reference comparison. The structural fallback catches cross-realm Plain Objects whose
+prototype is the _other_ realm's `Object.prototype` (different reference, same structural
+shape).
+
+`isDictionaryObject` is realm-orthogonal because prototype-less is prototype-less
+regardless of realm:
+
+```js
+isObject(value) &&
+  getPrototypeOf(value) === null &&
+  getDefinedConstructor(value) === undefined;
+```
+
+### Cross-module: `BlankType` ↔ `DictionaryObject`
+
+`BlankType` in `@/utility` is `Record<PropertyKey, never>` — the _sentinel_ form of a
+prototype-less object: no keys statically reachable. Used as a blank-descriptor sentinel
+in `@/error`'s `hasErrorPrototypeContract` heuristic via the `objectCreate(null)` retyped
+return in `@/config` (decisions #017, #034).
+
+`DictionaryObject` is the _populated_ form: `Record<PropertyKey, unknown>` extended with
+the `constructor?: never` discriminator. Used as a typed hashmap with arbitrary
+user-supplied keys.
+
+Per TypeScript variance, `BlankType` is a structural subtype of `DictionaryObject`
+(`Record<PropertyKey, never>` is a subtype of `Record<PropertyKey, unknown>` because
+`never` is the bottom type and a subtype of `unknown`). The two are not interchangeable in
+API contracts because the consumer intent differs (sentinel vs hashmap), but they coexist
+cleanly in the type system. Both are cross-referenced in their respective modules' JSDoc.
+
+### `isPlainObject` strictness vs lodash `_.isPlainObject`
+
+Lodash's `_.isPlainObject` is _permissive_ — it admits both prototype-bearing objects
+(constructor === Object) AND prototype-less objects (`Object.create(null)`). The
+species-js form is _strict_ — `isPlainObject` admits only the prototype-bearing form; the
+prototype-less form has its own dedicated predicate, `isDictionaryObject`.
+
+The lodash semantic is recoverable by composition:
+
+```ts
+const isPlainObjectLodashStyle = (v: unknown) =>
+  isPlainObject(v) || isDictionaryObject(v);
+```
+
+The strict-by-default, compose-for-lenient posture is consistent with `isPromise`
+rejecting subclasses (decision #023), `isEventTarget` / `isAbortSignal` rejecting
+subclasses (#028), and `AbortError` requiring the suffix-match (#035). See decision #041.
+
+### Open architectural questions
+
+_Section currently empty — the object module's surface is complete. The `identity`
+migration that the equip-js source carried alongside `object` belongs to
+`@species-js/type-identity`, not here._
+
+---
+
+_End of `type-detection / object` section. Future packages and modules append their
 sections below._

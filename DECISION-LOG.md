@@ -1466,6 +1466,283 @@ family-pattern's expression on primitives.
 
 ---
 
+### 042 — Four-marker boxed-primitive discrimination via `[[XData]]` internal-slot probe (2026-06-07)
+
+**Context.** The boxed-primitive predicates as originally shipped (decision #038) used a
+three-marker structural chain — `typeof === 'object'`, the `[[Class]]` tag, and the
+resolved constructor name. The chain is spoof-vulnerable: a value with
+`[Symbol.toStringTag]: 'String'` on a class named `String` would pass all three markers
+while having no underlying string. The tag and constructor name are observable from
+userland and therefore forgeable; the actual spec-defined discriminator of a boxed String
+is the `[[StringData]]` internal slot (similarly `[[NumberData]]`, `[[BooleanData]]`,
+`[[SymbolData]]`, `[[BigIntData]]`), which is engine-internal and cannot be installed from
+userland.
+
+**Decision.** Add a fourth marker at the bottom of each boxed-predicate chain: a
+spec-precise internal-slot probe via the captured `X.prototype.valueOf.call(value)`. The
+wrapper-class prototype's `valueOf` throws TypeError on any receiver lacking the
+spec-defined `[[XData]]` internal slot per ECMA-262 (e.g. §22.1.3.32
+`String.prototype.valueOf` calls `thisStringValue` which throws unless the receiver has
+`[[StringData]]`). A `try`/`catch` reduces the throw to `false`. The captured
+`prototype.valueOf` references are realm-fixed at module-load at the top of
+`primitive.js`.
+
+Each family ships a focused helper:
+
+- `doesHaveStrictUnboxedStringValueEquality(value)`
+- `doesHaveStrictUnboxedNumberValueEquality(value)`
+- `doesHaveStrictUnboxedBooleanValueEquality(value)`
+- `doesHaveStrictUnboxedSymbolValueEquality(value)`
+- `doesHaveStrictUnboxedBigIntValueEquality(value)`
+
+All five are `@internal`, exported with parallel `.d.ts` declarations under a dedicated
+"Unboxed-Value Equality Helpers" section.
+
+**Rationale.** The fourth marker upgrades the floor of spoof resistance from _structural_
+to _spec-precise_. The slot probe is engine-attested: a value either has `[[XData]]` or it
+doesn't, and userland code has no mechanism to install or fake the slot. The
+conservative-narrowing posture (decision #010) is preserved — the existing three markers
+stay as cheap fail-fast gates that reject most non-boxed inputs in O(1) before reaching
+the more expensive `try`/`catch`. Performance order is now: `!!value` →
+`typeof === 'object'` → tag → constructor name → slot probe. The chain's safety ceiling is
+the slot probe; the four upstream gates are bounded-cost insurance.
+
+**Consequences.** The five `isBoxedX` predicates are materially harder to spoof than the
+three-marker version. The shape of the equality check inside each helper varies by family
+because of spec mechanics — see decision #043 for the per-family details. Captured
+`prototype.valueOf` references stay module-local in `primitive.js` rather than promoted to
+`@/config` because no other module uses them yet; promote if and when a second consumer
+needs them. The five `@internal` declarations in `primitive.d.ts` follow the established
+parallel-JSDoc convention.
+
+Codified in [[boxed-primitive-discrimination]] memory with the full per-family
+spec-mechanic walkthrough. Commit `8f880ee`.
+
+---
+
+### 043 — Per-family equality strategies and `objectIs` realm-fixed capture (2026-06-07)
+
+**Context.** Implementing decision #042's fourth marker required choosing _how_ to compare
+the unboxed primitive value (from the captured `prototype.valueOf` call) to the boxed
+value. The naive approach — `valueOf.call(value) === Constructor(value)` — appeared
+uniform but turned out to be **incorrect for four of the five families** once the spec
+mechanics of each constructor's coercion path were traced. The user discovered this
+empirically through review iteration; the species-js form documents the resolution.
+
+**Decision.** The five families ship four different equality shapes, each driven by the
+spec mechanics of the corresponding constructor's coercion path:
+
+- **String — direct `===`.** Both `String.prototype.valueOf.call(value)` and
+  `String(value)` land on the same primitive string. No trap. Helper compares directly.
+
+- **Number — `Object.is`.** Direct `===` fails for `new Number(NaN)` because `NaN !== NaN`
+  is the spec-defined behavior of strict equality (ECMA-262 §7.2.16).
+  `Object.is(NaN, NaN) === true` is the `SameValue` algorithm (§7.2.10), which is the
+  semantically correct primitive for boxed-Number equality. The ±0 distinction
+  (`Object.is(+0, -0) === false`) is irrelevant here because both sides derive from the
+  same `value` — sign matches by construction. Helper uses `objectIs`.
+
+- **Boolean — `String()` roundtrip.** Direct `===` _systematically_ fails for
+  `new Boolean(false)`. Per ECMA-262 §20.3.1.1, `Boolean(value)` is `ToBoolean(value)`;
+  per §7.1.2, `ToBoolean(Object) → true` for any object regardless of content. So
+  `Boolean(new Boolean(false)) → true` while `valueOf` returns `false`. The constructor
+  coercion does not unwrap the box. The fix routes both sides through `String()` (which
+  uses `ToPrimitive("string")` and unwraps via the prototype's `toString` method):
+  `String(false) === 'false'`, `String(new Boolean(false)) === 'false'`, match. Helper
+  composes `isBooleanValue(unboxedValue) && String(unboxedValue) === String(value)`.
+
+- **Symbol — description cross-check.** `Symbol(boxedSym)` throws TypeError because
+  `ToString(primitive symbol)` throws unconditionally (§7.1.17, §20.4.1.1). The "equality"
+  framing pivots to a property cross-check: compare `unboxedValue.description` (read from
+  the primitive's `[[Description]]` internal slot via the prototype getter) against
+  `value.description` (read via the boxed object's prototype chain). The cross-check
+  **catches a real tampering surface that the valueOf probe alone misses**: an attacker
+  can define an own data property `description` on a real boxed Symbol that shadows
+  `Symbol.prototype.description`. The valueOf still works (slot is internal) but the
+  observable description has been lied about; the cross-check catches the mismatch.
+  Both-undefined case (`Symbol()` with no description) handled by direct equality — no
+  `isStringValue` gate, which would falsely reject the descriptionless form. Helper
+  composes
+  `isSymbolValue(unboxedValue) && unboxedValue.description === value.description`.
+
+- **BigInt — direct `===`.** `BigInt(value)` per §21.2.1.1 starts with
+  `ToPrimitive(value, "number")`, which calls `valueOf` on a boxed BigInt and unwraps.
+  Both sides land on the same primitive bigint. Helper compares directly.
+
+To support the Number case, `objectIs = Object.is` is added to `@/config` as a realm-fixed
+capture. It joins the cached-prototype-reference family alongside `objectAssign`,
+`objectCreate`, `objectFreeze`, etc.
+
+**Rationale.** The naive uniformity assumption ("use
+`valueOf.call(value) === Constructor(value)` for all five") is broken by spec mechanics
+that differ per constructor:
+
+- For two families (String, BigInt) the constructor coercion unwraps via `ToPrimitive` and
+  the equality holds.
+- For Number, the constructor unwraps but `NaN !== NaN` breaks the strict-equality
+  semantics; `Object.is` resolves cleanly.
+- For Boolean, the constructor _does not_ unwrap (`ToBoolean(Object) → true`); the String
+  roundtrip is the structural workaround.
+- For Symbol, the constructor _throws_; the equality framing must shift to property
+  cross-check, which fortunately also catches a real tampering surface.
+
+Five families, four different equality strategies. Attempting unification by
+parameterizing one helper would either lose precision (e.g. dropping the Boolean
+String-roundtrip would silently re-introduce the `new Boolean(false)` regression) or
+special-case its way back to per-family logic via runtime branches. The species-js form
+uses five focused helpers, each named for its family, each documented with the
+spec-mechanic rationale. Five clear shapes beats one parameterized shape with hidden
+branches.
+
+`objectIs` is a pure realm-fix capture (no boundary-retyping needed — `Object.is`'s lib
+type is already precise as `(value1: any, value2: any) => boolean`, though even the `any`
+parameters are fine here because the helper passes only `number` arguments from the
+captured `valueOf` results). Distinct from the boundary-retyping pattern of decisions
+#008, #017, #026, #034 which retype `any` returns to spec-precise types. `objectIs` joins
+the same `@/config` capture family for the realm-fix benefit alone.
+
+**Consequences.** The five `doesHaveStrictUnboxed{X}ValueEquality` helpers each implement
+the family-correct equality. The `objectIs` capture at `@/config` is the second
+realm-fix-only capture (alongside `toObjectString`'s pure-capture nature pre-retyping).
+Per [[boxed-primitive-discrimination]] memory, the lesson generalizes: when writing
+predicates over spec-defined wrapper types, **trace the constructor coercion path before
+assuming uniform implementation**. The four-shape result here is inherent to ECMA-262, not
+an implementation artifact.
+
+The realm-fix-vs-boundary-retyping distinction may warrant a small clarification in the
+`[[design-rulings]]` boundary-retyping ruling: not every `@/config` cached primitive needs
+retyping; some need pure capture for realm-fix without any type-system change.
+
+Commit `8f880ee`. See ARCHITECTURE.md § type-detection / primitive for the four-marker
+chain's positioning within the discrimination lattice and the per-family equality table.
+
+---
+
+## type-detection / object
+
+### 040 — Object module: structural subtype hierarchy over branding (2026-06-06)
+
+**Context.** The equip-js source's object module distinguished three types (`AnyObject`,
+`PlainObject`, `DictionaryObject`) via a `__objectBrand__: unique symbol` discriminator on
+each. The brand was structural fiction:
+
+- No `__objectBrand__` property exists at runtime.
+- The predicates cannot verify the brand because nothing in the runtime carries it.
+- The brand forced the three types into _sibling_ positions, when the natural relationship
+  is a _subtype hierarchy_: every PlainObject IS an AnyObject; every DictionaryObject IS
+  an AnyObject; PlainObject ⊥ DictionaryObject (mutually exclusive at runtime by
+  prototype, not by brand).
+
+The migration question was whether to port the brand verbatim or replace it with a
+structurally-honest discriminator.
+
+**Decision.** Replace the brand with the actual structural discriminator — the
+`constructor` property — which matches both the runtime discriminator and the natural
+subtype hierarchy:
+
+- `AnyObject = object & Record<PropertyKey, unknown>` — floor type: any non-null,
+  non-function object. The intersection with `Record` gives narrowed values arbitrary
+  property-access ergonomics; `object` carries the "non-primitive" constraint.
+
+- `PlainObject extends AnyObject` adds `constructor: ObjectConstructor` — the
+  structurally-honest constraint matching the runtime test
+  `getPrototypeOf(value) === Object.prototype`. Required `constructor` of the specific
+  `ObjectConstructor` type.
+
+- `DictionaryObject extends AnyObject` adds `constructor?: never` — optional property
+  typed as `never`, meaning "either absent or, if present, of type never." This is the
+  type-level reflection of the runtime characteristic "no prototype chain"
+  (`getPrototypeOf(value) === null` and `getDefinedConstructor(value) === undefined`).
+  Disjoint from `PlainObject` at the type level: any attempt to assign a value with
+  `constructor: ObjectConstructor` to `DictionaryObject` fails (since `ObjectConstructor`
+  is not `never`).
+
+The brand is gone; the discrimination is structurally honest.
+
+**Rationale.** Three forces converge:
+
+- **Structurally-honest discrimination.** The actual runtime distinction between
+  `PlainObject` and `DictionaryObject` IS the constructor's presence and identity.
+  Modeling that at the type level via `constructor: ObjectConstructor` /
+  `constructor?: never` makes the type-level discrimination match the runtime
+  discrimination — both encode the same fact.
+
+- **Natural subtype hierarchy.** Both refinements are subtypes of `AnyObject`, which
+  TypeScript can express directly via `interface X extends AnyObject`. The equip-js
+  branding fought this — its sibling positioning was structurally incorrect and required
+  explicit casts to navigate. The hierarchy form requires no casts.
+
+- **Aligns with decision #001.** That decision rejected branding for type-name string
+  aliases (`ConstructorName`, `TaggedType`, `ResolvedType`) on the grounds that brands are
+  appropriate only when same-shaped values must not be interchanged across a directional
+  flow. The equip-js object branding suffered the same diagnosis: the three types were
+  structurally distinct via constructor, not via any hidden tag. Brands cannot carry
+  runtime provenance, so a brand here was both fictional AND redundant.
+
+**Consequences.** Public surface: `AnyObject`, `PlainObject`, `DictionaryObject`,
+`isObject`, `isPlainObject`, `isDictionaryObject`. The `BoxedString` / `BoxedNumber` /
+etc. types from `@/primitive` use the structural intersection pattern (`String & object`)
+which is a structurally-similar precedent — distinguishing the boxed form via the specific
+wrapper-class intersection rather than via a brand. The `@/utility`'s `BlankType`
+(`Record<PropertyKey, never>`) is the sentinel form of the same runtime carrier as
+`DictionaryObject` (`Record<PropertyKey, unknown>` + discriminator); per TypeScript
+variance, `BlankType` is a structural subtype of `DictionaryObject`. The relationship is
+cross-referenced in both modules' JSDoc.
+
+Commit `8e09b21`. See decision #041 for the lodash semantic divergence and ARCHITECTURE.md
+§ type-detection / object for the conceptual map.
+
+---
+
+### 041 — Strict `isPlainObject` vs lodash `_.isPlainObject` (2026-06-06)
+
+**Context.** Lodash's `_.isPlainObject(value)` is the long-established userland convention
+for "is this a plain object?" but it is _permissive_: it admits both prototype-bearing
+objects whose constructor is `Object` AND prototype-less objects (`Object.create(null)`).
+Either form satisfies lodash's definition. The species-js migration could match that
+semantic by composing the two discriminators, or could keep the two distinct as a stricter
+contract.
+
+**Decision.** Keep them distinct. `isPlainObject` admits _only_ prototype-bearing objects
+whose direct constructor is the built-in `Object`. Prototype-less objects have their own
+dedicated predicate, `isDictionaryObject`. The lodash semantic is recovered by
+composition: `isPlainObject(v) || isDictionaryObject(v)`. The module-level JSDoc and both
+predicates' per-symbol JSDoc name the strictness prominently with the composition recipe.
+
+**Rationale.** Three forces converge:
+
+- **The two forms are runtime-distinct.** A prototype-bearing object and a prototype-less
+  object behave differently for nearly any operation that touches the prototype chain
+  (property lookup miss, `instanceof`, `Object.prototype.toString.call` output, etc.).
+  Consumers that need the discrimination need it strictly; consumers that don't care just
+  compose.
+
+- **Lodash semantic is recoverable; ours is not.**
+  `isPlainObject(v) || isDictionaryObject(v)` reproduces the lodash semantic exactly. The
+  reverse direction — recovering the strict semantic from a permissive predicate —
+  requires the consumer to add the prototype check themselves, which is exactly the work
+  the predicate is supposed to do.
+
+- **The species-js convention strongly prefers explicit distinctions.** Decision #023 made
+  the same call for `isPromise` (rejects subclasses by strict constructor-name equality);
+  decisions #028 and #029 made the same call for `isEventTarget` / `isAbortSignal`. The
+  "strict by default, compose for lenient" pattern is consistent across the package.
+
+**Consequences.** The lodash conflict is real and documented. Consumers familiar with
+lodash who pass a prototype-less object to `isPlainObject` and get `false` will
+(correctly) reach for the JSDoc, see the strictness note, and either use
+`isDictionaryObject` for the discrimination they actually need or compose the OR for the
+lodash semantic. The strict form propagates better through downstream typing —
+`isPlainObject(v)` narrows to `PlainObject` (constructor is `Object`), which is a stronger
+guarantee than lodash's union.
+
+The recipe `isPlainObject(v) || isDictionaryObject(v)` for lodash semantics is named in
+both predicates' JSDoc and in the module-level @module block.
+
+Commit `8e09b21`.
+
+---
+
 ## Open questions
 
 These are not decisions but acknowledged open questions, kept here so they don't dissolve
