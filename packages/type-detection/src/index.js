@@ -23,6 +23,8 @@
  *   five JavaScript primitive types.
  * - `@species-js/type-detection/error` — `GenericError` and `AbortError`
  *   discrimination with the `Error.isError` polyfill.
+ * - `@species-js/type-detection/object` — `AnyObject`, `PlainObject`,
+ *   and `DictionaryObject` discrimination.
  * - `@species-js/type-detection/evented` — `EventTarget` and
  *   `AbortSignal` structural lattices.
  * - `@species-js/type-detection/thenable` — `Thenable`, `PromiseLike`,
@@ -43,5 +45,6 @@ export * from '@/config';
 export * from '@/utility';
 export * from '@/primitive';
 export * from '@/error';
+export * from '@/object';
 export * from '@/evented';
 export * from '@/thenable';

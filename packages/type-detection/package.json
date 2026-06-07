@@ -84,6 +84,17 @@
       },
       "default": "./dist/node/error.js"
     },
+    "./object": {
+      "types": "./src/object.d.ts",
+      "browser": {
+        "import": "./dist/browser/object.js"
+      },
+      "node": {
+        "import": "./dist/node/object.js",
+        "require": "./dist/node/object.cjs"
+      },
+      "default": "./dist/node/object.js"
+    },
     "./evented": {
       "types": "./src/evented.d.ts",
       "browser": {

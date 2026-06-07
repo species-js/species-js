@@ -21,6 +21,7 @@ export default defineConfig({
             function: resolve(import.meta.dirname, 'src/function.js'),
             primitive: resolve(import.meta.dirname, 'src/primitive.js'),
             error: resolve(import.meta.dirname, 'src/error.js'),
+            object: resolve(import.meta.dirname, 'src/object.js'),
             evented: resolve(import.meta.dirname, 'src/evented.js'),
             thenable: resolve(import.meta.dirname, 'src/thenable.js'),
           },
