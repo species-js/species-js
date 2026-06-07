@@ -21,6 +21,7 @@
  * the runtime implementation with parallel JSDoc.
  */
 
+import { objectIs } from '@/config';
 import { getTypeSignature, getDefinedConstructorName } from '@/utility';
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
@@ -46,10 +47,31 @@ import { getTypeSignature, getDefinedConstructorName } from '@/utility';
 /** @typedef {import('@/primitive').BigIntType} BigIntType */
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
+
+const toStringValue = String.prototype.valueOf;
+const toNumberValue = Number.prototype.valueOf;
+const toBooleanValue = Boolean.prototype.valueOf;
+const toSymbolValue = Symbol.prototype.valueOf;
+const toBigIntValue = BigInt.prototype.valueOf;
+
+// ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 //
 //  String Family
 //
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
+
+/**
+ * @param {unknown} value
+ * @returns {boolean}
+ * @internal
+ */
+export function doesHaveStrictUnboxedStringValueEquality(value) {
+  try {
+    return toStringValue.call(value) === String(/** @type {string} */ (value));
+  } catch {
+    return false;
+  }
+}
 
 /**
  * Narrows a value to the primitive `string` form via
@@ -106,9 +128,11 @@ export function isStringValue(value) {
  */
 export function isBoxedString(value) {
   return (
+    !!value &&
     typeof value === 'object' &&
     getTypeSignature(value) === '[object String]' &&
-    getDefinedConstructorName(value) === 'String'
+    getDefinedConstructorName(value) === 'String' &&
+    doesHaveStrictUnboxedStringValueEquality(value)
   );
 }
 
@@ -142,6 +166,19 @@ export function isString(value) {
 //  Number Family
 //
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
+
+/**
+ * @param {unknown} value
+ * @returns {boolean}
+ * @internal
+ */
+export function doesHaveStrictUnboxedNumberValueEquality(value) {
+  try {
+    return objectIs(toNumberValue.call(value), Number(/** @type {number} */ (value)));
+  } catch {
+    return false;
+  }
+}
 
 /**
  * Narrows a value to the primitive `number` form via
@@ -196,9 +233,11 @@ export function isNumberValue(value) {
  */
 export function isBoxedNumber(value) {
   return (
+    !!value &&
     typeof value === 'object' &&
     getTypeSignature(value) === '[object Number]' &&
-    getDefinedConstructorName(value) === 'Number'
+    getDefinedConstructorName(value) === 'Number' &&
+    doesHaveStrictUnboxedNumberValueEquality(value)
   );
 }
 
@@ -233,6 +272,23 @@ export function isNumber(value) {
 //  Boolean Family
 //
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
+
+/**
+ * @param {unknown} value
+ * @returns {boolean}
+ * @internal
+ */
+export function doesHaveStrictUnboxedBooleanValueEquality(value) {
+  try {
+    const unboxedValue = toBooleanValue.call(value);
+    return (
+      isBooleanValue(unboxedValue) &&
+      String(unboxedValue) === String(/** @type {boolean} */ (value))
+    );
+  } catch {
+    return false;
+  }
+}
 
 /**
  * Narrows a value to the primitive `boolean` form via
@@ -286,9 +342,11 @@ export function isBooleanValue(value) {
  */
 export function isBoxedBoolean(value) {
   return (
+    !!value &&
     typeof value === 'object' &&
     getTypeSignature(value) === '[object Boolean]' &&
-    getDefinedConstructorName(value) === 'Boolean'
+    getDefinedConstructorName(value) === 'Boolean' &&
+    doesHaveStrictUnboxedBooleanValueEquality(value)
   );
 }
 
@@ -322,6 +380,23 @@ export function isBoolean(value) {
 //  Symbol Family
 //
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
+
+/**
+ * @param {unknown} value
+ * @returns {boolean}
+ * @internal
+ */
+export function doesHaveStrictUnboxedSymbolValueEquality(value) {
+  try {
+    const unboxedValue = toSymbolValue.call(value);
+    return (
+      isSymbolValue(unboxedValue) &&
+      unboxedValue.description === /** @type {symbol} */ (value).description
+    );
+  } catch {
+    return false;
+  }
+}
 
 /**
  * Narrows a value to the primitive `symbol` form via
@@ -374,9 +449,11 @@ export function isSymbolValue(value) {
  */
 export function isBoxedSymbol(value) {
   return (
+    !!value &&
     typeof value === 'object' &&
     getTypeSignature(value) === '[object Symbol]' &&
-    getDefinedConstructorName(value) === 'Symbol'
+    getDefinedConstructorName(value) === 'Symbol' &&
+    doesHaveStrictUnboxedSymbolValueEquality(value)
   );
 }
 
@@ -410,6 +487,19 @@ export function isSymbol(value) {
 //  BigInt Family
 //
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
+
+/**
+ * @param {unknown} value
+ * @returns {boolean}
+ * @internal
+ */
+export function doesHaveStrictUnboxedBigIntValueEquality(value) {
+  try {
+    return toBigIntValue.call(value) === BigInt(/** @type {bigint} */ (value));
+  } catch {
+    return false;
+  }
+}
 
 /**
  * Narrows a value to the primitive `bigint` form via
@@ -462,9 +552,11 @@ export function isBigIntValue(value) {
  */
 export function isBoxedBigInt(value) {
   return (
+    !!value &&
     typeof value === 'object' &&
     getTypeSignature(value) === '[object BigInt]' &&
-    getDefinedConstructorName(value) === 'BigInt'
+    getDefinedConstructorName(value) === 'BigInt' &&
+    doesHaveStrictUnboxedBigIntValueEquality(value)
   );
 }
 

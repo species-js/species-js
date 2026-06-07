@@ -128,6 +128,16 @@ export declare const objectHasOwn: (o: object, v: PropertyKey) => boolean;
 export declare const objectAssign: typeof Object.assign;
 
 /**
+ * `Object.is`, realm-fixed at module-load.
+ *
+ * Used in preference to `===` when NaN-equality (`Object.is(NaN, NaN) === true`)
+ * or strict ±0 distinction (`Object.is(+0, -0) === false`) matters — most
+ * notably in the boxed-primitive value-equality check for `BoxedNumber`.
+ * @internal
+ */
+export declare const objectIs: typeof Object.is;
+
+/**
  * `Object.create`, realm-fixed at module-load with overload-precise
  * return types replacing the lib's `any`.
  *

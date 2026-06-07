@@ -630,3 +630,86 @@ export function isBoxedBigInt<T = unknown>(value?: T): value is T & BoxedBigInt;
 export function isBigInt<T = unknown>(value?: T): value is T & BigIntType;
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
+//
+//  Unboxed-Value Equality Helpers
+//
+// ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
+
+/**
+ * Verifies that the boxed `String` value's `[[StringData]]` internal slot
+ * is present and that its unboxed primitive value matches the value
+ * coerced through `String(value)` — the load-bearing fourth marker of
+ * {@link isBoxedString}'s discrimination chain. The captured
+ * `String.prototype.valueOf.call(value)` throws on any value lacking the
+ * `[[StringData]]` slot; the `try/catch` reduces that throw to `false`.
+ *
+ * @param value - the value to test
+ * @returns `true` when the unboxed primitive equals `String(value)`;
+ *  `false` otherwise (including when `valueOf` throws)
+ * @internal
+ */
+export function doesHaveStrictUnboxedStringValueEquality(value: unknown): boolean;
+
+/**
+ * Verifies that the boxed `Number` value's `[[NumberData]]` internal slot
+ * is present and that its unboxed primitive value matches the value
+ * coerced through `Number(value)`, compared via `Object.is` — the
+ * load-bearing fourth marker of {@link isBoxedNumber}'s discrimination
+ * chain. `Object.is` is used in preference to `===` so that
+ * `new Number(NaN)` is correctly admitted (`Object.is(NaN, NaN) === true`,
+ * whereas `NaN === NaN` is `false`).
+ *
+ * @param value - the value to test
+ * @returns `true` when `Object.is(unboxed, Number(value))` holds; `false`
+ *  otherwise (including when `valueOf` throws)
+ * @internal
+ */
+export function doesHaveStrictUnboxedNumberValueEquality(value: unknown): boolean;
+
+/**
+ * Verifies that the boxed `Boolean` value's `[[BooleanData]]` internal
+ * slot is present and that its unboxed primitive value's string form
+ * matches the boxed value's string coercion — the load-bearing fourth
+ * marker of {@link isBoxedBoolean}'s discrimination chain. Stringified
+ * comparison sidesteps the `ToBoolean(Object) === true` trap that
+ * `Boolean(new Boolean(false))` would otherwise produce.
+ *
+ * @param value - the value to test
+ * @returns `true` when the unboxed primitive's string form equals
+ *  `String(value)`; `false` otherwise (including when `valueOf` throws)
+ * @internal
+ */
+export function doesHaveStrictUnboxedBooleanValueEquality(value: unknown): boolean;
+
+/**
+ * Verifies that the boxed `Symbol` value's `[[SymbolData]]` internal slot
+ * is present and that the unboxed primitive symbol's `description`
+ * matches the boxed value's `description` — the load-bearing fourth
+ * marker of {@link isBoxedSymbol}'s discrimination chain. The description
+ * cross-validator catches the own-property-shadowing tampering surface
+ * where a real boxed Symbol has had its `description` getter overridden
+ * by an own data property.
+ *
+ * @param value - the value to test
+ * @returns `true` when the unboxed primitive's `description` equals
+ *  `value.description`; `false` otherwise (including when `valueOf`
+ *  throws, and including when both descriptions are `undefined`-valued
+ *  for `Symbol()` with no description)
+ * @internal
+ */
+export function doesHaveStrictUnboxedSymbolValueEquality(value: unknown): boolean;
+
+/**
+ * Verifies that the boxed `BigInt` value's `[[BigIntData]]` internal slot
+ * is present and that its unboxed primitive value matches the value
+ * coerced through `BigInt(value)` — the load-bearing fourth marker of
+ * {@link isBoxedBigInt}'s discrimination chain.
+ *
+ * @param value - the value to test
+ * @returns `true` when the unboxed primitive equals `BigInt(value)`;
+ *  `false` otherwise (including when `valueOf` throws)
+ * @internal
+ */
+export function doesHaveStrictUnboxedBigIntValueEquality(value: unknown): boolean;
+
+// ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----

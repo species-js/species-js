@@ -158,6 +158,12 @@ export const objectHasOwn = isCallable(nativeHasOwn)
 export const objectAssign = o.assign;
 
 /**
+ * `Object.is`, realm-fixed at module-load.
+ * @internal
+ */
+export const objectIs = o.is;
+
+/**
  * `Object.create`, realm-fixed at module-load.
  *
  * The `.d.ts` retypes the lib's `any` return on both overloads to
