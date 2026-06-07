@@ -887,5 +887,138 @@ _Section currently empty — Q.004 (`AbortableThenable<T>` placement) was resolv
 
 ---
 
-_End of `type-detection / error` section. Future packages and modules append their
+_End of `type-detection / error` section._
+
+---
+
+## type-detection / primitive
+
+### Mental model
+
+`type-detection / primitive` discriminates JavaScript's five primitive families (`string`,
+`number`, `boolean`, `symbol`, `bigint`) and their boxed wrapper-object forms
+(`new String('x')`, `Object(42)`, `Object(Symbol('y'))`, etc.). Each primitive type in
+JavaScript has two runtime forms — the primitive value and the boxed wrapper — that differ
+on `typeof` (`'string'` vs `'object'`), on identity (`===`), and on prototype-method
+invocation (boxed forms expose `String.prototype` methods directly; primitives auto-box
+transparently for method access). Most JavaScript code treats the two interchangeably via
+implicit coercion, but type-system discrimination needs to name the distinction.
+
+The module ships three predicates and three types per family:
+
+```
+XValue        (isXValue)   — primitive form via `typeof`
+BoxedX        (isBoxedX)   — boxed wrapper-object form via three structural markers
+XType         (isX)        — composite admitting either form
+```
+
+The three forms compose: `XType = XValue | BoxedX`, and
+`isX(v) = isXValue(v) || isBoxedX(v)`. Five families × six exports = 30 exports total (5
+value types + 5 boxed types + 5 composite types + 5 value predicates + 5 boxed
+predicates + 5 composite predicates).
+
+### Cross-realm safety
+
+Primitive predicates carry no cross-realm hazard: `typeof` reads identically in every
+realm, so `isStringValue` etc. work uniformly across iframe / worker / vm-context
+boundaries. The value-only predicates are the simplest and cheapest in the package —
+single `typeof` comparisons, O(1).
+
+Boxed predicates do carry the cross-realm concern. A `new String('x')` produced in a
+foreign realm has a different `String` constructor identity than the local-realm `String`;
+`instanceof String` against it returns `false`. The package handles this with the same
+machinery used by `isPromise` / `isEventTarget`: the `[[Class]]` tag read through the
+realm-fixed `toObjectString.call` capture, and the constructor name walked through the
+four-source `getDefinedConstructor` fallback in `@/utility`. Both work
+realm-independently. The `typeof === 'object'` gate is the cheapest first marker that
+rejects primitives and `undefined` in O(1).
+
+### Predicate composition
+
+Three predicates per family, with the boxed predicate driving the marker chain. The
+following table shows the structural shape; replace `X` with `String` / `Number` /
+`Boolean` / `Symbol` / `BigInt` and `x` with the lowercase form for the family instance.
+
+| Predicate  | Composition                                                                                             |
+| ---------- | ------------------------------------------------------------------------------------------------------- |
+| `isXValue` | `typeof v === 'x'`                                                                                      |
+| `isBoxedX` | `typeof v === 'object' && getTypeSignature(v) === '[object X]' && getDefinedConstructorName(v) === 'X'` |
+| `isX`      | `isXValue(v) \|\| isBoxedX(v)`                                                                          |
+
+The marker order for `isBoxedX` is performance-first:
+
+- **`typeof === 'object'`** is the O(1) primitive-rejection gate. Rejects primitive
+  strings (which share the `'[object String]'` tag), all other primitives, `undefined`,
+  and functions in one comparison. Admits `null` momentarily — but the tag check then
+  rejects via `'[object Null]'`.
+- **`getTypeSignature(v) === '[object X]'`** is the type discriminator. Reads through the
+  realm-fixed `toObjectString.call` capture, so cross-realm boxed values are admitted on
+  contract. Rejects plain objects, arrays, `Date`, `Map`, etc.
+- **`getDefinedConstructorName(v) === 'X'`** is the constructor-identity cross-validator.
+  Closes the `Symbol.toStringTag`-spoofing hole the tag check alone would leave open — a
+  `class Spoof { get [Symbol.toStringTag]() { return 'String'; } }` instance passes the
+  tag check but its constructor name resolves to `'Spoof'`, rejecting it here.
+
+The order also mirrors the structural-gate-then-identity-markers pattern from `isPromise`
+(decision #023) and `isEventTarget` / `isAbortSignal` (decision #028): a fast structural
+gate, then two realm-independent identity refinements.
+
+### Conservative-narrowing in the primitive domain
+
+The boxed predicates' three-marker chain is an instance of the conservative-narrowing
+posture established in decision #010 and applied at `isPromise` (#023), `isEventTarget` /
+`isAbortSignal` (#028), and now the boxed primitives. The marker chain provides
+bounded-cost insurance against single-marker spoofing:
+
+- Tag-spoofing alone (`Symbol.toStringTag === 'String'` on an arbitrary object) is
+  rejected by the constructor-name walk.
+- Constructor-name-spoofing alone (a class named `String` that's not the built-in
+  `String`) is rejected by the tag check, since the instance carries a different
+  `[[Class]]` tag.
+- Both spoofs together would pass the predicate but would also pass any other reasonable
+  boxed-string test — at that point the value is structurally indistinguishable from a
+  real boxed string.
+
+The posture is the same as on the function side and the thenable / evented sides:
+foundation-tier predicates that downstream packages depend on benefit from multiple
+cross-validating markers as bounded-cost insurance, not just for the typical case but for
+the spoofing surface.
+
+### Generic-typed predicates
+
+All 15 predicates follow the generic-typed family pattern
+(`<T = unknown>(value?: T): value is T & X`) shipped in commit `5c5dbe7` (decision #039).
+This includes the value-only predicates, which decision #036 had originally excluded —
+that exclusion is superseded here. The rationale for revisiting: literal-union callers
+benefit (`'on' | 'off' | number` narrows to `'on' | 'off'` after `isStringValue`), the
+boxed and composite predicates clearly benefit (they narrow to object-shape types), and
+internal consistency across the family matters. The package-wide tally is now 36
+generic-typed predicates across `@/function`, `@/thenable`, `@/evented`, `@/error`, and
+`@/primitive`. See decision #039 for the full framing.
+
+### Wrapper-object types
+
+The `BoxedX = X & object` types (`BoxedString = String & object`, etc.) intentionally use
+TypeScript's wrapper-object types — the `String`, `Number`, `Boolean`, `Symbol`, `BigInt`
+interfaces from `lib.es5.d.ts` — as the load-bearing distinction from the primitive forms.
+The `& object` intersection excludes the primitive arms.
+
+The `@typescript-eslint/no-wrapper-object-types` rule's default advice ("prefer the
+primitive `string` over `String`") is correct for typical TypeScript code but wrong here:
+this is precisely the case where the wrapper-object type is the structural model. A
+per-file override scoped to `**/src/primitive.d.ts` in `eslint.config.js` disables the
+rule for the boxed-type declarations, with an inline rationale matching the existing
+override-with-rationale style in the config. Per the zero-`eslint-disable` policy
+([[quality-discipline]]), the fix is configuration at the right level, not inline
+suppression. See decision #038 for the full framing.
+
+### Open architectural questions
+
+_Section currently empty — the primitive module's surface is complete. Further
+nominal-branding or string-tag refinements (e.g. distinguishing `UserId` from `OrderId`
+when both are `string`) belong in `@species-js/type-identity`, not here (decision #001)._
+
+---
+
+_End of `type-detection / primitive` section. Future packages and modules append their
 sections below._
