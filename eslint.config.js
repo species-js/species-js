@@ -126,6 +126,22 @@ export default tseslint.config(
       '@typescript-eslint/prefer-function-type': 'off',
     },
   },
+  // --- Boxed-primitive types: wrapper-object types are intentional here ---
+  {
+    files: ['**/src/primitive.d.ts'],
+    rules: {
+      // `BoxedString = String & object`, `BoxedNumber = Number & object`, … in
+      // the primitive module deliberately model the boxed wrapper-object form
+      // of each primitive family (the runtime values `new String('x')`,
+      // `Object(42)`, `Object(Symbol('y'))`, etc.). The rule's default advice
+      // — "prefer the primitive `string` over `String`" — is correct for
+      // typical code but wrong here: this is precisely the case where the
+      // wrapper-object type is the load-bearing distinction from the primitive
+      // form. The `& object` intersection enforces the distinction at the
+      // type level.
+      '@typescript-eslint/no-wrapper-object-types': 'off',
+    },
+  },
   // --- Tests: JSDoc rules off ---
   {
     files: ['**/*.test.js'],
