@@ -329,10 +329,15 @@ export function isEventTarget<T = unknown>(value?: T): value is T & EventTarget;
  * The three-descriptor-walk `doesMatchEventTargetContract` runs last as
  * the heaviest discriminator and the structural baseline.
  *
- * The `aborted` check uses `isBooleanValue(value.aborted)`. Spec defines
- * `aborted` as a read-only accessor attribute; the predicate accepts
- * the spec-defined accessor by reading the value directly. The
- * `throwIfAborted` check uses `hasInertMethod` for the standard
+ * The `aborted` check uses `isBooleanValue(value.aborted)` and invokes
+ * the spec-defined accessor directly (decision #029) — the
+ * descriptor-walk pattern would reject every real `AbortSignal` because
+ * `aborted` IS an accessor. The body is wrapped in `try`/`catch` so a
+ * throwing userland getter reduces to `false` rather than propagating;
+ * the predicate's boolean-return contract is preserved. Same
+ * exception-handling shape as the boxed-primitive equality helpers.
+ *
+ * The `throwIfAborted` check uses `hasInertMethod` for the standard
  * inspect-without-invoke contract — `throwIfAborted` is a data-property
  * method on `AbortSignal.prototype`, so the descriptor-walk pattern
  * applies without spec friction.
@@ -346,7 +351,8 @@ export function isEventTarget<T = unknown>(value?: T): value is T & EventTarget;
  *  `undefined`, which does not match the AbortSignal method contract
  * @returns `true` when the value satisfies the EventTarget contract,
  *  has a boolean `aborted` property, and has a callable
- *  `throwIfAborted`; `false` otherwise
+ *  `throwIfAborted`; `false` otherwise (including when the `aborted`
+ *  getter throws)
  * @example
  * doesMatchAbortSignalContract(new AbortController().signal); // true
  * doesMatchAbortSignalContract(AbortSignal.timeout(1000));    // true

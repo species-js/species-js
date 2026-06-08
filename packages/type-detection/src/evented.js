@@ -208,10 +208,18 @@ export function isEventTarget(value) {
  * The three-descriptor-walk `doesMatchEventTargetContract` runs last as
  * the heaviest discriminator and the structural baseline.
  *
- * The `aborted` check uses `isBooleanValue(value.aborted)`. Spec defines
- * `aborted` as a read-only accessor attribute; the predicate accepts
- * the spec-defined accessor by reading the value directly. The
- * `throwIfAborted` check uses `hasInertMethod` for the standard
+ * The `aborted` check uses `isBooleanValue(value.aborted)` per decision
+ * #029 — the spec-defined accessor is invoked directly because the
+ * descriptor-walk pattern would reject every real `AbortSignal`
+ * (whose `aborted` IS an accessor). The whole body is wrapped in
+ * `try`/`catch` to preserve the boolean-return predicate contract: a
+ * userland _abort-signal-like_ value with a throwing `aborted` getter
+ * reduces to `false` rather than propagating the throw. This is the
+ * same exception-handling pattern the boxed-primitive equality helpers
+ * (e.g., `doesHaveStrictUnboxedNumberValueEquality`) use around
+ * `prototype.valueOf.call(value)`.
+ *
+ * The `throwIfAborted` check uses `hasInertMethod` for the standard
  * inspect-without-invoke contract — `throwIfAborted` is a data-property
  * method on `AbortSignal.prototype`, so the descriptor-walk pattern
  * applies without spec friction.
@@ -225,7 +233,8 @@ export function isEventTarget(value) {
  *  as `undefined`, which does not match the AbortSignal method contract
  * @returns {boolean} `true` when the value satisfies the EventTarget
  *  contract, has a boolean `aborted` property, and has a callable
- *  `throwIfAborted`; `false` otherwise
+ *  `throwIfAborted`; `false` otherwise (including when the `aborted`
+ *  getter throws)
  * @example
  * doesMatchAbortSignalContract(new AbortController().signal); // true
  * doesMatchAbortSignalContract(AbortSignal.timeout(1000));    // true
@@ -234,11 +243,15 @@ export function isEventTarget(value) {
  * @internal
  */
 export function doesMatchAbortSignalContract(value) {
-  return (
-    hasInertMethod(value, 'throwIfAborted') &&
-    isBooleanValue(/** @type {{ aborted?: unknown }} */ (value).aborted) &&
-    doesMatchEventTargetContract(value)
-  );
+  try {
+    return (
+      hasInertMethod(value, 'throwIfAborted') &&
+      isBooleanValue(/** @type {{ aborted?: unknown }} */ (value).aborted) &&
+      doesMatchEventTargetContract(value)
+    );
+  } catch {
+    return false;
+  }
 }
 
 /**

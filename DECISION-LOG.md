@@ -1057,6 +1057,42 @@ the spec defines the property as an accessor and invocation IS the spec-required
 first. Future spec-defined accessor properties on other contracts (e.g., `Iterator`'s
 `done` flag, ReadableStream's `locked` flag) may need similar exception handling.
 
+**Addendum (2026-06-08).** The original decision noted that a value whose `aborted` getter
+throws is malformed by spec — true, but the predicate as originally shipped propagated the
+throw out of `doesMatchAbortSignalContract`, violating the boolean-return predicate
+contract. The 2026-06-08 audit surfaced this as F7.2: native `AbortSignal` and
+well-behaved userland mimicry are unaffected, but adversarial inputs (deliberately
+constructed test mocks, buggy implementations) cause unexpected throws in downstream code.
+Resolved by wrapping the body in `try`/`catch`:
+
+```js
+export function doesMatchAbortSignalContract(value) {
+  try {
+    return (
+      hasInertMethod(value, 'throwIfAborted') &&
+      isBooleanValue(value.aborted) &&
+      doesMatchEventTargetContract(value)
+    );
+  } catch {
+    return false;
+  }
+}
+```
+
+The trust framing of the original decision is preserved — the spec-defined accessor is
+still invoked directly, and the value it returns when it returns one is trusted. The
+addendum only extends the trust boundary: if the accessor throws (which the spec says
+won't happen for a real `AbortSignal`, but which userland implementations can violate),
+the predicate treats the result as failing rather than propagating the throw. Same
+exception-handling shape as the boxed-primitive equality helpers
+(`doesHaveStrictUnboxedXValueEquality`) use around `prototype.valueOf.call(value)`,
+following the pattern from decision #042.
+
+JSDoc in both `.js` and `.d.ts` updated to name the try/catch and the precedent. Future
+spec-defined accessor predicates (the foreseen `Iterator.done`, `ReadableStream.locked`
+cases) should adopt the same shape: direct-read for spec conformance + try/catch for
+predicate-contract safety.
+
 ---
 
 ### 030 — `AbortSignalLike` minimum-surface choice — omit `reason`, `onabort`, and typed-event-map overloads (2026-06-04)
