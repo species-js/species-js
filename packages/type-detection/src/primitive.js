@@ -7,16 +7,19 @@
  *
  * Each of JavaScript's five primitive families (`string`, `number`,
  * `boolean`, `symbol`, `bigint`) ships three predicates here: a
- * `typeof`-based value predicate, a three-marker boxed predicate, and
+ * `typeof`-based value predicate, a four-marker boxed predicate, and
  * a composite predicate admitting either form. Boxed predicates use
  * the cross-realm-safe `getTypeSignature` (realm-fixed
  * `Object.prototype.toString.call` capture) and
  * `getDefinedConstructorName` (four-source constructor walk) from
  * `@/utility`, paired with the {@link isObject} gate from `@/object`
  * (truthiness + `typeof === 'object'`) that runs first for O(1)
- * primitive-and-null rejection. The three-marker chain matches the
- * conservative-narrowing posture established by `isPromise` /
- * `isEventTarget` (decisions #010, #023, #028).
+ * primitive-and-null rejection, and with the spec-precise
+ * `[[XData]]` internal-slot probe via the captured
+ * `X.prototype.valueOf` as the spoof-proof bottom marker. The
+ * four-marker chain extends the conservative-narrowing posture
+ * established by `isPromise` / `isEventTarget` (decisions #010, #023,
+ * #028) with engine-attested internal-slot evidence (decision #042).
  *
  * See the sibling `.d.ts` for the per-predicate doc; this `.js` carries
  * the runtime implementation with parallel JSDoc.
@@ -64,8 +67,19 @@ const toBigIntValue = BigInt.prototype.valueOf;
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 
 /**
- * @param {unknown} value
- * @returns {boolean}
+ * Verifies that the boxed `String` value's `[[StringData]]` internal slot
+ * is present and that its unboxed primitive value equals `String(value)`
+ * — the load-bearing fourth marker of {@link isBoxedString}'s
+ * discrimination chain. Implementation: invokes the module-scoped
+ * captured `String.prototype.valueOf` (`toStringValue`) on the candidate
+ * via `.call`; the call throws on any value lacking the
+ * `[[StringData]]` slot, and the `try/catch` reduces the throw to
+ * `false`. The comparison `=== String(value)` round-trips both sides
+ * through spec-mechanic coercion paths that unwrap the boxed primitive.
+ *
+ * @param {unknown} value - the value to test
+ * @returns {boolean} `true` when the unboxed primitive equals
+ *  `String(value)`; `false` otherwise (including when `valueOf` throws)
  * @internal
  */
 export function doesHaveStrictUnboxedStringValueEquality(value) {
@@ -102,17 +116,21 @@ export function isStringValue(value) {
 }
 
 /**
- * Narrows a value to the boxed `String` wrapper-object form via three
- * cross-validating structural markers — the {@link isObject} gate, the
- * `[[Class]]` tag `'[object String]'`, and the constructor name
- * `'String'`.
+ * Narrows a value to the boxed `String` wrapper-object form via four
+ * cross-validating markers — the {@link isObject} gate, the `[[Class]]`
+ * tag `'[object String]'`, the constructor name `'String'`, and the
+ * spec-precise `[[StringData]]` internal-slot probe via
+ * {@link doesHaveStrictUnboxedStringValueEquality}.
  *
- * Short-circuit `&&` runs the markers in performance order: the
- * `isObject` gate first (O(1) primitive-and-null rejection), tag check
- * second (cross-realm-safe via realm-fixed `toObjectString.call`),
- * constructor walk last. The three markers together provide
- * bounded-cost insurance against single-marker `Symbol.toStringTag`
- * spoofing.
+ * Short-circuit `&&` runs the markers in cost order: the `isObject`
+ * gate first (O(1) primitive-and-null rejection), tag check second
+ * (cross-realm-safe via realm-fixed `toObjectString.call`), constructor
+ * walk third, valueOf-slot probe last (spec-precise spoof closure).
+ * The first three markers cheaply reject the bulk of non-matches by
+ * structural shape; the fourth confirms the value carries the
+ * engine-attested `[[StringData]]` slot, which userland cannot forge —
+ * closing the `Symbol.toStringTag`-spoofing surface the structural
+ * markers leave open.
  *
  * Generic in `T` per the family pattern. The narrow returns
  * `T & BoxedString`; `T = unknown` collapses to `BoxedString`.
@@ -120,13 +138,13 @@ export function isStringValue(value) {
  * @template [T=unknown]
  * @param {T} [value] - the value to test; omitted is treated as
  *  `undefined`, which is not a boxed string
- * @returns {value is T & BoxedString} `true` when all three markers
+ * @returns {value is T & BoxedString} `true` when all four markers
  *  hold, narrowing `value` to `T & BoxedString`; `false` otherwise
  * @example
  * isBoxedString(new String('x'));                    // true
  * isBoxedString(Object('x'));                        // true
  * isBoxedString('x');                                // false (primitive)
- * isBoxedString({ [Symbol.toStringTag]: 'String' }); // false (ctor mismatch)
+ * isBoxedString({ [Symbol.toStringTag]: 'String' }); // false (no [[StringData]])
  */
 export function isBoxedString(value) {
   return (
@@ -169,8 +187,20 @@ export function isString(value) {
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 
 /**
- * @param {unknown} value
- * @returns {boolean}
+ * Verifies that the boxed `Number` value's `[[NumberData]]` internal slot
+ * is present and that its unboxed primitive value matches `Number(value)`
+ * compared via `Object.is` — the load-bearing fourth marker of
+ * {@link isBoxedNumber}'s discrimination chain. Implementation: invokes
+ * the module-scoped captured `Number.prototype.valueOf` (`toNumberValue`)
+ * via `.call`; the call throws on any value lacking the `[[NumberData]]`
+ * slot. `Object.is` is used in preference to `===` so that
+ * `new Number(NaN)` is correctly admitted — `Object.is(NaN, NaN) === true`
+ * whereas `NaN === NaN` is `false`. The realm-fixed `objectIs` from
+ * `@/config` is the capture.
+ *
+ * @param {unknown} value - the value to test
+ * @returns {boolean} `true` when `Object.is(unboxed, Number(value))`
+ *  holds; `false` otherwise (including when `valueOf` throws)
  * @internal
  */
 export function doesHaveStrictUnboxedNumberValueEquality(value) {
@@ -211,13 +241,16 @@ export function isNumberValue(value) {
 }
 
 /**
- * Narrows a value to the boxed `Number` wrapper-object form via three
- * cross-validating structural markers — the {@link isObject} gate, the
- * `[[Class]]` tag `'[object Number]'`, and the constructor name
- * `'Number'`.
+ * Narrows a value to the boxed `Number` wrapper-object form via four
+ * cross-validating markers — the {@link isObject} gate, the `[[Class]]`
+ * tag `'[object Number]'`, the constructor name `'Number'`, and the
+ * spec-precise `[[NumberData]]` internal-slot probe via
+ * {@link doesHaveStrictUnboxedNumberValueEquality}.
  *
  * Marker chain and short-circuit ordering match {@link isBoxedString};
- * see that predicate's doc for the structural rationale.
+ * see that predicate's doc for the structural rationale. The
+ * `[[NumberData]]` probe uses `Object.is` rather than `===` so that
+ * `new Number(NaN)` is correctly admitted.
  *
  * Generic in `T` per the family pattern. The narrow returns
  * `T & BoxedNumber`; `T = unknown` collapses to `BoxedNumber`.
@@ -225,7 +258,7 @@ export function isNumberValue(value) {
  * @template [T=unknown]
  * @param {T} [value] - the value to test; omitted is treated as
  *  `undefined`, which is not a boxed number
- * @returns {value is T & BoxedNumber} `true` when all three markers
+ * @returns {value is T & BoxedNumber} `true` when all four markers
  *  hold, narrowing `value` to `T & BoxedNumber`; `false` otherwise
  * @example
  * isBoxedNumber(new Number(42)); // true
@@ -274,8 +307,21 @@ export function isNumber(value) {
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 
 /**
- * @param {unknown} value
- * @returns {boolean}
+ * Verifies that the boxed `Boolean` value's `[[BooleanData]]` internal
+ * slot is present and that its unboxed primitive value's string form
+ * matches the boxed value's string coercion — the load-bearing fourth
+ * marker of {@link isBoxedBoolean}'s discrimination chain. Implementation:
+ * invokes the module-scoped captured `Boolean.prototype.valueOf`
+ * (`toBooleanValue`) via `.call`; the call throws on any value lacking
+ * the `[[BooleanData]]` slot. Stringified comparison via `String(...)`
+ * on both sides sidesteps the `ToBoolean(Object) === true` trap that
+ * `Boolean(new Boolean(false))` would otherwise produce — `String` uses
+ * `ToPrimitive("string")` which unwraps via `Boolean.prototype.toString`.
+ *
+ * @param {unknown} value - the value to test
+ * @returns {boolean} `true` when the unboxed primitive's string form
+ *  equals `String(value)`; `false` otherwise (including when `valueOf`
+ *  throws)
  * @internal
  */
 export function doesHaveStrictUnboxedBooleanValueEquality(value) {
@@ -319,13 +365,17 @@ export function isBooleanValue(value) {
 }
 
 /**
- * Narrows a value to the boxed `Boolean` wrapper-object form via three
- * cross-validating structural markers — the {@link isObject} gate, the
- * `[[Class]]` tag `'[object Boolean]'`, and the constructor name
- * `'Boolean'`.
+ * Narrows a value to the boxed `Boolean` wrapper-object form via four
+ * cross-validating markers — the {@link isObject} gate, the `[[Class]]`
+ * tag `'[object Boolean]'`, the constructor name `'Boolean'`, and the
+ * spec-precise `[[BooleanData]]` internal-slot probe via
+ * {@link doesHaveStrictUnboxedBooleanValueEquality}.
  *
  * Marker chain and short-circuit ordering match {@link isBoxedString};
- * see that predicate's doc for the structural rationale.
+ * see that predicate's doc for the structural rationale. The
+ * `[[BooleanData]]` probe compares string-coerced forms rather than the
+ * raw values, sidestepping the `ToBoolean(Object) === true` trap that
+ * `Boolean(new Boolean(false))` would otherwise produce.
  *
  * Generic in `T` per the family pattern. The narrow returns
  * `T & BoxedBoolean`; `T = unknown` collapses to `BoxedBoolean`.
@@ -333,7 +383,7 @@ export function isBooleanValue(value) {
  * @template [T=unknown]
  * @param {T} [value] - the value to test; omitted is treated as
  *  `undefined`, which is not a boxed boolean
- * @returns {value is T & BoxedBoolean} `true` when all three markers
+ * @returns {value is T & BoxedBoolean} `true` when all four markers
  *  hold, narrowing `value` to `T & BoxedBoolean`; `false` otherwise
  * @example
  * isBoxedBoolean(new Boolean(true));  // true
@@ -381,8 +431,25 @@ export function isBoolean(value) {
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 
 /**
- * @param {unknown} value
- * @returns {boolean}
+ * Verifies that the boxed `Symbol` value's `[[SymbolData]]` internal slot
+ * is present and that the unboxed primitive symbol's `description`
+ * matches the boxed value's `description` — the load-bearing fourth
+ * marker of {@link isBoxedSymbol}'s discrimination chain. Implementation:
+ * invokes the module-scoped captured `Symbol.prototype.valueOf`
+ * (`toSymbolValue`) via `.call`; the call throws on any value lacking
+ * the `[[SymbolData]]` slot. The description cross-check catches the
+ * own-property-shadowing tampering surface — a real boxed Symbol whose
+ * `description` getter has been overridden by an own data property has
+ * a valueOf that still works but observable description that lies; the
+ * unboxed-side read goes through the primitive's `[[Description]]` slot
+ * via `Symbol.prototype.description`, the boxed-side read goes through
+ * the (shadowed) accessor chain, so they diverge.
+ *
+ * @param {unknown} value - the value to test
+ * @returns {boolean} `true` when the unboxed primitive's `description`
+ *  equals `value.description`; `false` otherwise (including when
+ *  `valueOf` throws, and including the `undefined === undefined` case
+ *  for `Symbol()` with no description argument)
  * @internal
  */
 export function doesHaveStrictUnboxedSymbolValueEquality(value) {
@@ -426,13 +493,18 @@ export function isSymbolValue(value) {
 }
 
 /**
- * Narrows a value to the boxed `Symbol` wrapper-object form via three
- * cross-validating structural markers — the {@link isObject} gate, the
- * `[[Class]]` tag `'[object Symbol]'`, and the constructor name
- * `'Symbol'`.
+ * Narrows a value to the boxed `Symbol` wrapper-object form via four
+ * cross-validating markers — the {@link isObject} gate, the `[[Class]]`
+ * tag `'[object Symbol]'`, the constructor name `'Symbol'`, and the
+ * spec-precise `[[SymbolData]]` internal-slot probe via
+ * {@link doesHaveStrictUnboxedSymbolValueEquality}.
  *
  * Marker chain and short-circuit ordering match {@link isBoxedString};
- * see that predicate's doc for the structural rationale.
+ * see that predicate's doc for the structural rationale. The
+ * `[[SymbolData]]` probe cross-checks the unboxed primitive's
+ * `description` against the boxed value's `description` — catching the
+ * own-property-shadowing tampering surface where a real boxed Symbol
+ * has had its `description` getter overridden by an own data property.
  *
  * Generic in `T` per the family pattern. The narrow returns
  * `T & BoxedSymbol`; `T = unknown` collapses to `BoxedSymbol`.
@@ -440,7 +512,7 @@ export function isSymbolValue(value) {
  * @template [T=unknown]
  * @param {T} [value] - the value to test; omitted is treated as
  *  `undefined`, which is not a boxed symbol
- * @returns {value is T & BoxedSymbol} `true` when all three markers
+ * @returns {value is T & BoxedSymbol} `true` when all four markers
  *  hold, narrowing `value` to `T & BoxedSymbol`; `false` otherwise
  * @example
  * isBoxedSymbol(Object(Symbol('x'))); // true
@@ -487,8 +559,20 @@ export function isSymbol(value) {
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 
 /**
- * @param {unknown} value
- * @returns {boolean}
+ * Verifies that the boxed `BigInt` value's `[[BigIntData]]` internal slot
+ * is present and that its unboxed primitive value equals `BigInt(value)`
+ * — the load-bearing fourth marker of {@link isBoxedBigInt}'s
+ * discrimination chain. Implementation: invokes the module-scoped
+ * captured `BigInt.prototype.valueOf` (`toBigIntValue`) via `.call`;
+ * the call throws on any value lacking the `[[BigIntData]]` slot.
+ * `BigInt(value)` per ECMA-262 §21.2.1.1 starts with
+ * `ToPrimitive(value, "number")`, which calls `valueOf` on the boxed
+ * BigInt and unwraps, so both sides land on the same primitive `bigint`
+ * — direct `===` is sufficient.
+ *
+ * @param {unknown} value - the value to test
+ * @returns {boolean} `true` when the unboxed primitive equals
+ *  `BigInt(value)`; `false` otherwise (including when `valueOf` throws)
  * @internal
  */
 export function doesHaveStrictUnboxedBigIntValueEquality(value) {
@@ -527,10 +611,11 @@ export function isBigIntValue(value) {
 }
 
 /**
- * Narrows a value to the boxed `BigInt` wrapper-object form via three
- * cross-validating structural markers — the {@link isObject} gate, the
- * `[[Class]]` tag `'[object BigInt]'`, and the constructor name
- * `'BigInt'`.
+ * Narrows a value to the boxed `BigInt` wrapper-object form via four
+ * cross-validating markers — the {@link isObject} gate, the `[[Class]]`
+ * tag `'[object BigInt]'`, the constructor name `'BigInt'`, and the
+ * spec-precise `[[BigIntData]]` internal-slot probe via
+ * {@link doesHaveStrictUnboxedBigIntValueEquality}.
  *
  * Marker chain and short-circuit ordering match {@link isBoxedString};
  * see that predicate's doc for the structural rationale.
@@ -541,7 +626,7 @@ export function isBigIntValue(value) {
  * @template [T=unknown]
  * @param {T} [value] - the value to test; omitted is treated as
  *  `undefined`, which is not a boxed bigint
- * @returns {value is T & BoxedBigInt} `true` when all three markers
+ * @returns {value is T & BoxedBigInt} `true` when all four markers
  *  hold, narrowing `value` to `T & BoxedBigInt`; `false` otherwise
  * @example
  * isBoxedBigInt(Object(1n));         // true
