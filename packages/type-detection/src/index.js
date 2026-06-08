@@ -24,7 +24,7 @@
  * - `@species-js/type-detection/error` — `GenericError` and `AbortError`
  *   discrimination with the `Error.isError` polyfill.
  * - `@species-js/type-detection/object` — `AnyObject`, `PlainObject`,
- *   and `DictionaryObject` discrimination.
+ *   `DictionaryObject`, and `PlainOrDictionaryObject` discrimination.
  * - `@species-js/type-detection/evented` — `EventTarget` and
  *   `AbortSignal` structural lattices.
  * - `@species-js/type-detection/thenable` — `Thenable`, `PromiseLike`,

@@ -12,8 +12,9 @@
  * the cross-realm-safe `getTypeSignature` (realm-fixed
  * `Object.prototype.toString.call` capture) and
  * `getDefinedConstructorName` (four-source constructor walk) from
- * `@/utility`, paired with a `typeof === 'object'` gate that runs first
- * for O(1) primitive rejection. The three-marker chain matches the
+ * `@/utility`, paired with the {@link isObject} gate from `@/object`
+ * (truthiness + `typeof === 'object'`) that runs first for O(1)
+ * primitive-and-null rejection. The three-marker chain matches the
  * conservative-narrowing posture established by `isPromise` /
  * `isEventTarget` (decisions #010, #023, #028).
  *
@@ -23,6 +24,8 @@
 
 import { objectIs } from '@/config';
 import { getTypeSignature, getDefinedConstructorName } from '@/utility';
+
+import { isObject } from '@/object.js';
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 
@@ -100,17 +103,16 @@ export function isStringValue(value) {
 
 /**
  * Narrows a value to the boxed `String` wrapper-object form via three
- * cross-validating structural markers — `typeof === 'object'`, the
+ * cross-validating structural markers — the {@link isObject} gate, the
  * `[[Class]]` tag `'[object String]'`, and the constructor name
  * `'String'`.
  *
- * Short-circuit `&&` runs the markers in performance order: `typeof`
- * first (O(1) primitive-rejection gate), tag check second
- * (cross-realm-safe via realm-fixed `toObjectString.call`), constructor
- * walk last. Null is admitted by `typeof === 'object'` momentarily and
- * rejected by the tag check via `'[object Null]'`. The three markers
- * together provide bounded-cost insurance against single-marker
- * `Symbol.toStringTag` spoofing.
+ * Short-circuit `&&` runs the markers in performance order: the
+ * `isObject` gate first (O(1) primitive-and-null rejection), tag check
+ * second (cross-realm-safe via realm-fixed `toObjectString.call`),
+ * constructor walk last. The three markers together provide
+ * bounded-cost insurance against single-marker `Symbol.toStringTag`
+ * spoofing.
  *
  * Generic in `T` per the family pattern. The narrow returns
  * `T & BoxedString`; `T = unknown` collapses to `BoxedString`.
@@ -128,8 +130,7 @@ export function isStringValue(value) {
  */
 export function isBoxedString(value) {
   return (
-    !!value &&
-    typeof value === 'object' &&
+    isObject(value) &&
     getTypeSignature(value) === '[object String]' &&
     getDefinedConstructorName(value) === 'String' &&
     doesHaveStrictUnboxedStringValueEquality(value)
@@ -211,7 +212,7 @@ export function isNumberValue(value) {
 
 /**
  * Narrows a value to the boxed `Number` wrapper-object form via three
- * cross-validating structural markers — `typeof === 'object'`, the
+ * cross-validating structural markers — the {@link isObject} gate, the
  * `[[Class]]` tag `'[object Number]'`, and the constructor name
  * `'Number'`.
  *
@@ -233,8 +234,7 @@ export function isNumberValue(value) {
  */
 export function isBoxedNumber(value) {
   return (
-    !!value &&
-    typeof value === 'object' &&
+    isObject(value) &&
     getTypeSignature(value) === '[object Number]' &&
     getDefinedConstructorName(value) === 'Number' &&
     doesHaveStrictUnboxedNumberValueEquality(value)
@@ -320,7 +320,7 @@ export function isBooleanValue(value) {
 
 /**
  * Narrows a value to the boxed `Boolean` wrapper-object form via three
- * cross-validating structural markers — `typeof === 'object'`, the
+ * cross-validating structural markers — the {@link isObject} gate, the
  * `[[Class]]` tag `'[object Boolean]'`, and the constructor name
  * `'Boolean'`.
  *
@@ -342,8 +342,7 @@ export function isBooleanValue(value) {
  */
 export function isBoxedBoolean(value) {
   return (
-    !!value &&
-    typeof value === 'object' &&
+    isObject(value) &&
     getTypeSignature(value) === '[object Boolean]' &&
     getDefinedConstructorName(value) === 'Boolean' &&
     doesHaveStrictUnboxedBooleanValueEquality(value)
@@ -428,7 +427,7 @@ export function isSymbolValue(value) {
 
 /**
  * Narrows a value to the boxed `Symbol` wrapper-object form via three
- * cross-validating structural markers — `typeof === 'object'`, the
+ * cross-validating structural markers — the {@link isObject} gate, the
  * `[[Class]]` tag `'[object Symbol]'`, and the constructor name
  * `'Symbol'`.
  *
@@ -449,8 +448,7 @@ export function isSymbolValue(value) {
  */
 export function isBoxedSymbol(value) {
   return (
-    !!value &&
-    typeof value === 'object' &&
+    isObject(value) &&
     getTypeSignature(value) === '[object Symbol]' &&
     getDefinedConstructorName(value) === 'Symbol' &&
     doesHaveStrictUnboxedSymbolValueEquality(value)
@@ -530,7 +528,7 @@ export function isBigIntValue(value) {
 
 /**
  * Narrows a value to the boxed `BigInt` wrapper-object form via three
- * cross-validating structural markers — `typeof === 'object'`, the
+ * cross-validating structural markers — the {@link isObject} gate, the
  * `[[Class]]` tag `'[object BigInt]'`, and the constructor name
  * `'BigInt'`.
  *
@@ -552,8 +550,7 @@ export function isBigIntValue(value) {
  */
 export function isBoxedBigInt(value) {
   return (
-    !!value &&
-    typeof value === 'object' &&
+    isObject(value) &&
     getTypeSignature(value) === '[object BigInt]' &&
     getDefinedConstructorName(value) === 'BigInt' &&
     doesHaveStrictUnboxedBigIntValueEquality(value)

@@ -11,8 +11,9 @@
  *   Realm-independent (`typeof` reads the same in every realm) and the
  *   cheapest predicates in the package.
  * - `BoxedX` / `isBoxedX` — the boxed wrapper-object form, narrowed via
- *   three cross-validating structural markers: `typeof value === 'object'`,
- *   the `[[Class]]` tag (e.g. `'[object String]'`), and the constructor
+ *   three cross-validating structural markers: the `isObject` gate
+ *   from `@/object` (truthiness + `typeof === 'object'`), the
+ *   `[[Class]]` tag (e.g. `'[object String]'`), and the constructor
  *   name resolved through the package's constructor walk. Cross-realm
  *   safe by construction.
  * - `XType` / `isX` — the composite type and predicate admitting either
@@ -30,9 +31,10 @@
  * boxed-only predicates discriminate them.
  *
  * The boxed-predicate marker chain runs in performance-first order:
- * `typeof === 'object'` is the O(1) primitive-rejection gate, the tag
- * read is the moderate-cost type discriminator, and the constructor
- * walk is the most expensive cross-validator. The order also mirrors
+ * the `isObject` gate from `@/object` is the O(1) primitive-and-null
+ * rejection (truthiness + `typeof === 'object'`), the tag read is the
+ * moderate-cost type discriminator, and the constructor walk is the
+ * most expensive cross-validator. The order also mirrors
  * the structural-gate-then-identity-markers pattern established by
  * `isPromise` / `isEventTarget` / `isAbortSignal` (decisions #023,
  * #028). The three markers together form the conservative-narrowing

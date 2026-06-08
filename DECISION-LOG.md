@@ -1739,7 +1739,225 @@ guarantee than lodash's union.
 The recipe `isPlainObject(v) || isDictionaryObject(v)` for lodash semantics is named in
 both predicates' JSDoc and in the module-level @module block.
 
-Commit `8e09b21`.
+Commit `8e09b21`. Superseded for the recipe surface by decision #046, which replaces the
+inline recipe with the dedicated `isPlainOrDictionaryObject` predicate.
+
+---
+
+### 044 — Structural anchor for `isPlainObject`: spec-mechanic-anchored five-marker chain with own-descriptor discipline (2026-06-08)
+
+**Context.** The initial `isPlainObject` cross-realm fallback was a two-marker
+string-shape check —
+`getTypeSignature(value) === '[object Object]' && getDefinedConstructorName(value) === 'Object'`.
+Both markers are cheap and cross-realm safe, but both are _string fingerprints_. Nothing
+structural anchored them. An adversarial input that tampered with `Symbol.toStringTag` and
+the four-source constructor walk (e.g., setting `constructor = Object` on a class
+instance) could pass both markers despite being a class instance, not a Plain Object.
+
+**Decision.** Pair the two cheap string-shape signal markers with a five-marker
+spec-mechanic-anchored prototype contract, both extracted into named `@internal` helpers.
+The fallback now reads:
+
+```js
+hasPlainObjectIdentitySignal(value) && hasPlainObjectPrototypeContract(value);
+```
+
+`hasPlainObjectPrototypeContract` walks `value`'s prototype and the prototype's
+constructor, then verifies five spec-mechanic invariants:
+
+1. `isClass(constructor)` — the constructor is a built-in or `class`-syntax newable.
+2. `getTypeSignature(prototype) === '[object Object]'` — the prototype's own `[[Class]]`
+   tag.
+3. `getOwnPropertyDescriptor(constructor, 'name')?.value === 'Object'` — own data-property
+   read; accessor-form yields `undefined` and fails.
+4. `getOwnPropertyDescriptor(constructor, 'prototype')?.value === prototype` — round-trip
+   identity; the constructor's own `prototype` data property points back to the prototype
+   walked from `value`.
+5. `getPrototypeOf(prototype) === null` — chain-depth check; every realm's
+   `Object.prototype` carries this invariant.
+
+The descriptor-via-`.value` discipline on markers 3 and 4 is uniform with `isClass`'s own
+`getOwnPropertyDescriptor(value, 'prototype')?.writable === false` — read own data via
+descriptors, never via direct property access.
+
+**Rationale.** Four forces converge:
+
+- **String fingerprints are spoof-weak in isolation.** `Symbol.toStringTag` is freely
+  settable on any object, and the four-source constructor walk can be defeated by a
+  tampered own `constructor` property. The conservative-narrowing posture (decision #010)
+  calls for layered cross-validators; the two-marker fallback had only one tier of
+  structural evidence.
+
+- **Round-trip identity is the load-bearing closure.** Marker 4 (constructor's `prototype`
+  data property ≡ the prototype walked from `value`) is the spoof closer at the root. A
+  tampered `value.constructor = Object` makes markers 1, 2, 3 all pass — but the attacker
+  would also need `Object.prototype === ValueProto`, which holds only for genuine Plain
+  Objects (cross-realm or otherwise). Class instances fail because
+  `Foo.prototype !== Object.prototype`.
+
+- **Chain-depth is realm-uniform.** `Object.prototype.[[Prototype]] === null` in every
+  realm. The marker rejects class instances and built-in container instances by structural
+  shape, not by string fingerprint — same kind of upgrade the boxed-primitive valueOf-slot
+  probe brought to the boxed predicates (decision #042).
+
+- **Own-descriptor discipline is a unified rule.** Reading own data via
+  `getOwnPropertyDescriptor(obj, key)?.value` (instead of `obj[key]`) skips inherited
+  properties AND skips accessor-form definitions. The same discipline already governs
+  `isClass`'s `writable` read on `prototype`; extending it to `name` and `prototype` data
+  reads here closes the lying-accessor spoof variant uniformly. The rule generalizes: any
+  structural check on a property that should be an own data-form reads through
+  descriptor.value, not through `[[Get]]`.
+
+**Consequences.** Cross-realm `isPlainObject` verdicts now rest on spec-mechanic
+invariants the engine attests (the `[[Prototype]]` slot, the constructor's intrinsic
+`name` and `prototype` data properties), not on string fingerprints alone. Class instances
+with tampered `constructor` properties — previously a partial spoof surface — fail the
+round-trip check cleanly. The residual spoof surface is an attacker who reconstructs the
+spec mechanics of `Object` from scratch (writable:false `prototype` data property pointing
+at a hand-crafted null-proto prototype, own `name === 'Object'` data property) —
+structurally indistinguishable from a foreign-realm `Object`, which is not a spoof but a
+parallel implementation.
+
+Two `@internal` helpers carry the work: `hasPlainObjectIdentitySignal` (exported,
+two-marker string-shape signal — also reused by `isPlainOrDictionaryObject`'s fused
+dispatch) and `hasPlainObjectPrototypeContract` (module-local, the five-marker contract).
+`isClass` and `getOwnPropertyDescriptor` from `@/config` are new imports in `@/object` for
+the descriptor discipline. The fast path (`getPrototypeOf === Object.prototype`) is
+unchanged.
+
+Compares with decision #042 (four-marker boxed-primitive discrimination) — both move the
+posture from "two string fingerprints" to "spec-mechanic-anchored chain with
+engine-attested internal-slot or shape evidence at the bottom." Same architectural move,
+different domains.
+
+See ARCHITECTURE.md § type-detection / object — "Structural anchor for `isPlainObject`"
+for the full marker walk and spoof-surface analysis.
+
+---
+
+### 045 — Tag-signature cross-validator added to `isDictionaryObject` (2026-06-08)
+
+**Context.** The initial `isDictionaryObject` was a three-marker check: `isObject` gate,
+`getPrototypeOf === null`, and `getDefinedConstructor === undefined`. The two non-gate
+markers are independent cross-validators for the prototype-less state. Decision #044's
+audit of the object-predicate family asked whether the same string-shape signal that
+anchors `isPlainObject`'s identity-signal could close any residual surface here.
+
+**Decision.** Add the tag-signature cross-validator
+`getTypeSignature(value) === '[object Object]'` as a fourth marker. The full chain:
+
+```js
+isObject(value) &&
+  getPrototypeOf(value) === null &&
+  getDefinedConstructor(value) === undefined &&
+  getTypeSignature(value) === '[object Object]';
+```
+
+**Rationale.** The new marker closes a rare-but-real surface: an attacker (or buggy code)
+can attach an own `Symbol.toStringTag` data property to a prototype-less object to lie
+about its `[[Class]]`. The two prior markers (`proto === null`,
+`constructor === undefined`) confirm the prototype-less state but say nothing about the
+tag. For the hashmap semantic `DictionaryObject` targets, no legitimate consumer would set
+a tag — they want the prototype-less state for key-collision safety, not for
+class-identity projection.
+
+The marker is cheap (one O(1) `toObjectString.call` capture invocation) and consistent
+with the surface's own conservative-narrowing posture: three independent cross-validators
+behind the `isObject` gate.
+
+**Consequences.** False-positive surface narrowed. False-negative cost is zero in
+practice: the marker only rejects prototype-less objects with own `Symbol.toStringTag`
+properties, which is not a shape legitimate hashmap use produces. The doc, the test plan,
+and the module-level mental model all describe four markers, not three.
+
+---
+
+### 046 — `PlainOrDictionaryObject` union type and fused `isPlainOrDictionaryObject` predicate (2026-06-08)
+
+**Context.** Decision #041 kept `isPlainObject` strict and named the recipe
+`isPlainObject(v) || isDictionaryObject(v)` for callers wanting the lodash-equivalent
+permissive semantic. The recipe lived only in JSDoc and in the module-level @module block
+— not as a callable symbol. Two costs followed:
+
+- Callers had to write the recipe inline, which read awkwardly and obscured intent at call
+  sites.
+- The naive recipe paid redundant cost: both sub-predicates ran `isObject`, both called
+  `getPrototypeOf`, both could call `getTypeSignature`, and both could perform a
+  constructor walk. On a `DictionaryObject` input, `isPlainObject` ran its signal +
+  contract checks before failing, only for `isDictionaryObject` to repeat overlapping
+  work.
+
+The naming question (which the user thought through carefully): the union deserves a name
+that captures the union honestly without implying "this is lodash" (the species-js form is
+stricter than lodash on the prototype-bearing branch via the structural anchor from #044).
+Candidates considered: `PlainOrDictionaryObject` (literal union name), `AnyPlainObject`
+(uses the `Any` prefix from `AnyObject`), `Pojo` (ecosystem-recognized acronym),
+`PermissivePlainObject` (semantic axis). The literal-union form was chosen for its honesty
+about composition and its mirror of the JSDoc compose-recipe language.
+
+**Decision.** Add `PlainOrDictionaryObject = PlainObject | DictionaryObject` as a named
+type, and `isPlainOrDictionaryObject` as a dedicated predicate with a _fused_
+implementation that shares the gate and the prototype read across both branches:
+
+```js
+export function isPlainOrDictionaryObject(value) {
+  if (!isObject(value)) {
+    return false;
+  }
+  const prototype = getPrototypeOf(value);
+
+  // PlainObject — local-realm fast path
+  if (prototype === Object.prototype) {
+    return true;
+  }
+
+  // DictionaryObject — prototype-less form, two cross-validators remain
+  if (prototype === null) {
+    return (
+      getDefinedConstructor(value) === undefined &&
+      getTypeSignature(value) === '[object Object]'
+    );
+  }
+
+  // PlainObject — cross-realm fallback
+  return hasPlainObjectIdentitySignal(value) && hasPlainObjectPrototypeContract(value);
+}
+```
+
+**Rationale.** Three forces converge:
+
+- **Honest composition naming.** `PlainOrDictionaryObject` mirrors the JSDoc
+  compose-recipe `isPlainObject(v) || isDictionaryObject(v)` letter-for-letter at the type
+  level. Readers encountering the symbol for the first time understand what it admits
+  without checking the source. The body literally reads
+  `isPlainObject(value) || isDictionaryObject(value)` in plain English — the type name and
+  the implementation speak the same words.
+
+- **Fused implementation eliminates redundant work.** A naive
+  `isPlainObject(v) || isDictionaryObject(v)` body would run `isObject` twice, call
+  `getPrototypeOf` two or three times, compute `getTypeSignature` twice, and perform two
+  distinct constructor walks. The fused form runs each shared step once and dispatches by
+  prototype value to the family-specific cross-validators. For a `DictionaryObject` input
+  — the case the naive form is most wasteful on — the fused form is roughly 2× faster.
+
+- **Strict-by-default posture preserved.** The two strict types remain disjoint. The union
+  is _disjoint-preserving_: each member retains its own discriminator
+  (`constructor: ObjectConstructor` vs. `constructor?: never`). Callers wanting the
+  prototype-bearing vs prototype-less distinction still use `isPlainObject` or
+  `isDictionaryObject` alone; the new predicate is for callers who want the
+  lodash-equivalent set _and don't need the distinction_.
+
+**Consequences.** New public surface: type `PlainOrDictionaryObject` and predicate
+`isPlainOrDictionaryObject`. Module-level @module doc, package barrel doc, and the
+`isPlainObject` strictness section all point at the dedicated predicate as the recommended
+permissive form (replacing the inline compose-recipe). The fused-composite predicate
+pattern — share the gate, share the expensive structural read, dispatch by shape into the
+family-specific cross-validators — is the right shape for any future composite predicate
+over a family with a common gate.
+
+Decision #041 is superseded for the recipe surface; the strict-by-default posture remains.
+See ARCHITECTURE.md § type-detection / object — "Cross-realm safety" for the dispatch
+walkthrough.
 
 ---
 
