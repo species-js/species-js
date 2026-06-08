@@ -76,6 +76,22 @@ export declare const sealedDescriptorOptions: {
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 
 /**
+ * `Object.prototype`, realm-fixed at module-load.
+ *
+ * Captured once so consumer comparisons like `getPrototypeOf(value)
+ * === objectPrototype` are immune to a post-load reassignment of the
+ * global `Object`. `Object.prototype` itself is non-writable and
+ * non-configurable per ECMA-262 §20.1.2.1, but `globalThis.Object` is
+ * neither.
+ *
+ * Used as the local-realm fast-path target in `@/object`'s
+ * `isPlainObject` and `isPlainOrDictionaryObject`, and as the root
+ * from which {@link toObjectString} is extracted.
+ * @internal
+ */
+export declare const objectPrototype: typeof Object.prototype;
+
+/**
  * `Object.prototype.toString`, captured for `.call(value)` use.
  *
  * Returns the internal `[[Class]]` tag, such as `'[object Array]'`.

@@ -1845,6 +1845,19 @@ both helpers are individually testable. Prose references in `isPlainObject`'s `.
 JSDoc upgraded from backticked names to `{@link}` since the referents are now documented
 symbols.
 
+**Addendum (2026-06-08).** The local-realm fast path was originally written as
+`getPrototypeOf(value) === Object.prototype`. Promoted the module-local `objectPrototype`
+capture in `@/config` (previously used only by `toObjectString` extraction and the
+`hasOwnProperty` chain) to an exported `@internal` constant, then wired both
+`isPlainObject` and `isPlainOrDictionaryObject`'s fast paths through it.
+`Object.prototype` itself is non-writable per ECMA-262 §20.1.2.1, but `globalThis.Object`
+is not — reaching for `Object.prototype` at each call site resolves through whatever
+`Object` references at that moment. The capture forecloses the post-load
+`globalThis.Object` reassignment surface. Same boundary-fixing posture as decisions #017
+(`getPrototypeOf`), #034 (`objectCreate`), and #043 (`objectIs`); no TS-side retyping
+needed here since the captured reference is a pure value rather than a method with a
+lib-gap signature.
+
 ---
 
 ### 045 — Tag-signature cross-validator added to `isDictionaryObject` (2026-06-08)

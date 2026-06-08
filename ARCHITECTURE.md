@@ -1205,15 +1205,17 @@ anchor:
 
 ```js
 isObject(value) &&
-  (getPrototypeOf(value) === Object.prototype ||
+  (getPrototypeOf(value) === objectPrototype ||
     (hasPlainObjectIdentitySignal(value) && hasPlainObjectPrototypeContract(value)));
 ```
 
-The fast path (`getPrototypeOf === Object.prototype`) catches the common case in a single
-reference comparison. The structural anchor catches cross-realm Plain Objects whose
-prototype is the _other_ realm's `Object.prototype` (different reference, same structural
-shape). The signal half is two cheap string-shape markers; the contract half is the
-five-marker spec-mechanic-anchored chain detailed below.
+The fast path (`getPrototypeOf === objectPrototype`) catches the common case in a single
+reference comparison. `objectPrototype` is the realm-fixed `Object.prototype` capture from
+`@/config` — taken once at module-load so the comparison is immune to a post-load
+reassignment of `globalThis.Object`. The structural anchor catches cross-realm Plain
+Objects whose prototype is the _other_ realm's `Object.prototype` (different reference,
+same structural shape). The signal half is two cheap string-shape markers; the contract
+half is the five-marker spec-mechanic-anchored chain detailed below.
 
 `isDictionaryObject` is realm-orthogonal because prototype-less is prototype-less
 regardless of realm:
@@ -1232,7 +1234,7 @@ never be set legitimately.
 
 `isPlainOrDictionaryObject` is a _fused_ implementation rather than a naive
 `isPlainObject(v) || isDictionaryObject(v)` composition: one shared `isObject` gate, one
-shared `getPrototypeOf` read, then dispatch by prototype value (`=== Object.prototype` →
+shared `getPrototypeOf` read, then dispatch by prototype value (`=== objectPrototype` →
 accept; `=== null` → verify the two non-prototype cross-validators; else → the cross-realm
 contract walk). The fusion eliminates a redundant constructor walk and a redundant tag
 computation that would otherwise fire on `DictionaryObject` inputs.

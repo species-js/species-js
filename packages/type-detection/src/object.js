@@ -10,18 +10,20 @@
  * {@link isDictionaryObject} (strict subtype: no prototype chain),
  * and {@link isPlainOrDictionaryObject} (the union of the two strict
  * forms — the lodash-equivalent permissive semantic). The strict
- * predicates use cross-realm-safe machinery (`getPrototypeOf` from
- * `@/config`; `getTypeSignature`, `getDefinedConstructor`,
- * `getDefinedConstructorName` from `@/utility`) — they discriminate
- * the constructor identity realm-independently rather than via local
- * `instanceof Object` which would miss cross-realm Plain Objects.
+ * predicates use cross-realm-safe machinery (`getPrototypeOf`,
+ * `getOwnPropertyDescriptor`, and the realm-fixed `objectPrototype`
+ * reference from `@/config`; `getTypeSignature`, `getDefinedConstructor`,
+ * `getDefinedConstructorName` from `@/utility`; `isClass` from
+ * `@/function`) — they discriminate the constructor identity
+ * realm-independently rather than via local `instanceof Object` which
+ * would miss cross-realm Plain Objects.
  *
  * See the sibling `.d.ts` for type definitions and the per-predicate
  * specification; this `.js` carries the runtime implementation with
  * parallel JSDoc.
  */
 
-import { getOwnPropertyDescriptor, getPrototypeOf } from '@/config';
+import { getOwnPropertyDescriptor, getPrototypeOf, objectPrototype } from '@/config';
 import {
   getTypeSignature,
   getDefinedConstructor,
@@ -210,7 +212,7 @@ export function isObject(value) {
 export function isPlainObject(value) {
   return (
     isObject(value) &&
-    (getPrototypeOf(value) === Object.prototype ||
+    (getPrototypeOf(value) === objectPrototype ||
       (hasPlainObjectIdentitySignal(value) && hasPlainObjectPrototypeContract(value)))
   );
 }
@@ -314,7 +316,7 @@ export function isPlainOrDictionaryObject(value) {
   const prototype = getPrototypeOf(value);
 
   // PlainObject — local-realm fast path
-  if (prototype === Object.prototype) {
+  if (prototype === objectPrototype) {
     return true;
   }
 
