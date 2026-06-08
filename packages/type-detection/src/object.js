@@ -53,7 +53,7 @@ import { isClass } from '@/function.js';
  *
  * Used as the inexpensive front-half of the cross-realm Plain Object
  * fallback in {@link isPlainObject}: if either marker fails, the
- * more expensive `hasPlainObjectPrototypeContract` walk is skipped.
+ * more expensive {@link hasPlainObjectPrototypeContract} walk is skipped.
  * Reusable in callers that need the signal check alone — e.g., the
  * fused {@link isPlainOrDictionaryObject} dispatch.
  *
@@ -107,7 +107,7 @@ export function hasPlainObjectIdentitySignal(value) {
  *  otherwise
  * @internal
  */
-function hasPlainObjectPrototypeContract(value) {
+export function hasPlainObjectPrototypeContract(value) {
   const prototype = getPrototypeOf(value);
   const constructor = isObject(prototype) && getDefinedConstructor(prototype);
 
@@ -161,7 +161,7 @@ export function isObject(value) {
  * Object.prototype` (an O(1) reference comparison) and a
  * cross-realm-safe structural anchor formed by
  * {@link hasPlainObjectIdentitySignal} (two cheap string-shape
- * markers) AND `hasPlainObjectPrototypeContract` (a five-marker
+ * markers) AND {@link hasPlainObjectPrototypeContract} (a five-marker
  * spec-mechanic-anchored chain — `isClass` on the constructor, the
  * prototype's own `[[Class]]` tag, the constructor's own `name` and
  * `prototype` data-descriptor reads, and the chain-depth check

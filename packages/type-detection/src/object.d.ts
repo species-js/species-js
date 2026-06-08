@@ -279,14 +279,74 @@ export type PlainOrDictionaryObject = PlainObject | DictionaryObject;
 export function isObject<T = unknown>(value?: T): value is T & AnyObject;
 
 /**
+ * Probes the two inexpensive string-shape markers that suggest a value
+ * is a plain `Object` instance — the `[[Class]]` tag
+ * (`'[object Object]'`) and the constructor name (`'Object'` via the
+ * four-source walk). Both markers are cross-realm safe via the
+ * realm-fixed `toObjectString.call` capture and the constructor walk's
+ * descriptor-discipline.
+ *
+ * Used as the inexpensive front-half of the cross-realm Plain Object
+ * fallback in {@link isPlainObject}: if either marker fails, the more
+ * expensive {@link hasPlainObjectPrototypeContract} walk is skipped.
+ * Also reused by the fused {@link isPlainOrDictionaryObject} dispatch
+ * on its cross-realm branch.
+ *
+ * @param value - the value whose string-shape signal to probe
+ * @returns `true` when both string-shape markers match `Object`'s
+ *  signature; `false` otherwise
+ * @internal
+ */
+export function hasPlainObjectIdentitySignal(value?: unknown): boolean;
+
+/**
+ * Verifies the structural anchor for cross-realm Plain Object
+ * discrimination: a five-marker chain that walks from `value` to its
+ * prototype and the prototype's constructor, then verifies the
+ * spec-mechanic invariants that `Object` carries in every realm.
+ *
+ * Markers, short-circuited in cost order:
+ *
+ * 1. `isClass(constructor)` — the constructor reached via
+ *    `getDefinedConstructor(prototype)` is a built-in or
+ *    `class`-syntax newable (rejects fake-constructor pointers that
+ *    aren't even functions).
+ * 2. `getTypeSignature(prototype) === '[object Object]'` — the
+ *    prototype's own `[[Class]]` tag matches.
+ * 3. The constructor's own `name` data property reads `'Object'`
+ *    via `getOwnPropertyDescriptor(...).value` — accessor-form
+ *    definitions yield `undefined` and fail the check.
+ * 4. The constructor's own `prototype` data property points back to
+ *    the prototype walked from `value` — round-trip identity, same
+ *    descriptor discipline.
+ * 5. `getPrototypeOf(prototype) === null` — chain-depth check: the
+ *    prototype is a top-level (no further `[[Prototype]]`), which
+ *    every realm's `Object.prototype` satisfies and which class
+ *    instances and built-in container instances do not.
+ *
+ * The descriptor-via-`.value` discipline (markers 3, 4) is deliberate:
+ * any accessor-form property definition (`get`/`set`) yields `undefined`
+ * from `?.value`, closing the lying-accessor spoof surface where a
+ * getter returns one value during the check and a different value to
+ * later observers.
+ *
+ * @param value - the candidate plain object whose prototype contract
+ *  to verify
+ * @returns `true` when all five markers hold; `false` otherwise
+ * @internal
+ */
+export function hasPlainObjectPrototypeContract(value?: unknown): boolean;
+
+/**
  * Narrows a value to {@link PlainObject} — an AnyObject whose direct
  * constructor is the built-in `Object`.
  *
  * Composes two complementary checks: the local-realm fast path
  * `getPrototypeOf(value) === Object.prototype` (an O(1) reference
- * comparison) and a cross-realm-safe structural anchor formed by two
- * inexpensive string-shape signal markers AND a five-marker prototype
- * contract:
+ * comparison) and a cross-realm-safe structural anchor formed by
+ * {@link hasPlainObjectIdentitySignal} (two inexpensive string-shape
+ * signal markers) AND {@link hasPlainObjectPrototypeContract} (the
+ * five-marker prototype contract):
  *
  * - Signal markers (inexpensive, front-loaded): `[[Class]]` tag
  *   `'[object Object]'` and constructor name `'Object'`.
