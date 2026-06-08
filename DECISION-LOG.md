@@ -1325,6 +1325,29 @@ abort-channel surface the thenable round forward-referenced (`AbortSignalLike` i
 `AbortError` here; `AbortableThenable<T>` deferred to its own round). See ARCHITECTURE.md
 § type-detection / error for the lattice's positioning within the package.
 
+**Addendum (2026-06-08).** The initial body was
+`isError(value) && value.name.endsWith('AbortError')`. The 2026-06-08 audit surfaced an
+unaddressed edge case: neither the native `Error.isError` (which inspects only the
+`[[ErrorData]]` internal slot per ECMA-262 §20.5.2.2) nor the polyfill's prototype-walk
+verify the value's own `name` override. An Error with
+`Object.defineProperty(err, 'name', { value: 42 })` carries `[[ErrorData]]` and passes
+`isError`; the bare `value.name.endsWith` is then `(42).endsWith` which is `undefined`,
+and the predicate throws `TypeError`. The throw violates the predicate contract (callers
+expect a boolean). Resolved by gating the suffix-match with `isStringValue(value.name)`:
+
+```js
+export function isAbortError(value) {
+  return isError(value) && isStringValue(value.name) && value.name.endsWith('AbortError');
+}
+```
+
+The suffix-match design from the original decision is preserved; the explicit string-type
+gate is the precondition the original analysis assumed (incorrectly) the Error contract
+guaranteed. JSDoc in both `.js` and `.d.ts` updated to name the explicit gate and to call
+out the spec-edge case that motivates it. This is a sharpening of the original decision,
+not a reversal — the suffix-match shape and `AbortErrorName` template-literal pattern stay
+as designed.
+
 ---
 
 ## type-detection / primitive

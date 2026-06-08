@@ -131,13 +131,6 @@ export const toObjectString = objectPrototype.toString;
  */
 export const toFunctionString = Function.prototype.toString;
 
-// /**
-//  * Reference to `Error.prototype.toString` for error-name inspection.
-//  * Used with `.call(error)` to get an error type's name-value.
-//  * @internal
-//  */
-// export const toErrorString = Error.prototype.toString;
-
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 //
 //  Object Static Methods

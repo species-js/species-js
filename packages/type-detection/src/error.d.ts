@@ -304,10 +304,16 @@ export function isError<T = unknown>(value?: T): value is T & GenericError;
  * Narrows a value to {@link AbortError} — a {@link GenericError} whose
  * `name` ends with the `'AbortError'` suffix.
  *
- * Composes {@link isError} with a suffix-match on `value.name`. Short-
- * circuit `&&` runs `isError` first as the cheaper gate; the
- * `name.endsWith('AbortError')` check fires only after the value is
- * confirmed to be an Error, which also guarantees `name` is a string.
+ * Composes {@link isError} with an explicit `name` string-type check
+ * and a suffix-match on `value.name`. Short-circuit `&&` runs `isError`
+ * first as the cheap gate, then `isStringValue(value.name)` to confirm
+ * the `name` is a string, then the suffix check. The string-type gate
+ * is load-bearing because neither the native `Error.isError` (which
+ * inspects only the `[[ErrorData]]` slot) nor the polyfill's
+ * prototype-walk verify the value's own `name` override — an Error
+ * with `Object.defineProperty(err, 'name', { value: 42 })` passes
+ * `isError` but its `name` is not a string, and the bare suffix-call
+ * would throw `TypeError`.
  *
  * Captures the abort-channel naming convention shared by:
  *
@@ -334,9 +340,9 @@ export function isError<T = unknown>(value?: T): value is T & GenericError;
  * @typeParam T - the caller-side type of `value`; defaults to `unknown`
  * @param value - the value to test; omitted is treated as `undefined`,
  *  which is not an abort error
- * @returns `true` when the value is an Error whose `name` ends with
- *  `'AbortError'`, narrowing `value` to `T & AbortError`; `false`
- *  otherwise
+ * @returns `true` when the value is an Error whose `name` is a string
+ *  ending with `'AbortError'`, narrowing `value` to `T & AbortError`;
+ *  `false` otherwise
  * @example
  * isAbortError(new DOMException('aborted', 'AbortError')); // true
  *

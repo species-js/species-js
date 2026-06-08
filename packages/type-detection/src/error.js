@@ -255,10 +255,16 @@ export const isError = /** @type {import('@/error').isError} */ (
  * Narrows a value to {@link AbortError} — a {@link GenericError} whose
  * `name` ends with the `'AbortError'` suffix.
  *
- * Composes {@link isError} with `value.name.endsWith('AbortError')`.
- * Short-circuit `&&` runs `isError` first as the less expensive gate;
- * the suffix check fires only after the value is confirmed to be an
- * Error — which also guarantees `name` is a string per the Error contract.
+ * Composes {@link isError} with `isStringValue(value.name)` and
+ * `value.name.endsWith('AbortError')`. Short-circuit `&&` runs `isError`
+ * first as the cheap gate, then the explicit `name` string-type check,
+ * then the suffix match. The string-type check is load-bearing: neither
+ * the native `Error.isError` (which inspects only the `[[ErrorData]]`
+ * slot) nor the polyfill's prototype-walk verify the value's own `name`
+ * override. An Error with `Object.defineProperty(err, 'name', { value: 42 })`
+ * passes `isError`, but its `name` is not a string and the bare
+ * suffix-call would throw `TypeError`. The explicit `isStringValue` gate
+ * preserves the predicate contract (returns a boolean).
  *
  * Suffix-match by design — exact equality would reject the legitimate
  * qualified variants (`'TimeoutAbortError'`, `'UserAbortError'`). The
@@ -273,10 +279,10 @@ export const isError = /** @type {import('@/error').isError} */ (
  * @param {T} [value] - the value to test; omitted is treated as
  *  `undefined`, which is not an abort error
  * @returns {value is T & AbortError} `true` when the value is an Error
- *  whose `name` ends with `'AbortError'`; `false` otherwise
+ *  whose `name` is a string ending with `'AbortError'`; `false` otherwise
  */
 export function isAbortError(value) {
-  return isError(value) && value.name.endsWith('AbortError');
+  return isError(value) && isStringValue(value.name) && value.name.endsWith('AbortError');
 }
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
