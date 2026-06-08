@@ -908,7 +908,7 @@ The module ships three predicates and three types per family:
 
 ```
 XValue        (isXValue)   — primitive form via `typeof`
-BoxedX        (isBoxedX)   — boxed wrapper-object form via three structural markers
+BoxedX        (isBoxedX)   — boxed wrapper-object form via four cross-validating markers
 XType         (isX)        — composite admitting either form
 ```
 
@@ -965,19 +965,21 @@ gate, then two realm-independent identity refinements.
 
 ### Conservative-narrowing in the primitive domain
 
-The boxed predicates' three-marker chain is an instance of the conservative-narrowing
-posture established in decision #010 and applied at `isPromise` (#023), `isEventTarget` /
-`isAbortSignal` (#028), and now the boxed primitives. The marker chain provides
-bounded-cost insurance against single-marker spoofing:
+The boxed predicates' four-marker chain extends the conservative-narrowing posture
+established in decision #010 and applied at `isPromise` (#023), `isEventTarget` /
+`isAbortSignal` (#028) with engine-attested internal-slot evidence (decision #042). The
+marker chain provides bounded-cost insurance against single-marker spoofing:
 
 - Tag-spoofing alone (`Symbol.toStringTag === 'String'` on an arbitrary object) is
   rejected by the constructor-name walk.
 - Constructor-name-spoofing alone (a class named `String` that's not the built-in
   `String`) is rejected by the tag check, since the instance carries a different
   `[[Class]]` tag.
-- Both spoofs together would pass the predicate but would also pass any other reasonable
-  boxed-string test — at that point the value is structurally indistinguishable from a
-  real boxed string.
+- Both structural spoofs together would pass the first three markers but fail the
+  `[[StringData]]` internal-slot probe — the captured `String.prototype.valueOf` throws on
+  any value lacking the engine-attested slot, and the slot cannot be forged from userland.
+  At that point the value is structurally AND spec-mechanically indistinguishable from a
+  real boxed string — not a spoof but a parallel implementation.
 
 The posture is the same as on the function side and the thenable / evented sides:
 foundation-tier predicates that downstream packages depend on benefit from multiple
@@ -1241,14 +1243,14 @@ The cross-realm fallback in `isPlainObject` pairs two cheap string-shape signal 
 with a five-marker spec-mechanic-anchored prototype contract. The shape:
 
 ```js
-function hasPlainObjectIdentitySignal(value) {
+export function hasPlainObjectIdentitySignal(value) {
   return (
     getTypeSignature(value) === '[object Object]' &&
     getDefinedConstructorName(value) === 'Object'
   );
 }
 
-function hasPlainObjectPrototypeContract(value) {
+export function hasPlainObjectPrototypeContract(value) {
   const prototype = getPrototypeOf(value);
   const constructor = isObject(prototype) && getDefinedConstructor(prototype);
 
@@ -1261,6 +1263,12 @@ function hasPlainObjectPrototypeContract(value) {
   );
 }
 ```
+
+Both helpers are `@internal`-tagged and ship with parallel `.d.ts` declarations carrying
+the same walkthrough — applying decision #015's "All sub-helpers exported with parallel
+`.d.ts` declarations" uniformly across the family. The function module's
+`hasAsyncFunctionIdentitySignal` + `hasAsyncFunctionPrototypeSurface` pairing is the
+established precedent.
 
 The contract markers in cost order:
 
