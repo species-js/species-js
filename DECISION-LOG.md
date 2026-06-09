@@ -1675,6 +1675,22 @@ retyping; some need pure capture for realm-fix without any type-system change.
 Commit `8f880ee`. See ARCHITECTURE.md § type-detection / primitive for the four-marker
 chain's positioning within the discrimination lattice and the per-family equality table.
 
+**Addendum (2026-06-09).** The Boolean strategy carries an unstated assumption that the
+2026-06-08 audit (F4.1) surfaced and that the JSDoc now names explicitly: the boxed-side
+comparison `String(value)` routes through `Boolean.prototype.toString`, while the unboxed
+side `String(unboxedValue)` bypasses it via primitive-to-string coercion. The two sides
+agree in well-behaved environments because the spec's `Boolean.prototype.toString` returns
+`'true'` / `'false'` exactly matching the primitive coercion. In an adversarial
+environment that has tampered with `Boolean.prototype.toString`, real boxed Booleans would
+be falsely rejected by the fourth marker. This is the only asymmetry of its kind among the
+five equality helpers (String/BigInt use direct `===`, Number uses `Object.is`, Symbol
+cross-checks descriptions — none route through `prototype.toString` on either side). The
+asymmetry is forced by the `ToBoolean(Object) → true` trap that closes off the
+direct-`===` path. The package does not realm-fix `Boolean.prototype.toString` — the
+tampering surface is unusual in practice and adding a capture would be defensive coding
+without a matched threat model. The JSDoc in both `.js` and `.d.ts` now names the
+assumption so test design and downstream callers can account for it.
+
 ---
 
 ## type-detection / object

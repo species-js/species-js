@@ -318,6 +318,22 @@ export function isNumber(value) {
  * `Boolean(new Boolean(false))` would otherwise produce — `String` uses
  * `ToPrimitive("string")` which unwraps via `Boolean.prototype.toString`.
  *
+ * Boolean is the only one of the five primitive equality helpers whose
+ * boxed-side comparison routes through `prototype.toString` (String/BigInt
+ * use direct `===`, Number uses `Object.is`, Symbol uses a description
+ * cross-check). The asymmetry is forced by the `ToBoolean(Object) → true`
+ * trap, which closes off the direct-`===` path the other families use.
+ * As a consequence, the helper assumes `Boolean.prototype.toString` is
+ * untampered on the local realm — `toBooleanValue` is captured
+ * realm-fixed for the slot probe, but the `String(value)` path on the
+ * boxed side resolves through the live `Boolean.prototype.toString`.
+ * In an adversarial environment that has replaced
+ * `Boolean.prototype.toString`, real boxed Booleans may be falsely
+ * rejected; the unboxed side is unaffected because primitive-to-string
+ * coercion bypasses the prototype method. The tampering surface is
+ * unusual in practice and `Boolean.prototype.toString` is not realm-fixed
+ * by this package.
+ *
  * @param {unknown} value - the value to test
  * @returns {boolean} `true` when the unboxed primitive's string form
  *  equals `String(value)`; `false` otherwise (including when `valueOf`

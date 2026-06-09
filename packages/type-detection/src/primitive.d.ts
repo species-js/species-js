@@ -703,6 +703,17 @@ export function doesHaveStrictUnboxedNumberValueEquality(value: unknown): boolea
  * comparison sidesteps the `ToBoolean(Object) === true` trap that
  * `Boolean(new Boolean(false))` would otherwise produce.
  *
+ * The helper assumes `Boolean.prototype.toString` is untampered on the
+ * local realm — `String(value)` for a boxed Boolean resolves through
+ * the live prototype method, while the unboxed side bypasses it via
+ * primitive-to-string coercion. Among the five primitive equality
+ * helpers, only Boolean has this asymmetry (forced by the
+ * `ToBoolean(Object) → true` trap that closes off the direct-`===`
+ * path the other families use). Userland tampering with
+ * `Boolean.prototype.toString` is unusual but would produce false
+ * negatives on real boxed Booleans. `Boolean.prototype.toString` is not
+ * realm-fixed by this package.
+ *
  * @param value - the value to test
  * @returns `true` when the unboxed primitive's string form equals
  *  `String(value)`; `false` otherwise (including when `valueOf` throws)
