@@ -13,6 +13,7 @@ import {
   getOwnPropertyDescriptors,
   getOwnPropertyDescriptor,
   getPrototypeOf,
+  objectHasOwn,
   objectKeys,
   toObjectString,
   isSafeIntegerValue,
@@ -231,6 +232,85 @@ export function hasInertMethod(type = null, key) {
   );
 }
 
+/**
+ * Tests whether the value carries an accessor `get` at `key`, reachable
+ * through its prototype chain.
+ *
+ * Sibling of {@link hasInertMethod} for the accessor-getter case. The
+ * descriptor walk returns the first descriptor found at any chain
+ * level; if that descriptor's `get` field is callable, the predicate
+ * returns `true`. Data descriptors yield `undefined` from `?.get` and
+ * are rejected — the helper specifically tests for the accessor
+ * shape's `get`.
+ *
+ * Fully inert. The descriptor is read without invocation; the `get`
+ * function itself is referenced but never called.
+ *
+ * @param {unknown} type - the value to inspect
+ * @param {PropertyKey} key - the property key to resolve through the
+ *  value's prototype chain
+ * @returns {boolean} `true` when the value carries an accessor with a
+ *  callable getter at `key` in its prototype chain; `false` otherwise
+ * @internal
+ */
+export function hasInertGetter(type = null, key) {
+  return type !== null && isCallable(getNextAvailablePropertyDescriptor(type, key)?.get);
+}
+
+/**
+ * Tests whether the value carries an accessor `set` at `key`, reachable
+ * through its prototype chain.
+ *
+ * Sibling of {@link hasInertGetter} for the setter case. Same descriptor
+ * walk + descriptor-shape discipline; data descriptors are rejected
+ * (their `set` field is undefined). Fully inert.
+ *
+ * @param {unknown} type - the value to inspect
+ * @param {PropertyKey} key - the property key to resolve through the
+ *  value's prototype chain
+ * @returns {boolean} `true` when the value carries an accessor with a
+ *  callable setter at `key` in its prototype chain; `false` otherwise
+ * @internal
+ */
+export function hasInertSetter(type = null, key) {
+  return type !== null && isCallable(getNextAvailablePropertyDescriptor(type, key)?.set);
+}
+
+/**
+ * Tests whether the value carries a data property at `key`, reachable
+ * through its prototype chain.
+ *
+ * Sibling of {@link hasInertMethod} for the data-descriptor presence
+ * case. Uses `objectHasOwn(descriptor, 'value')` rather than
+ * `?.value !== undefined` because a data descriptor may legitimately
+ * hold `undefined` as its value — both `{ value: undefined, writable:
+ * true, … }` and "no descriptor" would otherwise be conflated. The
+ * `objectHasOwn` check distinguishes "the descriptor IS a data
+ * descriptor" from "the value is undefined" cleanly, matching
+ * ECMA-262 §6.2.5.1 `IsDataDescriptor`.
+ *
+ * The `?? {}` fallback guards against `objectHasOwn(undefined, ...)`,
+ * which throws per ECMA-262 §20.1.2.13 step 1 (ToObject).
+ *
+ * Fully inert. Use to discriminate data-vs-accessor descriptor shapes
+ * along a prototype chain without invoking either getters or stored
+ * values.
+ *
+ * @param {unknown} type - the value to inspect
+ * @param {PropertyKey} key - the property key to resolve through the
+ *  value's prototype chain
+ * @returns {boolean} `true` when the value carries a data descriptor at
+ *  `key` in its prototype chain; `false` otherwise (including accessor
+ *  descriptors and missing descriptors)
+ * @internal
+ */
+export function hasInertValue(type = null, key) {
+  return (
+    type !== null &&
+    objectHasOwn(getNextAvailablePropertyDescriptor(type, key) ?? {}, 'value')
+  );
+}
+
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 //
 //  Type-Signature Readers
@@ -297,88 +377,89 @@ export function getTaggedType(...args) {
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 
 /**
- * Walks the value to its constructor function.
+ * Walks the value to its constructor function via inert descriptor
+ * traversal.
  *
- * Inspects up to four sources in order, gated by {@link isFunction} at
- * each step:
+ * Pivot — callable values are walked from themselves (finding their
+ * own constructor: `Function` for plain functions, `%GeneratorFunction%`
+ * for generator functions, `%AsyncFunction%` for async functions, etc.);
+ * non-callable values are walked from their `[[Prototype]]`. The
+ * non-callable pivot deliberately bypasses the value's own `constructor`
+ * data descriptor — user-supplied tampering on plain objects (e.g.,
+ * `{ constructor: 'tampered' }`, `{ constructor: Array }`) cannot
+ * influence the result, which always reflects the structural type via
+ * the prototype chain.
  *
- * 1. The value's own `constructor` descriptor.
- * 2. The meta-constructor on that value (`constructor.constructor`).
- * 3. The prototype's `constructor` descriptor.
- * 4. The prototype's meta-constructor.
+ * When the caller knows the input IS itself a real prototype object
+ * (the result of `getPrototypeOf(instance)`, an `X.prototype` reference,
+ * etc.), passing `{ assumePrototype: true }` skips the
+ * walk-up-from-`[[Prototype]]` step and lets the descriptor walk start
+ * at the value itself. ECMA-262 §10.2.6 mandates an own `constructor`
+ * data property on every function-created prototype, so this option
+ * reads exactly that own descriptor (e.g.,
+ * `getDefinedConstructor(Object.prototype, { assumePrototype: true })`
+ * yields `Object`).
  *
- * If all four are unreachable or non-callable, the result is `undefined`.
+ * Two-stage walk:
  *
- * The return type is {@link NewableFunction} because a real constructor is
- * newable by definition. The runtime guard verifies callability only,
- * since the `[[Construct]]` slot cannot be probed without invoking, so the
- * newable claim is asserted rather than verified.
+ * 1. {@link getNextAvailablePropertyDescriptor} on the pivot finds the
+ *    first `constructor` descriptor along its `[[Prototype]]` chain. For
+ *    the common case the descriptor's value is a function, returned
+ *    directly.
+ * 2. For the generator-function family the first walk lands on a
+ *    `constructor` descriptor whose value is itself an OBJECT, not a
+ *    function — specifically `%GeneratorFunction.prototype%` or
+ *    `%AsyncGeneratorFunction.prototype%`. The follow-up walk on that
+ *    object recovers the actual function constructor
+ *    (`%GeneratorFunction%`, `%AsyncGeneratorFunction%`).
+ *
+ * Fully inert — accessor getters are never invoked. There are valid
+ * cases where a reachable `constructor` reference is neither newable
+ * nor a function at all. If such a descriptor-structure appears, it
+ * gets resolved. The returned value is always either `undefined` or
+ * a function asserted as {@link NewableFunction} (the `[[Construct]]`
+ * slot cannot be probed without invoking, so the newable claim is
+ * asserted rather than verified — only callability is verified at
+ * each stage via `isFunction`).
  *
  * @param {unknown} [value] - the value whose constructor should be retrieved
+ * @param {{ assumePrototype?: boolean }} [options] - call-site hints.
+ *  `assumePrototype: true` treats `value` as a real prototype object
+ *  and walks from `value` itself rather than from `getPrototypeOf(value)`,
+ *  matching ECMA-262 §10.2.6 for known prototypes.
  * @returns {NewableFunction | undefined} the constructor function when
  *  reachable; `undefined` otherwise
  * @example
- * getDefinedConstructor([]);                  // Array
- * getDefinedConstructor(new Date());          // Date
- * getDefinedConstructor(Object.create(null)); // undefined
+ * getDefinedConstructor([]);                                    // Array
+ * getDefinedConstructor(new Date());                            // Date
+ * getDefinedConstructor(Object.create(null));                   // undefined
+ * getDefinedConstructor((function* () {})());                   // GeneratorFunction
+ * getDefinedConstructor({ constructor: 'tampered' });           // Object (override bypassed)
+ * getDefinedConstructor(Object.prototype, { assumePrototype: true }); // Object
  */
-export function getDefinedConstructor(value = null) {
+export function getDefinedConstructor(value = null, options) {
   if (value === null) {
     return void 0;
   }
-  const constructor =
-    /** @type {unknown} */ (
-      getOwnPropertyDescriptor(/** @type {object} */ (value), 'constructor')?.value
-    ) ?? /** @type {{ constructor?: unknown }} */ (value).constructor;
+  const { assumePrototype = false } =
+    /** @type {{ assumePrototype?: boolean }} */ (options) ?? {};
+  const type = isCallable(value) || assumePrototype ? value : getPrototypeOf(value);
 
-  if (isFunction(constructor)) {
-    return /** @type {NewableFunction} */ (constructor);
-  } else {
-    // Meta-constructor fallback. Direct `constructor?.constructor` access is
-    // deliberate, not a defensive miss: `constructor` on the constructor is
-    // inherited via the prototype chain (e.g. `%GeneratorFunction%.constructor`
-    // resolves through `%Function.prototype%` to `%Function%`), and the
-    // engine's prototype-chain walk is the spec-correct resolution. A
-    // descriptor-first read here would return `undefined` for every
-    // inherited case and fall through to direct access anyway. See
-    // [[design-rulings]] "spec-shape determines the access path".
-    const creator = /** @type {{ constructor?: unknown } | null | undefined} */ (
-      constructor
-    )?.constructor;
+  // - There are valid cases where a direct `constructor` reference is neither
+  //   a newable function-type nor a function-type at all.
+  // - If such a descriptor-structure appears, it gets resolved, but the final
+  //   form of a constructor-function, the `NewableFunction` type, is assumed
+  //   and castest, but never tested against and never enforced.
 
-    if (isFunction(creator)) {
-      return /** @type {NewableFunction} */ (creator);
-    }
-  }
-  // Value's own `constructor` slot is unusable — replaced, or the value was
-  // created via `Object.create(null)`. Fall through to the prototype's
-  // `constructor` as the next-best source.
+  const creator = getNextAvailablePropertyDescriptor(type, 'constructor')?.value ?? null;
 
-  const prototype = getPrototypeOf(value) ?? null;
+  if (isFunction(creator)) {
+    return /** @type {NewableFunction} */ (creator);
+  } else if (creator !== null) {
+    const constructor = getNextAvailablePropertyDescriptor(creator, 'constructor')?.value;
 
-  if (prototype === null) {
-    return void 0;
-  }
-
-  const protoConstructor =
-    /** @type {unknown} */ (getOwnPropertyDescriptor(prototype, 'constructor')?.value) ??
-    /** @type {{ constructor?: unknown }} */ (prototype).constructor;
-
-  if (isFunction(protoConstructor)) {
-    return /** @type {NewableFunction} */ (protoConstructor);
-  } else {
-    // Prototype-side meta-constructor fallback. Same rationale as the
-    // value-side meta-constructor step above: direct access lets the
-    // engine resolve `constructor.constructor` through the prototype
-    // chain, which is the spec-correct path for inherited reciprocal
-    // references (GeneratorFunction↔Generator, etc.). See
-    // [[design-rulings]] "spec-shape determines the access path".
-    const protoCreator = /** @type {{ constructor?: unknown } | null | undefined} */ (
-      protoConstructor
-    )?.constructor;
-
-    if (isFunction(protoCreator)) {
-      return /** @type {NewableFunction} */ (protoCreator);
+    if (isFunction(constructor)) {
+      return /** @type {NewableFunction} */ (constructor);
     }
   }
   return void 0;

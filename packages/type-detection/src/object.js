@@ -111,7 +111,16 @@ export function hasPlainObjectIdentitySignal(value) {
  */
 export function hasPlainObjectPrototypeContract(value) {
   const prototype = getPrototypeOf(value);
-  const constructor = isObject(prototype) && getDefinedConstructor(prototype);
+  // `assumePrototype: true` — the prototype walked from `value` IS a
+  // real prototype object; its own `constructor` descriptor is the
+  // spec-mandated source (ECMA-262 §10.2.6). Without this hint,
+  // `getDefinedConstructor` would walk one level further up and read
+  // `Object.prototype`'s own constructor (i.e. `Object`) for EVERY
+  // plain object's prototype, including `Object.prototype` itself
+  // — which would overshoot, yielding `undefined` for the canonical
+  // local-realm case.
+  const constructor =
+    isObject(prototype) && getDefinedConstructor(prototype, { assumePrototype: true });
 
   return (
     isClass(constructor) &&

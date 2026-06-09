@@ -48,6 +48,12 @@ export interface PropertyDescriptorMap {
 }
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
+
+export interface DefinedConstructorAccessorOptions {
+  assumePrototype?: boolean;
+}
+
+// ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 //
 //  Object-Shape Types
 //
@@ -263,6 +269,72 @@ export function getOwnPropertyDescriptorsKeySet(value?: unknown): Set<string>;
  */
 export function hasInertMethod(type: unknown, key: PropertyKey): boolean;
 
+/**
+ * Tests whether the value carries an accessor `get` at `key`, reachable
+ * through its prototype chain.
+ *
+ * Sibling of {@link hasInertMethod} for the accessor-getter case. The
+ * descriptor walk returns the first descriptor found at any chain
+ * level; if that descriptor's `get` field is callable, the predicate
+ * returns `true`. Data descriptors yield `undefined` from `?.get` and
+ * are rejected.
+ *
+ * Fully inert. The descriptor is read without invocation; the `get`
+ * function itself is referenced but never called.
+ *
+ * @param type - the value to inspect
+ * @param key - the property key to resolve through the value's
+ *  prototype chain
+ * @returns `true` when the value carries an accessor with a callable
+ *  getter at `key` in its prototype chain; `false` otherwise
+ * @internal
+ */
+export function hasInertGetter(type: unknown, key: PropertyKey): boolean;
+
+/**
+ * Tests whether the value carries an accessor `set` at `key`, reachable
+ * through its prototype chain.
+ *
+ * Sibling of {@link hasInertGetter} for the setter case. Same
+ * descriptor-walk + descriptor-shape discipline; data descriptors are
+ * rejected (their `set` field is undefined). Fully inert.
+ *
+ * @param type - the value to inspect
+ * @param key - the property key to resolve through the value's
+ *  prototype chain
+ * @returns `true` when the value carries an accessor with a callable
+ *  setter at `key` in its prototype chain; `false` otherwise
+ * @internal
+ */
+export function hasInertSetter(type: unknown, key: PropertyKey): boolean;
+
+/**
+ * Tests whether the value carries a data property at `key`, reachable
+ * through its prototype chain.
+ *
+ * Sibling of {@link hasInertMethod} for the data-descriptor presence
+ * case. Uses `objectHasOwn(descriptor, 'value')` rather than
+ * `?.value !== undefined` because a data descriptor may legitimately
+ * hold `undefined` as its value — both `{ value: undefined, writable:
+ * true, … }` and "no descriptor" would otherwise be conflated. The
+ * `objectHasOwn` check distinguishes "the descriptor IS a data
+ * descriptor" from "the value is undefined" cleanly, matching
+ * ECMA-262 §6.2.5.1 `IsDataDescriptor`.
+ *
+ * Fully inert. Use to discriminate data-vs-accessor descriptor shapes
+ * along a prototype chain without invoking either getters or stored
+ * values.
+ *
+ * @param type - the value to inspect
+ * @param key - the property key to resolve through the value's
+ *  prototype chain
+ * @returns `true` when the value carries a data descriptor at `key`
+ *  in its prototype chain; `false` otherwise (including accessor
+ *  descriptors and missing descriptors)
+ * @internal
+ */
+export function hasInertValue(type: unknown, key: PropertyKey): boolean;
+
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 //
 //  Type-Signature Readers
@@ -320,32 +392,55 @@ export function getTaggedType(): undefined;
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 
 /**
- * Walks the value to its constructor function.
+ * Walks the value to its constructor function via inert descriptor
+ * traversal.
  *
- * Defends against tampered `constructor` slots and prototype-less objects
- * by trying multiple fallback sources. Inspects up to four sources in
- * order, gated by callability at each step:
+ * Pivot — callable values are walked from themselves (finding their
+ * own constructor: `Function` for plain functions, `%GeneratorFunction%`
+ * for generator functions, `%AsyncFunction%` for async functions, etc.);
+ * non-callable values are walked from their `[[Prototype]]`. The
+ * non-callable pivot deliberately bypasses the value's own
+ * `constructor` data descriptor — user-supplied tampering on plain
+ * objects (e.g., `{ constructor: 'tampered' }`, `{ constructor: Array }`)
+ * cannot influence the result.
  *
- * 1. The value's own `constructor` descriptor.
- * 2. The meta-constructor on that value (`constructor.constructor`).
- * 3. The prototype's `constructor` descriptor.
- * 4. The prototype's meta-constructor.
+ * When the caller knows the input IS itself a real prototype object
+ * (the result of `getPrototypeOf(instance)`, an `X.prototype` reference,
+ * etc.), passing `{ assumePrototype: true }` skips the walk-up step and
+ * lets the descriptor walk start at the value itself, reading the
+ * spec-mandated own `constructor` (ECMA-262 §10.2.6).
  *
- * If all four are unreachable or non-callable, the result is `undefined`.
+ * Two-stage walk: the first stage finds the first `constructor`
+ * descriptor along the pivot's `[[Prototype]]` chain; if its value is a
+ * function it is returned. For the generator-function family the first
+ * stage lands on a descriptor whose value is itself an OBJECT
+ * (`%GeneratorFunction.prototype%` or `%AsyncGeneratorFunction.prototype%`),
+ * and the second stage walks that object to recover the actual function
+ * constructor.
  *
- * The return type is {@link NewableFunction} because a real constructor is
- * newable by definition. The runtime guard verifies callability only,
- * since the `[[Construct]]` slot cannot be probed without invoking, so
- * the newable claim is asserted rather than verified.
+ * Fully inert — accessor getters are never invoked. The returned value
+ * is always either `undefined` or a function asserted as
+ * {@link NewableFunction}; the `[[Construct]]` slot cannot be probed
+ * without invoking, so newability is asserted rather than verified.
  *
  * @param value - the value whose constructor should be retrieved
+ * @param options - call-site hints
+ * @param options.assumePrototype - treats `value` as a real
+ *  prototype-object and walks from `value` itself rather than
+ *  from `getPrototypeOf(value)`. Defaults to `false`.
  * @returns the constructor function when reachable; `undefined` otherwise
  * @example
- * getDefinedConstructor([]);                  // Array
- * getDefinedConstructor(new Date());          // Date
- * getDefinedConstructor(Object.create(null)); // undefined
+ * getDefinedConstructor([]);                                          // Array
+ * getDefinedConstructor(new Date());                                  // Date
+ * getDefinedConstructor(Object.create(null));                         // undefined
+ * getDefinedConstructor((function* () {})());                         // GeneratorFunction
+ * getDefinedConstructor({ constructor: 'tampered' });                 // Object
+ * getDefinedConstructor(Object.prototype, { assumePrototype: true }); // Object
  */
-export function getDefinedConstructor(value?: unknown): NewableFunction | undefined;
+export function getDefinedConstructor(
+  value?: unknown,
+  options?: DefinedConstructorAccessorOptions,
+): NewableFunction | undefined;
 
 /**
  * Returns the constructor's `name` via its property descriptor.

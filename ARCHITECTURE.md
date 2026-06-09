@@ -1254,7 +1254,8 @@ export function hasPlainObjectIdentitySignal(value) {
 
 export function hasPlainObjectPrototypeContract(value) {
   const prototype = getPrototypeOf(value);
-  const constructor = isObject(prototype) && getDefinedConstructor(prototype);
+  const constructor =
+    isObject(prototype) && getDefinedConstructor(prototype, { assumePrototype: true });
 
   return (
     isClass(constructor) &&
@@ -1272,12 +1273,21 @@ the same walkthrough — applying decision #015's "All sub-helpers exported with
 `hasAsyncFunctionIdentitySignal` + `hasAsyncFunctionPrototypeSurface` pairing is the
 established precedent.
 
+The `{ assumePrototype: true }` option on `getDefinedConstructor` is load-bearing here.
+The `prototype` argument is the result of `getPrototypeOf(value)` — by construction, a
+real prototype object whose own `constructor` descriptor is the spec-mandated source per
+ECMA-262 §10.2.6. The option tells `getDefinedConstructor` to start its descriptor walk at
+the value itself rather than walking one level up; without it, the function would
+overshoot the canonical local-realm `Object.prototype` case (walking to `null` and
+returning `undefined`) and break the round-trip identity check that follows. See decision
+#047 for the pivot semantics and the option's full rationale.
+
 The contract markers in cost order:
 
 1. **`isClass(constructor)`** — the constructor reached via
-   `getDefinedConstructor(prototype)` is a built-in or `class`-syntax newable. Rejects
-   fake-`constructor`-pointer spoofs where the value's `constructor` is tampered to
-   reference a non-function value.
+   `getDefinedConstructor(prototype, { assumePrototype: true })` is a built-in or
+   `class`-syntax newable. Rejects fake-`constructor`-pointer spoofs where the value's
+   `constructor` is tampered to reference a non-function value.
 2. **Prototype's own `[[Class]]` tag** —
    `getTypeSignature(prototype) === '[object Object]'`. Real `Object.prototype`s tag
    uniformly across realms.
