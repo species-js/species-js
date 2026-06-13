@@ -513,12 +513,23 @@ export function getDefinedConstructorName(value) {
 //
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 
+const startsWithUpperCase = /^\p{Lu}/u;
+
 /**
  * Resolves a value to its type-name.
  *
- * Tries the constructor-name when reachable; falls back to the
- * tagged-type otherwise. The fallback also fires when the value's
- * `constructor` slot has been replaced with a non-callable.
+ * Prefers the constructor name when it is a real type identifier (a
+ * Unicode uppercase-leading string per `\p{Lu}`). Otherwise falls back
+ * to the structural tag from {@link getTaggedType}, with one refinement:
+ * a lowercase constructor name carries more information than the
+ * uninformative `'Object'` tag, so it wins that specific conflict.
+ *
+ * The constructor-name read composes {@link getDefinedConstructorName},
+ * whose underlying {@link getDefinedConstructor} walk is fully inert and
+ * bypasses user-supplied `constructor` data descriptors. The tag
+ * fallback therefore fires only for genuinely weak names (anonymous
+ * functions, no reachable constructor) and for primitives whose tag is
+ * the canonical answer (`'Null'`, `'Undefined'`).
  *
  * Works for every built-in. Custom types remain stable across
  * minification only if both the constructor's `name` descriptor and the
@@ -532,10 +543,13 @@ export function getDefinedConstructorName(value) {
  * @returns {ResolvedType | undefined} the resolved type-name when an
  *  argument was provided; `undefined` when no argument was passed
  * @example
- * resolveType([]);                // 'Array'
- * resolveType(Promise.resolve()); // 'Promise'
- * resolveType(null);              // 'Null'
- * resolveType();                  // undefined
+ * resolveType([]);                         // 'Array'
+ * resolveType(Promise.resolve());          // 'Promise'
+ * resolveType(null);                       // 'Null'
+ * resolveType(Object.create(null));        // 'Object'
+ * resolveType(new (function foo () {})()); // 'foo'
+ * resolveType(new (function () {})());     // 'Object'
+ * resolveType();                           // undefined
  */
 export function resolveType(...args) {
   const /** @type {unknown} */ value = args[0];
@@ -543,22 +557,14 @@ export function resolveType(...args) {
   if (args.length === 0) {
     return /** @type {undefined} */ (value);
   }
-  const resolvedType = getDefinedConstructorName(value) ?? null;
+  const name = getDefinedConstructorName(value);
 
-  if (resolvedType === null) {
-    // Covers `undefined`, `null`, and prototype-less objects.
-    return getTaggedType(value);
+  if (name && startsWithUpperCase.test(name)) {
+    return name;
   }
-  const constructor =
-    /** @type {unknown} */ (
-      getOwnPropertyDescriptor(/** @type {object} */ (value), 'constructor')?.value
-    ) ?? /** @type {{ constructor?: unknown }} */ (value).constructor;
+  const type = getTaggedType(value);
 
-  if (!isFunction(constructor)) {
-    // Value has no function-typed `constructor` slot — fall back to the tag.
-    return getTaggedType(value);
-  }
-  return resolvedType;
+  return type === 'Object' && name ? name : type;
 }
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----

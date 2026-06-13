@@ -481,9 +481,17 @@ export function getDefinedConstructorName(value?: unknown): ConstructorName | un
 /**
  * Resolves a value to its type-name.
  *
- * Tries the constructor-name when reachable; falls back to the
- * tagged-type otherwise. The fallback also fires when the value's
- * `constructor` slot has been replaced with a non-callable.
+ * Prefers the constructor name when it is a real type identifier (a
+ * Unicode uppercase-leading string per `\p{Lu}`). Otherwise falls back
+ * to the structural tag from {@link getTaggedType}, with one refinement:
+ * a lowercase constructor name carries more information than the
+ * uninformative `'Object'` tag, so it wins that specific conflict.
+ *
+ * The constructor-name read is tamper-resistant — user-supplied
+ * `constructor` data descriptors on the value cannot influence the
+ * result. The tag fallback therefore fires only for genuinely weak
+ * names (anonymous functions, no reachable constructor) and for
+ * primitives whose tag is the canonical answer (`'Null'`, `'Undefined'`).
  *
  * Works for every built-in. Custom types remain stable across
  * minification only if both the constructor's `name` descriptor and the
@@ -492,9 +500,12 @@ export function getDefinedConstructorName(value?: unknown): ConstructorName | un
  * @param value - the value whose type-name should be resolved
  * @returns the resolved type-name (constructor-name or tagged-type)
  * @example
- * resolveType([]);                // 'Array'
- * resolveType(Promise.resolve()); // 'Promise'
- * resolveType(null);              // 'Null'
+ * resolveType([]);                         // 'Array'
+ * resolveType(Promise.resolve());          // 'Promise'
+ * resolveType(null);                       // 'Null'
+ * resolveType(Object.create(null));        // 'Object'
+ * resolveType(new (function foo () {})()); // 'foo'
+ * resolveType(new (function () {})());     // 'Object'
  */
 export function resolveType(value: unknown): ResolvedType;
 
