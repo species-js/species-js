@@ -171,7 +171,16 @@ authority stays with the user.
 
 ## Architecture notes
 
-See `SCAFFOLD.md` for all configuration rationale.
+See `SCAFFOLD.md` for all configuration rationale. Per-package architecture and decisions
+live under `packages/<name>/docs/`:
+
+- `packages/<name>/docs/architecture/` — one file per module (mental model, cross-realm
+  safety, predicate composition, open questions). `README.md` indexes the module files and
+  lists cross-cutting patterns.
+- `packages/<name>/docs/decisions/` — one ADR file per decision (`NNNN-slug.md`).
+  `README.md` indexes by domain and chronologically; `open-questions.md` tracks unresolved
+  policy/scope questions.
+- `packages/<name>/docs/spec/` — behavioral specs per module (test-driving).
 
 Key patterns from the sibling project (`es-async-types` / `cadence-js`):
 
