@@ -89,6 +89,16 @@ export function getFunctionSource(value) {
  *  `undefined`, which is not callable
  * @returns {value is T & Callable} `true` when `typeof value === 'function'`,
  *  narrowing `value` to `T & Callable`; `false` otherwise
+ *
+ *  Note on LOAD-ORDER INVARIANT:
+ *  The current implementation must remain a hoisted `function` declaration.
+ * `@/config` calls `isCallable` at its own module-evaluation time (the
+ * `objectHasOwn` and `Number.is*` gates), and `config` sits in a circular
+ * import with this module. Function-declaration hoisting is what makes
+ * `isCallable` reachable mid-cycle, before `function.js` has finished
+ * evaluating. Rewriting this as `const isCallable = (value) => …` puts the
+ * binding in the temporal dead zone and throws at package-load. Re-export
+ * order in `index.js` does not save it; the binding form does.
  */
 export function isCallable(value) {
   return typeof value === 'function';
@@ -143,7 +153,7 @@ export function isFunction(value) {
  * Builds a `Proxy` whose `construct` trap returns an empty object, then
  * attempts `new proxy(…)`. If `[[Construct]]` is reachable on the proxy's
  * target, the construction succeeds and the function returns `true`.
- * Otherwise the `new` throws and the function returns `false`.
+ * Otherwise, the `new` throws and the function returns `false`.
  *
  * The MDN-cited invariant — "the target used to initialize the proxy must
  * itself be a valid constructor" — is what makes this a reliable lenient
@@ -156,6 +166,16 @@ export function isFunction(value) {
  *  `undefined`, which carries no `[[Construct]]`
  * @returns {boolean} `true` when the value carries `[[Construct]]`; `false`
  *  otherwise
+ *
+ * Note on COSTs:
+ * Each call allocates a `Proxy` and runs a `new` inside a `try`/`catch`.
+ * The async, generator, and async-generator predicates only reach this
+ * on their cross-realm fallback (the same-realm `instanceof` fast path
+ * runs first), but {@link isNewableFunction}, {@link isES3Function},
+ * and {@link isClass} route through it unconditionally. There is no less
+ * expensive way to probe `[[Construct]]` without invoking the value itself,
+ * so this is the correct technique — but downstream callers placing those
+ * guards on a hot path should be aware of the allocation.
  */
 export function hasConstructSlot(value) {
   try {
