@@ -2182,7 +2182,7 @@ accessor `set`), and `hasInertValue` (probe for data-descriptor presence, distin
 with parallel `.d.ts` declarations per decision #015. `objectHasOwn` is the new `@/config`
 import in `@/utility`; the unused `isNewableFunction` import was dropped.
 
-Commit `<TBD>`. See ARCHITECTURE.md § type-detection / object — "Structural anchor for
+Commit `be32d4d`. See ARCHITECTURE.md § type-detection / object — "Structural anchor for
 `isPlainObject`" for the updated call site.
 
 ---
@@ -2285,8 +2285,8 @@ the function to avoid per-call compilation.
 The `ResolvedType` union is not narrowed at the type level — other producers in the module
 may still emit `''` — but `resolveType` itself no longer surfaces it.
 
-Commit `<TBD>`. See ARCHITECTURE.md § type-detection / utility — "Type Resolution" for the
-two-axis dispatch walk-through and the spoof-resistance composition with #047.
+Commit `d0c470d`. See ARCHITECTURE.md § type-detection / utility — "Type Resolution" for
+the two-axis dispatch walk-through and the spoof-resistance composition with #047.
 
 ---
 
