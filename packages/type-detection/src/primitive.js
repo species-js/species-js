@@ -7,25 +7,45 @@
  *
  * Each of JavaScript's five primitive families (`string`, `number`,
  * `boolean`, `symbol`, `bigint`) ships three predicates here: a
- * `typeof`-based value predicate, a four-marker boxed predicate, and
- * a composite predicate admitting either form. Boxed predicates use
- * the cross-realm-safe `getTypeSignature` (realm-fixed
- * `Object.prototype.toString.call` capture) and
- * `getDefinedConstructorName` (four-source constructor walk) from
- * `@/utility`, paired with the {@link isObject} gate from `@/object`
- * (truthiness + `typeof === 'object'`) that runs first for O(1)
- * primitive-and-null rejection, and with the spec-precise
- * `[[XData]]` internal-slot probe via the captured
- * `X.prototype.valueOf` as the spoof-proof bottom marker. The
- * four-marker chain extends the conservative-narrowing posture
+ * `typeof`-based value predicate, a boxed predicate, and a composite
+ * predicate admitting either form. All boxed predicates share two
+ * fixtures — the {@link isObject} gate from `@/object` (truthiness +
+ * `typeof === 'object'`) at the top for O(1) primitive-and-null
+ * rejection, and the spec-precise `[[XData]]` internal-slot probe via
+ * the captured `X.prototype.valueOf` at the bottom as the spoof-proof
+ * sealing marker.
+ *
+ * Between those fixtures the families split by whether their type's
+ * intrinsic is a true constructor:
+ *
+ * - **`isBoxedString` / `isBoxedNumber` / `isBoxedBoolean`** — two-branch
+ *   identity check. The local-realm fast path pairs `value instanceof X`
+ *   with `getPrototypeOf(value) === X.prototype`; the cross-realm
+ *   structural fallback pairs the `[[Class]]` tag with the resolved
+ *   constructor name. Both branches reject subclasses (the proto-identity
+ *   check on the local path, the constructor-name walk on the cross-realm
+ *   path). The slot probe seals either branch.
+ * - **`isBoxedSymbol` / `isBoxedBigInt`** — four-marker structural chain
+ *   only (`isObject` + tag + constructor name + slot probe). The
+ *   local-realm `instanceof` branch is deliberately omitted because
+ *   `Symbol` and `BigInt` are factory functions, not constructors —
+ *   `new Symbol()` and `new BigInt()` both throw, and although
+ *   `Object(Symbol('x')) instanceof Symbol` evaluates to `true` under
+ *   the default `OrdinaryHasInstance` algorithm, the result is incidental
+ *   to prototype-chain walking rather than a meaningful identity test.
+ *   The structural chain is the honest discriminator for these families.
+ *
+ * The boxed predicates extend the conservative-narrowing posture
  * established by `isPromise` / `isEventTarget` (decisions #010, #023,
- * #028) with engine-attested internal-slot evidence (decision #042).
+ * #028) with engine-attested internal-slot evidence (decision #042);
+ * the two-branch identity check on String / Number / Boolean and the
+ * factory-function carve-out for Symbol / BigInt are decision #049.
  *
  * See the sibling `.d.ts` for the per-predicate doc; this `.js` carries
  * the runtime implementation with parallel JSDoc.
  */
 
-import { objectIs } from '@/config';
+import { objectIs, getPrototypeOf } from '@/config';
 import { getTypeSignature, getDefinedConstructorName } from '@/utility';
 
 import { isObject } from '@/object.js';
@@ -54,9 +74,17 @@ import { isObject } from '@/object.js';
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 
-const toStringValue = String.prototype.valueOf;
-const toNumberValue = Number.prototype.valueOf;
-const toBooleanValue = Boolean.prototype.valueOf;
+const StringConstructor = String;
+const NumberConstructor = Number;
+const BooleanConstructor = Boolean;
+
+const stringPrototype = StringConstructor.prototype;
+const numberPrototype = NumberConstructor.prototype;
+const booleanPrototype = BooleanConstructor.prototype;
+
+const toStringValue = stringPrototype.valueOf;
+const toNumberValue = numberPrototype.valueOf;
+const toBooleanValue = booleanPrototype.valueOf;
 const toSymbolValue = Symbol.prototype.valueOf;
 const toBigIntValue = BigInt.prototype.valueOf;
 
@@ -116,21 +144,31 @@ export function isStringValue(value) {
 }
 
 /**
- * Narrows a value to the boxed `String` wrapper-object form via four
- * cross-validating markers — the {@link isObject} gate, the `[[Class]]`
- * tag `'[object String]'`, the constructor name `'String'`, and the
+ * Narrows a value to the boxed `String` wrapper-object form via the
+ * {@link isObject} gate, a two-branch identity check, and the
  * spec-precise `[[StringData]]` internal-slot probe via
  * {@link doesHaveStrictUnboxedStringValueEquality}.
  *
- * Short-circuit `&&` runs the markers in cost order: the `isObject`
- * gate first (O(1) primitive-and-null rejection), tag check second
- * (cross-realm-safe via realm-fixed `toObjectString.call`), constructor
- * walk third, valueOf-slot probe last (spec-precise spoof closure).
- * The first three markers cheaply reject the bulk of non-matches by
- * structural shape; the fourth confirms the value carries the
- * engine-attested `[[StringData]]` slot, which userland cannot forge —
- * closing the `Symbol.toStringTag`-spoofing surface the structural
- * markers leave open.
+ * The two-branch identity check runs in cost order:
+ *
+ * - Local-realm fast path: `value instanceof StringConstructor` paired
+ *   with `getPrototypeOf(value) === stringPrototype`. The pair admits
+ *   only direct `String` instances; subclasses pass `instanceof` but
+ *   fail the prototype-identity check, preserving subclass rejection.
+ * - Cross-realm structural fallback: the `[[Class]]` tag
+ *   `'[object String]'` paired with the resolved constructor name
+ *   `'String'` — both work realm-independently, admitting cross-realm
+ *   boxed strings and rejecting subclasses (whose walked constructor
+ *   name is the subclass's).
+ *
+ * The slot-probe runs last regardless of which branch admits, sealing
+ * the chain on engine-attested `[[StringData]]` evidence. A value
+ * passes only if the captured `String.prototype.valueOf` extracts the
+ * slot without throwing AND the unboxed primitive equals
+ * `String(value)`. Closes the `Symbol.toStringTag`-spoofing surface
+ * the structural markers leave open even when paired with the
+ * constructor walk, and rejects post-`Object.setPrototypeOf` spoofs
+ * that would otherwise pass the local-realm pair.
  *
  * Generic in `T` per the family pattern. The narrow returns
  * `T & BoxedString`; `T = unknown` collapses to `BoxedString`.
@@ -138,10 +176,11 @@ export function isStringValue(value) {
  * @template [T=unknown]
  * @param {T} [value] - the value to test; omitted is treated as
  *  `undefined`, which is not a boxed string
- * @returns {value is T & BoxedString} `true` when all four markers
- *  hold, narrowing `value` to `T & BoxedString`; `false` otherwise
+ * @returns {value is T & BoxedString} `true` when the identity check
+ *  and the `[[StringData]]` slot-probe both hold, narrowing `value`
+ *  to `T & BoxedString`; `false` otherwise
  * @example
- * isBoxedString(new String('x'));                    // true
+ * isBoxedString(new String('x'));                    // true (instanceof + slot)
  * isBoxedString(Object('x'));                        // true
  * isBoxedString('x');                                // false (primitive)
  * isBoxedString({ [Symbol.toStringTag]: 'String' }); // false (no [[StringData]])
@@ -149,8 +188,9 @@ export function isStringValue(value) {
 export function isBoxedString(value) {
   return (
     isObject(value) &&
-    getTypeSignature(value) === '[object String]' &&
-    getDefinedConstructorName(value) === 'String' &&
+    ((value instanceof StringConstructor && getPrototypeOf(value) === stringPrototype) ||
+      (getTypeSignature(value) === '[object String]' &&
+        getDefinedConstructorName(value) === 'String')) &&
     doesHaveStrictUnboxedStringValueEquality(value)
   );
 }
@@ -241,13 +281,12 @@ export function isNumberValue(value) {
 }
 
 /**
- * Narrows a value to the boxed `Number` wrapper-object form via four
- * cross-validating markers — the {@link isObject} gate, the `[[Class]]`
- * tag `'[object Number]'`, the constructor name `'Number'`, and the
+ * Narrows a value to the boxed `Number` wrapper-object form via the
+ * {@link isObject} gate, a two-branch identity check, and the
  * spec-precise `[[NumberData]]` internal-slot probe via
  * {@link doesHaveStrictUnboxedNumberValueEquality}.
  *
- * Marker chain and short-circuit ordering match {@link isBoxedString};
+ * Identity-check branches and slot-probe role match {@link isBoxedString};
  * see that predicate's doc for the structural rationale. The
  * `[[NumberData]]` probe uses `Object.is` rather than `===` so that
  * `new Number(NaN)` is correctly admitted.
@@ -258,18 +297,20 @@ export function isNumberValue(value) {
  * @template [T=unknown]
  * @param {T} [value] - the value to test; omitted is treated as
  *  `undefined`, which is not a boxed number
- * @returns {value is T & BoxedNumber} `true` when all four markers
- *  hold, narrowing `value` to `T & BoxedNumber`; `false` otherwise
+ * @returns {value is T & BoxedNumber} `true` when the identity check
+ *  and the `[[NumberData]]` slot-probe both hold, narrowing `value`
+ *  to `T & BoxedNumber`; `false` otherwise
  * @example
- * isBoxedNumber(new Number(42)); // true
+ * isBoxedNumber(new Number(42)); // true (instanceof + slot)
  * isBoxedNumber(Object(42));     // true
  * isBoxedNumber(42);             // false (primitive)
  */
 export function isBoxedNumber(value) {
   return (
     isObject(value) &&
-    getTypeSignature(value) === '[object Number]' &&
-    getDefinedConstructorName(value) === 'Number' &&
+    ((value instanceof NumberConstructor && getPrototypeOf(value) === numberPrototype) ||
+      (getTypeSignature(value) === '[object Number]' &&
+        getDefinedConstructorName(value) === 'Number')) &&
     doesHaveStrictUnboxedNumberValueEquality(value)
   );
 }
@@ -325,13 +366,13 @@ export function isNumber(value) {
  * trap, which closes off the direct-`===` path the other families use.
  * As a consequence, the helper assumes `Boolean.prototype.toString` is
  * untampered on the local realm — `toBooleanValue` is captured
- * realm-fixed for the slot probe, but the `String(value)` path on the
+ * realm-fixed for the slot-probe, but the `String(value)` path on the
  * boxed side resolves through the live `Boolean.prototype.toString`.
  * In an adversarial environment that has replaced
  * `Boolean.prototype.toString`, real boxed Booleans may be falsely
  * rejected; the unboxed side is unaffected because primitive-to-string
  * coercion bypasses the prototype method. The tampering surface is
- * unusual in practice and `Boolean.prototype.toString` is not realm-fixed
+ * unusual in practice, and `Boolean.prototype.toString` is not realm-fixed
  * by this package.
  *
  * @param {unknown} value - the value to test
@@ -381,13 +422,12 @@ export function isBooleanValue(value) {
 }
 
 /**
- * Narrows a value to the boxed `Boolean` wrapper-object form via four
- * cross-validating markers — the {@link isObject} gate, the `[[Class]]`
- * tag `'[object Boolean]'`, the constructor name `'Boolean'`, and the
+ * Narrows a value to the boxed `Boolean` wrapper-object form via the
+ * {@link isObject} gate, a two-branch identity check, and the
  * spec-precise `[[BooleanData]]` internal-slot probe via
  * {@link doesHaveStrictUnboxedBooleanValueEquality}.
  *
- * Marker chain and short-circuit ordering match {@link isBoxedString};
+ * Identity-check branches and slot-probe role match {@link isBoxedString};
  * see that predicate's doc for the structural rationale. The
  * `[[BooleanData]]` probe compares string-coerced forms rather than the
  * raw values, sidestepping the `ToBoolean(Object) === true` trap that
@@ -399,18 +439,21 @@ export function isBooleanValue(value) {
  * @template [T=unknown]
  * @param {T} [value] - the value to test; omitted is treated as
  *  `undefined`, which is not a boxed boolean
- * @returns {value is T & BoxedBoolean} `true` when all four markers
- *  hold, narrowing `value` to `T & BoxedBoolean`; `false` otherwise
+ * @returns {value is T & BoxedBoolean} `true` when the identity check
+ *  and the `[[BooleanData]]` slot-probe both hold, narrowing `value`
+ *  to `T & BoxedBoolean`; `false` otherwise
  * @example
- * isBoxedBoolean(new Boolean(true));  // true
+ * isBoxedBoolean(new Boolean(true));  // true (instanceof + slot)
  * isBoxedBoolean(new Boolean(false)); // true
  * isBoxedBoolean(true);               // false (primitive)
  */
 export function isBoxedBoolean(value) {
   return (
     isObject(value) &&
-    getTypeSignature(value) === '[object Boolean]' &&
-    getDefinedConstructorName(value) === 'Boolean' &&
+    ((value instanceof BooleanConstructor &&
+      getPrototypeOf(value) === booleanPrototype) ||
+      (getTypeSignature(value) === '[object Boolean]' &&
+        getDefinedConstructorName(value) === 'Boolean')) &&
     doesHaveStrictUnboxedBooleanValueEquality(value)
   );
 }
@@ -420,7 +463,7 @@ export function isBoxedBoolean(value) {
  * `Boolean` wrapper-object form — the union {@link BooleanType}.
  *
  * Composes `isBooleanValue || isBoxedBoolean` with short-circuit `||`
- * running the cheaper primitive check first.
+ * running the less expensive primitive check first.
  *
  * Generic in `T` per the family pattern. The narrow returns
  * `T & BooleanType`; `T = unknown` collapses to `BooleanType`.
@@ -515,9 +558,24 @@ export function isSymbolValue(value) {
  * spec-precise `[[SymbolData]]` internal-slot probe via
  * {@link doesHaveStrictUnboxedSymbolValueEquality}.
  *
- * Marker chain and short-circuit ordering match {@link isBoxedString};
- * see that predicate's doc for the structural rationale. The
- * `[[SymbolData]]` probe cross-checks the unboxed primitive's
+ * Short-circuit `&&` runs the markers in cost order: the `isObject`
+ * gate first (O(1) primitive-and-null rejection), the tag-check
+ * second (cross-realm-safe via realm-fixed `toObjectString.call`),
+ * the constructor-walk third, and the valueOf-slot probe last as
+ * the spec-precise spoof closure.
+ *
+ * Unlike {@link isBoxedString} / {@link isBoxedNumber} /
+ * {@link isBoxedBoolean}, this predicate does not carry the
+ * local-realm `instanceof` + `getPrototypeOf` identity branch.
+ * `Symbol` is a factory function, not a constructor — `new Symbol()`
+ * throws, and `Object(Symbol('x')) instanceof Symbol` evaluates to
+ * `true` only by virtue of the default `OrdinaryHasInstance`
+ * algorithm walking the prototype chain, not because the spec
+ * treats the wrapper as a `Symbol` instance in any identity-bearing
+ * sense. The structural chain runs uniformly across local-realm and
+ * cross-realm boxed Symbols and is the honest discriminator here.
+ *
+ * The `[[SymbolData]]` probe cross-checks the unboxed primitive's
  * `description` against the boxed value's `description` — catching the
  * own-property-shadowing tampering surface where a real boxed Symbol
  * has had its `description` getter overridden by an own data property.
@@ -633,8 +691,17 @@ export function isBigIntValue(value) {
  * spec-precise `[[BigIntData]]` internal-slot probe via
  * {@link doesHaveStrictUnboxedBigIntValueEquality}.
  *
- * Marker chain and short-circuit ordering match {@link isBoxedString};
- * see that predicate's doc for the structural rationale.
+ * Short-circuit `&&` runs the markers in cost order: the `isObject`
+ * gate first, then tag-check, then constructor-walk, then the
+ * valueOf-slot probe.
+ *
+ * Like {@link isBoxedSymbol}, this predicate does not carry the
+ * local-realm `instanceof` + `getPrototypeOf` identity branch that
+ * {@link isBoxedString} / {@link isBoxedNumber} /
+ * {@link isBoxedBoolean} use. `BigInt` is a factory function, not
+ * a constructor — `new BigInt(1n)` throws, and `instanceof BigInt`
+ * is incidental to `OrdinaryHasInstance` rather than a meaningful
+ * identity test. The structural chain is the honest discriminator.
  *
  * Generic in `T` per the family pattern. The narrow returns
  * `T & BoxedBigInt`; `T = unknown` collapses to `BoxedBigInt`.

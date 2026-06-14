@@ -305,18 +305,27 @@ export interface AbortableThenable<out T> extends Thenable<T> {
  * Narrows a value to `Thenable<unknown>` by verifying that `then` is a
  * callable data property reachable through the value's prototype chain.
  *
- * The lookup walks the chain via own-descriptor reads at each level,
- * matching how ECMA-262 `Get(value, "then")` resolves the property
- * during `Promise` adoption. A `then` found anywhere along the chain
- * — own or inherited — satisfies the predicate; native `Promise`
- * instances pass because their `then` lives on `Promise.prototype`.
+ * Tests in cost order: the inexpensive `instanceof PromiseConstructor`
+ * check against the realm-fixed `Promise` capture catches local-realm
+ * `Promise` instances and their subclasses in a single prototype walk.
+ * The admission is sound because every `Promise` is a _thenable_ —
+ * `then` lives on `Promise.prototype`. The implication does not run
+ * the other way (not every _thenable_ is a `Promise`), so the
+ * `instanceof` arm is a sufficient short-circuit, not a definition.
+ *
+ * If `instanceof` fails (cross-realm `Promise`, userland _thenable_,
+ * or any non-`Promise` candidate), falls back to a chain walk via
+ * own-descriptor reads at each level, matching how ECMA-262
+ * `Get(value, "then")` resolves the property during `Promise`
+ * adoption. A `then` found anywhere along the chain — own or
+ * inherited — satisfies the predicate.
  *
  * Verifies callability only — it does not validate the `then` signature
  * shape or whether the value honors the `resolve`/`reject` protocol.
- * Accessor descriptors are deliberately rejected: the predicate's
- * contract is to inspect without invoking, so a `get then()` shape is
- * treated as "not a _thenable_ type" even if this very getter returns
- * a callable type.
+ * Accessor descriptors are deliberately rejected on the structural arm:
+ * the predicate's contract is to inspect without invoking, so a
+ * `get then()` shape is treated as "not a _thenable_ type" even if this
+ * very getter returns a callable type.
  *
  * Generic in `T` per the family pattern set by `isCallable` and
  * `isFunction` in `@/function`. The narrow returns `T & Thenable<unknown>`;
@@ -325,11 +334,12 @@ export interface AbortableThenable<out T> extends Thenable<T> {
  * @typeParam T - the caller-side type of `value`; defaults to `unknown`
  * @param value - the value to test; omitted is treated as `undefined`,
  *  which is not a _thenable_ type
- * @returns `true` when the value carries a callable `then` data property
- *  in its prototype chain, narrowing `value` to `T & Thenable<unknown>`;
+ * @returns `true` when the value is either a local-realm `Promise`
+ *  (or subclass) or carries a callable `then` data property in its
+ *  prototype chain, narrowing `value` to `T & Thenable<unknown>`;
  *  `false` otherwise
  * @example
- * isThenable(Promise.resolve());                   // true (inherited)
+ * isThenable(Promise.resolve());                   // true (instanceof)
  * isThenable({ then: () => {} });                  // true (own)
  * isThenable({ then: 'not a function' });          // false
  * isThenable({ get then() { return () => {}; } }); // false (accessor)
