@@ -89,13 +89,15 @@ future method-contract predicate compose cleanly. See decision #024.
 
 ## Conservative-narrowing in the Promise domain
 
-The conservative-narrowing posture from the function side (see "Two postures" above) lands
-a second time here. `isPromise` uses three cross-validating markers — `isPromiseLike`, the
-`[[Class]]` tag, and the constructor-name resolution — even though any one of them is
-usually enough for a typical-case discrimination. The reasoning is the same as on the
-function side: foundation-tier predicates that downstream packages depend on benefit from
-multiple cross-validating markers as bounded-cost insurance against single-marker
-spoofing.
+The conservative-narrowing posture from the function module (see
+[`./function.md`](./function.md#two-postures-minimal-floor-vs-conservative-narrowing) §
+"Two postures: minimal-floor vs. conservative-narrowing") lands a second time here.
+`isPromise` uses three cross-validating markers — `isPromiseLike`, the `[[Class]]` tag,
+and the constructor-name resolution — even though any one of them is usually enough for a
+typical-case discrimination. The reasoning is the same as in
+[`./function.md`](./function.md): foundation-tier predicates that downstream packages
+depend on benefit from multiple cross-validating markers as bounded-cost insurance against
+single-marker spoofing.
 
 The marker independence makes the layered check trustworthy. Each marker rules out a
 distinct false-positive class:

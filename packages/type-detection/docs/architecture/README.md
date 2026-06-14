@@ -34,4 +34,4 @@ and when a second package adopts them.
 
 Per-module sections close with a "Open architectural questions" subsection. The tracked
 open questions across the package live in
-[`../decisions/open-questions.md`](../decisions/open-questions.md).
+[[`../decisions/open-questions.md`](../decisions/open-questions.md)](../decisions/open-questions.md).

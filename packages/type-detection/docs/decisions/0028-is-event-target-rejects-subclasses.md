@@ -23,6 +23,8 @@ Like-tier predicates (`isEventTargetLike`, `isAbortSignalLike`) accept subclasse
 **Consequences.** `isEventTarget(document)` returns `false`; subclass admission is the
 caller's job via `isEventTargetLike`. The strict-vs-lenient asymmetry has been applied at
 three lattice tips now (`isPromise`, `isEventTarget`, `isAbortSignal`), which makes the
-pattern visible at the architectural layer (`../architecture/thenable.md` "Conservative-
-narrowing in the Promise domain" subsection, and the analogous
-`../architecture/evented.md` section's subsection).
+pattern visible at the architectural layer
+([`../architecture/thenable.md`](../architecture/thenable.md#conservative-narrowing-in-the-promise-domain)
+"Conservative- narrowing in the Promise domain" subsection, and the analogous
+[`../architecture/evented.md`](../architecture/evented.md#conservative-narrowing-in-the-eventtarget--abortsignal-domain)
+section's subsection).

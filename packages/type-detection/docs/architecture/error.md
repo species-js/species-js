@@ -37,12 +37,12 @@ in thenable / evented, and provide an `@internal` polyfill body exported for tes
 
 ## Cross-realm safety
 
-The realm-safety pattern combines the strategies seen in the prior sections. The
-local-realm fast path uses `value instanceof Error`; the cross-realm fallback uses
-`Object.prototype.toString`-based `[[Class]]` tag inspection. Both are inlined inside
-`isGenericError` rather than exposed as separate `isCurrentRealmError` /
-`isAlienRealmError` predicates (equip-js had exposed both; the species-js round
-consolidates them — decision #032).
+The realm-safety pattern combines the strategies from [`./thenable.md`](./thenable.md) and
+[`./evented.md`](./evented.md). The local-realm fast path uses `value instanceof Error`;
+the cross-realm fallback uses `Object.prototype.toString`-based `[[Class]]` tag
+inspection. Both are inlined inside `isGenericError` rather than exposed as separate
+`isCurrentRealmError` / `isAlienRealmError` predicates (equip-js had exposed both; the
+species-js round consolidates them — decision #032).
 
 Three structural tag branches cover the spec-defined error families:
 

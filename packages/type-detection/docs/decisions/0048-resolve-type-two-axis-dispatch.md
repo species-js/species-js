@@ -98,5 +98,7 @@ the function to avoid per-call compilation.
 The `ResolvedType` union is not narrowed at the type level — other producers in the module
 may still emit `''` — but `resolveType` itself no longer surfaces it.
 
-Commit `d0c470d`. See `../architecture/utility.md` — "Type Resolution" for the two-axis
-dispatch walk-through and the spoof-resistance composition with #047.
+Commit `d0c470d`. See
+[`../architecture/utility.md`](../architecture/utility.md#type-resolution) — "Type
+Resolution" for the two-axis dispatch walk-through and the spoof-resistance composition
+with #047.

@@ -93,8 +93,9 @@ The realm-fix-vs-boundary-retyping distinction may warrant a small clarification
 `[[design-rulings]]` boundary-retyping ruling: not every `@/config` cached primitive needs
 retyping; some need pure capture for realm-fix without any type-system change.
 
-Commit `8f880ee`. See `../architecture/primitive.md` for the four-marker chain's
-positioning within the discrimination lattice and the per-family equality table.
+Commit `8f880ee`. See [`../architecture/primitive.md`](../architecture/primitive.md) for
+the four-marker chain's positioning within the discrimination lattice and the per-family
+equality table.
 
 **Addendum (2026-06-09).** The Boolean strategy carries an unstated assumption that the
 2026-06-08 audit (F4.1) surfaced and that the JSDoc now names explicitly: the boxed-side

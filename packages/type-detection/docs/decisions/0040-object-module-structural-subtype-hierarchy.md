@@ -70,4 +70,4 @@ variance, `BlankType` is a structural subtype of `DictionaryObject`. The relatio
 cross-referenced in both modules' JSDoc.
 
 Commit `8e09b21`. See decision #041 for the lodash semantic divergence and
-`../architecture/object.md` for the conceptual map.
+[`../architecture/object.md`](../architecture/object.md) for the conceptual map.

@@ -119,5 +119,6 @@ accessor `set`), and `hasInertValue` (probe for data-descriptor presence, distin
 with parallel `.d.ts` declarations per decision #015. `objectHasOwn` is the new `@/config`
 import in `@/utility`; the unused `isNewableFunction` import was dropped.
 
-Commit `be32d4d`. See `../architecture/object.md` — "Structural anchor for
-`isPlainObject`" for the updated call site.
+Commit `be32d4d`. See
+[`../architecture/object.md`](../architecture/object.md#structural-anchor-for-isplainobject)
+— "Structural anchor for `isPlainObject`" for the updated call site.

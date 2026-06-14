@@ -66,4 +66,4 @@ polyfill widening semantic — what `isGenericError` admits beyond the spec-prec
 `[[ErrorData]]` check — is captured separately in #033. The `objectCreate` boundary
 retyping that the descriptor walk depends on for clean typing is captured in #034.
 `AbortError` as a name-suffix refinement is captured in #035. See
-`../architecture/error.md` for the conceptual map.
+[`../architecture/error.md`](../architecture/error.md) for the conceptual map.

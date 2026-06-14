@@ -286,7 +286,7 @@ _identity_.
 ## Open architectural questions
 
 These are not unresolved bugs; they are architectural choices that have not yet been made.
-Each one is tracked in `../decisions/open-questions.md`.
+Each one is tracked in [`../decisions/open-questions.md`](../decisions/open-questions.md).
 
 - **Q.002 — Bound-admission policy for public predicates.** The fingerprint matrix made
   bound detection cheap for every species, eliminating the spec-mechanics-forced asymmetry

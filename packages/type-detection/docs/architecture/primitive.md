@@ -88,10 +88,11 @@ marker chain provides bounded-cost insurance against single-marker spoofing:
   At that point the value is structurally AND spec-mechanically indistinguishable from a
   real boxed string — not a spoof but a parallel implementation.
 
-The posture is the same as on the function side and the thenable / evented sides:
-foundation-tier predicates that downstream packages depend on benefit from multiple
-cross-validating markers as bounded-cost insurance, not just for the typical case but for
-the spoofing surface.
+The posture is the same as in [`./function.md`](./function.md),
+[`./thenable.md`](./thenable.md), and [`./evented.md`](./evented.md): foundation-tier
+predicates that downstream packages depend on benefit from multiple cross-validating
+markers as bounded-cost insurance, not just for the typical case but for the spoofing
+surface.
 
 ## Generic-typed predicates
 

@@ -88,8 +88,10 @@ posture from "two string fingerprints" to "spec-mechanic-anchored chain with
 engine-attested internal-slot or shape evidence at the bottom." Same architectural move,
 different domains.
 
-See `../architecture/object.md` — "Structural anchor for `isPlainObject`" for the full
-marker walk and spoof-surface analysis.
+See
+[`../architecture/object.md`](../architecture/object.md#structural-anchor-for-isplainobject)
+— "Structural anchor for `isPlainObject`" for the full marker walk and spoof-surface
+analysis.
 
 **Addendum (2026-06-08, commit `ee7e8f3`).** The initial landing exported only
 `hasPlainObjectIdentitySignal` while `hasPlainObjectPrototypeContract` stayed module-local

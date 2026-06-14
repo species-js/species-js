@@ -20,5 +20,6 @@ lands at the strictest tier where it makes sense.
 
 **Consequences.** Native `Promise` instances pass; subclasses of `Promise` fail
 `isPromise`. Documented as "deliberate strictness" in the predicate's JSDoc. Consumers
-needing subclass admission compose accordingly. See ARCHITECTURE.md § type-detection /
-thenable conservative-narrowing subsection for the broader posture.
+needing subclass admission compose accordingly. See
+[`../architecture/thenable.md`](../architecture/thenable.md#conservative-narrowing-in-the-promise-domain)
+§ "Conservative-narrowing in the Promise domain" for the broader posture.

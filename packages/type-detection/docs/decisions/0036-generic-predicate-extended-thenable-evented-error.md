@@ -57,5 +57,7 @@ when both are wanted in the same signature. Watch for this interaction when refa
 any future predicate that combines both patterns. Codified in
 [[generic-predicate-pattern]] memory.
 
-Commit `92784f8`. ARCHITECTURE.md § type-detection / function "Generic-typed predicates"
-subsection updated with the same generalization-status and the `(value = null)` note.
+Commit `92784f8`.
+[`../architecture/function.md`](../architecture/function.md#generic-typed-predicates-caller-side-narrowing-preserved)
+§ "Generic-typed predicates: caller-side narrowing preserved" updated with the same
+generalization-status and the `(value = null)` note.

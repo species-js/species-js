@@ -3,12 +3,12 @@
 ## Mental model
 
 `type-detection / evented` exists because the Web Platform's event-handling primitives
-(`EventTarget` and `AbortSignal`) carry the same dual concern as the Promise lattice from
-the thenable section: a structural method contract anyone can implement, and a realm-fixed
-intrinsic identity that only DOM-aware runtimes provide. The module's job is to give each
-of these two contracts both a structural predicate (admits anything matching the spec
-method set) and an identity predicate (admits only the realm-fixed intrinsic), with the
-discrimination organized as two parallel two-tier lattices:
+(`EventTarget` and `AbortSignal`) carry the same dual concern as the Promise lattice in
+[`./thenable.md`](./thenable.md): a structural method contract anyone can implement, and a
+realm-fixed intrinsic identity that only DOM-aware runtimes provide. The module's job is
+to give each of these two contracts both a structural predicate (admits anything matching
+the spec method set) and an identity predicate (admits only the realm-fixed intrinsic),
+with the discrimination organized as two parallel two-tier lattices:
 
 ```
 EventTargetLike     (isEventTargetLike)   — three EventTarget methods
@@ -25,10 +25,10 @@ multiple `hasInertMethod` checks (with an `@internal` `doesMatchXContract` helpe
 narrowing-tier predicates that combine an `instanceof` fast path with the structural
 fallback, identity-tier predicates that layer two realm-independent markers on top.
 
-The patterns mirror the thenable section's lattice. The Promise-method contract from the
-thenable round was one instance of a general rule: _spec-defined method sets admit
-duck-typing alongside instance discrimination_. `EventTarget` and `AbortSignal` are two
-more instances, applied here.
+The patterns mirror [`./thenable.md`](./thenable.md)'s lattice. The Promise-method
+contract from the thenable round was one instance of a general rule: _spec-defined method
+sets admit duck-typing alongside instance discrimination_. `EventTarget` and `AbortSignal`
+are two more instances, applied here.
 
 ## Cross-realm safety
 
@@ -68,8 +68,8 @@ lattices. The composition shapes:
 
 Each Like-tier predicate composes the corresponding `@internal` helper as the structural
 fallback. The strict-tier predicates layer two realm-independent markers on top of the
-Like-tier (tag + constructor name) — the same shape as `isPromise` from the thenable
-section.
+Like-tier (tag + constructor name) — the same shape as `isPromise` from
+[`./thenable.md`](./thenable.md).
 
 Two ordering choices worth naming:
 
@@ -89,11 +89,13 @@ Two ordering choices worth naming:
 
 ## Conservative-narrowing in the EventTarget / AbortSignal domain
 
-The conservative-narrowing posture from the function section's "Two postures" subsection
-lands a third time here, after the thenable round. `isEventTarget` and `isAbortSignal`
-each use three cross-validating markers — the Like-tier method contract, the `[[Class]]`
-tag, the constructor-name walk — even though any one is usually enough for typical-case
-discrimination. The reasoning is the same as on the function side and the thenable side:
+The conservative-narrowing posture from
+[`./function.md`](./function.md#two-postures-minimal-floor-vs-conservative-narrowing) §
+"Two postures: minimal-floor vs. conservative-narrowing" lands a third time here, after
+the thenable round. `isEventTarget` and `isAbortSignal` each use three cross-validating
+markers — the Like-tier method contract, the `[[Class]]` tag, the constructor-name walk —
+even though any one is usually enough for typical-case discrimination. The reasoning is
+the same as in [`./function.md`](./function.md) and [`./thenable.md`](./thenable.md):
 foundation-tier predicates that downstream packages depend on benefit from multiple
 cross-validating markers as bounded-cost insurance against single-marker spoofing. The
 marker independence makes the layered check trustworthy.

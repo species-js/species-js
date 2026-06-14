@@ -84,4 +84,5 @@ family-specific cross-validators — is the right shape for any future composite
 over a family with a common gate.
 
 Decision #041 is superseded for the recipe surface; the strict-by-default posture remains.
-See `../architecture/object.md` — "Cross-realm safety" for the dispatch walkthrough.
+See [`../architecture/object.md`](../architecture/object.md#cross-realm-safety) —
+"Cross-realm safety" for the dispatch walkthrough.

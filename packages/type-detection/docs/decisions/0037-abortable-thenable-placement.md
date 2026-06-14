@@ -59,16 +59,16 @@ existing precision).
 - **No predicate** matches the realistic ceiling on runtime discrimination. The equip-js
   source also shipped no predicate for the same reason; that choice is preserved.
 
-**Consequences.** Public surface: `AbortableThenable<T>` interface in
-`@/type-detection/thenable`. Cross-module abort-channel surface is now complete across
-three modules: `@/error` for the rejected-value side (`AbortError`, `AbortErrorName`,
-`isAbortError`), `@/evented` for the producer side (`AbortSignalLike` /
-`isAbortSignalLike` / `AbortSignal` / `isAbortSignal`), and `@/thenable` for the consumer
-side (`AbortableThenable<T>`). The previously-deferred Q.004 is resolved. `evented.d.ts`'s
-`AbortSignalLike` JSDoc's "Future use" forward-reference is updated to the current-state
-cross-module description, replacing the deferred-to-error-migration framing. The thenable
-module's `@module` doc is updated to mention the two independent refinements
-(`PromiseLike` and `AbortableThenable`) of the `Thenable<T>` floor.
+**Consequences.** Public surface: `AbortableThenable<T>` interface in `@/thenable`.
+Cross-module abort-channel surface is now complete across three modules: `@/error` for the
+rejected-value side (`AbortError`, `AbortErrorName`, `isAbortError`), `@/evented` for the
+producer side (`AbortSignalLike` / `isAbortSignalLike` / `AbortSignal` / `isAbortSignal`),
+and `@/thenable` for the consumer side (`AbortableThenable<T>`). The previously-deferred
+Q.004 is resolved. `evented.d.ts`'s `AbortSignalLike` JSDoc's "Future use"
+forward-reference is updated to the current-state cross-module description, replacing the
+deferred-to-error-migration framing. The thenable module's `@module` doc is updated to
+mention the two independent refinements (`PromiseLike` and `AbortableThenable`) of the
+`Thenable<T>` floor.
 
-Commit `b234589`. See `../architecture/thenable.md` for the lattice's positioning and the
-conceptual map.
+Commit `b234589`. See [`../architecture/thenable.md`](../architecture/thenable.md) for the
+lattice's positioning and the conceptual map.

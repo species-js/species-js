@@ -49,5 +49,5 @@ ten new boxed/composite predicates. Package-wide tally: 36 generic-typed predica
 now historical context, not an active ruling; this decision supersedes it explicitly. The
 codified [[generic-predicate-pattern]] memory carries the updated full-coverage status.
 
-Commit `5c5dbe7`. See `../architecture/primitive.md` for the family-pattern's expression
-on primitives.
+Commit `5c5dbe7`. See [`../architecture/primitive.md`](../architecture/primitive.md) for
+the family-pattern's expression on primitives.

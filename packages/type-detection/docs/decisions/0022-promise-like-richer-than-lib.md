@@ -30,6 +30,6 @@ posture independently.
 **Consequences.** Consumers of `@species-js/type-detection/thenable` get the richer
 `PromiseLike`. The lib's `PromiseLike` still exists as a TypeScript global; the local
 export shadows it within this module's imports. The lattice (`Thenable` → `PromiseLike` →
-`Promise`) is captured in ARCHITECTURE.md § type-detection / thenable; the type's own
-JSDoc captures the lib-surpass dimensions. Codified in [[design-rulings]] via the
-contract-vocabulary ruling.
+`Promise`) is captured in [`../architecture/thenable.md`](../architecture/thenable.md);
+the type's own JSDoc captures the lib-surpass dimensions. Codified in [[design-rulings]]
+via the contract-vocabulary ruling.

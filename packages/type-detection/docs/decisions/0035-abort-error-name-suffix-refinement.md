@@ -49,7 +49,8 @@ abort-channel errors from other errors. The future `AbortableThenable<T>` (Q.004
 type its abort-channel reason against `AbortError`, completing the cross-module
 abort-channel surface the thenable round forward-referenced (`AbortSignalLike` in evented;
 `AbortError` here; `AbortableThenable<T>` deferred to its own round). See
-`../architecture/error.md` for the lattice's positioning within the package.
+[`../architecture/error.md`](../architecture/error.md) for the lattice's positioning
+within the package.
 
 **Addendum (2026-06-08).** The initial body was
 `isError(value) && value.name.endsWith('AbortError')`. The 2026-06-08 audit surfaced an

@@ -79,4 +79,5 @@ type-detection package's primitive-discrimination ceiling is now reached; furthe
 extensions would belong in a different module (e.g. nominal branding in
 `@species-js/type-identity`).
 
-Commit `5c5dbe7`. See `../architecture/primitive.md` for the conceptual map.
+Commit `5c5dbe7`. See [`../architecture/primitive.md`](../architecture/primitive.md) for
+the conceptual map.
