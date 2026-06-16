@@ -15,7 +15,7 @@
  * the captured `X.prototype.valueOf` at the bottom as the spoof-proof
  * sealing marker.
  *
- * Between those fixtures the families split by whether their type's
+ * Between those fixtures, the families split by whether their type's
  * intrinsic is a true constructor:
  *
  * - **`isBoxedString` / `isBoxedNumber` / `isBoxedBoolean`** — two-branch
@@ -48,7 +48,7 @@
 import { objectIs, getPrototypeOf } from '@/config';
 import { getTypeSignature, getDefinedConstructorName } from '@/utility';
 
-import { isObject } from '@/object.js';
+import { isObject } from '@/object';
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 
@@ -72,6 +72,10 @@ import { isObject } from '@/object.js';
 /** @typedef {import('@/primitive').BoxedBigInt} BoxedBigInt */
 /** @typedef {import('@/primitive').BigIntType} BigIntType */
 
+/** @typedef {import('@/primitive').WrappablePrimitive} WrappablePrimitive */
+/** @typedef {import('@/primitive').NullishPrimitive} NullishPrimitive */
+/** @typedef {import('@/primitive').Primitive} Primitive */
+
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 
 const StringConstructor = String;
@@ -87,6 +91,191 @@ const toNumberValue = numberPrototype.valueOf;
 const toBooleanValue = booleanPrototype.valueOf;
 const toSymbolValue = Symbol.prototype.valueOf;
 const toBigIntValue = BigInt.prototype.valueOf;
+
+/**
+ * Whether `value` is a direct current-realm `String` instance — passes
+ * `value instanceof StringConstructor` AND has `stringPrototype` as its
+ * immediate prototype. The proto-identity arm rejects `String`
+ * subclasses (admitted by the bare `instanceof`), preserving the
+ * direct-instance discrimination the boxed-primitive predicates require.
+ *
+ * Invoked exclusively after the caller's `isObject` gate, so the helper
+ * carries no nullish or non-object guard of its own. The captured
+ * `StringConstructor` is always present (the `String` global is a
+ * runtime fixture), so no constructor-presence guard either.
+ *
+ * @param {unknown} value - the value to test; assumed object-typed by
+ *  the caller
+ * @returns {boolean} `true` when both the `instanceof` check and the
+ *  prototype-identity check hold; `false` otherwise
+ * @internal
+ */
+function isCurrentRealmNativeString(value) {
+  return value instanceof StringConstructor && getPrototypeOf(value) === stringPrototype;
+}
+/**
+ * Whether `value` is a direct current-realm `Number` instance — passes
+ * `value instanceof NumberConstructor` AND has `numberPrototype` as its
+ * immediate prototype. The proto-identity arm rejects `Number`
+ * subclasses (admitted by the bare `instanceof`), preserving the
+ * direct-instance discrimination the boxed-primitive predicates require.
+ *
+ * Invoked exclusively after the caller's `isObject` gate, so the helper
+ * carries no nullish or non-object guard of its own. The captured
+ * `NumberConstructor` is always present (the `Number` global is a
+ * runtime fixture), so no constructor-presence guard either.
+ *
+ * @param {unknown} value - the value to test; assumed object-typed by
+ *  the caller
+ * @returns {boolean} `true` when both the `instanceof` check and the
+ *  prototype-identity check hold; `false` otherwise
+ * @internal
+ */
+function isCurrentRealmNativeNumber(value) {
+  return value instanceof NumberConstructor && getPrototypeOf(value) === numberPrototype;
+}
+/**
+ * Whether `value` is a direct current-realm `Boolean` instance — passes
+ * `value instanceof BooleanConstructor` AND has `booleanPrototype` as
+ * its immediate prototype. The proto-identity arm rejects `Boolean`
+ * subclasses (admitted by the bare `instanceof`), preserving the
+ * direct-instance discrimination the boxed-primitive predicates require.
+ *
+ * Invoked exclusively after the caller's `isObject` gate, so the helper
+ * carries no nullish or non-object guard of its own. The captured
+ * `BooleanConstructor` is always present (the `Boolean` global is a
+ * runtime fixture), so no constructor-presence guard either.
+ *
+ * @param {unknown} value - the value to test; assumed object-typed by
+ *  the caller
+ * @returns {boolean} `true` when both the `instanceof` check and the
+ *  prototype-identity check hold; `false` otherwise
+ * @internal
+ */
+function isCurrentRealmNativeBoolean(value) {
+  return (
+    value instanceof BooleanConstructor && getPrototypeOf(value) === booleanPrototype
+  );
+}
+
+// ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
+//
+//  Generic Primitive Type Handling
+//
+// ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
+
+const nonWrappableTypeSignatures = new Set(['undefined', 'function', 'object']);
+
+/**
+ * Narrows a value to the wrappable-primitive union {@link WrappablePrimitive} —
+ * `string`, `number`, `boolean`, `symbol`, or `bigint`.
+ *
+ * Shaped as a `typeof`-result EXCLUSION rather than an enumeration:
+ * admits any value whose `typeof` is not `'undefined'`, `'function'`, or
+ * `'object'`. The three rejected signatures cover the entire non-wrappable
+ * surface (undefined, callable Object, regular Object including `null`),
+ * leaving the five wrappable families as the admitted set.
+ *
+ * The exclusion shape is deliberate and load-bearing — it makes the
+ * predicate future-proof against new primitive types added by future
+ * ECMA versions. Every primitive added since ES1 (Symbol in ES6, BigInt
+ * in ES2020) has arrived with a new `typeof` result distinct from the
+ * three rejection cases. An enumeration-based shape (`t === 'string' ||
+ * t === 'number' || …`) would silently fail to admit any new primitive;
+ * the exclusion form admits it without code changes. The rejection set
+ * is spec-locked — modern ECMA does not permit implementation-defined
+ * `typeof` strings, and the only legacy carve-out (`document.all`
+ * returning `'undefined'`) is correctly rejected here.
+ *
+ * Generic in `T` per the family pattern. The narrow returns
+ * `T & WrappablePrimitive`; `T = unknown` collapses to `WrappablePrimitive`.
+ *
+ * @template [T=unknown]
+ * @param {T} [value] - the value to test; omitted is treated as
+ *  `undefined`, which is not a wrappable primitive
+ * @returns {value is T & WrappablePrimitive} `true` when `typeof value`
+ *  is not one of the three non-wrappable signatures, narrowing `value`
+ *  to `T & WrappablePrimitive`; `false` otherwise
+ * @example
+ * isWrappablePrimitive('x');             // true
+ * isWrappablePrimitive(42);              // true
+ * isWrappablePrimitive(true);            // true
+ * isWrappablePrimitive(Symbol('y'));     // true
+ * isWrappablePrimitive(1n);              // true
+ * isWrappablePrimitive(null);            // false (typeof 'object')
+ * isWrappablePrimitive(undefined);       // false
+ * isWrappablePrimitive({});              // false
+ * isWrappablePrimitive(() => {});        // false
+ * isWrappablePrimitive(new String('x')); // false (typeof 'object', boxed)
+ */
+export function isWrappablePrimitive(value) {
+  return !nonWrappableTypeSignatures.has(typeof value);
+}
+
+/**
+ * Narrows a value to the nullish-primitive union {@link NullishPrimitive} —
+ * `null` or `undefined`.
+ *
+ * Uses the parameter-default-to-`null` idiom (decision #025) to collapse
+ * both nullish forms to `null` for a single strict-equality test.
+ * `isNullishPrimitive()` and `isNullishPrimitive(undefined)` trigger the
+ * default and reach `value === null` as `true`; `isNullishPrimitive(null)`
+ * reaches the same comparison directly; every non-nullish value
+ * suppresses the default and fails the comparison.
+ *
+ * Generic in `T` per the family pattern. The narrow returns
+ * `T & NullishPrimitive`; `T = unknown` collapses to `NullishPrimitive`.
+ *
+ * @template [T=unknown]
+ * @param {T} [value] - the value to test; omitted is treated as
+ *  `undefined`, which is a nullish primitive
+ * @returns {value is T & NullishPrimitive} `true` when `value` is `null`
+ *  or `undefined`, narrowing `value` to `T & NullishPrimitive`; `false`
+ *  otherwise
+ * @example
+ * isNullishPrimitive(null);      // true
+ * isNullishPrimitive(undefined); // true
+ * isNullishPrimitive();          // true (default fires)
+ * isNullishPrimitive(0);         // false
+ * isNullishPrimitive('');        // false
+ * isNullishPrimitive(false);     // false
+ */
+export function isNullishPrimitive(value = /** @type {T} */ (null)) {
+  return value === null;
+}
+
+/**
+ * Narrows a value to the full primitive union {@link Primitive} — any
+ * of the seven ECMA-262 primitive types: `string`, `number`, `boolean`,
+ * `symbol`, `bigint`, `null`, `undefined`.
+ *
+ * Composes `isNullishPrimitive || isWrappablePrimitive`. Short-circuit
+ * `||` runs `isNullishPrimitive` first; for non-nullish inputs (the
+ * common case) the cost is the leading function call plus
+ * `isWrappablePrimitive`'s single `typeof` read and `Set.has` lookup.
+ *
+ * Generic in `T` per the family pattern. The narrow returns
+ * `T & Primitive`; `T = unknown` collapses to `Primitive`.
+ *
+ * @template [T=unknown]
+ * @param {T} [value] - the value to test; omitted is treated as
+ *  `undefined`, which is a primitive
+ * @returns {value is T & Primitive} `true` when the value is any of the
+ *  seven primitive types, narrowing `value` to `T & Primitive`; `false`
+ *  otherwise
+ * @example
+ * isPrimitive('x');             // true
+ * isPrimitive(42);              // true
+ * isPrimitive(Symbol('y'));     // true
+ * isPrimitive(null);            // true
+ * isPrimitive(undefined);       // true
+ * isPrimitive({});              // false
+ * isPrimitive(() => {});        // false
+ * isPrimitive(new String('x')); // false (boxed)
+ */
+export function isPrimitive(value) {
+  return isNullishPrimitive(value) || isWrappablePrimitive(value);
+}
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 //
@@ -188,7 +377,7 @@ export function isStringValue(value) {
 export function isBoxedString(value) {
   return (
     isObject(value) &&
-    ((value instanceof StringConstructor && getPrototypeOf(value) === stringPrototype) ||
+    (isCurrentRealmNativeString(value) ||
       (getTypeSignature(value) === '[object String]' &&
         getDefinedConstructorName(value) === 'String')) &&
     doesHaveStrictUnboxedStringValueEquality(value)
@@ -200,7 +389,7 @@ export function isBoxedString(value) {
  * `String` wrapper-object form — the union {@link StringType}.
  *
  * Composes `isStringValue || isBoxedString` with short-circuit `||`
- * running the cheaper primitive check first.
+ * running the less expensive primitive check first.
  *
  * Generic in `T` per the family pattern. The narrow returns
  * `T & StringType`; `T = unknown` collapses to `StringType`.
@@ -308,7 +497,7 @@ export function isNumberValue(value) {
 export function isBoxedNumber(value) {
   return (
     isObject(value) &&
-    ((value instanceof NumberConstructor && getPrototypeOf(value) === numberPrototype) ||
+    (isCurrentRealmNativeNumber(value) ||
       (getTypeSignature(value) === '[object Number]' &&
         getDefinedConstructorName(value) === 'Number')) &&
     doesHaveStrictUnboxedNumberValueEquality(value)
@@ -320,7 +509,7 @@ export function isBoxedNumber(value) {
  * `Number` wrapper-object form — the union {@link NumberType}.
  *
  * Composes `isNumberValue || isBoxedNumber` with short-circuit `||`
- * running the cheaper primitive check first.
+ * running the less expensive primitive check first.
  *
  * Generic in `T` per the family pattern. The narrow returns
  * `T & NumberType`; `T = unknown` collapses to `NumberType`.
@@ -450,8 +639,7 @@ export function isBooleanValue(value) {
 export function isBoxedBoolean(value) {
   return (
     isObject(value) &&
-    ((value instanceof BooleanConstructor &&
-      getPrototypeOf(value) === booleanPrototype) ||
+    (isCurrentRealmNativeBoolean(value) ||
       (getTypeSignature(value) === '[object Boolean]' &&
         getDefinedConstructorName(value) === 'Boolean')) &&
     doesHaveStrictUnboxedBooleanValueEquality(value)
@@ -606,7 +794,7 @@ export function isBoxedSymbol(value) {
  * `Symbol` wrapper-object form — the union {@link SymbolType}.
  *
  * Composes `isSymbolValue || isBoxedSymbol` with short-circuit `||`
- * running the cheaper primitive check first.
+ * running the less expensive primitive check first.
  *
  * Generic in `T` per the family pattern. The narrow returns
  * `T & SymbolType`; `T = unknown` collapses to `SymbolType`.
@@ -730,7 +918,7 @@ export function isBoxedBigInt(value) {
  * `BigInt` wrapper-object form — the union {@link BigIntType}.
  *
  * Composes `isBigIntValue || isBoxedBigInt` with short-circuit `||`
- * running the cheaper primitive check first.
+ * running the less expensive primitive check first.
  *
  * Generic in `T` per the family pattern. The narrow returns
  * `T & BigIntType`; `T = unknown` collapses to `BigIntType`.

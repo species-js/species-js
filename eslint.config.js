@@ -44,6 +44,22 @@ export default tseslint.config(
     },
   },
   {
+    // `@typescript-eslint/prefer-optional-chain` is off project-wide. The
+    // realm-fixed-capture idiom pairs a constructor binding typed
+    // `typeof X | null` (`const XConstructor = isCallable(X) ? X : null`) with
+    // a sibling prototype binding `const xPrototype = XConstructor && XConstructor.prototype`.
+    // The `&&` form propagates `null` as the absence sentinel forward, keeping
+    // both bindings in the same absence vocabulary. Rewriting to
+    // `XConstructor?.prototype` widens the prototype capture's type to
+    // `... | undefined`, splitting the absence semantics across paired bindings
+    // for no semantic gain. The pattern is load-bearing for cross-realm
+    // capability detection (Promise / EventTarget / AbortSignal prototype
+    // captures in `thenable.js` and `evented.js`).
+    rules: {
+      '@typescript-eslint/prefer-optional-chain': 'off',
+    },
+  },
+  {
     files: ['**/*.js', '**/*.mjs', '**/*.cjs'],
     languageOptions: {
       ecmaVersion: 'latest',

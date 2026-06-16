@@ -19,7 +19,6 @@
  */
 
 import { getPrototypeOf, getOwnPropertyDescriptors } from '@/config';
-
 import { getTypeSignature } from '@/utility';
 
 import { isFunction } from '@/function';

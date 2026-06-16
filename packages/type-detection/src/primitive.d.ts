@@ -66,18 +66,196 @@
  * `Symbol.toStringTag`-spoofing surface the structural markers leave
  * open.
  *
+ * ## Generic primitive predicates — floor of the lattice
+ *
+ * In addition to the per-family surface, this module exposes three
+ * union predicates at the floor of the primitive lattice:
+ *
+ * - **`isWrappablePrimitive`** — admits any of the five wrappable
+ *   primitive families ({@link WrappablePrimitive}). Shaped as a
+ *   `typeof`-result EXCLUSION (rejects `'undefined'`, `'function'`,
+ *   `'object'`) rather than an enumeration. The exclusion form is
+ *   future-proof: every primitive added since ES1 (Symbol in ES6,
+ *   BigInt in ES2020) has arrived with a new `typeof` result distinct
+ *   from the three rejection cases, and the rejection set is
+ *   spec-locked. An enumeration shape would silently fail to admit any
+ *   future primitive; the exclusion shape admits it without code
+ *   changes.
+ * - **`isNullishPrimitive`** — admits `null` and `undefined`
+ *   ({@link NullishPrimitive}), the two non-wrappable primitive
+ *   singletons. Uses the parameter-default-to-`null` idiom (decision
+ *   #025) to collapse both nullish forms to `null` for a single
+ *   strict-equality test.
+ * - **`isPrimitive`** — admits the full primitive union
+ *   ({@link Primitive}) — the seven ECMA-262 primitive types — via
+ *   `isNullishPrimitive || isWrappablePrimitive`.
+ *
  * ## Generic-typed predicate pattern
  *
- * All 15 predicates follow the family pattern set by `isCallable` and
+ * All predicates follow the family pattern set by `isCallable` and
  * `isFunction` in `@/function` (decision #031). The narrow returns
  * `T & X` rather than bare `X`, preserving any caller-side narrowing
  * through the predicate. For `T = unknown` (the default), the
  * intersection collapses to `X`, matching pre-generic behavior. Applied
- * uniformly across value-only, boxed-only, and composite predicates so
- * the form is consistent across the family — decision #036's value-only
- * exclusion is revisited and superseded by the consistency rationale;
- * see decision #038 for the framing.
+ * uniformly across value-only, boxed-only, composite, and generic
+ * predicates so the form is consistent across the module — decision
+ * #036's value-only exclusion is revisited and superseded by the
+ * consistency rationale; see decision #038 for the framing.
  */
+
+// ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
+//
+//  Generic Primitive Type Handling
+//
+// ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
+
+/**
+ * The wrappable-primitive union — the five primitive families that
+ * carry constructor/wrapper-object duality (`String`, `Number`,
+ * `Boolean`, `Symbol`, `BigInt` each have an intrinsic that boxes the
+ * primitive to a wrapper-object form). Equals
+ * `string | number | boolean | symbol | bigint` — the primitive forms
+ * only; the boxed wrapper-object forms are NOT included.
+ *
+ * Excludes the two nullish primitives (`null`, `undefined`) — they
+ * carry no constructor and no `[[XData]]` internal slot, and live in
+ * the {@link NullishPrimitive} union instead. Excludes boxed forms
+ * (`BoxedString`, `BoxedNumber`, …) — those have `typeof === 'object'`
+ * and the wrappable-primitive lattice is defined at the unboxed level.
+ */
+export type WrappablePrimitive =
+  | StringValue
+  | NumberValue
+  | BooleanValue
+  | SymbolValue
+  | BigIntValue;
+
+/**
+ * The nullish-primitive union — `null` and `undefined`. Equals
+ * `null | undefined` and matches the canonical ECMAScript "nullish"
+ * vocabulary used by `??` and `?.`.
+ *
+ * These two values are primitives per ECMA-262 §4.4.4 but lack the
+ * constructor/wrapper-object duality the wrappable families share:
+ * neither has an intrinsic constructor, an internal slot, nor a
+ * dedicated `typeof` result (Null's `typeof` is `'object'` — the
+ * historical bug). They form their own sub-category of primitive.
+ */
+export type NullishPrimitive = null | undefined;
+
+/**
+ * The full primitive union — all seven ECMA-262 primitive types. Equals
+ * {@link WrappablePrimitive} `|` {@link NullishPrimitive}, covering
+ * every value `typeof` can resolve to outside the Object family.
+ */
+export type Primitive = WrappablePrimitive | NullishPrimitive;
+
+/**
+ * Narrows a value to the wrappable-primitive union
+ * {@link WrappablePrimitive} — `string`, `number`, `boolean`, `symbol`,
+ * or `bigint`.
+ *
+ * Shaped as a `typeof`-result EXCLUSION rather than an enumeration:
+ * admits any value whose `typeof` is not `'undefined'`, `'function'`,
+ * or `'object'`. The three rejected signatures cover the entire
+ * non-wrappable surface (undefined, callable Object, regular Object
+ * including `null`), leaving the five wrappable families as the
+ * admitted set.
+ *
+ * The exclusion shape is deliberate and load-bearing — it makes the
+ * predicate future-proof against new primitive types added by future
+ * ECMA versions. Every primitive added since ES1 has arrived with a
+ * new `typeof` result distinct from the three rejection cases, and the
+ * rejection set is spec-locked (modern ECMA does not permit
+ * implementation-defined `typeof` strings). An enumeration-based shape
+ * would silently fail to admit any new primitive; the exclusion form
+ * admits it without code changes. The only legacy quirk that produces
+ * a non-canonical `typeof` result is `document.all` returning
+ * `'undefined'`, which the exclusion correctly rejects.
+ *
+ * Generic in `T` per the family pattern. The narrow returns
+ * `T & WrappablePrimitive`; `T = unknown` collapses to `WrappablePrimitive`.
+ *
+ * @typeParam T - the caller-side type of `value`; defaults to `unknown`
+ * @param value - the value to test; omitted is treated as `undefined`,
+ *  which is not a wrappable primitive
+ * @returns `true` when `typeof value` is not one of the three
+ *  non-wrappable signatures, narrowing `value` to
+ *  `T & WrappablePrimitive`; `false` otherwise
+ * @example
+ * isWrappablePrimitive('x');             // true
+ * isWrappablePrimitive(42);              // true
+ * isWrappablePrimitive(true);            // true
+ * isWrappablePrimitive(Symbol('y'));     // true
+ * isWrappablePrimitive(1n);              // true
+ * isWrappablePrimitive(null);            // false (typeof 'object')
+ * isWrappablePrimitive(undefined);       // false
+ * isWrappablePrimitive({});              // false
+ * isWrappablePrimitive(() => {});        // false
+ * isWrappablePrimitive(new String('x')); // false (boxed)
+ */
+export function isWrappablePrimitive<T = unknown>(
+  value?: T,
+): value is T & WrappablePrimitive;
+
+/**
+ * Narrows a value to the nullish-primitive union
+ * {@link NullishPrimitive} — `null` or `undefined`.
+ *
+ * Uses the parameter-default-to-`null` idiom (decision #025) to
+ * collapse both nullish forms to `null` for a single strict-equality
+ * test. `isNullishPrimitive()` and `isNullishPrimitive(undefined)`
+ * trigger the default and reach `value === null` as `true`;
+ * `isNullishPrimitive(null)` reaches the same comparison directly;
+ * every non-nullish value suppresses the default and fails the
+ * comparison.
+ *
+ * Generic in `T` per the family pattern. The narrow returns
+ * `T & NullishPrimitive`; `T = unknown` collapses to `NullishPrimitive`.
+ *
+ * @typeParam T - the caller-side type of `value`; defaults to `unknown`
+ * @param value - the value to test; omitted is treated as `undefined`,
+ *  which is a nullish primitive
+ * @returns `true` when `value` is `null` or `undefined`, narrowing
+ *  `value` to `T & NullishPrimitive`; `false` otherwise
+ * @example
+ * isNullishPrimitive(null);      // true
+ * isNullishPrimitive(undefined); // true
+ * isNullishPrimitive();          // true (default fires)
+ * isNullishPrimitive(0);         // false
+ * isNullishPrimitive('');        // false
+ * isNullishPrimitive(false);     // false
+ */
+export function isNullishPrimitive<T = unknown>(value?: T): value is T & NullishPrimitive;
+
+/**
+ * Narrows a value to the full primitive union {@link Primitive} — any
+ * of the seven ECMA-262 primitive types.
+ *
+ * Composes `isNullishPrimitive || isWrappablePrimitive`. Short-circuit
+ * `||` runs `isNullishPrimitive` first; for non-nullish inputs (the
+ * common case) the cost is the leading function call plus
+ * `isWrappablePrimitive`'s single `typeof` read and `Set.has` lookup.
+ *
+ * Generic in `T` per the family pattern. The narrow returns
+ * `T & Primitive`; `T = unknown` collapses to `Primitive`.
+ *
+ * @typeParam T - the caller-side type of `value`; defaults to `unknown`
+ * @param value - the value to test; omitted is treated as `undefined`,
+ *  which is a primitive
+ * @returns `true` when the value is any of the seven primitive types,
+ *  narrowing `value` to `T & Primitive`; `false` otherwise
+ * @example
+ * isPrimitive('x');             // true
+ * isPrimitive(42);              // true
+ * isPrimitive(Symbol('y'));     // true
+ * isPrimitive(null);            // true
+ * isPrimitive(undefined);       // true
+ * isPrimitive({});              // false
+ * isPrimitive(() => {});        // false
+ * isPrimitive(new String('x')); // false (boxed)
+ */
+export function isPrimitive<T = unknown>(value?: T): value is T & Primitive;
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 //

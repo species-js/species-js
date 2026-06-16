@@ -15,7 +15,7 @@ The module ships three predicates and three types per family:
 
 ```
 XValue        (isXValue)   — primitive form via `typeof`
-BoxedX        (isBoxedX)   — boxed wrapper-object form via four cross-validating markers
+BoxedX        (isBoxedX)   — boxed wrapper-object form via two-branch identity + slot probe
 XType         (isX)        — composite admitting either form
 ```
 
@@ -23,6 +23,20 @@ The three forms compose: `XType = XValue | BoxedX`, and
 `isX(v) = isXValue(v) || isBoxedX(v)`. Five families × six exports = 30 exports total (5
 value types + 5 boxed types + 5 composite types + 5 value predicates + 5 boxed
 predicates + 5 composite predicates).
+
+Three additional union-predicates sit at the floor of the primitive lattice, cross-family:
+
+```
+WrappablePrimitive   (isWrappablePrimitive)   — typeof-result EXCLUSION over five families
+NullishPrimitive     (isNullishPrimitive)     — `null` or `undefined`
+Primitive            (isPrimitive)            — all seven ECMA-262 primitive types
+```
+
+These admit the union across families without consumer-side disjunction. The shapes are
+deliberate: `isWrappablePrimitive` is shaped as an EXCLUSION over the three non-primitive
+`typeof` results (`'undefined'`, `'function'`, `'object'`) rather than an enumeration over
+the five admitted results, which makes it future-proof against new primitive types added
+by future ECMA versions. See "Generic primitive predicates" below and decision #051.
 
 ## Cross-realm safety
 
@@ -35,58 +49,90 @@ Boxed predicates do carry the cross-realm concern. A `new String('x')` produced 
 foreign realm has a different `String` constructor identity than the local-realm `String`;
 `instanceof String` against it returns `false`. The package handles this with the same
 machinery used by `isPromise` / `isEventTarget`: the `[[Class]]` tag read through the
-realm-fixed `toObjectString.call` capture, and the constructor name walked through the
+realm-fixed `toObjectString.call` capture, and the constructor-name walked through the
 four-source `getDefinedConstructor` fallback in `@/utility`. Both work
 realm-independently. The `typeof === 'object'` gate is the cheapest first marker that
 rejects primitives and `undefined` in O(1).
 
 ## Predicate composition
 
-Three predicates per family, with the boxed predicate driving the marker chain. The
-following table shows the structural shape; replace `X` with `String` / `Number` /
-`Boolean` / `Symbol` / `BigInt` and `x` with the lowercase form for the family instance.
+Three predicates per family, with the boxed predicate driving the marker chain. After
+decision #049, the boxed shape splits into two compositions based on whether the family's
+intrinsic is a true constructor or a factory function.
 
-| Predicate  | Composition                                                                                             |
-| ---------- | ------------------------------------------------------------------------------------------------------- |
-| `isXValue` | `typeof v === 'x'`                                                                                      |
-| `isBoxedX` | `typeof v === 'object' && getTypeSignature(v) === '[object X]' && getDefinedConstructorName(v) === 'X'` |
-| `isX`      | `isXValue(v) \|\| isBoxedX(v)`                                                                          |
+**Constructor-aware boxed predicates** (`isBoxedString`, `isBoxedNumber`,
+`isBoxedBoolean`):
 
-The marker order for `isBoxedX` is performance-first:
+| Predicate  | Composition                                                                                                                                                               |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `isXValue` | `typeof v === 'x'`                                                                                                                                                        |
+| `isBoxedX` | `isObject(v) && (isCurrentRealmNativeX(v) \|\| (getTypeSignature(v) === '[object X]' && getDefinedConstructorName(v) === 'X')) && doesHaveStrictUnboxedXValueEquality(v)` |
+| `isX`      | `isXValue(v) \|\| isBoxedX(v)`                                                                                                                                            |
 
-- **`typeof === 'object'`** is the O(1) primitive-rejection gate. Rejects primitive
-  strings (which share the `'[object String]'` tag), all other primitives, `undefined`,
-  and functions in one comparison. Admits `null` momentarily — but the tag check then
-  rejects via `'[object Null]'`.
-- **`getTypeSignature(v) === '[object X]'`** is the type discriminator. Reads through the
-  realm-fixed `toObjectString.call` capture, so cross-realm boxed values are admitted on
-  contract. Rejects plain objects, arrays, `Date`, `Map`, etc.
-- **`getDefinedConstructorName(v) === 'X'`** is the constructor-identity cross-validator.
-  Closes the `Symbol.toStringTag`-spoofing hole the tag check alone would leave open — a
-  `class Spoof { get [Symbol.toStringTag]() { return 'String'; } }` instance passes the
-  tag check but its constructor name resolves to `'Spoof'`, rejecting it here.
+**Factory-function boxed predicates** (`isBoxedSymbol`, `isBoxedBigInt`):
 
-The order also mirrors the structural-gate-then-identity-markers pattern from `isPromise`
-(decision #023) and `isEventTarget` / `isAbortSignal` (decision #028): a fast structural
-gate, then two realm-independent identity refinements.
+| Predicate  | Composition                                                                                                                             |
+| ---------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| `isXValue` | `typeof v === 'x'`                                                                                                                      |
+| `isBoxedX` | `isObject(v) && getTypeSignature(v) === '[object X]' && getDefinedConstructorName(v) === 'X' && doesHaveStrictUnboxedXValueEquality(v)` |
+| `isX`      | `isXValue(v) \|\| isBoxedX(v)`                                                                                                          |
+
+The boxed-X marker chains share two fixtures and split between them. Top: `isObject` as
+the O(1) primitive-and-null rejection gate. Bottom: `doesHaveStrictUnboxedXValueEquality`
+as the engine-attested `[[XData]]` slot probe via the captured `X.prototype.valueOf` (the
+spoof-proof sealing marker — see "The four-marker boxed-primitive discrimination chain"
+below).
+
+Between the fixtures the families split:
+
+- **Constructor-aware families** run a **two-branch identity check**. The local-realm fast
+  path uses the named helper `isCurrentRealmNativeX` (which combines
+  `v instanceof XConstructor` with `getPrototypeOf(v) === xPrototype` for direct-instance
+  discrimination). On miss, the cross-realm structural fallback pairs the `[[Class]]` tag
+  with the resolved constructor-name. Both arms reject subclasses (proto-identity on the
+  local-realm path, constructor-name on the cross-realm path). The slot probe seals either
+  branch.
+- **Factory-function families** skip the local-realm `instanceof` branch entirely.
+  `Symbol` and `BigInt` are factory functions, not constructors — `new Symbol()` and
+  `new BigInt()` throw, and `Object(Symbol('x')) instanceof Symbol` evaluates to `true`
+  only as an incidental result of `OrdinaryHasInstance` walking the prototype chain, not
+  because the spec treats the wrapper as a `Symbol` instance in any identity-bearing
+  sense. The four-marker structural chain is the honest discriminator for these families.
+  See decision #049.
+
+The `||`-with-shared-seal shape (rather than the ternary used by `isPromise`,
+`isEventTarget`, `isAbortSignal`) is decided by **bottom-seal availability**. The
+`[[XData]]` slot probe is an engine-attested seal that both arms legitimately feed into —
+it is cheap (one `valueOf.call`) and is the spoof-proof guarantee even after the
+local-realm arm matches, catching `Object.create(X.prototype)` and similar
+proto-identity-spoofing surfaces. The strict-identity predicates in
+[`./thenable.md`](./thenable.md) and [`./evented.md`](./evented.md) have no equivalent
+shared seal and use a ternary instead. See decisions #049 and #050.
 
 ## Conservative-narrowing in the primitive domain
 
-The boxed predicates' four-marker chain extends the conservative-narrowing posture
-established in decision #010 and applied at `isPromise` (#023), `isEventTarget` /
-`isAbortSignal` (#028) with engine-attested internal-slot evidence (decision #042). The
-marker chain provides bounded-cost insurance against single-marker spoofing:
+The boxed predicates' marker chain extends the conservative-narrowing posture established
+in decision #010 and applied at `isPromise` (#023), `isEventTarget` / `isAbortSignal`
+(#028) with engine-attested internal-slot evidence (decision #042) and the local-realm
+shortcut on top (decision #049). The chain provides bounded-cost insurance against
+single-marker spoofing on the cross-realm arm; the local-realm arm uses `proto-identity`
+as its self-sealing single marker (the realm-fixed `X.prototype` cannot be spoofed at the
+prototype-identity level from userland):
 
 - Tag-spoofing alone (`Symbol.toStringTag === 'String'` on an arbitrary object) is
-  rejected by the constructor-name walk.
+  rejected by the constructor-name walk on the cross-realm arm.
 - Constructor-name-spoofing alone (a class named `String` that's not the built-in
   `String`) is rejected by the tag check, since the instance carries a different
   `[[Class]]` tag.
-- Both structural spoofs together would pass the first three markers but fail the
-  `[[StringData]]` internal-slot probe — the captured `String.prototype.valueOf` throws on
-  any value lacking the engine-attested slot, and the slot cannot be forged from userland.
-  At that point the value is structurally AND spec-mechanically indistinguishable from a
-  real boxed string — not a spoof but a parallel implementation.
+- Both structural spoofs together would pass the cross-realm arm's tag + constructor-name
+  pair but fail the `[[StringData]]` internal-slot probe — the captured
+  `String.prototype.valueOf` throws on any value lacking the engine-attested slot, and the
+  slot cannot be forged from userland. At that point the value is structurally AND
+  spec-mechanically indistinguishable from a real boxed string — not a spoof but a
+  parallel implementation.
+- Proto-identity-spoofing on the local-realm arm (`Object.create(String.prototype)` —
+  proto matches, no `[[StringData]]`) is rejected by the same slot probe. The probe is the
+  shared bottom seal across both arms.
 
 The posture is the same as in [`./function.md`](./function.md),
 [`./thenable.md`](./thenable.md), and [`./evented.md`](./evented.md): foundation-tier
@@ -94,17 +140,56 @@ predicates that downstream packages depend on benefit from multiple cross-valida
 markers as bounded-cost insurance, not just for the typical case but for the spoofing
 surface.
 
+## Generic primitive predicates — floor of the lattice
+
+In addition to the per-family surface, the module exposes three union predicates at the
+floor of the primitive lattice (decision #051): `isWrappablePrimitive`,
+`isNullishPrimitive`, `isPrimitive`. Each carries a distinct shape decided by the
+discrimination problem it solves:
+
+- **`isWrappablePrimitive`** admits any of the five wrappable primitive families
+  (`string`, `number`, `boolean`, `symbol`, `bigint`). Shaped as a `typeof`-result
+  **exclusion** against a module-top `Set` of the three non-wrappable signatures
+  (`'undefined'`, `'function'`, `'object'`) rather than an enumeration over the five
+  admitted results. The exclusion shape is **future-proof**: every primitive added since
+  ES1 (Symbol in ES6, BigInt in ES2020) has arrived with a new `typeof` result distinct
+  from the three rejection cases, and the rejection set is spec-locked — modern ECMA does
+  not permit implementation-defined `typeof` strings. An enumeration shape would silently
+  fail to admit any new primitive type; the exclusion shape admits it without code
+  changes. The `typeof === 'object'` rejection covers `null` correctly via the historical
+  bug, and the legacy `document.all` quirk (`typeof === 'undefined'`) is rejected via the
+  same arm.
+- **`isNullishPrimitive`** admits `null` and `undefined` via the
+  parameter-default-to-`null` idiom (decision #025): `value = null` collapses `undefined`
+  to `null`, and the body reduces to `value === null`. Combined with the family-pattern
+  generic, the `.js` implementation needs a JSDoc cast (`/** @type {T} */ (null)`) on the
+  default to bridge the `T` parameter type and the `null` literal — the `.d.ts` contract
+  stays uniform.
+- **`isPrimitive`** composes `isNullishPrimitive(v) || isWrappablePrimitive(v)`, admitting
+  the full ECMA-262 §4.4.4 primitive set — the seven primitive types.
+
+The three predicates have **no spoof surface to seal**. Unlike the boxed-primitive
+predicates that need the engine-attested `[[XData]]` slot probe to close
+`Symbol.toStringTag`-spoofing, predicates that discriminate on `typeof` alone are
+spoof-proof at the language level. `typeof` is a syntactic operator, not a method dispatch
+— user code cannot intercept or override its result. No slot probe, no constructor walk,
+no tag read; each predicate is structurally complete with the single `typeof` evaluation
+(and the `value === null` strict-equality for `isNullishPrimitive`). See decision #051 for
+the future-proofing rationale and the framing that distinguishes this floor surface from
+the per-family surface.
+
 ## Generic-typed predicates
 
-All 15 predicates follow the generic-typed family pattern
-(`<T = unknown>(value?: T): value is T & X`) shipped in commit `5c5dbe7` (decision #039).
-This includes the value-only predicates, which decision #036 had originally excluded —
-that exclusion is superseded here. The rationale for revisiting: literal-union callers
-benefit (`'on' | 'off' | number` narrows to `'on' | 'off'` after `isStringValue`), the
-boxed and composite predicates clearly benefit (they narrow to object-shape types), and
-internal consistency across the family matters. The package-wide tally is now 36
-generic-typed predicates across `@/function`, `@/thenable`, `@/evented`, `@/error`, and
-`@/primitive`. See decision #039 for the full framing.
+All predicates follow the generic-typed family pattern
+(`<T = unknown>(value?: T): value is T & X`) shipped in commit `5c5dbe7` (decision #039)
+and extended to the floor predicates in decision #051. This includes the value-only
+predicates, which decision #036 had originally excluded — that exclusion is superseded
+here. The rationale for revisiting: literal-union callers benefit (`'on' | 'off' | number`
+narrows to `'on' | 'off'` after `isStringValue`), the boxed and composite predicates
+clearly benefit (they narrow to object-shape types), and internal consistency across the
+family matters. The pattern is now uniform across value-only, boxed-only, composite, and
+generic-floor predicates in `@/primitive`, alongside `@/function`, `@/thenable`,
+`@/evented`, and `@/error`. See decision #039 for the full framing.
 
 ## Wrapper-object types
 
@@ -122,36 +207,60 @@ override-with-rationale style in the config. Per the zero-`eslint-disable` polic
 ([[quality-discipline]]), the fix is configuration at the right level, not inline
 suppression. See decision #038 for the full framing.
 
-## The four-marker boxed-primitive discrimination chain
+## The boxed-primitive discrimination chain — markers and the local-realm shortcut
 
-The boxed-primitive predicates use a four-marker chain that adds a spec-precise
-`[[XData]]` internal-slot probe to the three structural markers shipped originally
-(decision #038). The slot probe — a captured `X.prototype.valueOf.call(value)` that throws
-on any value lacking the slot — is the load-bearing spoof-proof discriminator, because the
-`[[XData]]` slot is engine-internal and cannot be installed from userland.
+The boxed-primitive predicates share two fixtures: the `isObject` gate at the top (O(1)
+primitive-and-null rejection) and the spec-precise `[[XData]]` internal-slot probe at the
+bottom (decision #042). The slot probe — a captured `X.prototype.valueOf.call(value)` that
+throws on any value lacking the slot — is the load-bearing spoof-proof discriminator,
+because the `[[XData]]` slot is engine-internal and cannot be installed from userland.
 
-Markers in performance order:
+Between the fixtures the marker structure depends on whether the local-realm `instanceof`
+shortcut is in play (decision #049):
 
-1. `!!value` — O(1) null-rejection gate.
-2. `typeof value === 'object'` — O(1) primitive-rejection gate.
-3. `getTypeSignature(value) === '[object X]'` — `[[Class]]` tag from the realm-fixed
-   `toObjectString.call` capture.
-4. `getDefinedConstructorName(value) === 'X'` — constructor name from the four-source
-   walk.
-5. `doesHaveStrictUnboxed{X}ValueEquality(value)` — slot probe via the captured
-   `prototype.valueOf` reference.
+**Constructor-aware families** (`String`, `Number`, `Boolean`) — two-branch identity check
+between the fixtures, markers in cost order:
+
+1. `isObject(value)` — top fixture; O(1) primitive-and-null rejection.
+2. Local-realm arm: `isCurrentRealmNativeX(value)` — `instanceof XConstructor` paired with
+   `getPrototypeOf(value) === xPrototype` for direct-instance discrimination in two O(1)
+   operations. Subclass-rejecting.
+3. Cross-realm arm (if 2 fails): `getTypeSignature(value) === '[object X]'` paired with
+   `getDefinedConstructorName(value) === 'X'` — `[[Class]]` tag from the realm-fixed
+   `toObjectString.call` capture, constructor-name from the four-source walk. Both
+   realm-independent; both subclass-rejecting.
+4. `doesHaveStrictUnboxedXValueEquality(value)` — bottom fixture; slot probe via the
+   captured `prototype.valueOf` reference. Seals either branch.
+
+**Factory-function families** (`Symbol`, `BigInt`) — no local-realm shortcut, four-marker
+structural chain only:
+
+1. `isObject(value)` — top fixture.
+2. `getTypeSignature(value) === '[object X]'` — `[[Class]]` tag.
+3. `getDefinedConstructorName(value) === 'X'` — constructor-name walk.
+4. `doesHaveStrictUnboxedXValueEquality(value)` — slot probe; bottom fixture.
+
+The `||`-between-arms + shared-trailer shape on constructor-aware families is the
+**bottom-seal-aware** form: both arms feed into the slot probe because the probe is cheap
+and is the spoof-proof guarantee even after the local-realm arm matches. Catches
+`Object.create(X.prototype)` and similar proto-identity-spoofing surfaces that the
+local-realm arm alone would admit. The strict-identity predicates in
+[`./thenable.md`](./thenable.md) and [`./evented.md`](./evented.md) use a ternary instead
+of `||` precisely because they have no equivalent shared seal — see decision #050 for the
+framing.
 
 The chain extends the structural-gate-then-identity-markers pattern from `isPromise`
-(decision #023) and `isEventTarget` / `isAbortSignal` (decision #028) with one more tier
-underneath. The conservative-narrowing posture (decision #010) is preserved: the four
-upstream gates are cheap fail-fast rejections; the slot probe is the bottom guarantee. A
-value reaches the slot probe only after the cheaper markers all pass, so the `try`/`catch`
-cost is paid only when the value plausibly _looks_ like a boxed primitive structurally.
+(decision #023) and `isEventTarget` / `isAbortSignal` (decision #028) with the slot-probe
+tier underneath (#042) and the local-realm `instanceof` shortcut on top (#049). The
+conservative-narrowing posture (decision #010) is preserved: upstream gates are cheap
+fail-fast rejections; the slot probe is the bottom guarantee. A value reaches the slot
+probe only after the cheaper markers all pass, so the `try`/`catch` cost is paid only when
+the value plausibly _looks_ like a boxed primitive structurally.
 
 The slot probe forecloses the `Symbol.toStringTag`-spoofing surface that the three-marker
 version left open: a value with `[Symbol.toStringTag]: 'String'` on a class named `String`
-would pass markers 1–4 while having no `[[StringData]]`. Marker 5 catches it via the
-`valueOf` throw. See decision #042.
+would pass the upstream markers while having no `[[StringData]]`. The slot probe catches
+it via the `valueOf` throw. See decision #042.
 
 ## Per-family equality strategies
 

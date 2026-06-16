@@ -12,15 +12,17 @@ that share a single conceptual lattice:
 ```
 Thenable<T>                  (isThenable)      — callable `then` only
   ├── PromiseLike<T>         (isPromiseLike)   — full Promise.prototype method contract
-  │     └── Promise<T>       (isPromise)       — Promise identity via three markers
+  │     └── Promise<T>       (isPromise)       — Promise identity via two-axis dispatch
   └── AbortableThenable<T>   (no predicate)    — `then` with optional `onaborted` callback
 ```
 
 Each refinement adds _exactly one_ semantic level on a single axis. `isThenable` checks
 for the single `then` method; `isPromiseLike` checks for `then` plus `catch` plus
-`finally` (the full Promise-method contract); `isPromise` checks for the Promise-method
-contract plus the `[[Class]]` tag plus the `'Promise'` constructor name. `PromiseLike` and
-`Promise` form a strict chain of supersets — each tier's check-set extends the tier above.
+`finally` (the full Promise-method contract); `isPromise` discriminates `Promise` identity
+via two-axis dispatch — a local-realm fast path on `instanceof` + proto-identity, or a
+cross-realm structural chain on the Promise-method contract plus the `[[Class]]` tag plus
+the `'Promise'` constructor name. `PromiseLike` and `Promise` form a strict chain of
+supersets — each tier's check-set extends the tier above.
 
 `AbortableThenable<T>` is a _parallel_ refinement of `Thenable<T>`, independent from the
 `PromiseLike` chain. It adds an optional third `onaborted` callback to `then`, typed
@@ -32,9 +34,18 @@ floor). No `isAbortableThenable` predicate exists — a `Thenable` with a two-ar
 
 The internal helper `doesMatchPromiseContract` sits structurally between `isThenable` and
 `isPromiseLike`. It is the structural Promise-method-contract predicate without the
-realm-fixed `instanceof` fast path. `isPromiseLike` calls it as the fallback when
-`instanceof PromiseConstructor` fails (cross-realm Promises, userland Promise-likes such
-as Bluebird or Q).
+realm-fixed `instanceof` fast path. Both `isPromiseLike` and `isPromise` call it as the
+structural fallback when the realm-fixed `instanceof` check fails (cross-realm Promises,
+userland Promise-likes such as Bluebird or Q). `isPromise` calls it _directly_ on its
+cross-realm arm rather than cascading through `isPromiseLike`, because the `instanceof`
+check the latter would re-run has already been disproved by `isPromise`'s local-realm arm.
+
+`thenable.js` and `evented.js` share the named-helper `isCurrentRealm{X}Instance`
+extraction (`isCurrentRealmPromiseInstance` here, `isCurrentRealmEventTargetInstance` and
+`isCurrentRealmAbortSignalInstance` in `evented.js`). Each helper does the bare
+null-guarded `!!XConstructor && value instanceof XConstructor` and nothing more. The
+proto-identity arm is added ON TOP via the ternary in the strict predicate — the helper
+itself stays subclass-admitting so it can also feed the `Like` sibling.
 
 The middle tier (`PromiseLike`) is novel relative to TypeScript's lib. The lib has nothing
 between `PromiseLike` (just a callable `then`, hence structurally identical to our
@@ -51,58 +62,100 @@ intrinsic identity_. `instanceof Promise` against a foreign-realm Promise return
 even when the value is unambiguously a Promise. The thenable predicates handle this by
 composing identity and structure rather than choosing one:
 
-- `isPromiseLike` tests `instanceof PromiseConstructor` first (inexpensive, realm-fixed)
-  and falls back to `doesMatchPromiseContract` for the structural check. Cross-realm
-  Promises pass via the fallback; userland Promise-likes pass via the fallback too.
-- `isPromise` runs `isPromiseLike` (which already handles cross-realm via fallback), then
-  layers two realm-independent markers — the `Promise` `[[Class]]`-tag (read through the
-  realm-fixed `Object.prototype.toString.call` capture) and the `Promise` constructor-name
-  (resolved through the package's four-source constructor walk).
+- `isPromiseLike` tests `instanceof PromiseConstructor` first (inexpensive, realm-fixed,
+  through the `isCurrentRealmPromiseInstance` helper) and falls back to
+  `doesMatchPromiseContract` for the structural check. Cross-realm Promises pass via the
+  fallback; userland Promise-likes pass via the fallback too.
+- `isPromise` runs the same realm-fixed `instanceof` check, then DISPATCHES — local-realm
+  arm commits to `getPrototypeOf(value) === promisePrototype` for direct-instance
+  discrimination in O(1); cross-realm arm runs three realm-independent markers — the
+  `Promise` `[[Class]]`-tag (read through the realm-fixed `Object.prototype.toString.call`
+  capture), the `Promise` constructor-name (resolved through the package's four-source
+  constructor walk), and the structural `doesMatchPromiseContract` check. The arms commit
+  mutually exclusively via the ternary; see "Two-axis dispatch on `isPromise`" below.
 
-The `const PromiseConstructor = Promise;` capture in `thenable.js` is the module-load
-realm-fixed reference for the `instanceof` fast path. It is currently module-local. If a
-second consumer (e.g. a future `@/error` Promise-aware predicate) needs the same capture,
-the natural promotion is to `@/config` alongside the other intrinsics.
+The `const PromiseConstructor = Promise;` and
+`const promisePrototype = PromiseConstructor && PromiseConstructor.prototype;` captures in
+`thenable.js` are the module-load realm-fixed references for the `instanceof` fast path
+and the proto-identity comparison respectively. The `&&` form on the prototype capture
+propagates `null` as the absence sentinel uniformly across the paired bindings — the
+project-wide `@typescript-eslint/prefer-optional-chain` disable preserves this idiom
+against optional-chain rewrites that would split the absence vocabulary (`null` vs.
+`undefined`) between paired captures. The captures are currently module-local; if a second
+consumer (e.g. a future `@/error` Promise-aware predicate) needs them, the natural
+promotion is to `@/config` alongside the other intrinsics.
 
 ## Predicate composition
 
 Each of the four predicates is a clean composition over the layer below it. Reading from
 the floor up:
 
-| Predicate                  | Composition                                                                                                    |
-| -------------------------- | -------------------------------------------------------------------------------------------------------------- |
-| `isThenable`               | `hasInertMethod(v, 'then')`                                                                                    |
-| `doesMatchPromiseContract` | `hasInertMethod(v, 'then') && hasInertMethod(v, 'catch') && hasInertMethod(v, 'finally')`                      |
-| `isPromiseLike`            | `!!v && (v instanceof PromiseConstructor \|\| doesMatchPromiseContract(v))`                                    |
-| `isPromise`                | `isPromiseLike(v) && getTypeSignature(v) === '[object Promise]' && getDefinedConstructorName(v) === 'Promise'` |
+| Predicate                  | Composition                                                                                                                                                            |
+| -------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `isThenable`               | `!!v && (isCurrentRealmPromiseInstance(v) \|\| hasInertMethod(v, 'then'))`                                                                                             |
+| `doesMatchPromiseContract` | `hasInertMethod(v, 'then') && hasInertMethod(v, 'catch') && hasInertMethod(v, 'finally')`                                                                              |
+| `isPromiseLike`            | `!!v && (isCurrentRealmPromiseInstance(v) \|\| doesMatchPromiseContract(v))`                                                                                           |
+| `isPromise`                | `!!v && (isCurrentRealmPromiseInstance(v) ? getPrototypeOf(v) === promisePrototype : tag === '[object Promise]' && ctor === 'Promise' && doesMatchPromiseContract(v))` |
 
 Each layer adds exactly one semantic level. No layer redoes work the layer below already
 did. Short-circuit `&&` enforces a _"least expensive first"_ ordering at each layer: in
-`doesMatchPromiseContract`, `then` (the spec-defined adoption hook) runs first; in
-`isPromiseLike`, the `instanceof` fast path runs before the structural fallback; in
-`isPromise`, `isPromiseLike` (which settles inexpensive on `instanceof` for the common
-case) gates the tag read, which gates the constructor-name walk.
+`doesMatchPromiseContract`, `then` (the spec-defined adoption hook) runs first; in the
+`Like` predicates, the `instanceof` fast path runs before the structural fallback; in
+`isPromise`, the local-realm arm settles inexpensively on `proto-identity` (two O(1)
+operations) while the cross-realm arm runs tag → constructor-name → contract in
+inexpensive-first order.
 
 The factoring of `hasInertMethod` as a `@/utility` primitive — rather than inlining the
 descriptor-walk inside `isThenable` — is what makes `doesMatchPromiseContract` and any
 future method-contract predicate compose cleanly. See decision #024.
+
+## Two-axis dispatch on `isPromise`
+
+`isPromise` is a two-axis ternary that commits to the right arm based on the realm-fixed
+`instanceof` check, rather than running a single linear chain. The shape was lifted from
+the `Like`-cascade pattern in decision #050. Two arms, mutually exclusive:
+
+- **Local-realm arm** (`isCurrentRealmPromiseInstance(v) === true`) — settles on
+  `getPrototypeOf(v) === promisePrototype`. Two O(1) operations. Admits only direct
+  `Promise` instances; subclasses pass `instanceof` but fail the proto-identity check.
+- **Cross-realm arm** (`isCurrentRealmPromiseInstance(v) === false`) — runs three
+  realm-independent markers: the `[[Class]]` tag `'[object Promise]'`, the
+  constructor-name `'Promise'` (via `getDefinedConstructorName`'s four-source walk), and
+  `doesMatchPromiseContract` for the structural method-contract check. Cheap-first order;
+  cross-realm subclasses reject at constructor-name before paying for the contract.
+
+The ternary shape is decided by **bottom-seal availability**. Boxed primitives have an
+engine-attested bottom seal (the `[[XData]]` slot probe via `X.prototype.valueOf`); both
+arms of `isBoxedString` legitimately feed into the slot probe because it is inexpensive
+and spoof-proof even after the local-realm arm matches. Promise has no equivalent
+engine-attested seal — `doesMatchPromiseContract` is a structural check, and on the
+local-realm arm the contract is already implied by `proto-identity` (a value with
+`Promise.prototype` necessarily inherits `then` / `catch` / `finally`). Pulling the
+contract to a shared trailing position would pay for it redundantly on the local-realm hot
+path; keeping it in an `||`'ed cross-realm arm would force local-realm subclass rejection
+to pay for the entire cross-realm chain. The two arms have different bottom semantics, so
+a ternary committing to the right arm is the structurally honest combination. See decision
+#050.
 
 ## Conservative-narrowing in the Promise domain
 
 The conservative-narrowing posture from the function module (see
 [`./function.md`](./function.md#two-postures-minimal-floor-vs-conservative-narrowing) §
 "Two postures: minimal-floor vs. conservative-narrowing") lands a second time here.
-`isPromise` uses three cross-validating markers — `isPromiseLike`, the `[[Class]]` tag,
-and the constructor-name resolution — even though any one of them is usually enough for a
-typical-case discrimination. The reasoning is the same as in
-[`./function.md`](./function.md): foundation-tier predicates that downstream packages
-depend on benefit from multiple cross-validating markers as bounded-cost insurance against
-single-marker spoofing.
+`isPromise` uses three cross-validating markers on its **cross-realm arm** —
+`doesMatchPromiseContract`, the `[[Class]]` tag, and the constructor-name resolution —
+even though any one of them is usually enough for a typical-case discrimination. The
+local-realm arm uses `proto-identity` as its self-sealing single marker (the realm-fixed
+`Promise.prototype` cannot be spoofed at the prototype-identity level from userland). The
+reasoning matches [`./function.md`](./function.md): foundation-tier predicates that
+downstream packages depend on benefit from multiple cross-validating markers as
+bounded-cost insurance against single-marker spoofing on the surface where spoofing is
+possible.
 
-The marker independence makes the layered check trustworthy. Each marker rules out a
-distinct false-positive class:
+The marker independence on the cross-realm arm makes the layered check trustworthy. Each
+marker rules out a distinct false-positive class:
 
-- The `isPromiseLike` gate rejects values that claim Promise identity (via tag or
+- `doesMatchPromiseContract` rejects values that claim Promise identity (via tag or
   constructor name) without exposing the `Promise.prototype` method contract — e.g.
   `{ [Symbol.toStringTag]: 'Promise' }` with no `catch` or `finally`.
 - The `[[Class]]` tag rejects values that satisfy the method contract but tag themselves
@@ -112,11 +165,14 @@ distinct false-positive class:
   unrelated object passes the tag check but fails the constructor-name walk because the
   walk reaches the value's actual constructor, not its self-reported tag.
 
-`Promise` subclasses fall to the strict equality on the constructor-name marker — a value
-of `class MyPromise extends Promise {}` resolves its constructor name to `'MyPromise'`,
-which fails `=== 'Promise'`. This is _deliberate strictness_. Consumers who are in need of
-subclass admission should compose with a constructor-chain walk on top of `isPromise`. See
-decision #023.
+`Promise` subclasses fall to the strict equality on TWO independent markers —
+`proto-identity` on the local-realm arm, constructor-name on the cross-realm arm. A value
+of `class MyPromise extends Promise {}` rejects at `proto-identity` (its prototype is
+`MyPromise.prototype`, not `Promise.prototype`) in O(1) without any cross-realm work; a
+foreign-realm `MyPromise` subclass rejects at constructor-name (resolves to `'MyPromise'`,
+fails `=== 'Promise'`) before paying for the contract. This is _deliberate strictness_;
+consumers needing subclass admission should compose with a constructor-chain walk on top
+of `isPromise`. See decisions #023 and #050.
 
 ## The "contract" vocabulary for spec-defined method sets
 

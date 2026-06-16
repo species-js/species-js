@@ -47,12 +47,13 @@ Open architectural questions live in [open-questions.md](./open-questions.md).
 
 ### type-detection / thenable
 
-| #                                                     | Title                                                              | Date       |
-| ----------------------------------------------------- | ------------------------------------------------------------------ | ---------- |
-| [022](./0022-promise-like-richer-than-lib.md)         | `PromiseLike<T>` defined as richer than TypeScript's lib           | 2026-06-04 |
-| [023](./0023-is-promise-rejects-subclasses.md)        | `isPromise` rejects subclasses by strict constructor-name equality | 2026-06-04 |
-| [024](./0024-has-inert-method-factored-to-utility.md) | `hasInertMethod` factored as `@/utility` primitive                 | 2026-06-04 |
-| [037](./0037-abortable-thenable-placement.md)         | `AbortableThenable<T>` placement and design                        | 2026-06-06 |
+| #                                                       | Title                                                                          | Date       |
+| ------------------------------------------------------- | ------------------------------------------------------------------------------ | ---------- |
+| [022](./0022-promise-like-richer-than-lib.md)           | `PromiseLike<T>` defined as richer than TypeScript's lib                       | 2026-06-04 |
+| [023](./0023-is-promise-rejects-subclasses.md)          | `isPromise` rejects subclasses by strict constructor-name equality             | 2026-06-04 |
+| [024](./0024-has-inert-method-factored-to-utility.md)   | `hasInertMethod` factored as `@/utility` primitive                             | 2026-06-04 |
+| [037](./0037-abortable-thenable-placement.md)           | `AbortableThenable<T>` placement and design                                    | 2026-06-06 |
+| [050](./0050-lift-from-like-cascade-strict-identity.md) | Lift-from-`Like`-cascade: two-axis dispatch at the strict-identity entry point | 2026-06-16 |
 
 ### type-detection / evented
 
@@ -80,6 +81,7 @@ Open architectural questions live in [open-questions.md](./open-questions.md).
 | [042](./0042-four-marker-boxed-primitive-discrimination.md) | Four-marker boxed-primitive discrimination via `[[XData]]` slot probe | 2026-06-07 |
 | [043](./0043-per-family-equality-and-object-is-capture.md)  | Per-family equality strategies and `objectIs` capture                 | 2026-06-07 |
 | [049](./0049-instanceof-shortcut-predicate-entry-points.md) | Local-realm `instanceof` at predicate entry points, per-case shape    | 2026-06-14 |
+| [051](./0051-generic-primitive-future-proof-exclusion.md)   | Generic-primitive predicates with future-proof exclusion shape        | 2026-06-16 |
 
 ### type-detection / object
 
@@ -158,3 +160,5 @@ order with one-line summaries:
 | 2026-06-09 | [047](./0047-get-defined-constructor-pivot-and-walk.md)            | `getDefinedConstructor` pivot-and-walk          |
 | 2026-06-13 | [048](./0048-resolve-type-two-axis-dispatch.md)                    | `resolveType` two-axis dispatch                 |
 | 2026-06-14 | [049](./0049-instanceof-shortcut-predicate-entry-points.md)        | `instanceof` shortcut at predicate entry points |
+| 2026-06-16 | [050](./0050-lift-from-like-cascade-strict-identity.md)            | Lift-from-`Like`-cascade: two-axis at strict    |
+| 2026-06-16 | [051](./0051-generic-primitive-future-proof-exclusion.md)          | Generic-primitive future-proof exclusion        |
