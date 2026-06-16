@@ -143,6 +143,6 @@ The "entry-point shortcut, per-case shape" canon from #049 now formalizes a four
   ternary committing to the right arm, with the structural-contract helper called directly
   on the cross-realm arm only.
 
-Commit pending. See [`../architecture/thenable.md`](../architecture/thenable.md) and
+Commit `ff7be3b`. See [`../architecture/thenable.md`](../architecture/thenable.md) and
 [`../architecture/evented.md`](../architecture/evented.md) for the per-module mental-model
 updates that accompany this decision.

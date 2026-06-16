@@ -134,5 +134,5 @@ primitives, named "nullish" in alignment with the canonical ECMAScript vocabular
 remain the canonical primitive-form types for type-narrowing flows; `Primitive` is the
 union ceiling, not a replacement.
 
-Commit pending. See [`../architecture/primitive.md`](../architecture/primitive.md) for the
-per-module mental-model update that accompanies this decision.
+Commit `ff7be3b`. See [`../architecture/primitive.md`](../architecture/primitive.md) for
+the per-module mental-model update that accompanies this decision.
