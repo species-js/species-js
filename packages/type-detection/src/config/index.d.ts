@@ -82,11 +82,14 @@ export declare const sealedDescriptorOptions: {
  * === objectPrototype` are immune to a post-load reassignment of the
  * global `Object`. `Object.prototype` itself is non-writable and
  * non-configurable per ECMA-262 §20.1.2.1, but `globalThis.Object` is
- * neither.
+ * neither — reaching for `Object.prototype` at each call site would
+ * resolve through whatever `Object` happens to reference at that
+ * moment, which the capture forecloses.
  *
  * Used as the local-realm fast-path target in `@/object`'s
  * `isPlainObject` and `isPlainOrDictionaryObject`, and as the root
- * from which {@link toObjectString} is extracted.
+ * from which {@link toObjectString} and the module-local
+ * `hasOwnProperty` chain are extracted.
  * @internal
  */
 export declare const objectPrototype: typeof Object.prototype;
@@ -103,8 +106,8 @@ export declare const objectPrototype: typeof Object.prototype;
 export declare const toObjectString: typeof Object.prototype.toString;
 
 /**
- * `Function.prototype.toString`, captured at module-load and retyped with
- * `this: Callable`.
+ * `Function.prototype.toString`, captured at module-load and retyped
+ * with `this: Callable`.
  *
  * The retyping encodes the spec-required constraint: calling
  * `Function.prototype.toString` on a non-callable receiver throws
@@ -112,8 +115,8 @@ export declare const toObjectString: typeof Object.prototype.toString;
  *
  * Used as `toFunctionString.call(fn)` to read a function's source
  * regardless of a tampered instance `toString`. The source read is
- * load-bearing for telling native code from user-authored code and for
- * detecting class syntax.
+ * load-bearing for telling native code from user-authored code and
+ * for detecting class syntax.
  * @internal
  */
 export declare const toFunctionString: (this: Callable) => string;
@@ -127,9 +130,9 @@ export declare const toFunctionString: (this: Callable) => string;
 /**
  * Own-property test, ES2020-floor-safe.
  *
- * Uses the native `Object.hasOwn` when the runtime provides it (Node 22
- * and later, modern browsers). Otherwise falls back to a closure over
- * the captured `Object.prototype.hasOwnProperty`.
+ * Uses the native `Object.hasOwn` when the runtime provides it (Node
+ * 16.9 and later, browsers since late 2021). Otherwise, falls back
+ * to a closure over the captured `Object.prototype.hasOwnProperty`.
  *
  * The call shape is `objectHasOwn(target, key)`. The reference is
  * realm-fixed at module-load.
@@ -174,7 +177,7 @@ export declare const objectIs: typeof Object.is;
  * `Object.create(null)` for a sentinel or lookup-table object. The
  * spec-precise return closes the cascade once, here, so consumers
  * inherit honest typing for free. Same lib-gap pattern as
- * `getPrototypeOf` and `toFunctionString`.
+ * {@link getPrototypeOf} and {@link toFunctionString}.
  *
  * `ThisType<unknown>` replaces lib's `ThisType<any>` on the
  * property-bearing overload, matching the package's `unknown`-over-`any`
@@ -235,13 +238,13 @@ export declare const getOwnPropertySymbols: typeof Object.getOwnPropertySymbols;
  * Retyped from `typeof Object.getPrototypeOf`, which is `(o: any) => any`
  * per `lib.es5.d.ts`, to `(o: unknown) => object | null`. The lib's `any`
  * return forces an `@typescript-eslint/no-unsafe-assignment` cascade at
- * every consumer; the spec-precise return is `object | null`, the
+ * every consumer. The spec-precise return is `object | null`, the
  * `[[Prototype]]` slot of any non-nullish object.
  *
  * The `unknown` parameter accepts what callers actually pass. The runtime
  * throw for `null` and `undefined` is a precondition not modeled in the
  * type, consistent with TypeScript's not modeling thrown errors elsewhere.
- * Same lib-gap pattern as `toFunctionString` above.
+ * Same lib-gap pattern as {@link toFunctionString} above.
  * @internal
  */
 export declare const getPrototypeOf: (o: unknown) => object | null;
@@ -296,7 +299,7 @@ export declare const isFiniteNumberValue: (value: unknown) => value is number;
  * for runtimes lacking it.
  *
  * Retyped to `(value: unknown) => value is number` for the same lib-gap
- * reason as `isFiniteNumberValue` above. Polyfilled via
+ * reason as {@link isFiniteNumberValue} above. Polyfilled via
  * `isFiniteNumberValue(value) && Math.floor(value) === value` when the
  * native method is missing.
  * @internal
@@ -311,9 +314,9 @@ export declare const isIntegerValue: (value: unknown) => value is number;
  * `[-(2^53 - 1), 2^53 - 1]`, where round-tripping through JavaScript's
  * `number` representation is lossless. Retyped to
  * `(value: unknown) => value is number` for the same lib-gap reason as
- * `isFiniteNumberValue` above. Polyfilled via `isIntegerValue(value) &&
- * Math.abs(value) <= Number.MAX_SAFE_INTEGER` when the native method is
- * missing.
+ * {@link isFiniteNumberValue} above. Polyfilled via
+ * `isIntegerValue(value) && Math.abs(value) <= Number.MAX_SAFE_INTEGER`
+ * when the native method is missing.
  * @internal
  */
 export declare const isSafeIntegerValue: (value: unknown) => value is number;

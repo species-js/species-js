@@ -43,10 +43,13 @@ import { isCallable, isFunction } from '@/function';
 /**
  * Detects whether the value carries an own `prototype` property.
  *
- * The implementation guards nullish input with `!!value` first, so no
- * descriptor lookup runs on `null` or `undefined`. The descriptor read is
- * a single `getOwnPropertyDescriptor` call; inherited prototypes are
- * excluded at construction.
+ * The test reads the descriptor directly, not the inheritance chain.
+ * Inherited prototypes are deliberately excluded. An arrow function
+ * whose `prototype` comes from `Function.prototype` is the canonical
+ * example.
+ *
+ * Guards nullish input with `!!value` so no descriptor lookup runs on
+ * `null` or `undefined`.
  *
  * @param {unknown} [value] - the value to test; omitted is treated as
  *  `undefined`, which has no own prototype
@@ -62,9 +65,10 @@ export function hasOwnPrototype(value) {
  * descriptor is `writable: true`.
  *
  * Uses the same nullish guard as {@link hasOwnPrototype}, plus a direct
- * read of the descriptor's `writable` field. This is the structural tell
- * of an {@link ES3Function} versus a {@link ClassConstructor}, whose own
- * `prototype` is read-only.
+ * read of the descriptor's `writable` field.
+ *
+ * This is the structural tell of an {@link ES3Function} versus a
+ * {@link ClassConstructor}, whose own `prototype` is read-only.
  *
  * @param {unknown} [value] - the value to test; omitted is treated as
  *  `undefined`, which has no own prototype
@@ -84,15 +88,16 @@ export function hasOwnWritablePrototype(value) {
 /**
  * Narrows a value to `PropertyKey`.
  *
- * Composes `isStringValue`, `isSymbolValue`, and `isSafeIntegerValue` —
- * the last from `@/config`, capturing `Number.isSafeInteger` with a
- * polyfill fallback. The safe-integer restriction means numeric property
- * keys are limited to the range `[-(2^53 - 1), 2^53 - 1]` where they
- * round-trip losslessly. Finite-but-non-integer numbers like `1.5`
- * coerce to strings (`"1.5"`) at runtime with lookup surprises; integers
- * beyond `Number.MAX_SAFE_INTEGER` lose precision in the round-trip.
- * Both are excluded. `NaN` and `±Infinity` are also excluded — they fail
- * the finite check that underlies safe-integer.
+ * Composes {@link isStringValue}, {@link isSymbolValue}, and
+ * {@link isSafeIntegerValue} — the last from `@/config`, capturing
+ * `Number.isSafeInteger` with a polyfill fallback. The safe-integer
+ * restriction means numeric property keys are limited to the range
+ * `[-(2^53 - 1), 2^53 - 1]` where they round-trip losslessly.
+ * Finite-but-non-integer numbers like `1.5` coerce to strings (`"1.5"`)
+ * at runtime with lookup surprises. Integers beyond
+ * `Number.MAX_SAFE_INTEGER` lose precision in the round-trip. Both are
+ * excluded. `NaN` and `±Infinity` are also excluded — they fail the
+ * finite check that underlies safe-integer.
  *
  * @param {unknown} [value] - the value to test; omitted is treated as
  *  `undefined`, which is not a property key
@@ -109,9 +114,9 @@ export function isValidPropertyKey(value) {
  *
  * Uses the parameter-default-to-`null` pattern so the `!== null` loop
  * guard narrows `value` through each `getPrototypeOf` step. Each
- * iteration reads the own descriptor at the current level, then steps up
- * via `getPrototypeOf(value) ?? null`; the loop terminates on the first
- * descriptor hit or when the chain runs out.
+ * iteration reads the own descriptor at the current level, then steps
+ * up via `getPrototypeOf(value) ?? null`. The loop terminates on the
+ * first descriptor hit or when the chain runs out.
  *
  * Accessor descriptors are returned as-is. The getter is never invoked.
  *
@@ -171,10 +176,14 @@ export function getOwnPropertyDescriptorsKeys(value) {
  *
  * Composes {@link getOwnPropertyDescriptorsKeys} with the `Set` constructor.
  *
- * The Set primitive carries set-equality, subset, and superset semantics
- * natively and supports per-key membership checks (`.has(key)`) directly.
- * This is the right primitive for shape-comparison checks that read
- * individual key presence or absence rather than full-shape equality.
+ * The Set carries set-equality, subset, and superset semantics natively
+ * and supports per-key membership checks (`.has(key)`) directly. This is
+ * the right primitive for shape-comparison checks that read individual
+ * key presence or absence rather than full-shape equality.
+ *
+ * Same key-coverage as {@link getOwnPropertyDescriptorsKeys}.
+ * Non-enumerable own string keys are included. Symbol-keyed entries are
+ * excluded. Nullish input (or an omitted call) yields an empty `Set`.
  *
  * @param {unknown} [value] - the value whose own string-keyed names should
  *  be returned as a Set; nullish (or omitted) yields an empty `Set`
@@ -205,7 +214,7 @@ export function getOwnPropertyDescriptorsKeySet(value) {
  * "Inert" refers to the inspect-without-invoke guarantee. The check
  * confirms callability via descriptor reads, never by accessing the
  * property directly. An accessor `get key()` would fire on access
- * regardless of whether the getter returns a callable; the predicate
+ * regardless of whether the getter returns a callable. The predicate
  * rejects accessor descriptors, so the inspection itself remains inert.
  *
  * Used by Promise-contract predicates to verify the spec-defined `then`,
@@ -238,10 +247,10 @@ export function hasInertMethod(type = null, key) {
  *
  * Sibling of {@link hasInertMethod} for the accessor-getter case. The
  * descriptor walk returns the first descriptor found at any chain
- * level; if that descriptor's `get` field is callable, the predicate
+ * level. If that descriptor's `get` field is callable, the predicate
  * returns `true`. Data descriptors yield `undefined` from `?.get` and
- * are rejected — the helper specifically tests for the accessor
- * shape's `get`.
+ * are rejected. The helper specifically tests for the accessor shape's
+ * `get`.
  *
  * Fully inert. The descriptor is read without invocation; the `get`
  * function itself is referenced but never called.
@@ -261,9 +270,9 @@ export function hasInertGetter(type = null, key) {
  * Tests whether the value carries an accessor `set` at `key`, reachable
  * through its prototype chain.
  *
- * Sibling of {@link hasInertGetter} for the setter case. Same descriptor
- * walk + descriptor-shape discipline; data descriptors are rejected
- * (their `set` field is undefined). Fully inert.
+ * Sibling of {@link hasInertGetter} for the setter case. Same
+ * descriptor-walk and descriptor-shape discipline. Data descriptors
+ * are rejected (their `set` field is undefined). Fully inert.
  *
  * @param {unknown} type - the value to inspect
  * @param {PropertyKey} key - the property key to resolve through the
@@ -320,10 +329,13 @@ export function hasInertValue(type = null, key) {
 /**
  * Returns the value's internal `[[Class]]` signature.
  *
- * Reads the tag through the cached `Object.prototype.toString.call`. Uses
- * `args.length` to distinguish an omitted call from one that explicitly
- * passed `undefined`. Explicit `undefined` yields `'[object Undefined]'`;
- * an omitted call yields `undefined`.
+ * Reads the tag through the cached `Object.prototype.toString.call`, which
+ * is the realm-independent read of a value's built-in type and is immune to
+ * a missing or overridden instance `toString`.
+ *
+ * Uses `args.length` to distinguish an omitted call from one that explicitly
+ * passed `undefined`. Explicit `undefined` yields `'[object Undefined]'`.
+ * An omitted call yields `undefined`.
  *
  * @param {...unknown} args - the first argument (`args[0]`) is the value to
  *  read; presence is detected via `args.length` rather than `!== undefined`
@@ -345,7 +357,7 @@ export function getTypeSignature(...args) {
 }
 
 /**
- * Returns the tag portion of the type signature.
+ * Returns the tag portion of a value's type signature.
  *
  * Calls {@link getTypeSignature} and slices `[object ` and `]` off the
  * result. The `isStringValue` check short-circuits the no-argument case,
@@ -385,15 +397,15 @@ export function getTaggedType(...args) {
  * for generator functions, `%AsyncFunction%` for async functions, etc.);
  * non-callable values are walked from their `[[Prototype]]`. The
  * non-callable pivot deliberately bypasses the value's own `constructor`
- * data descriptor — user-supplied tampering on plain objects (e.g.,
+ * data descriptor. User-supplied tampering on plain objects (e.g.,
  * `{ constructor: 'tampered' }`, `{ constructor: Array }`) cannot
- * influence the result, which always reflects the structural type via
- * the prototype chain.
+ * influence the result. The result always reflects the structural type
+ * via the prototype chain.
  *
  * When the caller knows the input IS itself a real prototype object
  * (the result of `getPrototypeOf(instance)`, an `X.prototype` reference,
  * etc.), passing `{ assumePrototype: true }` skips the
- * walk-up-from-`[[Prototype]]` step and lets the descriptor walk start
+ * walk-up-from-`[[Prototype]]` step and lets the descriptor-walk start
  * at the value itself. ECMA-262 §10.2.6 mandates an own `constructor`
  * data property on every function-created prototype, so this option
  * reads exactly that own descriptor (e.g.,
@@ -403,10 +415,10 @@ export function getTaggedType(...args) {
  * Two-stage walk:
  *
  * 1. {@link getNextAvailablePropertyDescriptor} on the pivot finds the
- *    first `constructor` descriptor along its `[[Prototype]]` chain. For
- *    the common case the descriptor's value is a function, returned
+ *    first `constructor` descriptor along its `[[Prototype]]` chain.
+ *    For the common case, the descriptor's value is a function, returned
  *    directly.
- * 2. For the generator-function family the first walk lands on a
+ * 2. For the generator-function family, the first walk lands on a
  *    `constructor` descriptor whose value is itself an OBJECT, not a
  *    function — specifically `%GeneratorFunction.prototype%` or
  *    `%AsyncGeneratorFunction.prototype%`. The follow-up walk on that
@@ -417,10 +429,10 @@ export function getTaggedType(...args) {
  * cases where a reachable `constructor` reference is neither newable
  * nor a function at all. If such a descriptor-structure appears, it
  * gets resolved. The returned value is always either `undefined` or
- * a function asserted as {@link NewableFunction} (the `[[Construct]]`
+ * a function asserted as {@link NewableFunction}. The `[[Construct]]`
  * slot cannot be probed without invoking, so the newable claim is
- * asserted rather than verified — only callability is verified at
- * each stage via `isFunction`).
+ * asserted rather than verified. Only callability is verified at each
+ * stage, via {@link isFunction}.
  *
  * @param {unknown} [value] - the value whose constructor should be retrieved
  * @param {{ assumePrototype?: boolean }} [options] - call-site hints.
@@ -430,11 +442,11 @@ export function getTaggedType(...args) {
  * @returns {NewableFunction | undefined} the constructor function when
  *  reachable; `undefined` otherwise
  * @example
- * getDefinedConstructor([]);                                    // Array
- * getDefinedConstructor(new Date());                            // Date
- * getDefinedConstructor(Object.create(null));                   // undefined
- * getDefinedConstructor((function* () {})());                   // GeneratorFunction
- * getDefinedConstructor({ constructor: 'tampered' });           // Object (override bypassed)
+ * getDefinedConstructor([]);                                          // Array
+ * getDefinedConstructor(new Date());                                  // Date
+ * getDefinedConstructor(Object.create(null));                         // undefined
+ * getDefinedConstructor((function* () {})());                         // GeneratorFunction
+ * getDefinedConstructor({ constructor: 'tampered' });                 // Object (override bypassed)
  * getDefinedConstructor(Object.prototype, { assumePrototype: true }); // Object
  */
 export function getDefinedConstructor(value = null, options) {
@@ -443,13 +455,8 @@ export function getDefinedConstructor(value = null, options) {
   }
   const { assumePrototype = false } =
     /** @type {{ assumePrototype?: boolean }} */ (options) ?? {};
-  const type = isCallable(value) || assumePrototype ? value : getPrototypeOf(value);
 
-  // - There are valid cases where a direct `constructor` reference is neither
-  //   a newable function-type nor a function-type at all.
-  // - If such a descriptor-structure appears, it gets resolved, but the final
-  //   form of a constructor-function, the `NewableFunction` type, is assumed
-  //   and castest, but never tested against and never enforced.
+  const type = isCallable(value) || assumePrototype ? value : getPrototypeOf(value);
 
   const creator = getNextAvailablePropertyDescriptor(type, 'constructor')?.value ?? null;
 
@@ -466,15 +473,25 @@ export function getDefinedConstructor(value = null, options) {
 }
 
 /**
- * Returns the constructor's `name`.
+ * Returns the constructor's `name` via its property descriptor.
  *
- * Composes {@link getDefinedConstructor} with a descriptor-based `name`
- * read, then narrows the result via {@link isStringValue}.
+ * `name` is spec-defined as an own data descriptor on every function
+ * (ECMA-262 §10.2.9 `SetFunctionName`), so reading via
+ * `getOwnPropertyDescriptor(constructor, 'name').value` returns the data
+ * value directly. An accessor on `name` leaves the descriptor's `value`
+ * undefined and is therefore rejected by the {@link isStringValue} narrow
+ * that follows. A malicious
+ * `Object.defineProperty(Cls, 'name', { get: () => 'Spoofed' })` is the
+ * canonical example. No direct-access fallback, because direct `.name`
+ * access would invoke the accessor.
+ *
+ * Composes {@link getDefinedConstructor} as the upstream walk.
  *
  * Edge cases:
  *
- * - A non-string `name` (for example, a malicious replacement) yields
- *   `undefined` rather than leaking through.
+ * - A non-string `name` (for example, a malicious replacement that
+ *   overrides `name` with a non-string value) yields `undefined`
+ *   rather than leaking through.
  * - An unnamed function returns the empty string `''`.
  * - A value with no reachable constructor returns `undefined`.
  *
@@ -489,15 +506,10 @@ export function getDefinedConstructor(value = null, options) {
  */
 export function getDefinedConstructorName(value) {
   const constructor = getDefinedConstructor(value) ?? null;
+
   if (constructor === null) {
     return void 0;
   }
-  // `name` is spec-defined as an own data descriptor on every function
-  // (ECMA-262 §10.2.9 `SetFunctionName`). Reading via the descriptor
-  // returns the data value directly; an accessor `get name()` — e.g. a
-  // malicious replacement — leaves `descriptor.value` undefined and is
-  // therefore rejected by the `isStringValue` narrow. No direct-access
-  // fallback, because direct access would invoke the accessor.
   const name = /** @type {unknown} */ (
     getOwnPropertyDescriptor(/** @type {object} */ (constructor), 'name')?.value
   );
@@ -519,21 +531,21 @@ const startsWithUpperCase = /^\p{Lu}/u;
  * Resolves a value to its type-name.
  *
  * Prefers the constructor name when it is a real type identifier (a
- * Unicode uppercase-leading string per `\p{Lu}`). Otherwise falls back
+ * Unicode uppercase-leading string per `\p{Lu}`). Otherwise, falls back
  * to the structural tag from {@link getTaggedType}, with one refinement:
  * a lowercase constructor name carries more information than the
  * uninformative `'Object'` tag, so it wins that specific conflict.
  *
  * The constructor-name read composes {@link getDefinedConstructorName},
  * whose underlying {@link getDefinedConstructor} walk is fully inert and
- * bypasses user-supplied `constructor` data descriptors. The tag
- * fallback therefore fires only for genuinely weak names (anonymous
- * functions, no reachable constructor) and for primitives whose tag is
- * the canonical answer (`'Null'`, `'Undefined'`).
+ * bypasses user-supplied `constructor` data descriptors.
+ * The tag fallback therefore fires only for genuinely weak names
+ * (anonymous functions, no reachable constructor) and for primitives
+ * whose tag is the canonical answer (`'Null'`, `'Undefined'`).
  *
  * Works for every built-in. Custom types remain stable across
- * minification only if both the constructor's `name` descriptor and the
- * prototype's `Symbol.toStringTag` are frozen.
+ * minification only if both the constructor's `name` descriptor
+ * and the prototype's `Symbol.toStringTag` are frozen.
  *
  * Uses `args.length` to distinguish an omitted call from one that
  * explicitly passed `undefined`.

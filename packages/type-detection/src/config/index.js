@@ -121,12 +121,17 @@ const hasOwnProperty = objectPrototype.hasOwnProperty;
 export const toObjectString = objectPrototype.toString;
 
 /**
- * `Function.prototype.toString`, captured for `.call(fn)` use.
+ * `Function.prototype.toString`, captured at module-load and retyped
+ * with `this: Callable`.
  *
- * Returns the function's source text.
+ * The retyping encodes the spec-required constraint: calling
+ * `Function.prototype.toString` on a non-callable receiver throws
+ * `TypeError`.
  *
- * Used to tell native code from user-authored code and to detect class
- * syntax, regardless of a tampered instance `toString`.
+ * Used as `toFunctionString.call(fn)` to read a function's source
+ * regardless of a tampered instance `toString`. The source read is
+ * load-bearing for telling native code from user-authored code and
+ * for detecting class syntax.
  * @internal
  */
 export const toFunctionString = Function.prototype.toString;
@@ -146,9 +151,9 @@ const nativeHasOwn = /** @type {objectHasOwnProperty | undefined} */ (
 /**
  * Own-property test, ES2020-floor-safe.
  *
- * Uses the native `Object.hasOwn` when the runtime provides it (Node 22
- * and later, modern browsers). Otherwise, falls back to a closure over the
- * captured `Object.prototype.hasOwnProperty`.
+ * Uses the native `Object.hasOwn` when the runtime provides it (Node
+ * 16.9 and later, browsers since late 2021). Otherwise, falls back
+ * to a closure over the captured `Object.prototype.hasOwnProperty`.
  *
  * The native branch is gated by {@link isCallable} so a non-function
  * `hasOwn` cannot slip through. The call shape is `objectHasOwn(target,
@@ -169,6 +174,10 @@ export const objectAssign = o.assign;
 
 /**
  * `Object.is`, realm-fixed at module-load.
+ *
+ * Used in preference to `===` when NaN-equality (`Object.is(NaN, NaN) === true`)
+ * or strict ±0 distinction (`Object.is(+0, -0) === false`) matters — most
+ * notably in the boxed-primitive value-equality check for `BoxedNumber`.
  * @internal
  */
 export const objectIs = o.is;
@@ -177,10 +186,10 @@ export const objectIs = o.is;
  * `Object.create`, realm-fixed at module-load.
  *
  * The `.d.ts` retypes the lib's `any` return on both overloads to
- * overload-precise return types — `Record<PropertyKey, never>` on the
- * `null`-prototype variant, `object` otherwise — closing the
- * `any`-assignment cascade at consumer sites. The runtime export is the
- * unwrapped native method.
+ * overload-precise return types: `Record<PropertyKey, never>` on the
+ * `null`-prototype variant, `object` otherwise. This closes the
+ * `any`-assignment cascade at consumer sites. The runtime export is
+ * the unwrapped native method.
  * @internal
  */
 export const objectCreate = o.create;
@@ -278,14 +287,14 @@ const mathFloor = m.floor;
 const MAX_SAFE_INTEGER = n.MAX_SAFE_INTEGER;
 
 /**
- * `Number.isFinite`, realm-fixed at module-load with a polyfill
- * fallback for runtimes lacking it.
+ * `Number.isFinite`, realm-fixed at module-load with a polyfill fallback
+ * for runtimes lacking it.
  *
  * The `.d.ts` retypes the lib's plain-boolean return to the type-guard
  * `(value: unknown) => value is number` to propagate narrowing at
  * consumer call sites. The runtime export is the native method when
- * callable; otherwise the polyfill checks `typeof === 'number'` against
- * the global `isFinite` for spec equivalence.
+ * callable; otherwise the polyfill composes {@link isNumberValue} with
+ * the global `isFinite` check, matching spec semantics.
  *
  * @param {unknown} value - the value to inspect
  * @returns {value is number} `true` when the value is a finite number;
@@ -297,12 +306,12 @@ export const isFiniteNumberValue = isCallable(n.isFinite)
   : (/** @type {unknown} */ value) => isNumberValue(value) && nativeIsFinite(value);
 
 /**
- * `Number.isInteger`, realm-fixed at module-load with a polyfill
- * fallback for runtimes lacking it.
+ * `Number.isInteger`, realm-fixed at module-load with a polyfill fallback
+ * for runtimes lacking it.
  *
  * The `.d.ts` retypes the lib's plain-boolean return to the type-guard
  * `(value: unknown) => value is number` to propagate narrowing at
- * consumer call sites. The polyfill composes `isFiniteNumberValue`
+ * consumer call sites. The polyfill composes {@link isFiniteNumberValue}
  * with a `Math.floor(value) === value` integer check.
  *
  * @param {unknown} value - the value to inspect
@@ -323,8 +332,8 @@ export const isIntegerValue = isCallable(n.isInteger)
  * `[-(2^53 - 1), 2^53 - 1]`, where round-tripping is lossless. The
  * `.d.ts` retypes the lib's plain-boolean return to the type-guard
  * `(value: unknown) => value is number` to propagate narrowing. The
- * polyfill composes `isIntegerValue` with the absolute-value bound
- * against `Number.MAX_SAFE_INTEGER`.
+ * polyfill composes {@link isIntegerValue} with the absolute-value
+ * bound against `Number.MAX_SAFE_INTEGER`.
  *
  * @param {unknown} value - the value to inspect
  * @returns {value is number} `true` when the value is a safe integer

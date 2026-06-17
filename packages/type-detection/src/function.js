@@ -7,9 +7,9 @@
  *
  * The floor predicate {@link isCallable} narrows any value to
  * {@link Callable} via the minimal, realm-independent callability test.
- * Richer function classification — newability, verified Function-interface
- * shape, specific species such as async, generator, or class — builds on
- * top of it.
+ * Richer function classification builds on top of it: newability, the
+ * verified Function-interface shape, and specific species such as async,
+ * generator, or class.
  */
 
 import { getOwnPropertyDescriptor, getPrototypeOf, toFunctionString } from '@/config';
@@ -79,8 +79,8 @@ export function getFunctionSource(value) {
  * Those checks belong to stricter guards layered above this one.
  *
  * Generic in the input type so existing caller-side narrowing is preserved
- * through the predicate. The narrow returns `T & Callable`; non-callable
- * arms of `T` collapse to `never` under the intersection, callable arms
+ * through the predicate. The narrow returns `T & Callable`. Non-callable
+ * arms of `T` collapse to `never` under the intersection. Callable arms
  * retain their call signature. For `T = unknown`, the intersection
  * reduces to `Callable`, matching the pre-generic behavior.
  *
@@ -89,17 +89,14 @@ export function getFunctionSource(value) {
  *  `undefined`, which is not callable
  * @returns {value is T & Callable} `true` when `typeof value === 'function'`,
  *  narrowing `value` to `T & Callable`; `false` otherwise
- *
- *  Note on LOAD-ORDER INVARIANT:
- *  The current implementation must remain a hoisted `function` declaration.
- * `@/config` calls `isCallable` at its own module-evaluation time (the
- * `objectHasOwn` and `Number.is*` gates), and `config` sits in a circular
- * import with this module. Function-declaration hoisting is what makes
- * `isCallable` reachable mid-cycle, before `function.js` has finished
- * evaluating. Rewriting this as `const isCallable = (value) => …` puts the
- * binding in the temporal dead zone and throws at package-load. Re-export
- * order in `index.js` does not save it; the binding form does.
  */
+// Load-order invariant: must remain a hoisted `function` declaration.
+// `@/config` calls `isCallable` at its own module-evaluation time (the
+// `objectHasOwn` and `Number.is*` gates), and `config` sits in a circular
+// import with this module. Function-declaration hoisting makes `isCallable`
+// reachable mid-cycle, before `function.js` has finished evaluating.
+// Rewriting as `const isCallable = (value) => …` puts the binding in the
+// temporal dead zone and throws at package-load.
 export function isCallable(value) {
   return typeof value === 'function';
 }
@@ -115,8 +112,9 @@ export function isCallable(value) {
  * Generic in the input type, mirroring {@link isCallable}. The narrow
  * returns `T & VerifiedFunction`, so callers whose `value` already
  * carries a more specific function shape keep that shape post-narrow.
- * Non-callable arms of `T` collapse to `never`; `T = unknown` reduces
- * to `VerifiedFunction`, matching the pre-generic behavior.
+ * Non-callable arms of `T` collapse to `never` under the intersection.
+ * `T = unknown` reduces to `VerifiedFunction`, matching the pre-generic
+ * behavior.
  *
  * @template [T=unknown]
  * @param {T} [value] - the value to test; omitted is treated as
@@ -162,20 +160,19 @@ export function isFunction(value) {
  * since they preserve `[[Construct]]`. Arrow functions, methods, async
  * functions, and generator functions do not.
  *
+ * Each call allocates a `Proxy` and runs a `new` inside a `try`/`catch`.
+ * The async, generator, and async-generator predicates only reach this on
+ * their cross-realm fallback (the same-realm `instanceof` fast-path runs
+ * first), but {@link isNewableFunction}, {@link isES3Function}, and
+ * {@link isClass} route through it unconditionally. No less expensive
+ * technique exists for probing `[[Construct]]` without invoking the value,
+ * but downstream callers placing those guards on a hot path should know
+ * about the allocation.
+ *
  * @param {unknown} [value] - the value to probe; omitted is treated as
  *  `undefined`, which carries no `[[Construct]]`
  * @returns {boolean} `true` when the value carries `[[Construct]]`; `false`
  *  otherwise
- *
- * Note on COSTs:
- * Each call allocates a `Proxy` and runs a `new` inside a `try`/`catch`.
- * The async, generator, and async-generator predicates only reach this
- * on their cross-realm fallback (the same-realm `instanceof` fast path
- * runs first), but {@link isNewableFunction}, {@link isES3Function},
- * and {@link isClass} route through it unconditionally. There is no less
- * expensive way to probe `[[Construct]]` without invoking the value itself,
- * so this is the correct technique — but downstream callers placing those
- * guards on a hot path should be aware of the allocation.
  */
 export function hasConstructSlot(value) {
   try {
@@ -196,8 +193,9 @@ export function hasConstructSlot(value) {
  * all three newable species: {@link ES3Function}, {@link ClassConstructor},
  * and bound newables.
  *
- * Generic in `T` per the family pattern. The narrow returns
- * `T & NewableFunction`; `T = unknown` collapses to `NewableFunction`.
+ * Generic in `T` per the family pattern set by {@link isCallable} and
+ * {@link isFunction}. The narrow returns `T & NewableFunction`, preserving
+ * caller-side narrowing. `T = unknown` collapses to `NewableFunction`.
  *
  * @template [T=unknown]
  * @param {T} [value] - the value to test; omitted is treated as
@@ -223,7 +221,7 @@ export function isNewableFunction(value) {
  * guard does not.
  *
  * Generic in `T` per the family pattern. The narrow returns
- * `T & ES3Function`; `T = unknown` collapses to `ES3Function`.
+ * `T & ES3Function`. `T = unknown` collapses to `ES3Function`.
  *
  * @template [T=unknown]
  * @param {T} [value] - the value to test; omitted is treated as
@@ -247,14 +245,15 @@ export function isES3Function(value) {
  * {@link isCustomClass} or {@link isBuiltInClass} — disjoint refinements
  * that together partition this surface.
  *
- * Bound class constructors are deliberately rejected. `bind` strips own
- * `prototype` from the bound result, so the descriptor read returns
- * `undefined` and `undefined?.writable === false` short-circuits to
- * `false`. The {@link NewableFunction} gate still admits bound newables;
- * this guard does not.
+ * Bound class constructors are deliberately rejected. Though they remain
+ * newable, `bind` has stripped the own `prototype` slot from the bound
+ * result. What remains is no longer a class shape.
+ * The descriptor read returns `undefined` and `undefined?.writable === false`
+ * short-circuits to `false`. The {@link NewableFunction} gate still admits
+ * bound newables; this guard does not.
  *
  * Generic in `T` per the family pattern. The narrow returns
- * `T & ClassConstructor`; `T = unknown` collapses to `ClassConstructor`.
+ * `T & ClassConstructor`. `T = unknown` collapses to `ClassConstructor`.
  *
  * @template [T=unknown]
  * @param {T} [value] - the value to test; omitted is treated as
@@ -285,7 +284,7 @@ export function isClass(value) {
  * so neither variant admits it.
  *
  * Generic in `T` per the family pattern. The narrow returns
- * `T & ClassConstructor`; `T = unknown` collapses to `ClassConstructor`.
+ * `T & ClassConstructor`. `T = unknown` collapses to `ClassConstructor`.
  *
  * @template [T=unknown]
  * @param {T} [value] - the value to test; omitted is treated as
@@ -312,7 +311,7 @@ export function isCustomClass(value) {
  * variants, which are rejected upstream by {@link isClass}.
  *
  * Generic in `T` per the family pattern. The narrow returns
- * `T & ClassConstructor`; `T = unknown` collapses to `ClassConstructor`.
+ * `T & ClassConstructor`. `T = unknown` collapses to `ClassConstructor`.
  *
  * @template [T=unknown]
  * @param {T} [value] - the value to test; omitted is treated as
@@ -342,9 +341,9 @@ const AsyncFunctionConstructor = /** @type {NewableFunction} */ (
  * `'[object AsyncFunction]'`, and the resolved constructor name, read via
  * {@link getDefinedConstructorName}, must equal `'AsyncFunction'`. Both
  * labels are spec-invariant across realms and survive `bind`, since the
- * relevant prototype chain is preserved. The pair is the realm-independent
- * _"tells-what-it-is"_ for any genuine `%AsyncFunction%`, so tampering with
- * one label without matching the other is rejected.
+ * relevant prototype chain is preserved. Together they form the
+ * realm-independent identity signal for any genuine `%AsyncFunction%`, so
+ * tampering with one label without matching the other is rejected.
  *
  * Called as the third link of {@link hasAsyncFunctionShape}'s `&&` chain,
  * after the descriptor-presence floor (`!hasOwnPrototype`,
@@ -393,24 +392,24 @@ export function hasAsyncFunctionPrototypeSurface(value) {
  * value to descend from this realm's `%AsyncFunction%` intrinsic, so it
  * admits async functions originating in foreign realms.
  *
- * Six realm-independent markers must hold, grouped into four `&&` links by
- * semantic role:
+ * Six realm-independent markers must hold:
  *
- * 1. `!hasOwnPrototype(value)` — no own `prototype` (descriptor-presence
- *    floor).
- * 2. `!hasConstructSlot(value)` — no `[[Construct]]` (descriptor-presence
- *    floor).
- * 3. {@link hasAsyncFunctionIdentitySignal} — the two identity-labels
- *    (`Symbol.toStringTag` resolves to `'AsyncFunction'` and the resolved
- *    constructor name is `'AsyncFunction'`).
- * 4. {@link hasAsyncFunctionPrototypeSurface} — the two proto-side
- *    membership conditions (`'constructor'` present and `'prototype'`
- *    absent).
+ * 1. No own `prototype` property.
+ * 2. No `[[Construct]]` internal method.
+ * 3. `Symbol.toStringTag` resolves to `'AsyncFunction'`.
+ * 4. The resolved constructor name is `'AsyncFunction'`.
+ * 5. The value's `[[Prototype]]` has an own `'constructor'` key.
+ * 6. The value's `[[Prototype]]` has no own `'prototype'` key.
+ *
+ * The implementation groups these into four `&&` links: the
+ * descriptor-presence floor (markers 1 and 2), then
+ * {@link hasAsyncFunctionIdentitySignal} (markers 3 and 4), then
+ * {@link hasAsyncFunctionPrototypeSurface} (markers 5 and 6).
  *
  * Markers 1–4 are spec invariants. Markers 5 and 6 are conservative
  * cross-validators that catch single-slot spoofing. A value that spoofs
  * `Symbol.toStringTag` but leaves its `[[Prototype]]` unmodified would slip
- * past the spec-invariant floor; the proto-side check rejects it.
+ * past the spec-invariant floor. The proto-side check rejects it.
  * Coordinated tampering across both the tag and the prototype surface still
  * passes here, but `instanceof` against the captured intrinsic accepts
  * such a value as well, so the result stays consistent across both code
@@ -424,7 +423,7 @@ export function hasAsyncFunctionPrototypeSurface(value) {
  * Returns a plain boolean. Narrowing is handled by {@link isAsyncFunction},
  * which runs the same-realm `instanceof` fast path before falling back to
  * this structural check. The signature is standalone by design so that
- * each marker can be tested in isolation; any value can be passed, and
+ * each marker can be tested in isolation. Any value can be passed, and
  * non-callables flow through the marker chain and return `false`.
  *
  * @param {unknown} [value] - the value to inspect
@@ -520,10 +519,10 @@ const AsyncGeneratorFunctionConstructor = /** @type {NewableFunction} */ (
  * `'[object GeneratorFunction]'`, and the resolved constructor name, read
  * via {@link getDefinedConstructorName}, must equal `'GeneratorFunction'`.
  * Both labels are spec-invariant across realms and survive `bind`, since
- * the relevant prototype chain is preserved. The pair is the
- * realm-independent _"tells-what-it-is"_ for any genuine `%GeneratorFunction%`.
+ * the relevant prototype chain is preserved. Together they form the
+ * realm-independent identity signal for any genuine `%GeneratorFunction%`.
  *
- * Mirrors the async-family pattern; see {@link hasAsyncFunctionIdentitySignal}.
+ * Mirrors the async-family pattern. See: {@link hasAsyncFunctionIdentitySignal}.
  * Called as the second link of {@link hasGeneratorFunctionShape}'s `&&`
  * chain, after `!hasConstructSlot` and before
  * {@link hasAnyGeneratorFunctionPrototypeSurface}.
@@ -547,8 +546,8 @@ export function hasGeneratorFunctionIdentitySignal(value) {
  * `'[object AsyncGeneratorFunction]'`, and the resolved constructor name,
  * read via {@link getDefinedConstructorName}, must equal
  * `'AsyncGeneratorFunction'`. Both labels are spec-invariant across realms
- * and survive `bind`, since the relevant prototype chain is preserved. The
- * pair is the realm-independent _"tells-what-it-is"_ for any genuine
+ * and survive `bind`, since the relevant prototype chain is preserved.
+ * Together they form the realm-independent identity signal for any genuine
  * `%AsyncGeneratorFunction%`.
  *
  * Mirrors {@link hasGeneratorFunctionIdentitySignal}. Called as the second
@@ -616,17 +615,18 @@ export function hasAnyGeneratorFunctionPrototypeSurface(value) {
  * value to descend from this realm's `%GeneratorFunction%` intrinsic, so
  * it admits generator functions originating in foreign realms.
  *
- * Five realm-independent markers must hold, grouped into three `&&` links
- * by semantic role:
+ * Five realm-independent markers must hold:
  *
- * 1. `!hasConstructSlot(value)` — no `[[Construct]]` (descriptor-presence
- *    floor; generator functions are non-constructable).
- * 2. {@link hasGeneratorFunctionIdentitySignal} — the two identity-labels
- *    (`Symbol.toStringTag` resolves to `'GeneratorFunction'` and the
- *    resolved constructor name is `'GeneratorFunction'`).
- * 3. {@link hasAnyGeneratorFunctionPrototypeSurface} — the two proto-side
- *    membership conditions (`'constructor'` present and `'prototype'`
- *    present).
+ * 1. No `[[Construct]]` internal method.
+ * 2. `Symbol.toStringTag` resolves to `'GeneratorFunction'`.
+ * 3. The resolved constructor name is `'GeneratorFunction'`.
+ * 4. The value's `[[Prototype]]` has an own `'constructor'` key.
+ * 5. The value's `[[Prototype]]` has an own `'prototype'` key.
+ *
+ * The implementation groups these into three `&&` links: the
+ * descriptor-presence floor (marker 1, `!hasConstructSlot`), then
+ * {@link hasGeneratorFunctionIdentitySignal} (markers 2 and 3), then
+ * {@link hasAnyGeneratorFunctionPrototypeSurface} (markers 4 and 5).
  *
  * Markers 1–3 are spec invariants. Markers 4 and 5 are conservative
  * cross-validators that catch single-slot spoofing: a value that overrides
@@ -647,7 +647,7 @@ export function hasAnyGeneratorFunctionPrototypeSurface(value) {
  *
  * Returns a plain boolean. Narrowing belongs to {@link isGeneratorFunction}.
  * The signature is standalone by design so that each marker can be tested
- * in isolation; any value can be passed, and non-callables flow through
+ * in isolation. Any value can be passed, and non-callables flow through
  * the marker chain and return `false`.
  *
  * @param {unknown} [value] - the value to inspect
@@ -670,32 +670,38 @@ export function hasGeneratorFunctionShape(value) {
  * value to descend from this realm's `%AsyncGeneratorFunction%` intrinsic,
  * so it admits async-generator functions originating in foreign realms.
  *
- * Five realm-independent markers must hold, grouped into three `&&` links
- * by semantic role:
+ * Five realm-independent markers must hold:
  *
- * 1. `!hasConstructSlot(value)` — no `[[Construct]]`.
- * 2. {@link hasAsyncGeneratorFunctionIdentitySignal} — the two
- *    identity-labels (`Symbol.toStringTag` resolves to `'AsyncGeneratorFunction'`
- *    and the resolved constructor name is `'AsyncGeneratorFunction'`).
- * 3. {@link hasAnyGeneratorFunctionPrototypeSurface} — the two proto-side
- *    membership conditions (`'constructor'` present and `'prototype'`
- *    present).
+ * 1. No `[[Construct]]` internal method.
+ * 2. `Symbol.toStringTag` resolves to `'AsyncGeneratorFunction'`.
+ * 3. The resolved constructor name is `'AsyncGeneratorFunction'`.
+ * 4. The value's `[[Prototype]]` has an own `'constructor'` key.
+ * 5. The value's `[[Prototype]]` has an own `'prototype'` key.
  *
- * Same conservative-narrowing posture as
- * {@link hasGeneratorFunctionShape}. Markers 1–3 are spec invariants;
- * markers 4 and 5 are cross-validators against single-slot spoofing. The
- * proto-surface rule is shared with the sync-generator family — the
- * `[[Class]]` tag, carried via the identity-signal link, is the
- * per-species discriminator.
+ * The implementation groups these into three `&&` links: the
+ * descriptor-presence floor (marker 1, `!hasConstructSlot`), then
+ * {@link hasAsyncGeneratorFunctionIdentitySignal} (markers 2 and 3), then
+ * {@link hasAnyGeneratorFunctionPrototypeSurface} (markers 4 and 5).
  *
- * Same no-self-side-prototype-check rationale as
- * {@link hasGeneratorFunctionShape}: unbound async-generator functions
- * carry an own writable `prototype`, bound ones do not, and admitting
- * both requires omitting that check.
+ * Markers 1–3 are spec invariants. Markers 4 and 5 are conservative
+ * cross-validators that catch single-slot spoofing. A value that overrides
+ * the tag without also reshaping its `[[Prototype]]` would slip past
+ * the spec-invariant floor, and the proto-side check rejects it. The
+ * proto-surface requirement of `%AsyncGeneratorFunction.prototype%`
+ * is shared by the generator family. See: {@link hasAnyGeneratorFunctionPrototypeSurface}.
+ * The `[[Class]]` tag is the per-species discriminator within that
+ * shared structure.
+ *
+ * Same self-side-check omission as {@link hasGeneratorFunctionShape}:
+ * Both `!hasOwnPrototype` and `hasOwnWritablePrototype` checks are skipped
+ * because of the bound-vs-unbound asymmetry. Unbound async-generator
+ * functions carry an own writable `prototype`, bound ones do not, and
+ * admitting both requires omitting both checks.
  *
  * Returns a plain boolean. Narrowing belongs to
- * {@link isAsyncGeneratorFunction}. The signature is standalone by
- * design; non-callables flow through the marker chain and return `false`.
+ * {@link isAsyncGeneratorFunction}. The signature is standalone by design
+ * so that each marker can be tested in isolation. Any value can be passed,
+ * and non-callables flow through the marker chain and return `false`.
  *
  * @param {unknown} [value] - the value to inspect
  * @returns {boolean} `true` when all five markers hold; `false` otherwise
@@ -712,13 +718,22 @@ export function hasAsyncGeneratorFunctionShape(value) {
 /**
  * Narrows a value to {@link GeneratorFunction}.
  *
- * Orchestrates three phases: the `isFunction` gate, the same-realm
- * `instanceof` fast path against the captured `%GeneratorFunction%`
- * intrinsic, and the cross-realm fallback via
- * {@link hasGeneratorFunctionShape}.
+ * Orchestrates three phases:
+ *
+ * 1. The `isFunction` gate short-circuits for non-callable inputs.
+ * 2. The same-realm fast path checks `value instanceof %GeneratorFunction%`,
+ *    which walks the `[[Prototype]]` chain. It passes for any value whose
+ *    inheritance traces to the local realm's `%GeneratorFunction.prototype%`,
+ *    including bound variants — `bind` preserves the chain.
+ * 3. The realm-independent fallback delegates to
+ *    {@link hasGeneratorFunctionShape}, which verifies the five spec-derived
+ *    markers (three spec-invariant plus two proto-side key-set cross-validators).
+ *    This is the cross-realm code path. Foreign-realm generator functions have
+ *    a different `%GeneratorFunction%` identity but the same observable markers.
  *
  * Admits sync generator function declarations, expressions, concise-method
- * forms, and their bound variants.
+ * forms, and their bound variants. See the {@link GeneratorFunction} doc
+ * for the spec-mechanics rationale for bound-admission.
  *
  * Does not admit async-generator functions, which trace to
  * `%AsyncGeneratorFunction%`. Use {@link isAsyncGeneratorFunction} for
@@ -750,15 +765,26 @@ export function isGeneratorFunction(value) {
 /**
  * Narrows a value to {@link AsyncGeneratorFunction}.
  *
- * Orchestrates three phases: the `isFunction` gate, the same-realm
- * `instanceof` fast path against the captured `%AsyncGeneratorFunction%`
- * intrinsic, and the cross-realm fallback via
- * {@link hasAsyncGeneratorFunctionShape}.
+ * Orchestrates three phases:
  *
- * Admits `async function*` declarations, expressions, async concise
- * methods, and their bound variants. Does not admit sync generator
- * functions, async functions, or any other family — those trace to
- * different intrinsics.
+ * 1. The `isFunction` gate short-circuits for non-callable inputs.
+ * 2. The same-realm fast path checks `value instanceof %AsyncGeneratorFunction%`,
+ *    which walks the `[[Prototype]]` chain. It passes for any value whose
+ *    inheritance traces to the local realm's `%AsyncGeneratorFunction.prototype%`,
+ *    including bound variants — `bind` preserves the chain.
+ * 3. The realm-independent fallback delegates to
+ *    {@link hasAsyncGeneratorFunctionShape}, which verifies the five spec-derived
+ *    markers (three spec-invariant plus two proto-side key-set cross-validators).
+ *    This is the cross-realm code path. Foreign-realm async-generator functions
+ *    have a different `%AsyncGeneratorFunction%` identity but the same
+ *    observable markers.
+ *
+ * Admits `async function*` declarations, expressions, async concise methods,
+ * and their bound variants. See the {@link AsyncGeneratorFunction} doc for
+ * the spec-mechanics rationale for bound-admission.
+ *
+ * Does not admit sync generator functions, async functions, or any other
+ * family — those trace to different intrinsics.
  *
  * Generic in `T` per the family pattern. The narrow returns
  * `T & AsyncGeneratorFunction`; `T = unknown` collapses to
@@ -788,14 +814,18 @@ export function isAsyncGeneratorFunction(value) {
  * Narrows a value to {@link AnyGeneratorFunction}, the umbrella over both
  * sync and async generator-function species.
  *
- * Composes the two single-family orchestrators. The `isFunction` gate
- * runs first; the value then passes if either same-realm `instanceof`
- * fast path or either shape helper succeeds.
+ * Inlines the union of both single-family checks
+ * ({@link isGeneratorFunction}, {@link isAsyncGeneratorFunction}) under a
+ * shared `isFunction` gate. The gate short-circuits for non-callable inputs.
+ * The value then passes if any of four disjuncts holds: the same-realm
+ * `instanceof` fast path against either `%GeneratorFunction%` or
+ * `%AsyncGeneratorFunction%`, or the cross-realm fallback via
+ * {@link hasGeneratorFunctionShape} or {@link hasAsyncGeneratorFunctionShape}.
  *
  * There is no dedicated `hasAnyGeneratorFunctionShape` helper. The
- * umbrella's job is exactly the union, and composing the two
- * single-family shape helpers is the codified pattern (recorded in
- * `project_function_type_hierarchy`).
+ * umbrella's job is exactly this union of fast paths and shape helpers,
+ * and inlining it (rather than composing the orchestrators, which would
+ * double-gate) is the codified pattern.
  *
  * Generic in `T` per the family pattern. The narrow returns
  * `T & AnyGeneratorFunction`; `T = unknown` collapses to
