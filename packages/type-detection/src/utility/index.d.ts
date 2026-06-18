@@ -301,7 +301,6 @@ export function hasInertMethod(type: unknown, key: PropertyKey): boolean;
  *  prototype-chain
  * @returns `true` when the value carries an accessor with a callable
  *  getter at `key` in its prototype-chain; `false` otherwise
- * @internal
  */
 export function hasInertGetter(type: unknown, key: PropertyKey): boolean;
 
@@ -318,7 +317,6 @@ export function hasInertGetter(type: unknown, key: PropertyKey): boolean;
  *  prototype-chain
  * @returns `true` when the value carries an accessor with a callable
  *  setter at `key` in its prototype-chain; `false` otherwise
- * @internal
  */
 export function hasInertSetter(type: unknown, key: PropertyKey): boolean;
 
@@ -345,7 +343,6 @@ export function hasInertSetter(type: unknown, key: PropertyKey): boolean;
  * @returns `true` when the value carries a data descriptor at `key`
  *  in its prototype-chain; `false` otherwise (including accessor
  *  descriptors and missing descriptors)
- * @internal
  */
 export function hasInertValue(type: unknown, key: PropertyKey): boolean;
 

@@ -260,7 +260,6 @@ export function hasInertMethod(type = null, key) {
  *  value's prototype-chain
  * @returns {boolean} `true` when the value carries an accessor with a
  *  callable getter at `key` in its prototype-chain; `false` otherwise
- * @internal
  */
 export function hasInertGetter(type = null, key) {
   return type !== null && isCallable(getNextAvailablePropertyDescriptor(type, key)?.get);
@@ -279,7 +278,6 @@ export function hasInertGetter(type = null, key) {
  *  value's prototype-chain
  * @returns {boolean} `true` when the value carries an accessor with a
  *  callable setter at `key` in its prototype-chain; `false` otherwise
- * @internal
  */
 export function hasInertSetter(type = null, key) {
   return type !== null && isCallable(getNextAvailablePropertyDescriptor(type, key)?.set);
@@ -311,7 +309,6 @@ export function hasInertSetter(type = null, key) {
  * @returns {boolean} `true` when the value carries a data descriptor at
  *  `key` in its prototype-chain; `false` otherwise (including accessor
  *  descriptors and missing descriptors)
- * @internal
  */
 export function hasInertValue(type = null, key) {
   return (

@@ -134,5 +134,5 @@ spec-writing phase (the test-green close comes later, at axis-1 generation).
 | error     | frozen 2026-06-18 | —            | isError (native-or-polyfill) + isAbortError + 3 helpers; decidability passed |
 | object    | frozen 2026-06-18 | —            | 4 predicates + 2 helpers; decidability passed (fixed 1 stale doc claim)      |
 | function  | frozen 2026-06-19 | —            | 11 predicates + hasConstructSlot + 9 helpers; Symbol/BigInt-as-class ruling  |
-| utility   | —                 | —            | public readers; lighter spec                                                 |
+| utility   | frozen 2026-06-19 | —            | 15 public readers/probes (inert set promoted public); decidability clean     |
 | config    | —                 | —            | `@internal` realm-fixed; boundary-retyped signature contracts only           |
