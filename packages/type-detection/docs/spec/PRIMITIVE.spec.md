@@ -2,9 +2,12 @@
 
 > Spec format and the multi-axis model are defined in [`./README.md`](./README.md).
 > Vectors are reasoned from the canon (`primitive.d.ts`, `primitive.js`,
-> `architecture/primitive.md`, decisions #038, #039, #042, #043, #049, #050, #051;
-> boxed-primitive memory). Status: **strawman for design review** — the decidability
-> scratch-run (template step 4) is pending freeze.
+> `architecture/primitive.md`, decisions #038, #039, #042, #043, #049, #050, #051, #053;
+> boxed-primitive memory). Status: **FROZEN 2026-06-18** — decidability check passed (23
+> cases over all 19 public predicates + the 10 exported helpers, run against the real
+> implementations through the `@/index.js` barrel). The run corrected the equality-helper
+> behavior (they admit the same-family primitive too, not only the boxed form). Base for
+> the axis-1 suite; axes 2–4 derive alongside.
 
 ## Module contract
 
@@ -287,19 +290,25 @@ per-family boxed predicates, dispatched by tag through `unboxedPrimitiveValueEva
 ## Helper specification (axis 4) — the five equality helpers
 
 Each `doesHaveStrictUnboxedXValueEquality(value: unknown): boolean` is the marker-4 slot
-probe for its family: `try { return <equality form>; } catch { return false; }`. The
-captured `X.prototype.valueOf.call(value)` throws on any value lacking `[[XData]]`; the
-`try/catch` reduces that to `false`. Robust to any input (no nullish guard needed).
+probe for its family: `try { return <equality form>; } catch { return false; }`. Robust to
+any input (no `isObject` gate of its own). **Spec mechanic confirmed by the decidability
+run:** the captured `X.prototype.valueOf` (`thisXValue`) accepts BOTH a boxed `X` (via the
+`[[XData]]` slot) AND the same-family **primitive** (it returns the primitive receiver
+unchanged); it throws only for a value that is neither. So each helper admits both the
+boxed and the primitive form of its family — in `isBoxedX` the upstream `isObject` gate is
+what excludes the primitive, not the helper.
 
 - `dHSUXVE/A1` — a genuine boxed `X` (`new String('x')`, `Object(42)`, …) → true.
-- `dHSUXVE/R1` — a value lacking `[[XData]]` (a primitive, `{}`, `null`, or a boxed value
-  of a _different_ family) → false (`valueOf` throws).
-- `doesHaveStrictUnboxedNumberValueEquality/A-NaN` — `new Number(NaN)` → true
+- `dHSUXVE/A2` — the same-family **primitive** (`'x'`, `42`, `true`, `Symbol('x')`, `1n`)
+  → true (`valueOf` returns the primitive receiver; `=== X(value)` holds).
+- `dHSUXVE/R1` — a value that is neither a boxed `X` nor an `X` primitive (`{}`, `null`, a
+  different family's primitive or boxed value) → false (`valueOf` throws → `catch`).
+- `doesHaveStrictUnboxedNumberValueEquality/A-NaN` — `new Number(NaN)` and `NaN` → true
   (`Object.is`).
-- `doesHaveStrictUnboxedBooleanValueEquality/A-false` — `new Boolean(false)` → true
-  (stringified compare).
+- `doesHaveStrictUnboxedBooleanValueEquality/A-false` — `new Boolean(false)` and `false` →
+  true (stringified compare).
 - `doesHaveStrictUnboxedSymbolValueEquality/R-descshadow` — description-shadowed boxed
-  `Symbol` → false; and `Object(Symbol())` (no description) → true
+  `Symbol` → false; `Object(Symbol())` / `Symbol()` (no description) → true
   (`undefined === undefined`).
 
 These five are also reachable directly (exported `@internal`), so axis 4 unit-tests them
