@@ -438,12 +438,13 @@ export function isPlainObject<T = unknown>(value?: T): value is T & PlainObject;
  *   reach this state, but any object whose prototype was later set
  *   to `null` via `Object.setPrototypeOf(obj, null)` also passes.
  * - `getDefinedConstructor === undefined` is the structural
- *   cross-validator reading through the four-source constructor walk.
- *   For a true prototype-less object, none of the four sources are
- *   reachable, so the walk returns `undefined`. This catches cases
- *   where the prototype is `null` but a `constructor` property has
- *   been explicitly attached to the value (a contrived case, but a
- *   real spoof surface the cross-validator closes).
+ *   cross-validator: the four-source constructor walk resolves no real
+ *   constructor. The walk deliberately ignores an own `constructor` data
+ *   property (decision #047), so a prototype-less hashmap carrying a
+ *   user-supplied `constructor` key is still admitted — the key is data,
+ *   not a reachable constructor. With no prototype-chain to resolve a
+ *   real constructor through, the walk returns `undefined`; the marker
+ *   pairs with the `getPrototypeOf === null` check as defense-in-depth.
  * - `getTypeSignature === '[object Object]'` is the tag cross-validator
  *   closing the rare surface where a prototype-less object has been
  *   hand-decorated with an own `Symbol.toStringTag` to lie about its
