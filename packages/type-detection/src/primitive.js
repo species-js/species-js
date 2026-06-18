@@ -119,7 +119,7 @@ const toBigIntValue = BigInt.prototype.valueOf;
  *  prototype-identity check hold; `false` otherwise
  * @internal
  */
-function isCurrentRealmNativeString(value) {
+export function isCurrentRealmNativeString(value) {
   return value instanceof StringConstructor && getPrototypeOf(value) === stringPrototype;
 }
 /**
@@ -140,7 +140,7 @@ function isCurrentRealmNativeString(value) {
  *  prototype-identity check hold; `false` otherwise
  * @internal
  */
-function isCurrentRealmNativeNumber(value) {
+export function isCurrentRealmNativeNumber(value) {
   return value instanceof NumberConstructor && getPrototypeOf(value) === numberPrototype;
 }
 /**
@@ -161,7 +161,7 @@ function isCurrentRealmNativeNumber(value) {
  *  prototype-identity check hold; `false` otherwise
  * @internal
  */
-function isCurrentRealmNativeBoolean(value) {
+export function isCurrentRealmNativeBoolean(value) {
   return (
     value instanceof BooleanConstructor && getPrototypeOf(value) === booleanPrototype
   );
@@ -1108,7 +1108,7 @@ const unboxedPrimitiveValueEvaluations = new Map([
  *  and the matching slot-probe passes; `false` otherwise
  * @internal
  */
-function resolvedViaAlienRealmPrimitiveTypesEvaluation(value) {
+export function resolvedViaAlienRealmPrimitiveTypesEvaluation(value) {
   const taggedType = getTaggedType(value);
 
   return !!(
@@ -1138,7 +1138,7 @@ function resolvedViaAlienRealmPrimitiveTypesEvaluation(value) {
  *  matches and its slot-probe passes; `false` otherwise
  * @internal
  */
-function resolvedViaES3NativePrimitiveTypesHotPaths(value) {
+export function resolvedViaES3NativePrimitiveTypesHotPaths(value) {
   return (
     (isCurrentRealmNativeString(value) &&
       doesHaveStrictUnboxedStringValueEquality(value)) ||

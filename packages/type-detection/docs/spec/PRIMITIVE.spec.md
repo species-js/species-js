@@ -59,21 +59,31 @@ why `Promise` lacks one) is decision #052.
 **Public predicates — floor (axis 1):** `isNullishPrimitive`, `isBoxablePrimitive`,
 `isPrimitiveValue`, `isBoxedPrimitive`.
 
-**Exported `@internal` helpers (axis 4):** `doesHaveStrictUnboxedStringValueEquality`,
-`doesHaveStrictUnboxedNumberValueEquality`, `doesHaveStrictUnboxedBooleanValueEquality`,
-`doesHaveStrictUnboxedSymbolValueEquality`, `doesHaveStrictUnboxedBigIntValueEquality`.
+**Exported `@internal` helpers (axis 4) — equality (slot) probes:**
+`doesHaveStrictUnboxedStringValueEquality`, `doesHaveStrictUnboxedNumberValueEquality`,
+`doesHaveStrictUnboxedBooleanValueEquality`, `doesHaveStrictUnboxedSymbolValueEquality`,
+`doesHaveStrictUnboxedBigIntValueEquality`.
 
-**Module-local helpers (unexported — covered transitively via the public boxed predicates,
-NOT directly unit-testable):** `isCurrentRealmNativeString` / `Number` / `Boolean`,
-`resolvedViaES3NativePrimitiveTypesHotPaths`,
-`resolvedViaAlienRealmPrimitiveTypesEvaluation`, the `unboxedPrimitiveValueEvaluations`
-dispatch `Map`, the `nonBoxableTypeSignatures` `Set`. See Open items #2.
+**Exported `@internal` helpers (axis 4) — realm-resolution machinery (exported for
+single-realm testability, decision #053):** `isCurrentRealmNativeString` /
+`isCurrentRealmNativeNumber` / `isCurrentRealmNativeBoolean` (the shared
+`instanceof + proto-identity` discriminators),
+`resolvedViaES3NativePrimitiveTypesHotPaths` (the current-realm path of
+`isBoxedPrimitive`), and `resolvedViaAlienRealmPrimitiveTypesEvaluation` (the alien-realm
+path — testable with local-realm boxed values, so the cross-realm logic needs no foreign
+realm).
+
+**Module-local data (unexported — internal tables, covered transitively):** the
+`unboxedPrimitiveValueEvaluations` dispatch `Map` (exercised through
+`resolvedViaAlienRealmPrimitiveTypesEvaluation`) and the `nonBoxableTypeSignatures` `Set`
+(exercised through the public `isBoxablePrimitive`).
 
 **Exported types without a predicate:** the 5 `XValue`, 5 `BoxedX`, 5 `XType`, and the 4
 floor types (`NullishPrimitive`, `BoxablePrimitive`, `PrimitiveValue`, `BoxedPrimitive`) —
 type-only, verified by `tsc`, no runtime vector.
 
-Re-confirmation gate: 24 `.js` exports = 24 `.d.ts` declarations, no surface gap.
+Re-confirmation gate: 29 `.js` exports = 29 `.d.ts` declarations, no surface gap (19
+public predicates + 5 equality helpers + 5 realm-resolution helpers).
 
 ## Cross-cutting vectors
 
@@ -297,22 +307,78 @@ in isolation in addition to their composition inside the boxed predicates.
 
 ---
 
+## Helper specification (axis 4) — the five realm-resolution helpers
+
+All five assume an object-typed receiver (the public predicates apply the `isObject` gate
+first), so the vectors below pass objects only. Exported `@internal` for single-realm
+testability (decision #053).
+
+### `isCurrentRealmNativeString` / `Number` / `Boolean`
+
+`value instanceof X && getPrototypeOf(value) === X.prototype` — the subclass-rejection
+primitive; does NOT seal the slot.
+
+- `iCRNX/A1` — `new X(...)` / `Object(prim)` for the family → true.
+- `iCRNX/R1` — a direct instance of a _different_ family (e.g.
+  `isCurrentRealmNativeString(new Number(1))`) → false.
+- `iCRNX/R2` — a subclass instance (`new (class extends X {})(...)`) → false
+  (proto-identity; bare `instanceof` would admit it).
+- `iCRNX/R3` — a plain `{}` → false.
+- `iCRNX/B1` — `Object.create(X.prototype)` → **true** (proto-identity holds). Pins the
+  division of labor: this helper admits the graft; the downstream slot-probe is what
+  rejects it.
+
+### `resolvedViaES3NativePrimitiveTypesHotPaths`
+
+The current-realm path of `isBoxedPrimitive`:
+`(isCurrentRealmNativeString && slotString) || (…Number…) || (…Boolean…)`.
+
+- `rVE3/A1` — `new String('x')`, `new Number(42)`, `new Boolean(true)`, `Object('x')`,
+  `new Number(NaN)` → true.
+- `rVE3/R1` — `Object(Symbol('x'))`, `Object(1n)` → false (factory carve-out — not on the
+  ES3 path).
+- `rVE3/R2` — `{}` → false; `Object.create(String.prototype)` → false (slot-probe rejects
+  the graft).
+
+### `resolvedViaAlienRealmPrimitiveTypesEvaluation` — single-realm cross-realm coverage
+
+The alien-realm path: `tag && tag === ctorName && dispatchMap.get(tag)?.(value)`. Its
+markers are realm-independent, so **local** boxed values exercise the cross-realm logic —
+the marquee benefit of exporting it (no foreign realm needed).
+
+- `rVAlien/A1` — `new String('x')`, `new Number(42)`, `new Boolean(true)`,
+  `Object(Symbol('y'))`, `Object(1n)` → true (all five families resolve structurally with
+  LOCAL values — the cross-realm path proven in a single realm).
+- `rVAlien/A-crossrealm` — a genuine cross-realm boxed primitive (fixture) → true (same
+  path, confirming realm-independence).
+- `rVAlien/R1` — `{}` → false (tag `'Object'`, not a wrapper; no dispatch entry).
+- `rVAlien/R-tagspoof` — `{ [Symbol.toStringTag]: 'String' }` → false (tag is `'String'`
+  but the constructor-name walk reaches `Object` → mismatch).
+- `rVAlien/R-protograft` — `Object.create(String.prototype)` → false (the `[[Class]]` tag
+  resolves to `'Object'`, since the graft has no `[[StringData]]` and `String.prototype`
+  carries no `Symbol.toStringTag`).
+
+---
+
 ## Open / resolved items
 
-1. **Architecture-doc naming drift (doc↔impl).** `architecture/primitive.md` still uses
-   the pre-rename floor names (`WrappablePrimitive`/`isWrappablePrimitive`,
-   `Primitive`/`isPrimitive`) and predates the `isBoxedPrimitive` umbrella; the shipped
-   code uses `BoxablePrimitive`/ `isBoxablePrimitive`,
-   `PrimitiveValue`/`isPrimitiveValue`, and adds `isBoxedPrimitive` (the
-   `wrappable → boxable` rename + umbrella, commit `1421afd`). The `.d.ts` is canonical
-   (typedoc wins), so the spec follows the code. **For the design owner:** update
-   `architecture/primitive.md` to the current surface — a `doc↔impl` drift the spec's
-   re-confirmation gate surfaced, not a behavioral bug.
-2. **Module-local realm helpers and axis-4 reach.** `isCurrentRealmNativeString` /
-   `Number` / `Boolean` and `resolvedViaES3NativePrimitiveTypesHotPaths` /
-   `resolvedViaAlienRealmPrimitiveTypesEvaluation` are unexported, so axis 4 can only
-   cover them transitively through the public boxed predicates. The thenable module set a
-   precedent by exporting `isCurrentRealmPromiseInstance` `@internal` specifically for
-   direct unit-testing. **For the design owner:** export these `@internal` for direct
-   testing (consistent with the thenable precedent + the README surface-inventory rule),
-   or leave them module-local (they are simple and transitively covered)? A policy call.
+1. **Architecture-doc naming drift (doc↔impl) — RESOLVED.** `architecture/primitive.md`
+   (and `architecture/README.md`'s modules table) used the pre-rename floor names
+   (`WrappablePrimitive`/`isWrappablePrimitive`, `Primitive`/`isPrimitive`) and predated
+   the `isBoxedPrimitive` umbrella; the shipped code uses
+   `BoxablePrimitive`/`isBoxablePrimitive`, `PrimitiveValue`/`isPrimitiveValue`, plus
+   `isBoxedPrimitive` (the `wrappable → boxable` rename + umbrella, commit `1421afd`).
+   Both docs were updated to the current surface (the floor lattice, the
+   generic-predicates section, and a new `isBoxedPrimitive` umbrella paragraph). A
+   `doc↔impl` drift the spec's re-confirmation gate surfaced, now closed.
+2. **Module-local realm helpers and axis-4 reach — RESOLVED (decision #053).** The five
+   realm-resolution helpers (`isCurrentRealmNativeString` / `Number` / `Boolean`,
+   `resolvedViaES3NativePrimitiveTypesHotPaths`,
+   `resolvedViaAlienRealmPrimitiveTypesEvaluation`) are now exported `@internal` with
+   parallel `.d.ts` declarations, so axis 4 unit-tests each in isolation. The decisive
+   factor: the alien-realm resolver's markers are realm-independent, so the cross-realm
+   code path is fully testable with local-realm boxed values — no iframe / worker / vm.
+   Consistent with ADR #015 (function sub-helpers exported) and the thenable precedent
+   (`isCurrentRealmPromiseInstance`). The two internal data tables
+   (`unboxedPrimitiveValueEvaluations`, `nonBoxableTypeSignatures`) stay module-local,
+   tested transitively. See decision #053.

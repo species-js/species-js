@@ -920,6 +920,105 @@ export function doesHaveStrictUnboxedBigIntValueEquality(value: unknown): boolea
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 //
+//  Boxed-Primitive Realm-Resolution Helpers
+//
+// ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
+
+/**
+ * Whether `value` is a direct current-realm `String` instance — passes
+ * `value instanceof String` AND has `String.prototype` as its immediate
+ * prototype. The proto-identity arm rejects `String` subclasses (which the
+ * bare `instanceof` admits), preserving the direct-instance discrimination
+ * the boxed-`String` predicates require. Assumes an object-typed receiver
+ * (callers apply the `isObject` gate first). It does NOT seal the
+ * `[[StringData]]` slot — `Object.create(String.prototype)` passes this
+ * check and is rejected only by the downstream slot-probe.
+ *
+ * Exported for single-realm unit-testing of the boxed-primitive resolution
+ * machinery.
+ *
+ * @param value - the value to test; assumed object-typed by the caller
+ * @returns `true` when both the `instanceof` and prototype-identity checks
+ *  hold; `false` otherwise
+ * @internal
+ */
+export function isCurrentRealmNativeString(value: unknown): boolean;
+
+/**
+ * Whether `value` is a direct current-realm `Number` instance — passes
+ * `value instanceof Number` AND has `Number.prototype` as its immediate
+ * prototype. The proto-identity arm rejects `Number` subclasses (which the
+ * bare `instanceof` admits). Assumes an object-typed receiver; does not
+ * seal the `[[NumberData]]` slot (the downstream slot-probe does).
+ *
+ * Exported for single-realm unit-testing of the boxed-primitive resolution
+ * machinery.
+ *
+ * @param value - the value to test; assumed object-typed by the caller
+ * @returns `true` when both the `instanceof` and prototype-identity checks
+ *  hold; `false` otherwise
+ * @internal
+ */
+export function isCurrentRealmNativeNumber(value: unknown): boolean;
+
+/**
+ * Whether `value` is a direct current-realm `Boolean` instance — passes
+ * `value instanceof Boolean` AND has `Boolean.prototype` as its immediate
+ * prototype. The proto-identity arm rejects `Boolean` subclasses (which the
+ * bare `instanceof` admits). Assumes an object-typed receiver; does not
+ * seal the `[[BooleanData]]` slot (the downstream slot-probe does).
+ *
+ * Exported for single-realm unit-testing of the boxed-primitive resolution
+ * machinery.
+ *
+ * @param value - the value to test; assumed object-typed by the caller
+ * @returns `true` when both the `instanceof` and prototype-identity checks
+ *  hold; `false` otherwise
+ * @internal
+ */
+export function isCurrentRealmNativeBoolean(value: unknown): boolean;
+
+/**
+ * Whether `value` resolves as a boxed primitive via the ES3 native
+ * hot-path — the local-realm fast-path for `String` / `Number` /
+ * `Boolean`. Each candidate pairs its current-realm identity check with
+ * the matching `[[XData]]` slot-probe and short-circuits on the first
+ * match. `Symbol` / `BigInt` are excluded (factory-function carve-out,
+ * decision #049) and resolve through the alien-realm path instead. Assumes
+ * an object-typed receiver.
+ *
+ * Exported for single-realm unit-testing: discriminates local-realm boxed
+ * primitives independently of the alien-realm path.
+ *
+ * @param value - the value to test; assumed object-typed by the caller
+ * @returns `true` when one of the three ES3 native pairs matches and its
+ *  slot-probe passes; `false` otherwise
+ * @internal
+ */
+export function resolvedViaES3NativePrimitiveTypesHotPaths(value: unknown): boolean;
+
+/**
+ * Whether `value` resolves as a boxed primitive via the alien-realm
+ * structural path — the resolved `[[Class]]` tag must match the walked
+ * constructor-name, AND the matching `[[XData]]` slot-probe (looked up by
+ * tag) must pass. Covers cross-realm boxed primitives for all five families
+ * and every local-realm `Symbol` / `BigInt` (factory-function carve-out).
+ * Assumes an object-typed receiver.
+ *
+ * Exported for single-realm unit-testing: because its markers (tag +
+ * constructor-name + slot) are realm-independent, the alien-realm path can
+ * be exercised with LOCAL-realm boxed values — no iframe / worker / vm
+ * realm needed.
+ *
+ * @param value - the value to test; assumed object-typed by the caller
+ * @returns `true` when the tag and constructor-name agree and the matching
+ *  slot-probe passes; `false` otherwise
+ * @internal
+ */
+export function resolvedViaAlienRealmPrimitiveTypesEvaluation(value: unknown): boolean;
+
+// ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
+//
 //  Generic Primitive Type Handling
 //
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----

@@ -24,16 +24,18 @@ The three forms compose: `XType = XValue | BoxedX`, and
 value types + 5 boxed types + 5 composite types + 5 value predicates + 5 boxed
 predicates + 5 composite predicates).
 
-Three additional union-predicates sit at the floor of the primitive lattice, cross-family:
+Three union predicates sit at the floor of the primitive lattice, cross-family, plus a
+boxed-side umbrella:
 
 ```
-WrappablePrimitive   (isWrappablePrimitive)   — typeof-result EXCLUSION over five families
-NullishPrimitive     (isNullishPrimitive)     — `null` or `undefined`
-Primitive            (isPrimitive)            — all seven ECMA-262 primitive types
+BoxablePrimitive   (isBoxablePrimitive)   — typeof-result EXCLUSION over five families
+NullishPrimitive   (isNullishPrimitive)   — `null` or `undefined`
+PrimitiveValue     (isPrimitiveValue)     — all seven ECMA-262 primitive types
+BoxedPrimitive     (isBoxedPrimitive)     — any of the five boxed wrapper-object forms
 ```
 
 These admit the union across families without consumer-side disjunction. The shapes are
-deliberate: `isWrappablePrimitive` is shaped as an EXCLUSION over the three non-primitive
+deliberate: `isBoxablePrimitive` is shaped as an EXCLUSION over the three non-primitive
 `typeof` results (`'undefined'`, `'function'`, `'object'`) rather than an enumeration over
 the five admitted results, which makes it future-proof against new primitive types added
 by future ECMA versions. See "Generic primitive predicates" below and decision #051.
@@ -143,33 +145,33 @@ surface.
 ## Generic primitive predicates — floor of the lattice
 
 In addition to the per-family surface, the module exposes three union predicates at the
-floor of the primitive lattice (decision #051): `isWrappablePrimitive`,
-`isNullishPrimitive`, `isPrimitive`. Each carries a distinct shape decided by the
-discrimination problem it solves:
+floor of the primitive lattice (decision #051): `isBoxablePrimitive`,
+`isNullishPrimitive`, `isPrimitiveValue` — plus the boxed-side umbrella `isBoxedPrimitive`
+(decisions #042/#053). Each carries a distinct shape decided by the discrimination problem
+it solves:
 
-- **`isWrappablePrimitive`** admits any of the five wrappable primitive families
-  (`string`, `number`, `boolean`, `symbol`, `bigint`). Shaped as a `typeof`-result
-  **exclusion** against a module-top `Set` of the three non-wrappable signatures
-  (`'undefined'`, `'function'`, `'object'`) rather than an enumeration over the five
-  admitted results. The exclusion shape is **future-proof**: every primitive added since
-  ES1 (Symbol in ES6, BigInt in ES2020) has arrived with a new `typeof` result distinct
-  from the three rejection cases, and the rejection set is spec-locked — modern ECMA does
-  not permit implementation-defined `typeof` strings. An enumeration shape would silently
-  fail to admit any new primitive type; the exclusion shape admits it without code
-  changes. The `typeof === 'object'` rejection covers `null` correctly via the historical
-  bug, and the legacy `document.all` quirk (`typeof === 'undefined'`) is rejected via the
-  same arm.
+- **`isBoxablePrimitive`** admits any of the five boxable primitive families (`string`,
+  `number`, `boolean`, `symbol`, `bigint`). Shaped as a `typeof`-result **exclusion**
+  against a module-top `Set` of the three non-boxable signatures (`'undefined'`,
+  `'function'`, `'object'`) rather than an enumeration over the five admitted results. The
+  exclusion shape is **future-proof**: every primitive added since ES1 (Symbol in ES6,
+  BigInt in ES2020) has arrived with a new `typeof` result distinct from the three
+  rejection cases, and the rejection set is spec-locked — modern ECMA does not permit
+  implementation-defined `typeof` strings. An enumeration shape would silently fail to
+  admit any new primitive type; the exclusion shape admits it without code changes. The
+  `typeof === 'object'` rejection covers `null` correctly via the historical bug, and the
+  legacy `document.all` quirk (`typeof === 'undefined'`) is rejected via the same arm.
 - **`isNullishPrimitive`** admits `null` and `undefined` via the
   parameter-default-to-`null` idiom (decision #025): `value = null` collapses `undefined`
   to `null`, and the body reduces to `value === null`. Combined with the family-pattern
   generic, the `.js` implementation needs a JSDoc cast (`/** @type {T} */ (null)`) on the
   default to bridge the `T` parameter type and the `null` literal — the `.d.ts` contract
   stays uniform.
-- **`isPrimitive`** composes `isNullishPrimitive(v) || isWrappablePrimitive(v)`, admitting
-  the full ECMA-262 §4.4.4 primitive set — the seven primitive types.
+- **`isPrimitiveValue`** composes `isNullishPrimitive(v) || isBoxablePrimitive(v)`,
+  admitting the full ECMA-262 §4.4.4 primitive set — the seven primitive types.
 
-The three predicates have **no spoof surface to seal**. Unlike the boxed-primitive
-predicates that need the engine-attested `[[XData]]` slot probe to close
+The three `typeof`-floor predicates have **no spoof surface to seal**. Unlike the
+boxed-primitive predicates that need the engine-attested `[[XData]]` slot probe to close
 `Symbol.toStringTag`-spoofing, predicates that discriminate on `typeof` alone are
 spoof-proof at the language level. `typeof` is a syntactic operator, not a method dispatch
 — user code cannot intercept or override its result. No slot probe, no constructor walk,
@@ -177,6 +179,18 @@ no tag read; each predicate is structurally complete with the single `typeof` ev
 (and the `value === null` strict-equality for `isNullishPrimitive`). See decision #051 for
 the future-proofing rationale and the framing that distinguishes this floor surface from
 the per-family surface.
+
+`isBoxedPrimitive` is the boxed-side umbrella, NOT a `typeof`-floor predicate. It admits
+any of the five boxed wrapper-object forms (`BoxedString` … `BoxedBigInt`) via the
+`isObject` gate and a two-path resolution: the ES3 native hot-path
+(`resolvedViaES3NativePrimitiveTypesHotPaths`) for local-realm `String` / `Number` /
+`Boolean`, and the alien-realm structural path
+(`resolvedViaAlienRealmPrimitiveTypesEvaluation`) for cross-realm forms and every `Symbol`
+/ `BigInt` (factory-function carve-out). Unlike the three `typeof`-floor predicates above,
+it DOES carry a spoof surface and seals it — the full boxed-discrimination chain including
+the `[[XData]]` slot probe. Its two realm-resolution helpers are exported `@internal` so
+the cross-realm path is unit-testable with local-realm values (decision #053). See "The
+boxed-primitive discrimination chain" above and decisions #042 / #053.
 
 ## Generic-typed predicates
 
