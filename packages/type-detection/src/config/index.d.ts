@@ -166,7 +166,7 @@ export declare const objectIs: typeof Object.is;
  * - `objectCreate(null)` returns `Record<PropertyKey, never>` — the
  *   prototype-less floor `BlankType` in `@/utility` carries. Static
  *   keys are unreachable, mirroring the runtime characteristic that no
- *   prototype chain exists to inherit from.
+ *   prototype-chain exists to inherit from.
  * - `objectCreate(prototype)` returns `object` — an instance whose
  *   `[[Prototype]]` is `prototype`.
  * - `objectCreate(prototype, properties)` returns `object` — same

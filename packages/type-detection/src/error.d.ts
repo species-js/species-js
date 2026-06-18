@@ -234,7 +234,7 @@ export function doesMatchErrorContract(value?: unknown): boolean;
  * for {@link isError}, which delegates to the native method when
  * available.
  *
- * Generic in `T` per the family pattern. The narrow returns
+ * Generic in `T` per the family-pattern. The narrow returns
  * `T & GenericError`; `T = unknown` collapses to `GenericError`.
  *
  * @typeParam T - the caller-side type of `value`; defaults to `unknown`
@@ -264,7 +264,7 @@ export function isGenericError<T = unknown>(value?: T): value is T & GenericErro
  * Both forms admit the same set in well-behaved code. They diverge only
  * on the legacy edge cases the polyfill widens for.
  *
- * Generic in `T` per the family pattern. The narrow returns
+ * Generic in `T` per the family-pattern. The narrow returns
  * `T & GenericError`; `T = unknown` collapses to `GenericError`. The
  * generic form is applied to the public signature even though the captured
  * native `Error.isError` is non-generic per its ES2025 declaration. The
@@ -328,7 +328,7 @@ export function isError<T = unknown>(value?: T): value is T & GenericError;
  * channel belongs to predicates in the `evented` module
  * (`isAbortSignal`, `isAbortSignalLike`).
  *
- * Generic in `T` per the family pattern. The narrow returns
+ * Generic in `T` per the family-pattern. The narrow returns
  * `T & AbortError`; `T = unknown` collapses to `AbortError`.
  *
  * @typeParam T - the caller-side type of `value`; defaults to `unknown`

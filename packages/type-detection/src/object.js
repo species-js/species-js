@@ -7,7 +7,7 @@
  *
  * Four predicates compose: {@link isObject} (the structural floor),
  * {@link isPlainObject} (strict subtype: constructor === Object),
- * {@link isDictionaryObject} (strict subtype: no prototype chain),
+ * {@link isDictionaryObject} (strict subtype: no prototype-chain),
  * and {@link isPlainOrDictionaryObject} (the union of the two strict
  * forms — the lodash-equivalent permissive semantic). The strict
  * predicates use cross-realm-safe machinery (`getPrototypeOf`,
@@ -59,7 +59,7 @@ import { isClass } from '@/function.js';
  * Realm-independent — `typeof` reads identically in every realm, and
  * truthiness is spec-defined.
  *
- * Generic in `T` per the family pattern (decisions #031, #039). The
+ * Generic in `T` per the family-pattern (decisions #031, #039). The
  * narrow returns `T & AnyObject`; `T = unknown` collapses to
  * `AnyObject`.
  *
@@ -233,7 +233,7 @@ export function hasPlainObjectPrototypeContract(value) {
  * {@link isPlainOrDictionaryObject}, which composes
  * `isPlainObject(v) || isDictionaryObject(v)` under one name.
  *
- * Generic in `T` per the family pattern. The narrow returns
+ * Generic in `T` per the family-pattern. The narrow returns
  * `T & PlainObject`; `T = unknown` collapses to `PlainObject`.
  *
  * @template [T=unknown]
@@ -264,7 +264,7 @@ export function isPlainObject(value) {
 
 /**
  * Narrows a value to {@link DictionaryObject} — an AnyObject with no
- * prototype chain. Typically created via `Object.create(null)` for
+ * prototype-chain. Typically created via `Object.create(null)` for
  * use as a hashmap.
  *
  * Composes four markers via short-circuit `&&`: the `isObject` gate,
@@ -275,7 +275,7 @@ export function isPlainObject(value) {
  * markers are independent cross-validators:
  *
  * - `getPrototypeOf === null` is the spec-correct test for "no
- *   prototype chain." `Object.create(null)` is the canonical way to
+ *   prototype-chain." `Object.create(null)` is the canonical way to
  *   reach this state, but any object whose prototype was later set
  *   to `null` via `Object.setPrototypeOf(obj, null)` also passes.
  * - `getDefinedConstructor === undefined` is the structural
@@ -296,14 +296,14 @@ export function isPlainObject(value) {
  * `getDefinedConstructor` walk and the `getTypeSignature` capture
  * are cross-realm safe.
  *
- * Generic in `T` per the family pattern. The narrow returns
+ * Generic in `T` per the family-pattern. The narrow returns
  * `T & DictionaryObject`; `T = unknown` collapses to `DictionaryObject`.
  *
  * @template [T=unknown]
  * @param {T} [value] - the value to test; omitted is treated as
  *  `undefined`, which is not a dictionary object
  * @returns {value is T & DictionaryObject} `true` when the value is a
- *  non-null object with no prototype chain and no reachable
+ *  non-null object with no prototype-chain and no reachable
  *  constructor, narrowing `value` to `T & DictionaryObject`; `false`
  *  otherwise
  * @example
@@ -352,7 +352,7 @@ export function isDictionaryObject(value) {
  * (lookup-table-vs-instance vs. hashmap-vs-instance is the typical
  * reason).
  *
- * Generic in `T` per the family pattern. The narrow returns
+ * Generic in `T` per the family-pattern. The narrow returns
  * `T & PlainOrDictionaryObject`; `T = unknown` collapses to
  * `PlainOrDictionaryObject`.
  *

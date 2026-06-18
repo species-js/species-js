@@ -32,7 +32,7 @@
  * interface for duck-typing scenarios.
  *
  * A value satisfies `EventTargetLike` when it carries the three methods
- * as callable data properties reachable through its prototype chain.
+ * as callable data properties reachable through its prototype-chain.
  * Native `EventTarget` instances and their subclasses (`Element`,
  * `Document`, `Window`, `XMLHttpRequest`, `AudioNode`, and others) all
  * satisfy the contract. Cross-realm instances also satisfy it because
@@ -188,7 +188,7 @@ export interface AbortSignalLike extends EventTargetLike {
 /**
  * Verifies that the value matches the `EventTarget` method contract —
  * callable `dispatchEvent`, `addEventListener`, and `removeEventListener`
- * data properties reachable through the value's prototype chain.
+ * data properties reachable through the value's prototype-chain.
  *
  * Composes three `hasInertMethod` checks for the methods specified by
  * DOM WHATWG `EventTarget`. Short-circuit `&&` enforces an inner cost
@@ -209,7 +209,7 @@ export interface AbortSignalLike extends EventTargetLike {
  * @param value - the value to inspect; omitted is treated as
  *  `undefined`, which does not match the EventTarget method contract
  * @returns `true` when all three methods are callable data properties
- *  in the value's prototype chain; `false` otherwise
+ *  in the value's prototype-chain; `false` otherwise
  * @example
  * doesMatchEventTargetContract(new EventTarget()); // true (inherited)
  * doesMatchEventTargetContract(document);          // true (subclass methods inherited)
@@ -240,7 +240,7 @@ export function doesMatchEventTargetContract(value?: unknown): boolean;
  * (pre-Node-15 environments, special embeddings). The `instanceof`
  * branch is then skipped, and only the structural check fires.
  *
- * Generic in `T` per the family pattern. The narrow returns
+ * Generic in `T` per the family-pattern. The narrow returns
  * `T & EventTargetLike`; `T = unknown` collapses to `EventTargetLike`.
  *
  * @typeParam T - the caller-side type of `value`; defaults to `unknown`
@@ -298,7 +298,7 @@ export function isEventTargetLike<T = unknown>(value?: T): value is T & EventTar
  * {@link isEventTargetLike}, which accepts subclasses via the
  * `instanceof` fast-path.
  *
- * Generic in `T` per the family pattern. The narrow returns
+ * Generic in `T` per the family-pattern. The narrow returns
  * `T & EventTarget`; `T = unknown` collapses to `EventTarget`.
  *
  * @typeParam T - the caller-side type of `value`; defaults to `unknown`
@@ -389,7 +389,7 @@ export function doesMatchAbortSignalContract(value?: unknown): boolean;
  * (pre-Node-15 environments, special embeddings). The `instanceof`
  * branch is then skipped, and only the structural check fires.
  *
- * Generic in `T` per the family pattern. The narrow returns
+ * Generic in `T` per the family-pattern. The narrow returns
  * `T & AbortSignalLike`; `T = unknown` collapses to `AbortSignalLike`.
  *
  * @typeParam T - the caller-side type of `value`; defaults to `unknown`
@@ -438,7 +438,7 @@ export function isAbortSignalLike<T = unknown>(value?: T): value is T & AbortSig
  * with {@link isAbortSignalLike}, which accepts subclasses via the
  * `instanceof` fast-path.
  *
- * Generic in `T` per the family pattern. The narrow returns
+ * Generic in `T` per the family-pattern. The narrow returns
  * `T & AbortSignal`; `T = unknown` collapses to `AbortSignal`.
  *
  * @typeParam T - the caller-side type of `value`; defaults to `unknown`

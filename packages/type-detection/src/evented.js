@@ -88,7 +88,7 @@ function isCurrentRealmAbortSignalInstance(value) {
 /**
  * Verifies that the value matches the `EventTarget` method contract —
  * callable `dispatchEvent`, `addEventListener`, and `removeEventListener`
- * data properties reachable through the value's prototype chain.
+ * data properties reachable through the value's prototype-chain.
  *
  * Composes three `hasInertMethod` checks for the methods specified by
  * DOM WHATWG `EventTarget`. Short-circuit `&&` enforces an inner cost
@@ -109,7 +109,7 @@ function isCurrentRealmAbortSignalInstance(value) {
  * @param {unknown} [value] - the value to inspect; omitted is treated
  *  as `undefined`, which does not match the EventTarget method contract
  * @returns {boolean} `true` when all three methods are callable data
- *  properties in the value's prototype chain; `false` otherwise
+ *  properties in the value's prototype-chain; `false` otherwise
  * @example
  * doesMatchEventTargetContract(new EventTarget()); // true (inherited)
  * doesMatchEventTargetContract(document);          // true (subclass methods inherited)
@@ -146,7 +146,7 @@ export function doesMatchEventTargetContract(value) {
  * (pre-Node-15 environments, special embeddings). The `instanceof`
  * branch is then skipped, and only the structural check fires.
  *
- * Generic in `T` per the family pattern. The narrow returns
+ * Generic in `T` per the family-pattern. The narrow returns
  * `T & EventTargetLike`; `T = unknown` collapses to `EventTargetLike`.
  *
  * @template [T=unknown]
@@ -211,7 +211,7 @@ export function isEventTargetLike(value) {
  * {@link isEventTargetLike}, which accepts subclasses via the
  * `instanceof` fast-path.
  *
- * Generic in `T` per the family pattern. The narrow returns
+ * Generic in `T` per the family-pattern. The narrow returns
  * `T & EventTarget`; `T = unknown` collapses to `EventTarget`.
  *
  * @template [T=unknown]
@@ -321,7 +321,7 @@ export function doesMatchAbortSignalContract(value) {
  * (pre-Node-15 environments, special embeddings). The `instanceof`
  * branch is then skipped, and only the structural check fires.
  *
- * Generic in `T` per the family pattern. The narrow returns
+ * Generic in `T` per the family-pattern. The narrow returns
  * `T & AbortSignalLike`; `T = unknown` collapses to `AbortSignalLike`.
  *
  * @template [T=unknown]
@@ -376,7 +376,7 @@ export function isAbortSignalLike(value) {
  * with {@link isAbortSignalLike}, which accepts subclasses via the
  * `instanceof` fast-path.
  *
- * Generic in `T` per the family pattern. The narrow returns
+ * Generic in `T` per the family-pattern. The narrow returns
  * `T & AbortSignal`; `T = unknown` collapses to `AbortSignal`.
  *
  * @template [T=unknown]

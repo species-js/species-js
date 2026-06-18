@@ -193,7 +193,7 @@ export function hasConstructSlot(value) {
  * all three newable species: {@link ES3Function}, {@link ClassConstructor},
  * and bound newables.
  *
- * Generic in `T` per the family pattern set by {@link isCallable} and
+ * Generic in `T` per the family-pattern set by {@link isCallable} and
  * {@link isFunction}. The narrow returns `T & NewableFunction`, preserving
  * caller-side narrowing. `T = unknown` collapses to `NewableFunction`.
  *
@@ -220,7 +220,7 @@ export function isNewableFunction(value) {
  * ES3 shape. The {@link NewableFunction} gate still admits them; this
  * guard does not.
  *
- * Generic in `T` per the family pattern. The narrow returns
+ * Generic in `T` per the family-pattern. The narrow returns
  * `T & ES3Function`. `T = unknown` collapses to `ES3Function`.
  *
  * @template [T=unknown]
@@ -252,7 +252,7 @@ export function isES3Function(value) {
  * short-circuits to `false`. The {@link NewableFunction} gate still admits
  * bound newables; this guard does not.
  *
- * Generic in `T` per the family pattern. The narrow returns
+ * Generic in `T` per the family-pattern. The narrow returns
  * `T & ClassConstructor`. `T = unknown` collapses to `ClassConstructor`.
  *
  * @template [T=unknown]
@@ -283,7 +283,7 @@ export function isClass(value) {
  * {@link ClassConstructor}. A bound class fails {@link isClass} upstream,
  * so neither variant admits it.
  *
- * Generic in `T` per the family pattern. The narrow returns
+ * Generic in `T` per the family-pattern. The narrow returns
  * `T & ClassConstructor`. `T = unknown` collapses to `ClassConstructor`.
  *
  * @template [T=unknown]
@@ -310,7 +310,7 @@ export function isCustomClass(value) {
  * together they partition the {@link isClass} surface. Neither admits bound
  * variants, which are rejected upstream by {@link isClass}.
  *
- * Generic in `T` per the family pattern. The narrow returns
+ * Generic in `T` per the family-pattern. The narrow returns
  * `T & ClassConstructor`. `T = unknown` collapses to `ClassConstructor`.
  *
  * @template [T=unknown]
@@ -341,7 +341,7 @@ const AsyncFunctionConstructor = /** @type {NewableFunction} */ (
  * `'[object AsyncFunction]'`, and the resolved constructor name, read via
  * {@link getDefinedConstructorName}, must equal `'AsyncFunction'`. Both
  * labels are spec-invariant across realms and survive `bind`, since the
- * relevant prototype chain is preserved. Together they form the
+ * relevant prototype-chain is preserved. Together they form the
  * realm-independent identity signal for any genuine `%AsyncFunction%`, so
  * tampering with one label without matching the other is rejected.
  *
@@ -468,7 +468,7 @@ export function hasAsyncFunctionShape(value) {
  * describes what their iterator yields, not the function. See the
  * generator predicates for that family.
  *
- * Generic in `T` per the family pattern. The narrow returns
+ * Generic in `T` per the family-pattern. The narrow returns
  * `T & AsyncFunction`; `T = unknown` collapses to `AsyncFunction`.
  *
  * @template [T=unknown]
@@ -519,7 +519,7 @@ const AsyncGeneratorFunctionConstructor = /** @type {NewableFunction} */ (
  * `'[object GeneratorFunction]'`, and the resolved constructor name, read
  * via {@link getDefinedConstructorName}, must equal `'GeneratorFunction'`.
  * Both labels are spec-invariant across realms and survive `bind`, since
- * the relevant prototype chain is preserved. Together they form the
+ * the relevant prototype-chain is preserved. Together they form the
  * realm-independent identity signal for any genuine `%GeneratorFunction%`.
  *
  * Mirrors the async-family pattern. See: {@link hasAsyncFunctionIdentitySignal}.
@@ -546,7 +546,7 @@ export function hasGeneratorFunctionIdentitySignal(value) {
  * `'[object AsyncGeneratorFunction]'`, and the resolved constructor name,
  * read via {@link getDefinedConstructorName}, must equal
  * `'AsyncGeneratorFunction'`. Both labels are spec-invariant across realms
- * and survive `bind`, since the relevant prototype chain is preserved.
+ * and survive `bind`, since the relevant prototype-chain is preserved.
  * Together they form the realm-independent identity signal for any genuine
  * `%AsyncGeneratorFunction%`.
  *
@@ -642,7 +642,7 @@ export function hasAnyGeneratorFunctionPrototypeSurface(value) {
  * holding the {@link Generator} instance proto; bound ones do not, since
  * `bind` strips own slots. Either check would split bound from unbound,
  * but this helper admits both. Bound forms are lenient-by-spec-mechanics:
- * `bind` preserves the prototype chain, so the tag, constructor-name, and
+ * `bind` preserves the prototype-chain, so the tag, constructor-name, and
  * proto-surface remain inherited intact.
  *
  * Returns a plain boolean. Narrowing belongs to {@link isGeneratorFunction}.
@@ -740,7 +740,7 @@ export function hasAsyncGeneratorFunctionShape(value) {
  * that species, or {@link isAnyGeneratorFunction} for the umbrella over
  * both.
  *
- * Generic in `T` per the family pattern. The narrow returns
+ * Generic in `T` per the family-pattern. The narrow returns
  * `T & GeneratorFunction`; `T = unknown` collapses to `GeneratorFunction`.
  *
  * @template [T=unknown]
@@ -786,7 +786,7 @@ export function isGeneratorFunction(value) {
  * Does not admit sync generator functions, async functions, or any other
  * family — those trace to different intrinsics.
  *
- * Generic in `T` per the family pattern. The narrow returns
+ * Generic in `T` per the family-pattern. The narrow returns
  * `T & AsyncGeneratorFunction`; `T = unknown` collapses to
  * `AsyncGeneratorFunction`.
  *
@@ -827,7 +827,7 @@ export function isAsyncGeneratorFunction(value) {
  * and inlining it (rather than composing the orchestrators, which would
  * double-gate) is the codified pattern.
  *
- * Generic in `T` per the family pattern. The narrow returns
+ * Generic in `T` per the family-pattern. The narrow returns
  * `T & AnyGeneratorFunction`; `T = unknown` collapses to
  * `AnyGeneratorFunction`.
  *

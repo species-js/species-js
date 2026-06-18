@@ -327,7 +327,7 @@ export interface AbortableThenable<out T> extends Thenable<T> {
  * `get then()` shape is treated as "not a _thenable_ type" even if this
  * very getter returns a callable type.
  *
- * Generic in `T` per the family pattern set by `isCallable` and
+ * Generic in `T` per the family-pattern set by `isCallable` and
  * `isFunction` in `@/function`. The narrow returns `T & Thenable<unknown>`;
  * `T = unknown` collapses to `Thenable<unknown>`.
  *
@@ -357,7 +357,7 @@ export function isThenable<T = unknown>(value?: T): value is T & Thenable<unknow
  * an inner cost ordering: `then` (the spec-defined adoption hook) runs
  * first, `catch` second, and `finally` last.
  *
- * Used as the structural fallback inside `isPromiseLike` when the
+ * Used as the structural fallback inside {@link isPromiseLike} when the
  * realm-fixed `instanceof PromiseConstructor` fast-path fails — for
  * example, on cross-realm `Promise` instances or userland Promise-like
  * implementations such as Bluebird or Q.
@@ -401,7 +401,7 @@ export function doesMatchPromiseContract(value?: unknown): boolean;
  * value satisfying the `Promise.prototype` method contract is rejected
  * on realm membership alone.
  *
- * Generic in `T` per the family pattern. The narrow returns
+ * Generic in `T` per the family-pattern. The narrow returns
  * `T & PromiseLike<unknown>`; `T = unknown` collapses to `PromiseLike<unknown>`.
  *
  * @typeParam T - the caller-side type of `value`; defaults to `unknown`
@@ -433,7 +433,7 @@ export function isPromiseLike<T = unknown>(value?: T): value is T & PromiseLike<
  * constructor-walk, and `doesMatchPromiseContract` for the `Promise.prototype`
  * method contract from ECMA-262 §27.2. The structural arm calls
  * `doesMatchPromiseContract` directly rather than cascading through
- * `isPromiseLike`, which would re-run the `instanceof` check already
+ * {@link isPromiseLike}, which would re-run the `instanceof` check already
  * disproved by the local-realm arm.
  *
  * Cross-realm safe. The local-realm pair admits only direct local-realm
@@ -450,7 +450,7 @@ export function isPromiseLike<T = unknown>(value?: T): value is T & PromiseLike<
  * Consumers needing subclass admission should compose with a
  * constructor-chain walk on top of this predicate.
  *
- * Generic in `T` per the family pattern. The narrow returns
+ * Generic in `T` per the family-pattern. The narrow returns
  * `T & Promise<unknown>`; `T = unknown` collapses to `Promise<unknown>`.
  *
  * @typeParam T - the caller-side type of `value`; defaults to `unknown`

@@ -110,7 +110,7 @@ export function isValidPropertyKey(value) {
 
 /**
  * Returns the first {@link PropertyDescriptor} found while walking the
- * value's prototype chain.
+ * value's prototype-chain.
  *
  * Uses the parameter-default-to-`null` pattern so the `!== null` loop
  * guard narrows `value` through each `getPrototypeOf` step. Each
@@ -203,9 +203,9 @@ export function getOwnPropertyDescriptorsKeySet(value) {
 
 /**
  * Tests whether the value carries a callable data property at `key`,
- * reachable through its prototype chain.
+ * reachable through its prototype-chain.
  *
- * The lookup walks the prototype chain via own-descriptor reads at
+ * The lookup walks the prototype-chain via own-descriptor reads at
  * each level, matching how ECMA-262 `Get(value, key)` resolves the
  * property at runtime. A `key` found anywhere along the chain — own
  * or inherited — satisfies the predicate, provided the descriptor is
@@ -225,9 +225,9 @@ export function getOwnPropertyDescriptorsKeySet(value) {
  *
  * @param {unknown} type - the value to inspect
  * @param {PropertyKey} key - the property key to resolve through the
- *  value's prototype chain
+ *  value's prototype-chain
  * @returns {boolean} `true` when the value carries a callable data
- *  property at `key` in its prototype chain; `false` otherwise
+ *  property at `key` in its prototype-chain; `false` otherwise
  * @example
  * hasInertMethod(Promise.resolve(), 'then');                   // true (inherited)
  * hasInertMethod({ then: () => {} }, 'then');                  // true (own)
@@ -243,7 +243,7 @@ export function hasInertMethod(type = null, key) {
 
 /**
  * Tests whether the value carries an accessor `get` at `key`, reachable
- * through its prototype chain.
+ * through its prototype-chain.
  *
  * Sibling of {@link hasInertMethod} for the accessor-getter case. The
  * descriptor walk returns the first descriptor found at any chain
@@ -257,9 +257,9 @@ export function hasInertMethod(type = null, key) {
  *
  * @param {unknown} type - the value to inspect
  * @param {PropertyKey} key - the property key to resolve through the
- *  value's prototype chain
+ *  value's prototype-chain
  * @returns {boolean} `true` when the value carries an accessor with a
- *  callable getter at `key` in its prototype chain; `false` otherwise
+ *  callable getter at `key` in its prototype-chain; `false` otherwise
  * @internal
  */
 export function hasInertGetter(type = null, key) {
@@ -268,7 +268,7 @@ export function hasInertGetter(type = null, key) {
 
 /**
  * Tests whether the value carries an accessor `set` at `key`, reachable
- * through its prototype chain.
+ * through its prototype-chain.
  *
  * Sibling of {@link hasInertGetter} for the setter case. Same
  * descriptor-walk and descriptor-shape discipline. Data descriptors
@@ -276,9 +276,9 @@ export function hasInertGetter(type = null, key) {
  *
  * @param {unknown} type - the value to inspect
  * @param {PropertyKey} key - the property key to resolve through the
- *  value's prototype chain
+ *  value's prototype-chain
  * @returns {boolean} `true` when the value carries an accessor with a
- *  callable setter at `key` in its prototype chain; `false` otherwise
+ *  callable setter at `key` in its prototype-chain; `false` otherwise
  * @internal
  */
 export function hasInertSetter(type = null, key) {
@@ -287,7 +287,7 @@ export function hasInertSetter(type = null, key) {
 
 /**
  * Tests whether the value carries a data property at `key`, reachable
- * through its prototype chain.
+ * through its prototype-chain.
  *
  * Sibling of {@link hasInertMethod} for the data-descriptor presence
  * case. Uses `objectHasOwn(descriptor, 'value')` rather than
@@ -302,14 +302,14 @@ export function hasInertSetter(type = null, key) {
  * which throws per ECMA-262 §20.1.2.13 step 1 (ToObject).
  *
  * Fully inert. Use to discriminate data-vs-accessor descriptor shapes
- * along a prototype chain without invoking either getters or stored
+ * along a prototype-chain without invoking either getters or stored
  * values.
  *
  * @param {unknown} type - the value to inspect
  * @param {PropertyKey} key - the property key to resolve through the
- *  value's prototype chain
+ *  value's prototype-chain
  * @returns {boolean} `true` when the value carries a data descriptor at
- *  `key` in its prototype chain; `false` otherwise (including accessor
+ *  `key` in its prototype-chain; `false` otherwise (including accessor
  *  descriptors and missing descriptors)
  * @internal
  */
@@ -400,7 +400,7 @@ export function getTaggedType(...args) {
  * data descriptor. User-supplied tampering on plain objects (e.g.,
  * `{ constructor: 'tampered' }`, `{ constructor: Array }`) cannot
  * influence the result. The result always reflects the structural type
- * via the prototype chain.
+ * via the prototype-chain.
  *
  * When the caller knows the input IS itself a real prototype object
  * (the result of `getPrototypeOf(instance)`, an `X.prototype` reference,

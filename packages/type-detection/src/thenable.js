@@ -78,7 +78,7 @@ export function isCurrentRealmPromiseInstance(value) {
  * `get then()` shape is treated as "not a _thenable_ type" even if this
  * very getter returns a callable type.
  *
- * Generic in `T` per the family pattern set by {@link isCallable} and
+ * Generic in `T` per the family-pattern set by {@link isCallable} and
  * {@link isFunction}. The narrow returns `T & Thenable`; `T = unknown`
  * collapses to `Thenable`.
  *
@@ -112,7 +112,7 @@ export function isThenable(value) {
  * an inner cost ordering: `then` (the spec-defined adoption hook) runs
  * first, `catch` second, and `finally` last.
  *
- * Used as the structural fallback inside `isPromiseLike` when the
+ * Used as the structural fallback inside {@link isPromiseLike} when the
  * realm-fixed `instanceof PromiseConstructor` fast-path fails — for
  * example, on cross-realm `Promise` instances or userland Promise-like
  * implementations such as Bluebird or Q.
@@ -162,7 +162,7 @@ export function doesMatchPromiseContract(value) {
  * value satisfying the `Promise.prototype` method contract is rejected
  * on realm membership alone.
  *
- * Generic in `T` per the family pattern. The narrow returns
+ * Generic in `T` per the family-pattern. The narrow returns
  * `T & PromiseLike`; `T = unknown` collapses to `PromiseLike`.
  *
  * @template [T=unknown]
@@ -217,7 +217,7 @@ export function isPromiseLike(value) {
  * Consumers needing subclass admission should compose with a
  * constructor-chain walk on top of this predicate.
  *
- * Generic in `T` per the family pattern. The narrow returns
+ * Generic in `T` per the family-pattern. The narrow returns
  * `T & Promise<unknown>`; `T = unknown` collapses to `Promise<unknown>`.
  *
  * @template [T=unknown]
