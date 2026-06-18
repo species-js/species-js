@@ -135,4 +135,4 @@ spec-writing phase (the test-green close comes later, at axis-1 generation).
 | object    | frozen 2026-06-18 | —            | 4 predicates + 2 helpers; decidability passed (fixed 1 stale doc claim)      |
 | function  | frozen 2026-06-19 | —            | 11 predicates + hasConstructSlot + 9 helpers; Symbol/BigInt-as-class ruling  |
 | utility   | frozen 2026-06-19 | —            | 15 public readers/probes (inert set promoted public); decidability clean     |
-| config    | —                 | —            | `@internal` realm-fixed; boundary-retyped signature contracts only           |
+| config    | frozen 2026-06-19 | —            | 26 `@internal` captures; contract spec (realm-fixity + retypes + polyfills)  |
