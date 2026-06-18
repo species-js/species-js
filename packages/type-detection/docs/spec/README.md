@@ -126,13 +126,13 @@ spec-writing phase (the test-green close comes later, at axis-1 generation).
 
 ## Status
 
-| Module    | Spec              | Axis-1 suite | Notes                                                              |
-| --------- | ----------------- | ------------ | ------------------------------------------------------------------ |
-| thenable  | frozen 2026-06-18 | —            | template-validation module; decidability check passed              |
-| primitive | frozen 2026-06-18 | —            | 19 predicates + 10 exported helpers; decidability check passed     |
-| evented   | —                 | —            |                                                                    |
-| error     | —                 | —            |                                                                    |
-| object    | —                 | —            |                                                                    |
-| function  | —                 | —            | largest surface; last                                              |
-| utility   | —                 | —            | public readers; lighter spec                                       |
-| config    | —                 | —            | `@internal` realm-fixed; boundary-retyped signature contracts only |
+| Module    | Spec              | Axis-1 suite | Notes                                                               |
+| --------- | ----------------- | ------------ | ------------------------------------------------------------------- |
+| thenable  | frozen 2026-06-18 | —            | template-validation module; decidability check passed               |
+| primitive | frozen 2026-06-18 | —            | 19 predicates + 10 exported helpers; decidability check passed      |
+| evented   | frozen 2026-06-18 | —            | 4 predicates (2 lattices) + 4 exported helpers; decidability passed |
+| error     | —                 | —            |                                                                     |
+| object    | —                 | —            |                                                                     |
+| function  | —                 | —            | largest surface; last                                               |
+| utility   | —                 | —            | public readers; lighter spec                                        |
+| config    | —                 | —            | `@internal` realm-fixed; boundary-retyped signature contracts only  |

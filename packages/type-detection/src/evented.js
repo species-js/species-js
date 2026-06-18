@@ -49,15 +49,19 @@ const abortSignalPrototype = AbortSignalConstructor && AbortSignalConstructor.pr
  * (pre-Node-15 environments, special embeddings) without exercising
  * `instanceof`.
  *
- * Invoked exclusively after the caller's `!!value` truthiness guard, so
- * the helper carries the constructor-presence guard only.
+ * The subclass-admitting realm-membership building block shared by the
+ * EventTarget predicates — it carries no proto-identity narrowing, so the
+ * strict {@link isEventTarget} layers that check on top while the lenient
+ * {@link isEventTargetLike} uses it as its fast-path arm. Invoked
+ * exclusively after the caller's `!!value` truthiness guard, so the helper
+ * carries the constructor-presence guard only.
  *
  * @param {unknown} value - the value to test; assumed truthy by the caller
  * @returns {boolean} `true` when `EventTargetConstructor` is captured and
  *  `value instanceof EventTargetConstructor` holds; `false` otherwise
  * @internal
  */
-function isCurrentRealmEventTargetInstance(value) {
+export function isCurrentRealmEventTargetInstance(value) {
   return !!EventTargetConstructor && value instanceof EventTargetConstructor;
 }
 /**
@@ -67,15 +71,19 @@ function isCurrentRealmEventTargetInstance(value) {
  * (pre-Node-15 environments, special embeddings) without exercising
  * `instanceof`.
  *
- * Invoked exclusively after the caller's `!!value` truthiness guard, so
- * the helper carries the constructor-presence guard only.
+ * The subclass-admitting realm-membership building block shared by the
+ * AbortSignal predicates — it carries no proto-identity narrowing, so the
+ * strict {@link isAbortSignal} layers that check on top while the lenient
+ * {@link isAbortSignalLike} uses it as its fast-path arm. Invoked
+ * exclusively after the caller's `!!value` truthiness guard, so the helper
+ * carries the constructor-presence guard only.
  *
  * @param {unknown} value - the value to test; assumed truthy by the caller
  * @returns {boolean} `true` when `AbortSignalConstructor` is captured and
  *  `value instanceof AbortSignalConstructor` holds; `false` otherwise
  * @internal
  */
-function isCurrentRealmAbortSignalInstance(value) {
+export function isCurrentRealmAbortSignalInstance(value) {
   return !!AbortSignalConstructor && value instanceof AbortSignalConstructor;
 }
 

@@ -181,6 +181,51 @@ export interface AbortSignalLike extends EventTargetLike {
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 //
+//  Realm-Membership Helpers
+//
+// ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
+
+/**
+ * Whether `value` is an instance of the realm-fixed `EventTarget` intrinsic
+ * captured at module load (or any subclass — `Element`, `Document`,
+ * `Window`, `XMLHttpRequest`, …). Returns `false` when the runtime lacks a
+ * global `EventTarget` (pre-Node-15 environments, special embeddings),
+ * short-circuiting before the `instanceof` test.
+ *
+ * The subclass-admitting realm-membership building block shared by the
+ * EventTarget predicates — it carries no proto-identity narrowing, so the
+ * strict {@link isEventTarget} layers that check on top while the lenient
+ * {@link isEventTargetLike} uses it as its fast-path arm. Assumes a truthy
+ * `value`; the public predicates apply the `!!value` guard before delegating.
+ *
+ * @param value - the value to test; assumed truthy by the caller
+ * @returns `true` when an `EventTarget` intrinsic was captured and
+ *  `value instanceof` it holds; `false` otherwise
+ * @internal
+ */
+export function isCurrentRealmEventTargetInstance(value: unknown): boolean;
+
+/**
+ * Whether `value` is an instance of the realm-fixed `AbortSignal` intrinsic
+ * captured at module load (or any subclass). Returns `false` when the
+ * runtime lacks a global `AbortSignal` (pre-Node-15 environments, special
+ * embeddings), short-circuiting before the `instanceof` test.
+ *
+ * The subclass-admitting realm-membership building block shared by the
+ * AbortSignal predicates — it carries no proto-identity narrowing, so the
+ * strict {@link isAbortSignal} layers that check on top while the lenient
+ * {@link isAbortSignalLike} uses it as its fast-path arm. Assumes a truthy
+ * `value`; the public predicates apply the `!!value` guard before delegating.
+ *
+ * @param value - the value to test; assumed truthy by the caller
+ * @returns `true` when an `AbortSignal` intrinsic was captured and
+ *  `value instanceof` it holds; `false` otherwise
+ * @internal
+ */
+export function isCurrentRealmAbortSignalInstance(value: unknown): boolean;
+
+// ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
+//
 //  EventTarget Predicates
 //
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
