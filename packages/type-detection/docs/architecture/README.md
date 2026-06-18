@@ -26,9 +26,21 @@ architectural questions that the code has not yet answered.
 Each module embeds the cross-cutting patterns it uses. The patterns themselves
 (boundary-retyping at `@/config`, conservative-narrowing posture, spec-shape access
 discipline, family pattern with sub-helpers, strict-by-default + composable lenient forms,
-cross-realm fast path + structural fallback) are referenced from the relevant module
-files. They are not deduplicated into a workspace-level document yet — that will land if
-and when a second package adopts them.
+cross-realm fast path + structural fallback, structural sealability) are referenced from
+the relevant module files. They are not deduplicated into a workspace-level document yet —
+that will land if and when a second package adopts them.
+
+**Structural sealability** (decision #052) is the principle that unifies the
+boxed-primitive slot-seal with the predicates that cannot have one: a runtime type is
+sealable against prototype-graft spoofing (`Object.create(X.prototype)`) iff it exposes an
+_inert_ prototype accessor or method — side-effect-free, invoking no user code — that
+reads a characteristic internal slot and throws on an incompatible receiver. Boxed
+primitives (`valueOf` → `[[XData]]`, decision #042), `Map` / `Set` (`get size`), `Date`
+(`getTime`), and `WeakRef` (`deref`) qualify; `Promise` does not (its only slot readers,
+`then` / `catch` / `finally`, invoke `SpeciesConstructor` and allocate), so `isPromise`
+admits the graft by documented boundary. The principle predicts which future predicates
+can gain a slot-seal and which cannot. See [`./thenable.md`](./thenable.md) and
+[`./primitive.md`](./primitive.md).
 
 ## Open questions
 

@@ -174,6 +174,36 @@ fails `=== 'Promise'`) before paying for the contract. This is _deliberate stric
 consumers needing subclass admission should compose with a constructor-chain walk on top
 of `isPromise`. See decisions #023 and #050.
 
+## The unsealed prototype-graft boundary
+
+There is one spoofing surface `isPromise` does not close, by construction. A value built
+as `Object.create(Promise.prototype)` inherits `then` / `catch` / `finally` and the
+`Symbol.toStringTag` data property from `Promise.prototype`, and has `Promise.prototype`
+as its `[[Prototype]]` — so it satisfies every marker the predicate reads (the local-realm
+`instanceof` + proto-identity pair, and the cross-realm tag + constructor-name +
+contract). Yet it carries no `[[PromiseState]]` internal slot: it is Promise-_shaped_ but
+not a live `Promise`. `isPromise` admits it (vector `isPromise/B2` in the spec).
+
+This graft cannot be sealed portably, and the reason is structural rather than incidental.
+The boxed-primitive predicates seal their analogous graft
+(`Object.create(String.prototype)`) with an engine-attested `[[XData]]` internal-slot
+probe via the captured `X.prototype.valueOf`, which throws on any value lacking the slot
+(see [`./primitive.md`](./primitive.md) and decision #042). `Promise` has no equivalent:
+its only `[[PromiseState]]`-reading methods are `then` / `catch` / `finally`, and they are
+**not inert** — the success path invokes `SpeciesConstructor` (arbitrary user code via
+`constructor` / `@@species`), allocates a derived promise, and may schedule a microtask.
+`Promise.prototype` exposes no accessor at all. A probe built on `then` would violate the
+inspect-without-invoke contract the module upholds (decision #021, `hasInertMethod`) — a
+worse failure than the graft it would close.
+
+The boundary is honest, not leaky: structural detection verifies _shape, not liveness_.
+The graft throws the instant it is `await`ed or `.then`-ed, so admitting it as
+Promise-shaped tells the truth about what was inspected. This is the **structural
+sealability** principle (decision #052; see [`./README.md`](./README.md) cross-cutting
+patterns): a type is sealable iff it exposes an inert internal-slot accessor, and
+`Promise` is the rare built-in that does not. A host-backed hardening tier is tracked as
+Q.005.
+
 ## The "contract" vocabulary for spec-defined method sets
 
 Predicates that verify a value against a method set defined by an ECMA-262 spec section,
@@ -254,7 +284,13 @@ side depend on only the relevant module.
 
 ## Open architectural questions
 
-_Section currently empty — Q.004 (`AbortableThenable<T>` placement) was resolved
-2026-06-06 by decision #037. See `../decisions/` for the answered choices: return
+- **Q.005 — host-backed hardening tier for `isPromise`.** The
+  `Object.create(Promise.prototype)` graft is structurally unsealable in portable JS
+  (decision #052). A host primitive that reads `[[PromiseState]]` directly (e.g. Node's
+  `util.types.isPromise`) could seal it, but makes behavior environment-divergent — so it
+  is deferred to an opt-in downstream adapter, not the portable foundation. See
+  [`../decisions/open-questions.md`](../decisions/open-questions.md).
+
+_Q.004 (`AbortableThenable<T>` placement) was resolved 2026-06-06 by decision #037: return
 preserved-abortable, refine `Thenable<T>` independently from `PromiseLike<T>`, ship in
 `thenable.d.ts` type-only with no predicate._

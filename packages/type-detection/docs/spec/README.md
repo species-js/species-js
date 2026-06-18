@@ -118,13 +118,18 @@ spec-writing phase (the test-green close comes later, at axis-1 generation).
 - Spec files: `<MODULE>.spec.md` (uppercase module name), e.g. `THENABLE.spec.md`.
 - Test files (test round): TBD with the spec owner — expected `test/<module>.test.js` per
   module, mirroring the source layout, so the axis suites can fan out per module.
+- Axis suites import predicates through the `@/index.js` barrel, not the module file
+  directly — the barrel orders its re-exports so the `config ↔ function` load-order cycle
+  resolves. A direct `@/<module>.js` import throws
+  `getOwnPropertyDescriptor is not a function` at module init. Confirmed during the
+  thenable decidability check.
 
 ## Status
 
 | Module    | Spec               | Axis-1 suite | Notes                                                              |
 | --------- | ------------------ | ------------ | ------------------------------------------------------------------ |
-| thenable  | drafted (strawman) | —            | template-validation module                                         |
-| primitive | —                  | —            |                                                                    |
+| thenable  | frozen 2026-06-18  | —            | template-validation module; decidability check passed              |
+| primitive | drafted (strawman) | —            | 19 predicates (5 families × value/boxed/composite + 4 floor)       |
 | evented   | —                  | —            |                                                                    |
 | error     | —                  | —            |                                                                    |
 | object    | —                  | —            |                                                                    |

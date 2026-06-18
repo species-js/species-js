@@ -2,8 +2,10 @@
 
 > Spec format and the multi-axis model are defined in [`./README.md`](./README.md).
 > Vectors are reasoned from the canon (`thenable.d.ts`, `thenable.js`,
-> `architecture/thenable.md`, decisions #021–#024, #036, #037). Status: **strawman for
-> design review** — the decidability scratch-run (template step 4) is pending freeze.
+> `architecture/thenable.md`, decisions #021–#024, #036, #037). Status: **FROZEN
+> 2026-06-18** — decidability check passed (local-realm vectors run against the real
+> predicates through the `@/index.js` barrel). This spec is the base for the axis-1 suite;
+> axes 2–4 derive alongside.
 
 ## Module contract
 
@@ -185,11 +187,15 @@ Spec basis: `Promise` identity — two-axis dispatch (decisions #023, #050).
 - `isPromise/B1` — _subclass admission_: deliberately rejects both local- and cross-realm
   subclasses (a documented strictness; consumers needing subclasses compose a
   constructor-chain walk).
-- `isPromise/B2` — the `[[PromiseState]]` slot. **Known admission:**
+- `isPromise/B2` — the `[[PromiseState]]` slot. **Known admission (decision #052):**
   `Object.create(Promise.prototype)` passes the local-realm arm (`instanceof` true,
   proto-identity true) and is admitted despite carrying no Promise internal state.
-  Structural predicates cannot probe internal slots without invoking a method. (See Open
-  items #2 — accept-and-document vs. add a slot probe.)
+  `Promise` is **structurally unsealable** — it exposes no inert internal-slot accessor
+  (its only `[[PromiseState]]` readers, `then` / `catch` / `finally`, invoke
+  `SpeciesConstructor` and allocate, so they cannot be used as an inspect-without-invoke
+  probe the way boxed primitives use `valueOf`). Structural detection verifies _shape, not
+  liveness_; the graft throws on first real use. Accept-and-document — see decision #052;
+  a host-backed tier is deferred to Q.005.
 
 **Cross-realm expectation (axis 2):** admit foreign-realm _direct_ `Promise` instances
 (cross-realm arm); reject foreign-realm subclasses (constructor-name) — symmetric with the
@@ -265,13 +271,15 @@ All items surfaced while drafting this spec have been resolved; none remain open
    the spec process — see the surface-inventory step in [`./README.md`](./README.md).
 2. **`isPromise/B2` prototype-graft admission.** `Object.create(Promise.prototype)` is
    admitted by the local-realm arm (`instanceof` + proto-identity) despite carrying no
-   `[[PromiseState]]`. **Resolution: accept-and-document.** There is no non-invoking
-   public Promise-slot probe, and any probe would mean calling a `Promise.prototype`
-   method against the value — breaking the inspect-without-invoke contract that the whole
-   module upholds. The admission stands as the documented structural boundary
+   `[[PromiseState]]`. **Resolution: accept-and-document (decision #052).** `Promise` is
+   structurally unsealable — it exposes no inert internal-slot accessor (its only
+   `[[PromiseState]]` readers, `then` / `catch` / `finally`, invoke `SpeciesConstructor`
+   and allocate, so they cannot serve as an inspect-without-invoke probe the way boxed
+   primitives use `valueOf`). The admission stands as the documented structural boundary
    `isPromise/B2`; no code change. A consumer needing genuine Promise-instance identity
-   must round-trip the value through `await`/`.then` at runtime, which is outside
-   type-detection's structural remit.
+   must round-trip the value through `await`/`.then` at runtime, outside type-detection's
+   structural remit. A host-backed hardening tier is deferred to Q.005. The general
+   sealability principle is recorded in decision #052 and `architecture/README.md`.
 3. **`AbortableThenable` — nothing to test.** It is a delivered interface, shipped purely
    to cover future external use/consumption of the type. No `.js` file in any
    type-detection module imports or consumes it; it lives solely in `thenable.d.ts`. It

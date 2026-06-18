@@ -43,3 +43,20 @@ type-system shape and the abort-channel predicate are both deferrable as one rou
 the dependency is in place. Whether `AbortableThenable` ships in `thenable.d.ts`
 (extending the lattice with a fourth tier) or as a separate `abortable-thenable.{js,d.ts}`
 module is open; the question opens once the dependency is in scope.
+
+## Q.005 — Host-backed hardening tier for `isPromise` (and other unsealable types)
+
+Decision #052 establishes that `isPromise` cannot portably seal the
+`Object.create(Promise.prototype)` graft: `Promise` exposes no inert internal-slot
+accessor, so there is no side-effect-free `[[PromiseState]]` probe to mirror the boxed
+primitives' `valueOf` slot-seal. The portable foundation accepts-and-documents the graft.
+
+Some host environments do expose a spoof-proof slot check — Node's
+`util.types.isPromise(value)` is a C++ binding that reads `[[PromiseState]]` directly with
+zero side effects. An optional hardening tier could use such a primitive where present and
+fall back to the structural predicate elsewhere. The open question is whether to offer it
+at all, and where: it makes behavior **environment-divergent** (the graft would be
+rejected under Node, admitted in browsers / bare engines), which argues against placing it
+in the portable ES2020-floor foundation. If adopted, the natural home is an opt-in
+downstream adapter that layers the host check over `@species-js/type-detection`,
+documented as deliberately divergent. Not scheduled; revisiting is the user's call.

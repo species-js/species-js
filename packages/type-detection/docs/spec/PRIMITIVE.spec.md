@@ -1,0 +1,318 @@
+# primitive — behavioral specification
+
+> Spec format and the multi-axis model are defined in [`./README.md`](./README.md).
+> Vectors are reasoned from the canon (`primitive.d.ts`, `primitive.js`,
+> `architecture/primitive.md`, decisions #038, #039, #042, #043, #049, #050, #051;
+> boxed-primitive memory). Status: **strawman for design review** — the decidability
+> scratch-run (template step 4) is pending freeze.
+
+## Module contract
+
+`type-detection / primitive` discriminates JavaScript's five primitive families (`string`,
+`number`, `boolean`, `symbol`, `bigint`) and their boxed wrapper-object forms. Each family
+ships three predicates + three types; three union predicates plus a boxed umbrella sit at
+the floor of the lattice:
+
+```
+Per family X ∈ { String, Number, Boolean, Symbol, BigInt }:
+  XValue   (isXValue)   — primitive form, via `typeof === '<x>'`
+  BoxedX   (isBoxedX)   — boxed wrapper-object form, via isObject + identity + [[XData]] slot probe
+  XType    (isX)        — composite, isXValue || isBoxedX
+
+Floor (cross-family):
+  NullishPrimitive   (isNullishPrimitive)   — null | undefined
+  BoxablePrimitive   (isBoxablePrimitive)   — the five primitive forms (typeof EXCLUSION)
+  PrimitiveValue     (isPrimitiveValue)     — all seven ECMA-262 primitives
+  BoxedPrimitive     (isBoxedPrimitive)     — any of the five boxed wrapper-object forms
+```
+
+Two structural axes govern the boxed predicates:
+
+- **Constructor-aware families (`String` / `Number` / `Boolean`)** — `isObject` gate, then
+  a two-branch identity check (local-realm `instanceof X` +
+  `getPrototypeOf === X.prototype`, OR cross-realm `[[Class]]` tag + resolved
+  constructor-name), then the `[[XData]]` slot probe sealing either branch.
+- **Factory-function families (`Symbol` / `BigInt`)** — `isObject` gate + tag +
+  ctor-name + slot probe; **no** `instanceof` branch (`new Symbol()` / `new BigInt()`
+  throw; `instanceof` is incidental `OrdinaryHasInstance`, not identity). Decision #049.
+
+The slot probe (`X.prototype.valueOf.call(value)`, captured realm-fixed) is the
+engine-attested bottom seal both arms feed into — it cannot be forged from userland.
+Crucially, it **closes** the prototype-graft surface that the thenable module's
+`isPromise` leaves open: where `isPromise(Object.create(Promise.prototype))` is admitted
+(no slot seal), `isBoxedString(Object.create(String.prototype))` is **rejected** (the
+`valueOf` throws — no `[[StringData]]`). Decisions #042, #049, #050; the general
+sealability principle (an inert internal-slot accessor is what makes a type sealable, and
+why `Promise` lacks one) is decision #052.
+
+## Surface inventory
+
+**Public predicates — value (axis 1):** `isStringValue`, `isNumberValue`,
+`isBooleanValue`, `isSymbolValue`, `isBigIntValue`.
+
+**Public predicates — boxed (axis 1):** `isBoxedString`, `isBoxedNumber`,
+`isBoxedBoolean`, `isBoxedSymbol`, `isBoxedBigInt`.
+
+**Public predicates — composite (axis 1):** `isString`, `isNumber`, `isBoolean`,
+`isSymbol`, `isBigInt`.
+
+**Public predicates — floor (axis 1):** `isNullishPrimitive`, `isBoxablePrimitive`,
+`isPrimitiveValue`, `isBoxedPrimitive`.
+
+**Exported `@internal` helpers (axis 4):** `doesHaveStrictUnboxedStringValueEquality`,
+`doesHaveStrictUnboxedNumberValueEquality`, `doesHaveStrictUnboxedBooleanValueEquality`,
+`doesHaveStrictUnboxedSymbolValueEquality`, `doesHaveStrictUnboxedBigIntValueEquality`.
+
+**Module-local helpers (unexported — covered transitively via the public boxed predicates,
+NOT directly unit-testable):** `isCurrentRealmNativeString` / `Number` / `Boolean`,
+`resolvedViaES3NativePrimitiveTypesHotPaths`,
+`resolvedViaAlienRealmPrimitiveTypesEvaluation`, the `unboxedPrimitiveValueEvaluations`
+dispatch `Map`, the `nonBoxableTypeSignatures` `Set`. See Open items #2.
+
+**Exported types without a predicate:** the 5 `XValue`, 5 `BoxedX`, 5 `XType`, and the 4
+floor types (`NullishPrimitive`, `BoxablePrimitive`, `PrimitiveValue`, `BoxedPrimitive`) —
+type-only, verified by `tsc`, no runtime vector.
+
+Re-confirmation gate: 24 `.js` exports = 24 `.d.ts` declarations, no surface gap.
+
+## Cross-cutting vectors
+
+- **CC/nullish** — `null`, `undefined`, omitted argument → rejected by every predicate
+  EXCEPT `isNullishPrimitive` and `isPrimitiveValue` (which admit them).
+- **CC/value-vs-boxed** — for every family, the primitive form and the boxed form are
+  mutually exclusive: `isXValue` admits only the primitive, `isBoxedX` admits only the
+  boxed, `isX` admits both.
+- **CC/cross-family** — each family's predicate rejects the other four families' values
+  (e.g., `isStringValue(42) === false`).
+
+---
+
+## Value-predicate family — `isXValue`
+
+`isXValue<T = unknown>(value?: T): value is T & XValue` — composition
+`typeof value === '<x>'`. Realm-independent (`typeof` reads identically in every realm)
+and the cheapest predicates in the package.
+
+| Family  | Predicate        | `typeof`    | primitive admits (examples)                         | boxed form rejected   |
+| ------- | ---------------- | ----------- | --------------------------------------------------- | --------------------- |
+| String  | `isStringValue`  | `'string'`  | `'x'`, `''`                                         | `new String('x')`     |
+| Number  | `isNumberValue`  | `'number'`  | `42`, `NaN`, `Infinity`, `-Infinity`, `-0`          | `new Number(42)`      |
+| Boolean | `isBooleanValue` | `'boolean'` | `true`, `false`                                     | `new Boolean(true)`   |
+| Symbol  | `isSymbolValue`  | `'symbol'`  | `Symbol('x')`, `Symbol.for('x')`, `Symbol.iterator` | `Object(Symbol('x'))` |
+| BigInt  | `isBigIntValue`  | `'bigint'`  | `1n`, `BigInt(1)`                                   | `Object(1n)`          |
+
+**Shared vectors** (X over the five families):
+
+- `isXValue/A1` — the primitive form (per-family examples above) → true.
+- `isXValue/R1` — the family's boxed form → false (`typeof === 'object'`).
+- `isXValue/R2` — another family's primitive (e.g., `isStringValue(42)`) → false.
+- `isXValue/R3` — `null`, `undefined`, omitted → false.
+
+**Family-specific admits worth pinning:**
+
+- `isNumberValue/A-special` — `NaN`, `Infinity`, `-Infinity`, `-0` → true (all numeric
+  primitives; finiteness is a separate concern, `@/config`).
+- `isStringValue/A-empty` — `''` → true.
+- `isSymbolValue/A-wellknown` — `Symbol.iterator`, `Symbol.for('x')` → true (well-known +
+  registered symbols).
+
+**Cross-realm expectation (axis 2):** trivially realm-safe — primitives carry no realm
+identity, and `typeof` is realm-independent. A string produced in a foreign realm is just
+a string.
+
+**Spoof-resistance expectation (axis 3):** none required. `typeof` is a syntactic
+operator, not a method dispatch; its result cannot be intercepted or overridden from
+userland. These predicates have no spoof surface.
+
+---
+
+## Boxed-predicate family — `isBoxedX`
+
+`isBoxedX<T = unknown>(value?: T): value is T & BoxedX`. Two sub-shapes by family kind.
+
+**Constructor-aware (`isBoxedString` / `isBoxedNumber` / `isBoxedBoolean`):**
+`isObject(v) && (isCurrentRealmNativeX(v) || (getTypeSignature(v) === '[object X]' && getDefinedConstructorName(v) === 'X')) && doesHaveStrictUnboxedXValueEquality(v)`
+
+**Factory-function (`isBoxedSymbol` / `isBoxedBigInt`):**
+`isObject(v) && getTypeSignature(v) === '[object X]' && getDefinedConstructorName(v) === 'X' && doesHaveStrictUnboxedXValueEquality(v)`
+
+**Shared vectors** (X over the five families):
+
+- `isBoxedX/A1` — a genuine boxed instance (`new String('x')`, `Object(42)`,
+  `new Boolean(true)`, `Object(Symbol('x'))`, `Object(1n)`) → true.
+- `isBoxedX/A-crossrealm` — a cross-realm boxed `X` (fixture) → true (structural arm:
+  tag + ctor-name + slot).
+- `isBoxedX/R1` — the primitive form → false (`isObject` gate rejects; `typeof` not
+  `'object'`).
+- `isBoxedX/R2` — `null`, `undefined` → false (`isObject` gate).
+- `isBoxedX/R3` — a plain `{}` and other-family boxed (`isBoxedString(new Number(1))`) →
+  false (tag / ctor-name mismatch).
+- `isBoxedX/R-tagspoof` — `{ [Symbol.toStringTag]: 'X' }` → false (tag passes, but
+  ctor-name walk reaches `Object`, and the slot probe throws — no `[[XData]]`).
+- `isBoxedX/R-protograft` — `Object.create(X.prototype)` → **false** — the slot probe
+  rejects it (`valueOf` throws; no `[[XData]]`). **The contrast with `isPromise/B2`: the
+  engine-attested seal closes the prototype-graft surface here.**
+
+**Constructor-aware-only vector:**
+
+- `isBoxedX/R-subclass` — `new (class extends X {})(...)` for `X ∈ {String, Number}`
+  (`Boolean` is also subclassable) → false (local arm fails proto-identity; cross-realm
+  arm fails ctor-name walk → resolves to the subclass name).
+
+**Per-family equality strategy (marker 4 — the `[[XData]]` slot probe; decision #043):**
+
+| Family  | Equality form                                   | Spec trap closed                                                  |
+| ------- | ----------------------------------------------- | ----------------------------------------------------------------- |
+| String  | `valueOf.call(v) === String(v)`                 | none — both unwrap via `ToPrimitive`                              |
+| Number  | `Object.is(valueOf.call(v), Number(v))`         | `NaN !== NaN` — `Object.is` admits `new Number(NaN)`              |
+| Boolean | `String(valueOf.call(v)) === String(v)`         | `ToBoolean(Object) → true` — stringify both sides to unwrap       |
+| Symbol  | `valueOf.call(v).description === v.description` | `Symbol(boxed)` throws; description cross-check catches shadowing |
+| BigInt  | `valueOf.call(v) === BigInt(v)`                 | none — `BigInt()` unwraps via `ToPrimitive`                       |
+
+**Family-specific admits forced by the equality strategy:**
+
+- `isBoxedNumber/A-NaN` — `new Number(NaN)` → true (`Object.is(NaN, NaN)` is `true`; `===`
+  would reject).
+- `isBoxedBoolean/A-false` — `new Boolean(false)` → true (stringified compare sidesteps
+  the `ToBoolean(object) → true` trap that a direct value compare would fail).
+- `isBoxedSymbol/R-descshadow` — a real boxed `Symbol` whose `description` own-data
+  property has been shadowed
+  (`Object.defineProperty(boxed, 'description', { value: 'x' })`) → false (the description
+  cross-check diverges from the slot read; this residual tampering surface survives the
+  slot probe alone).
+
+**Cross-realm expectation (axis 2):** admit foreign-realm boxed `X` of every family via
+the structural arm (tag + ctor-name + slot, all realm-independent). The local-realm
+`instanceof` arm (constructor-aware families) is a fast-path only; its miss falls through
+to the structural arm.
+
+**Spoof-resistance expectation (axis 3):** three independent markers each close a class —
+tag-spoof rejected by ctor-name walk; ctor-name-spoof rejected by tag; both-together
+rejected by the `[[XData]]` slot probe (unforgeable). Proto-graft
+(`Object.create(X.prototype)`) rejected by the slot probe. Description-shadow (Symbol)
+rejected by the description cross-check.
+
+**Composition note (axis 4):** drives `isObject` (`@/object`), the module-local
+`isCurrentRealmNativeX` (constructor-aware families), `getTypeSignature` +
+`getDefinedConstructorName` (`@/utility`), and the exported
+`doesHaveStrictUnboxedXValueEquality`.
+
+---
+
+## Composite-predicate family — `isX`
+
+`isX<T = unknown>(value?: T): value is T & XType` — composition
+`isXValue(v) || isBoxedX(v)`, the cheaper `typeof` check first.
+
+- `isX/A1` — the primitive form → true.
+- `isX/A2` — the boxed form → true.
+- `isX/R1` — another family (value or boxed) → false.
+- `isX/R2` — `null`, `undefined`, `{}` → false.
+
+**Cross-realm / spoof:** inherits from `isBoxedX` on the boxed arm; the value arm is
+realm-safe and spoof-proof.
+
+---
+
+## Floor predicates
+
+### `isNullishPrimitive`
+
+`isObject`-free; `value = null` default collapses `undefined` → `null`, body is
+`value === null` (decision #025).
+
+- `isNullishPrimitive/A1` — `null`, `undefined`, omitted → true.
+- `isNullishPrimitive/R1` — `0`, `''`, `false`, `NaN`, `0n`, `Symbol()`, `{}` → false.
+
+### `isBoxablePrimitive`
+
+`typeof`-result EXCLUSION: `!nonBoxableTypeSignatures.has(typeof value)` where the
+rejected set is `{ 'undefined', 'function', 'object' }`.
+
+- `isBoxablePrimitive/A1` — `'x'`, `42`, `true`, `Symbol('y')`, `1n` → true (the five
+  primitive forms).
+- `isBoxablePrimitive/R1` — `null` (`typeof 'object'`), `undefined`, `{}`, `() => {}` →
+  false.
+- `isBoxablePrimitive/R2` — any boxed form (`new String('x')`, …) → false
+  (`typeof 'object'`).
+- `isBoxablePrimitive/B1` — future-proof by design: a hypothetical future primitive with a
+  new `typeof` result would be admitted without code change (the rejection set is
+  spec-locked). `document.all` (`typeof 'undefined'`, legacy) is correctly rejected —
+  browser-only, hard to exercise in the node test env.
+
+### `isPrimitiveValue`
+
+`isNullishPrimitive(v) || isBoxablePrimitive(v)`.
+
+- `isPrimitiveValue/A1` — all seven primitives: `'x'`, `42`, `true`, `Symbol('y')`, `1n`,
+  `null`, `undefined` → true.
+- `isPrimitiveValue/R1` — `{}`, `() => {}`, `[]`, any boxed form → false.
+
+### `isBoxedPrimitive`
+
+`isObject(v) && (resolvedViaES3NativePrimitiveTypesHotPaths(v) || resolvedViaAlienRealmPrimitiveTypesEvaluation(v))`.
+The ES3 hot-path covers local-realm `String` / `Number` / `Boolean`; the alien path covers
+all cross-realm boxed primitives and every local-realm `Symbol` / `BigInt`
+(factory-function carve-out).
+
+- `isBoxedPrimitive/A1` — `new String('x')`, `Object(42)`, `Object(true)`,
+  `Object(Symbol('y'))`, `Object(1n)` → true (all five families).
+- `isBoxedPrimitive/A-NaN` — `new Number(NaN)` → true (`Object.is`).
+- `isBoxedPrimitive/A-crossrealm` — a cross-realm boxed primitive of any family (fixture)
+  → true (alien structural path).
+- `isBoxedPrimitive/R1` — any primitive form (`'x'`, `42`, `Symbol('y')`, `1n`, …) →
+  false.
+- `isBoxedPrimitive/R2` — `null`, `undefined` → false (`isObject` gate).
+- `isBoxedPrimitive/R3` — `{}` and any non-wrapper object → false (no `[[XData]]`;
+  tag/ctor-name do not name a wrapper).
+- `isBoxedPrimitive/R-tagspoof` — `{ [Symbol.toStringTag]: 'String' }` → false (slot probe
+  via the dispatch map throws).
+
+**Cross-realm (axis 2):** the alien path is the cross-realm path — covered by
+`A-crossrealm` across all five families. **Spoof (axis 3):** same slot-probe seal as the
+per-family boxed predicates, dispatched by tag through `unboxedPrimitiveValueEvaluations`.
+
+---
+
+## Helper specification (axis 4) — the five equality helpers
+
+Each `doesHaveStrictUnboxedXValueEquality(value: unknown): boolean` is the marker-4 slot
+probe for its family: `try { return <equality form>; } catch { return false; }`. The
+captured `X.prototype.valueOf.call(value)` throws on any value lacking `[[XData]]`; the
+`try/catch` reduces that to `false`. Robust to any input (no nullish guard needed).
+
+- `dHSUXVE/A1` — a genuine boxed `X` (`new String('x')`, `Object(42)`, …) → true.
+- `dHSUXVE/R1` — a value lacking `[[XData]]` (a primitive, `{}`, `null`, or a boxed value
+  of a _different_ family) → false (`valueOf` throws).
+- `doesHaveStrictUnboxedNumberValueEquality/A-NaN` — `new Number(NaN)` → true
+  (`Object.is`).
+- `doesHaveStrictUnboxedBooleanValueEquality/A-false` — `new Boolean(false)` → true
+  (stringified compare).
+- `doesHaveStrictUnboxedSymbolValueEquality/R-descshadow` — description-shadowed boxed
+  `Symbol` → false; and `Object(Symbol())` (no description) → true
+  (`undefined === undefined`).
+
+These five are also reachable directly (exported `@internal`), so axis 4 unit-tests them
+in isolation in addition to their composition inside the boxed predicates.
+
+---
+
+## Open / resolved items
+
+1. **Architecture-doc naming drift (doc↔impl).** `architecture/primitive.md` still uses
+   the pre-rename floor names (`WrappablePrimitive`/`isWrappablePrimitive`,
+   `Primitive`/`isPrimitive`) and predates the `isBoxedPrimitive` umbrella; the shipped
+   code uses `BoxablePrimitive`/ `isBoxablePrimitive`,
+   `PrimitiveValue`/`isPrimitiveValue`, and adds `isBoxedPrimitive` (the
+   `wrappable → boxable` rename + umbrella, commit `1421afd`). The `.d.ts` is canonical
+   (typedoc wins), so the spec follows the code. **For the design owner:** update
+   `architecture/primitive.md` to the current surface — a `doc↔impl` drift the spec's
+   re-confirmation gate surfaced, not a behavioral bug.
+2. **Module-local realm helpers and axis-4 reach.** `isCurrentRealmNativeString` /
+   `Number` / `Boolean` and `resolvedViaES3NativePrimitiveTypesHotPaths` /
+   `resolvedViaAlienRealmPrimitiveTypesEvaluation` are unexported, so axis 4 can only
+   cover them transitively through the public boxed predicates. The thenable module set a
+   precedent by exporting `isCurrentRealmPromiseInstance` `@internal` specifically for
+   direct unit-testing. **For the design owner:** export these `@internal` for direct
+   testing (consistent with the thenable precedent + the README surface-inventory rule),
+   or leave them module-local (they are simple and transitively covered)? A policy call.
