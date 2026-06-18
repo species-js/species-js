@@ -7,9 +7,9 @@
  * {@link GenericError}, using native ECMA-262 `Error.isError` when the
  * runtime provides it (Node 23+, modern browsers) and falling back to the
  * polyfill {@link isGenericError} otherwise. The polyfill composes a
- * local-realm `instanceof Error` fast path with the structural fallback
+ * local-realm `instanceof Error` fast-path with the structural fallback
  * {@link doesMatchErrorContract}, which reads the value's `[[Class]]` tag
- * and — for the `'[object Object]'` edge cases — walks its prototype for
+ * and (for the `'[object Object]'` edge cases) walks its prototype for
  * the spec-defined Error shape via {@link hasErrorPrototypeContract}.
  *
  * {@link isAbortError} refines {@link isError} via a suffix match against
@@ -38,7 +38,7 @@
  * carries it as a separate alternative.
  *
  * The union is the TypeScript-side approximation of "anything
- * `Error.isError` accepts" — the spec-precise slot check is unobservable
+ * `Error.isError` accepts". The spec-precise slot check is unobservable
  * from userland and therefore cannot directly be modeled at the type level.
  * User-defined `class MyError extends Error` instances flow through the
  * `Error` arm via subtype assignability.
@@ -55,9 +55,8 @@ export type GenericError = DOMException | Error;
  * or may not provide the static method.
  *
  * Used at the polyfill site to read `(Error as ErrorConstructorES2025).isError`
- * without asserting presence; the subsequent `isFunction` narrow handles
- * the actual decision. The companion `ErrorConstructorWithIsError`
- * carries the post-narrow asserted form.
+ * without asserting presence. The subsequent `isFunction` narrow handles
+ * the actual decision.
  *
  * @see {@link https://tc39.es/ecma262/#sec-error.iserror}
  * @internal
@@ -65,20 +64,6 @@ export type GenericError = DOMException | Error;
 export interface ErrorConstructorES2025 extends ErrorConstructor {
   /** Optional — present in ES2025+ runtimes, absent otherwise. */
   isError?(value: unknown): value is GenericError;
-}
-
-/**
- * `ErrorConstructor` extended with the ES2025+ `isError` static method,
- * required. The post-narrow form, used once a runtime presence check
- * (via `isFunction(Error.isError)`) has succeeded against
- * {@link ErrorConstructorES2025}.
- *
- * @see {@link https://tc39.es/ecma262/#sec-error.iserror}
- * @internal
- */
-export interface ErrorConstructorWithIsError extends ErrorConstructor {
-  /** Required — the asserted form after the runtime presence check. */
-  isError(value: unknown): value is GenericError;
 }
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
@@ -92,7 +77,7 @@ export interface ErrorConstructorWithIsError extends ErrorConstructor {
  *
  * Captures the abort-channel naming convention spec-defined by DOM
  * WHATWG: `AbortSignal.abort()` rejects with a `DOMException` whose
- * `name` is `'AbortError'`; userland abortable operations frequently
+ * `name` is `'AbortError'`. Userland abortable operations frequently
  * prefix their own qualifier (`'TimeoutAbortError'`,
  * `'UserAbortError'`, `'NavigationAbortError'`) to disambiguate the
  * cause without losing the convention. The leading `string` admits the
@@ -129,31 +114,33 @@ export type AbortError = GenericError & {
  * `toString` output ending in `'Error'`, with a recursive fallback when
  * the prototype is itself an Error.
  *
- * Reads the prototype's own descriptors via the cached
- * `getOwnPropertyDescriptors`, then verifies that each of the four
- * spec-required `Error.prototype` members (ECMA-262 §20.5.3) is present
- * with the right value type:
+ * Reads the prototype's own descriptors via the realm-fixed
+ * `getOwnPropertyDescriptors`, then applies five checks:
  *
- * 1. The own `constructor` descriptor's `value` is callable.
- * 2. The own `message` descriptor's `value` is a string.
- * 3. The own `name` descriptor's `value` is a string.
+ * 1. The own `message` descriptor's `value` is a string.
+ * 2. The own `name` descriptor's `value` is a string.
+ * 3. The own `constructor` descriptor's `value` is callable.
  * 4. The own `toString` descriptor's `value` is callable.
  * 5. The prototype's `toString()` output, split on `':'` and trimmed,
  *    ends with `'Error'`.
  *
- * Step 5 is the heuristic that catches custom error-named prototypes
- * (`'MyError: bad input'.split(':')[0].trim().slice(-5) === 'Error'`)
- * without committing to a specific subclass name. Falls through to
- * {@link isError}(prototype) when the descriptor walk fails — the
- * recursion picks up the case where the prototype is itself an Error
- * instance the parent check should accept (the canonical case being
- * `Object.create(new Error())`, whose `[[Prototype]]` is an Error
- * instance with its own real `[[ErrorData]]`).
+ * Checks 1–4 verify that the four spec-required `Error.prototype`
+ * members (ECMA-262 §20.5.3) are present with the right value type.
+ * Check 5 is the name heuristic that catches custom error-named
+ * prototypes (`'MyError: bad input'.split(':')[0].trim().endsWith('Error')`)
+ * without committing to a specific subclass name.
+ *
+ * Falls through to {@link isError}(prototype) when any of the five
+ * checks fails. The recursion picks up the case where the prototype is
+ * itself an `Error` instance which the parent check should accept (the
+ * canonical case being `Object.create(new Error())`, whose
+ * `[[Prototype]]` is an `Error` instance with its own real
+ * `[[ErrorData]]`).
  *
  * Used as the structural sub-helper inside {@link doesMatchErrorContract}
- * for values whose `[[Class]]` tag is `'[object Object]'` — the case
- * covering `Object.create(Error.prototype)` and ES3-style legacy errors
- * whose prototype was assigned an Error instance instead of going
+ * for values whose `[[Class]]` tag is `'[object Object]'`. That case
+ * covers `Object.create(Error.prototype)` and ES3-style legacy errors
+ * whose prototype was assigned an `Error` instance instead of going
  * through the `Error` constructor. Both lack `[[ErrorData]]` and would
  * be rejected by the spec-precise check, but the polyfill widens to
  * admit them.
@@ -192,16 +179,21 @@ export function hasErrorPrototypeContract(value?: unknown): boolean;
  *   errors that never reached the `Error` constructor but inherit from
  *   `Error.prototype`. Delegated to {@link hasErrorPrototypeContract}.
  *
+ * Short-circuit `||` reads the `[[Class]]` tag once, then matches it
+ * against `'[object Error]'` and `'[object DOMException]'` in O(1). Only
+ * the `'[object Object]'` branch pays for the prototype walk through
+ * {@link hasErrorPrototypeContract}.
+ *
  * Used as the structural fallback inside {@link isGenericError} when the
- * realm-fixed `instanceof Error` fast path fails — for example, on
+ * realm-fixed `instanceof Error` fast-path fails — for example, on
  * cross-realm Error instances (iframes, vm contexts, workers), on
  * DOMException in environments where it does not inherit `Error`, or on
  * legacy values that match the Error shape but were never instantiated
  * via `Error`.
  *
- * Does not require the value to be an `instanceof Error` of any realm;
- * that level of identity narrowing belongs to {@link isGenericError}'s
- * fast path. `doesMatchErrorContract` is purely structural.
+ * Does not require the value to be an `instanceof Error` of any realm.
+ * That level of identity narrowing belongs to {@link isGenericError}'s
+ * fast-path. `doesMatchErrorContract` is purely structural.
  *
  * Does not verify `[[ErrorData]]` — the spec-precise slot check is
  * unobservable, so the structural fallback is a deliberate superset of
@@ -220,15 +212,16 @@ export function doesMatchErrorContract(value?: unknown): boolean;
  * The {@link isError} polyfill body — the form that runs when the
  * runtime lacks native `Error.isError`.
  *
- * Composes a local-realm `instanceof Error` fast path with the
- * structural fallback {@link doesMatchErrorContract}. The fast path
- * catches every Error in this realm in a single prototype walk; the
- * structural fallback catches cross-realm Errors, DOMException, and the
+ * Composes a local-realm `instanceof Error` fast-path with the
+ * structural fallback {@link doesMatchErrorContract} via short-circuit
+ * `||`. The inexpensive `instanceof` runs first and catches every Error
+ * in this realm in a single prototype-walk. The structural fallback
+ * fires only on miss, catching cross-realm Errors, DOMException, and the
  * legacy `Object.create(Error.prototype)` / ES3-style errors via the
  * tag-and-prototype inspection.
  *
  * Cross-realm safe by construction. The `instanceof` branch admits
- * local-realm instances on identity; the structural fallback admits
+ * local-realm instances on identity. The structural fallback admits
  * foreign-realm instances on contract.
  *
  * Exported for testing and for callers that want the polyfill semantics
@@ -257,24 +250,24 @@ export function isGenericError<T = unknown>(value?: T): value is T & GenericErro
 /**
  * Narrows a value to {@link GenericError}.
  *
- * The public Error predicate. Captures `Error.isError` at module load
+ * The public Error predicate. Captures `Error.isError` at module-load
  * when the runtime provides it (ES2025+ environments — Node 23+, modern
  * browsers) and binds to the polyfill {@link isGenericError} otherwise.
  * The capture is realm-fixed: the binding does not re-read from
  * `globalThis.Error` at each call, so later tampering with the global
  * `Error` constructor's `isError` does not affect this predicate.
  *
- * Native `Error.isError` is the spec-precise check — it reads the
+ * Native `Error.isError` is the spec-precise check. It reads the
  * internal `[[ErrorData]]` slot, which userland code cannot observe
  * directly. The polyfill widens to a heuristic structural check (see
  * {@link isGenericError}) because the spec-precise slot is unobservable.
- * Both forms admit the same set in well-behaved code; they diverge only
+ * Both forms admit the same set in well-behaved code. They diverge only
  * on the legacy edge cases the polyfill widens for.
  *
  * Generic in `T` per the family pattern. The narrow returns
  * `T & GenericError`; `T = unknown` collapses to `GenericError`. The
  * generic form is applied to the public signature even though the captured
- * native `Error.isError` is non-generic per its ES2025 declaration — the
+ * native `Error.isError` is non-generic per its ES2025 declaration. The
  * runtime semantics are unchanged; only the type-system surface widens.
  *
  * @typeParam T - the caller-side type of `value`; defaults to `unknown`
@@ -310,9 +303,9 @@ export function isError<T = unknown>(value?: T): value is T & GenericError;
  * the `name` is a string, then the suffix check. The string-type gate
  * is load-bearing because neither the native `Error.isError` (which
  * inspects only the `[[ErrorData]]` slot) nor the polyfill's
- * prototype-walk verify the value's own `name` override — an Error
+ * prototype-walk verifies the value's own `name` override. An Error
  * with `Object.defineProperty(err, 'name', { value: 42 })` passes
- * `isError` but its `name` is not a string, and the bare suffix-call
+ * `isError`, but its `name` is not a string and the bare suffix-call
  * would throw `TypeError`.
  *
  * Captures the abort-channel naming convention shared by:
@@ -325,8 +318,9 @@ export function isError<T = unknown>(value?: T): value is T & GenericError;
  *   qualifier prefix (`'TimeoutAbortError'`, `'UserAbortError'`).
  *
  * Suffix-match by design — exact equality would reject the legitimate
- * qualified variants. The empty-prefix case `'AbortError'` is included
- * by the {@link AbortErrorName} template-literal pattern.
+ * qualified variants (`'TimeoutAbortError'`, `'UserAbortError'`). The
+ * empty-prefix case `'AbortError'` is included by the {@link AbortErrorName}
+ * template-literal pattern.
  *
  * Does not verify any abort-channel _mechanics_ (no inspection of
  * `AbortSignal.aborted`, no link to an `AbortController`). The check is

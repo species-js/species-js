@@ -10,13 +10,13 @@
  *   non-null, non-function object. Plain objects, arrays, dates,
  *   class instances, boxed primitives, prototype-less objects — all
  *   are `AnyObject`. Functions are excluded by the runtime predicate
- *   (`typeof === 'function'` rather than `'object'`); primitives and
+ *   (`typeof === 'function'` rather than `'object'`). Primitives and
  *   `null` are excluded by the truthiness gate.
  *
  * - {@link PlainObject} / {@link isPlainObject} — a strict subtype:
  *   AnyObject whose direct constructor is the built-in `Object`. The
  *   runtime predicate verifies `getPrototypeOf === Object.prototype`
- *   (same-realm fast path) or the cross-realm-safe pair `[[Class]]`
+ *   (same-realm fast-path) or the cross-realm-safe pair `[[Class]]`
  *   tag `'[object Object]'` and constructor name `'Object'`. Excludes
  *   class instances, built-in container types, prototype-less objects,
  *   and boxed primitives.
@@ -33,8 +33,8 @@
  *   without losing the distinction the two strict forms provide
  *   individually.
  *
- * `PlainObject` and `DictionaryObject` are structurally disjoint —
- * they cannot be combined into one of the strict forms, since their
+ * `PlainObject` and `DictionaryObject` are structurally disjoint.
+ * They cannot be combined into one of the strict forms, since their
  * `constructor` property constraints (`ObjectConstructor` vs. `never`)
  * are incompatible. The disjointness is preserved in the union
  * {@link PlainOrDictionaryObject}: each member retains its own
@@ -51,7 +51,7 @@
  * Object pass. The dedicated permissive form is
  * {@link isPlainOrDictionaryObject}, which composes
  * `isPlainObject(v) || isDictionaryObject(v)`. Reach for the
- * permissive form when lodash semantics are wanted explicitly; reach
+ * permissive form when lodash semantics are wanted explicitly. Reach
  * for {@link isPlainObject} or {@link isDictionaryObject} alone when
  * the distinction matters (lookup-table-vs-instance vs.
  * hashmap-vs-instance is the typical reason).
@@ -95,7 +95,7 @@
  * type-system level (functions structurally are objects in TS). The
  * runtime exclusion of functions — via {@link isObject} reading
  * `typeof === 'object'` rather than `'function'` — is the load-bearing
- * distinction. The runtime predicate is the safety contract; this
+ * distinction. The runtime predicate is the safety contract. This
  * type is the access-pattern contract for consumers post-narrow.
  */
 export type AnyObject = object & Record<PropertyKey, unknown>;
@@ -119,7 +119,7 @@ export type AnyObject = object & Record<PropertyKey, unknown>;
  * type-level discriminator from {@link DictionaryObject} (which
  * carries `constructor?: never`). Values whose constructor is a custom
  * class or built-in container (`Array`, `Map`, etc.) fail the type
- * constraint; values with no constructor fail it too.
+ * constraint. Values with no constructor fail it too.
  *
  * Examples of values that satisfy this:
  *
@@ -141,7 +141,7 @@ export type AnyObject = object & Record<PropertyKey, unknown>;
  *
  * Lodash's `_.isPlainObject` is _permissive_ — it admits prototype-less
  * objects alongside prototype-bearing ones. This package's
- * `PlainObject` is strict; the prototype-less form has its own
+ * `PlainObject` is strict. The prototype-less form has its own
  * dedicated type, {@link DictionaryObject}. See the module-level doc
  * for the rationale and the migration tip for callers familiar with
  * lodash.
@@ -228,7 +228,7 @@ export interface DictionaryObject extends AnyObject {
  * prototype-bearing objects (constructor === Object) AND prototype-less
  * objects. This type, together with its predicate
  * {@link isPlainOrDictionaryObject}, captures the same set. Reach for
- * it when the lodash-equivalent semantic is wanted explicitly; reach
+ * it when the lodash-equivalent semantic is wanted explicitly. Reach
  * for {@link PlainObject} or {@link DictionaryObject} alone when the
  * distinction between prototype-bearing and prototype-less is
  * meaningful.
@@ -246,11 +246,11 @@ export type PlainOrDictionaryObject = PlainObject | DictionaryObject;
  * object — via `!!value && typeof value === 'object'`.
  *
  * The truthiness gate (`!!value`) rejects `null`, `undefined`, and all
- * falsy primitives (`0`, `''`, `false`, `NaN`, `0n`). The
+ * falsy primitives (`0`, `''`, `false`, `NaN`, `0n`) in O(1). The
  * `typeof === 'object'` gate rejects truthy primitives (`'foo'`, `42`,
- * `true`, etc.) and functions. What remains is the set of non-null
- * non-function objects: plain objects, arrays, dates, maps, class
- * instances, prototype-less objects, and boxed primitives.
+ * `true`, etc.) and functions in O(1). What remains is the set of
+ * non-null non-function objects: plain objects, arrays, dates, maps,
+ * class instances, prototype-less objects, and boxed primitives.
  *
  * Realm-independent — `typeof` reads identically in every realm, and
  * truthiness is spec-defined.
@@ -283,7 +283,7 @@ export function isObject<T = unknown>(value?: T): value is T & AnyObject;
  * is a plain `Object` instance — the `[[Class]]` tag
  * (`'[object Object]'`) and the constructor name (`'Object'` via the
  * four-source walk). Both markers are cross-realm safe via the
- * realm-fixed `toObjectString.call` capture and the constructor walk's
+ * realm-fixed `toObjectString.call` capture and the constructor-walk's
  * descriptor-discipline.
  *
  * Used as the inexpensive front-half of the cross-realm Plain Object
@@ -305,7 +305,7 @@ export function hasPlainObjectIdentitySignal(value?: unknown): boolean;
  * prototype and the prototype's constructor, then verifies the
  * spec-mechanic invariants that `Object` carries in every realm.
  *
- * Markers, short-circuited in cost order:
+ * Markers, short-circuited in cost-order:
  *
  * 1. `isClass(constructor)` — the constructor reached via
  *    `getDefinedConstructor(prototype)` is a built-in or
@@ -327,8 +327,8 @@ export function hasPlainObjectIdentitySignal(value?: unknown): boolean;
  * The descriptor-via-`.value` discipline (markers 3, 4) is deliberate:
  * any accessor-form property definition (`get`/`set`) yields `undefined`
  * from `?.value`, closing the lying-accessor spoof surface where a
- * getter returns one value during the check and a different value to
- * later observers.
+ * getter returns one value during the check and a different value
+ * to later observers.
  *
  * @param value - the candidate plain object whose prototype contract
  *  to verify
@@ -341,7 +341,7 @@ export function hasPlainObjectPrototypeContract(value?: unknown): boolean;
  * Narrows a value to {@link PlainObject} — an AnyObject whose direct
  * constructor is the built-in `Object`.
  *
- * Composes two complementary checks: the local-realm fast path
+ * Composes two complementary checks: the local-realm fast-path
  * `getPrototypeOf(value) === Object.prototype` (an O(1) reference
  * comparison) and a cross-realm-safe structural anchor formed by
  * {@link hasPlainObjectIdentitySignal} (two inexpensive string-shape
@@ -361,36 +361,43 @@ export function hasPlainObjectPrototypeContract(value?: unknown): boolean;
  *   chain-depth invariant that every realm's `Object.prototype`
  *   carries.
  *
+ * The round-trip identity marker — verifying that the constructor's
+ * own `prototype` data property points back to the prototype walked
+ * from `value`. This closes the spoof surface where `value.constructor`
+ * (own or inherited) is tampered to point at the global `Object`
+ * without the prototype actually owning `value`'s `[[Prototype]]`.
+ *
  * The descriptor-via-`.value` discipline on the constructor's own
- * `name` and `prototype` properties closes the lying-accessor spoof
- * surface — an accessor-form definition yields `undefined` from
- * `?.value` and fails the check. The round-trip identity marker
- * (constructor's `prototype` ≡ the prototype walked from `value`)
- * closes the tampered-`constructor`-pointer spoof. The chain-depth
- * check rules out class instances and built-in container instances
- * by structural shape rather than by string fingerprint.
+ * `name` and `prototype` reads closes the lying-accessor variant of
+ * the same spoof: an accessor-form definition yields `undefined` from
+ * `?.value` and fails the check. The chain-depth check rules out class
+ * instances and built-in container instances by structural shape
+ * rather than by string fingerprint.
  *
  * Short-circuit `&&` runs the `isObject` gate first (rejects null,
  * primitives, undefined, functions in O(1)). Inside the gate, the
- * fast-path reference check runs first; the structural anchor fires
+ * fast-path reference check runs first. The structural anchor fires
  * only on miss, with signal markers gating the more expensive
  * contract walk.
  *
- * Cross-realm safe by construction. The fast path matches local-realm
- * `Object.prototype` identity; the fallback uses realm-fixed captures
+ * Cross-realm safe by construction. The fast-path matches local-realm
+ * `Object.prototype` identity. The fallback uses realm-fixed captures
  * (`toObjectString.call` via `getTypeSignature`, `getPrototypeOf` and
  * `getOwnPropertyDescriptor` from `@/config`) and the four-source
  * constructor walk (via `getDefinedConstructor` /
- * `getDefinedConstructorName`).
+ * `getDefinedConstructorName`). Cross-realm Plain Objects (from
+ * iframes, workers, vm contexts) pass via the fallback: the local
+ * `Object.prototype` reference does not match their prototype, but
+ * their structural contract matches in every realm.
  *
  * ## Strictness vs. lodash `_.isPlainObject`
  *
  * Lodash's permissive form admits prototype-less objects too. This
- * predicate is strict — it rejects prototype-less objects, which
- * have their own dedicated predicate, {@link isDictionaryObject}. To
- * match lodash's set, use {@link isPlainOrDictionaryObject}, which
- * composes `isPlainObject(v) || isDictionaryObject(v)` under one
- * name.
+ * predicate is strict — it rejects prototype-less objects
+ * (`Object.create(null)`), which have their own dedicated predicate,
+ * {@link isDictionaryObject}. To match lodash's set, use
+ * {@link isPlainOrDictionaryObject}, which composes
+ * `isPlainObject(v) || isDictionaryObject(v)` under one name.
  *
  * Generic in `T` per the family pattern. The narrow returns
  * `T & PlainObject`; `T = unknown` collapses to `PlainObject`.
@@ -419,11 +426,12 @@ export function isPlainObject<T = unknown>(value?: T): value is T & PlainObject;
  * prototype chain. Typically created via `Object.create(null)` for
  * use as a hashmap.
  *
- * Four markers compose: the `isObject` gate, the prototype check
- * `getPrototypeOf(value) === null`, the constructor-absence check
- * `getDefinedConstructor(value) === undefined`, and the tag-signature
- * cross-validator `getTypeSignature(value) === '[object Object]'`. The
- * three non-gate markers are independent cross-validators:
+ * Composes four markers via short-circuit `&&`: the `isObject` gate,
+ * the prototype check `getPrototypeOf(value) === null`, the
+ * constructor-absence check `getDefinedConstructor(value) === undefined`,
+ * and the tag-signature cross-validator
+ * `getTypeSignature(value) === '[object Object]'`. The three non-gate
+ * markers are independent cross-validators:
  *
  * - `getPrototypeOf === null` is the spec-correct test for "no
  *   prototype chain." `Object.create(null)` is the canonical way to
@@ -444,8 +452,8 @@ export function isPlainObject<T = unknown>(value?: T): value is T & PlainObject;
  *
  * Realm-independent. The prototype-less state is realm-orthogonal
  * (no constructor identity is involved), and both the
- * `getDefinedConstructor` walk and the `getTypeSignature` capture are
- * cross-realm safe.
+ * `getDefinedConstructor` walk and the `getTypeSignature` capture
+ * are cross-realm safe.
  *
  * Generic in `T` per the family pattern. The narrow returns
  * `T & DictionaryObject`; `T = unknown` collapses to `DictionaryObject`.
@@ -475,23 +483,21 @@ export function isDictionaryObject<T = unknown>(value?: T): value is T & Diction
  * prototype value:
  *
  * - `prototype === Object.prototype` → local-realm `PlainObject`,
- *   accept immediately (fast path).
+ *   accept immediately (fast-path).
  * - `prototype === null` → `DictionaryObject` candidate, verify the
  *   two non-prototype cross-validators (`getDefinedConstructor ===
  *   undefined` and `getTypeSignature === '[object Object]'`).
- * - otherwise → cross-realm `PlainObject` fallback via the signal +
- *   contract pair behind {@link isPlainObject}.
+ * - otherwise → cross-realm `PlainObject` fallback via
+ *   {@link hasPlainObjectIdentitySignal} + the prototype-contract walk.
  *
- * The fused form avoids the redundant gate, prototype read, tag
- * computation, and constructor walk that a naive
- * `isPlainObject(v) || isDictionaryObject(v)` composition would
- * perform — especially in the `DictionaryObject` input case, where
- * the strict predicate runs its signal + contract checks before
- * failing.
+ * The fused form avoids the redundant gate, prototype-read, tag-computation,
+ * and constructor-walk that a naive `isPlainObject(v) || isDictionaryObject(v)`
+ * composition would perform — especially in the `DictionaryObject` input case,
+ * where the strict predicate runs its signal + contract checks before failing.
  *
  * This is the lodash-equivalent semantic — `_.isPlainObject` from
  * lodash admits both forms in one predicate. Use this when lodash
- * compatibility is wanted; use {@link isPlainObject} or
+ * compatibility is wanted. Use {@link isPlainObject} or
  * {@link isDictionaryObject} alone when the distinction between
  * prototype-bearing and prototype-less is meaningful to the caller
  * (lookup-table-vs-instance vs. hashmap-vs-instance is the typical

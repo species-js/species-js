@@ -8,7 +8,7 @@
  * WHATWG `EventTarget` (`dispatchEvent`, `addEventListener`,
  * `removeEventListener`). {@link isEventTargetLike} narrows any value
  * to the contract via either local-realm identity or structural
- * inspection; {@link isEventTarget} layers tag and constructor-name
+ * inspection. {@link isEventTarget} layers tag and constructor-name
  * markers on top for direct-instance discrimination.
  *
  * The second extends the first: {@link AbortSignalLike} adds the
@@ -122,11 +122,12 @@ export interface EventTargetLike {
  *
  * A value satisfies `AbortSignalLike` when it satisfies
  * {@link EventTargetLike} AND exposes `aborted` as a boolean AND
- * exposes `throwIfAborted` as a callable. This is the structural shape
- * native `AbortSignal` instances and their producers
- * (`AbortController.signal`, `AbortSignal.timeout()`,
- * `AbortSignal.any()`) naturally satisfy, plus userland abort-signal
- * implementations that mirror the same minimum surface.
+ * exposes `throwIfAborted` as a callable. This is the structural
+ * shape that native `AbortSignal` instances and their producers
+ * — like `AbortController.signal`, `AbortSignal.timeout()`, and
+ * `AbortSignal.any()` — naturally satisfy, as well as userland
+ * abort-signal implementations that mirror the same minimum
+ * surface.
  *
  * `AbortSignalLike` sits strictly between `EventTargetLike` (any
  * EventTarget method contract) and `AbortSignal` (the realm-fixed
@@ -140,9 +141,9 @@ export interface EventTargetLike {
  * invoking accessors. The full DOM `AbortSignal` carries additional
  * members — `reason`, `onabort`, the `AbortSignalEventMap` overloads
  * for `addEventListener` / `removeEventListener` — that are deliberately
- * omitted here. `reason: any` has no structural constraint to verify;
+ * omitted here. `reason: any` has no structural constraint to verify and
  * `onabort` is sugar over the base EventTarget contract that is already
- * validated; the typed-event-map overloads are TypeScript convenience,
+ * validated. The typed-event-map overloads are TypeScript convenience,
  * not part of the runtime contract.
  *
  * ## Producer-side role in the cross-module abort-channel surface
@@ -158,7 +159,7 @@ export interface EventTargetLike {
  * The full cross-module abort-channel surface is distributed across
  * three modules: `@/error` for the rejected-value side (`AbortError`),
  * `@/evented` for the producer side (this interface), and `@/thenable`
- * for the consumer-side abortable thenable (`AbortableThenable<T>`).
+ * for the consumer-side abortable-thenable (`AbortableThenable<T>`).
  * Consumers building an abortable operation depend on all three.
  */
 export interface AbortSignalLike extends EventTargetLike {
@@ -172,9 +173,8 @@ export interface AbortSignalLike extends EventTargetLike {
 
   /**
    * Throws the signal's abort reason if `aborted` is `true`; no-op
-   * otherwise. Spec-defined as DOM WHATWG
-   * `AbortSignal.throwIfAborted`. Convenient for guarding the entry of
-   * an abortable operation.
+   * otherwise. Spec-defined as DOM WHATWG `AbortSignal.throwIfAborted`.
+   * Convenient for guarding the entry of an abortable operation.
    */
   throwIfAborted(): void;
 }
@@ -196,13 +196,13 @@ export interface AbortSignalLike extends EventTargetLike {
  * `addEventListener` second, `removeEventListener` last.
  *
  * Used as the structural fallback inside `isEventTargetLike` when the
- * realm-fixed `instanceof EventTargetConstructor` fast path fails — for
+ * realm-fixed `instanceof EventTargetConstructor` fast-path fails — for
  * example, on cross-realm `EventTarget` instances or userland
  * event-emitter implementations that mirror the EventTarget method
  * surface.
  *
  * Does not require `Symbol.toStringTag === 'EventTarget'` or a
- * particular constructor-name; that level of identity narrowing belongs
+ * particular constructor-name. That level of identity narrowing belongs
  * to `isEventTarget`. `doesMatchEventTargetContract` is purely
  * structural.
  *
@@ -224,20 +224,20 @@ export function doesMatchEventTargetContract(value?: unknown): boolean;
  * `EventTarget` identity or the structural `EventTarget` method
  * contract.
  *
- * Tests in cost order: the inexpensive `instanceof EventTargetConstructor`
+ * Tests in cost-order: the inexpensive `instanceof EventTargetConstructor`
  * check against the realm-fixed `EventTarget` capture catches
  * local-realm `EventTarget` instances and their subclasses (`Element`,
- * `Document`, `Window`, and so on) in a single prototype walk. If that
+ * `Document`, `Window`, and so on) in a single prototype-walk. If that
  * fails, falls back to `doesMatchEventTargetContract` for the
  * structural inspect-without-invoke check — which catches cross-realm
  * `EventTarget` instances and userland event-emitter implementations
  * that mirror the full method contract.
  *
  * Cross-realm safe by construction. The `instanceof` branch admits
- * local-realm instances on identity; the structural fallback admits
+ * local-realm instances on identity. The structural fallback admits
  * foreign-realm instances on contract. The captured `EventTarget`
  * reference is `null` when the runtime lacks a global `EventTarget`
- * (pre-Node-15 environments, special embeddings); the instanceof
+ * (pre-Node-15 environments, special embeddings). The `instanceof`
  * branch is then skipped, and only the structural check fires.
  *
  * Generic in `T` per the family pattern. The narrow returns
@@ -263,39 +263,40 @@ export function doesMatchEventTargetContract(value?: unknown): boolean;
 export function isEventTargetLike<T = unknown>(value?: T): value is T & EventTargetLike;
 
 /**
- * Narrows a value to `EventTarget` via a two-branch identity check.
+ * Narrows a value to `EventTarget` via a two-branch identity-check.
  *
- * The local-realm fast path pairs `value instanceof EventTargetConstructor`
+ * The local-realm fast-path pairs `value instanceof EventTargetConstructor`
  * with `getPrototypeOf(value) === eventTargetPrototype`. The pair admits
- * only direct `EventTarget` instances; subclasses (`Element`, `Document`,
+ * only direct `EventTarget` instances. Subclasses (`Element`, `Document`,
  * `Window`, `XMLHttpRequest`, …) pass `instanceof` but fail the
- * prototype-identity check, preserving subclass rejection in two O(1)
- * operations. Both captures are realm-fixed at module load.
+ * `prototype` identity-check, preserving subclass rejection in two O(1)
+ * operations. Both captures are realm-fixed at module-load.
  *
- * On miss, falls back to a three-marker structural chain:
- * `doesMatchEventTargetContract` (the EventTarget method contract from
- * the DOM WHATWG specification), the `[[Class]]` tag `'EventTarget'`,
- * and the constructor-name `'EventTarget'` resolved through the
- * package's constructor-walk. The cross-realm arm calls
+ * On miss, falls back to a three-marker structural chain in cost-order:
+ * the `[[Class]]` tag `'EventTarget'`, the constructor-name `'EventTarget'`
+ * resolved through the package's constructor-walk, and
+ * `doesMatchEventTargetContract` for the EventTarget method contract from
+ * the DOM WHATWG specification. The cross-realm arm calls
  * `doesMatchEventTargetContract` directly rather than cascading through
- * {@link isEventTargetLike}, because the `instanceof` check, the latter
- * would re-run, has already been disproved by the local-realm arm.
+ * {@link isEventTargetLike}, because the `instanceof` check, which it had
+ * to re-run again, has already been disproved by the local-realm arm.
  *
  * Cross-realm safe. The local-realm pair admits only direct local-realm
- * `EventTarget` instances; the structural fallback admits foreign-realm
+ * `EventTarget` instances. The structural fallback admits foreign-realm
  * `EventTarget` instances on contract (the tag-read and constructor-walk
  * both work realm-independently). No legitimate `EventTarget` is
  * rejected on realm membership alone.
  *
  * `EventTarget` subclasses are rejected on both branches — by the
- * proto-identity check on the local-realm path, by the constructor-name
- * equality on the cross-realm path. `Element`, `Document`, `Window`,
- * `XMLHttpRequest`, and other DOM types that extend `EventTarget`
- * resolve their constructor-name to their own class (`'Element'`,
- * `'Document'`, etc.), which fails the cross-realm constructor-name
- * equality. This is a deliberate strictness — consumers needing
- * subclass admission should compose with {@link isEventTargetLike},
- * which accepts subclasses via the `instanceof` fast path.
+ * `prototype` identity-check on the local-realm path, by the
+ * constructor-name equality on the cross-realm path. `Element`,
+ * `Document`, `Window`, `XMLHttpRequest`, and other DOM types that
+ * extend `EventTarget` resolve their constructor-name to their own
+ * class (`'Element'`, `'Document'`, etc.), which fails the cross-realm
+ * constructor-name equality. This is a deliberate strictness. Consumers
+ * needing subclass admission should compose with
+ * {@link isEventTargetLike}, which accepts subclasses via the
+ * `instanceof` fast-path.
  *
  * Generic in `T` per the family pattern. The narrow returns
  * `T & EventTarget`; `T = unknown` collapses to `EventTarget`.
@@ -327,8 +328,8 @@ export function isEventTarget<T = unknown>(value?: T): value is T & EventTarget;
  *
  * Composes two abort-specific markers with `doesMatchEventTargetContract`.
  * Short-circuit `&&` orders the checks for both nullish-safety and
- * discrimination cost: `hasInertMethod(value, 'throwIfAborted')` runs first
- * as a nullish-safe leading gate — its descriptor-walk via the
+ * discrimination cost: `hasInertMethod(value, 'throwIfAborted')` runs
+ * first as a nullish-safe leading gate — its descriptor-walk via the
  * parameter-default-to-`null` pattern returns `false` for any nullish
  * input without touching the property surface. The direct `aborted`
  * value-read runs after, by which point `value` is guaranteed non-nullish.
@@ -339,9 +340,9 @@ export function isEventTarget<T = unknown>(value?: T): value is T & EventTarget;
  * the spec-defined accessor directly (decision #029) — the
  * descriptor-walk pattern would reject every real `AbortSignal` because
  * `aborted` IS an accessor. The body is wrapped in `try`/`catch` so a
- * throwing userland getter reduces to `false` rather than propagating;
- * the predicate's boolean-return contract is preserved. Same
- * exception-handling shape as the boxed-primitive equality helpers.
+ * throwing userland getter reduces to `false` rather than propagating.
+ * The predicate's boolean-return contract is preserved. This is the
+ * same exception-handling shape as the boxed-primitive equality helpers.
  *
  * The `throwIfAborted` check uses `hasInertMethod` for the standard
  * inspect-without-invoke contract — `throwIfAborted` is a data-property
@@ -349,7 +350,7 @@ export function isEventTarget<T = unknown>(value?: T): value is T & EventTarget;
  * applies without spec friction.
  *
  * Used as the structural fallback inside `isAbortSignalLike` when the
- * realm-fixed `instanceof AbortSignalConstructor` fast path fails — for
+ * realm-fixed `instanceof AbortSignalConstructor` fast-path fails — for
  * example, on cross-realm `AbortSignal` instances or userland
  * abort-signal implementations.
  *
@@ -373,19 +374,19 @@ export function doesMatchAbortSignalContract(value?: unknown): boolean;
  * `AbortSignal` identity or the structural `AbortSignal` method
  * contract.
  *
- * Tests in cost order: the inexpensive `instanceof AbortSignalConstructor`
+ * Tests in cost-order: the inexpensive `instanceof AbortSignalConstructor`
  * check against the realm-fixed `AbortSignal` capture catches
- * local-realm instances in a single prototype walk. If that fails,
+ * local-realm instances in a single prototype-walk. If that fails,
  * falls back to `doesMatchAbortSignalContract` for the structural
  * check — which catches cross-realm `AbortSignal` instances and
  * userland abort-signal implementations that mirror the minimum
  * contract.
  *
  * Cross-realm safe by construction. The `instanceof` branch admits
- * local-realm instances on identity; the structural fallback admits
+ * local-realm instances on identity. The structural fallback admits
  * foreign-realm instances on contract. The captured `AbortSignal`
  * reference is `null` when the runtime lacks a global `AbortSignal`
- * (pre-Node-15 environments, special embeddings); the instanceof
+ * (pre-Node-15 environments, special embeddings). The `instanceof`
  * branch is then skipped, and only the structural check fires.
  *
  * Generic in `T` per the family pattern. The narrow returns
@@ -406,36 +407,36 @@ export function doesMatchAbortSignalContract(value?: unknown): boolean;
 export function isAbortSignalLike<T = unknown>(value?: T): value is T & AbortSignalLike;
 
 /**
- * Narrows a value to `AbortSignal` via a two-branch identity check.
+ * Narrows a value to `AbortSignal` via a two-branch identity-check.
  *
- * The local-realm fast path pairs `value instanceof AbortSignalConstructor`
+ * The local-realm fast-path pairs `value instanceof AbortSignalConstructor`
  * with `getPrototypeOf(value) === abortSignalPrototype`. The pair admits
- * only direct `AbortSignal` instances; subclasses pass `instanceof` but
- * fail the prototype-identity check, preserving subclass rejection in
- * two O(1) operations. Both captures are realm-fixed at module load.
+ * only direct `AbortSignal` instances. Subclasses pass `instanceof` but
+ * fail the `prototype` identity-check, preserving subclass rejection in
+ * two O(1) operations. Both captures are realm-fixed at module-load.
  *
- * On miss, falls back to a three-marker structural chain:
- * `doesMatchAbortSignalContract` (the AbortSignal method contract — the
- * EventTarget contract plus the `aborted` and `throwIfAborted` markers),
- * the `[[Class]]` tag `'AbortSignal'`, and the constructor-name
- * `'AbortSignal'` resolved through the package's constructor-walk. The
- * cross-realm arm calls `doesMatchAbortSignalContract` directly rather
+ * On miss, falls back to a three-marker structural chain in cost-order:
+ * the `[[Class]]` tag `'AbortSignal'`, the constructor-name `'AbortSignal'`
+ * resolved through the package's constructor-walk, and
+ * `doesMatchAbortSignalContract` for the AbortSignal method contract (the
+ * EventTarget contract plus the `aborted` and `throwIfAborted` markers).
+ * The cross-realm arm calls `doesMatchAbortSignalContract` directly rather
  * than cascading through {@link isAbortSignalLike}, because the
- * `instanceof` check, the latter would re-run, has already been
+ * `instanceof` check, which it had to re-run again, has already been
  * disproved by the local-realm arm.
  *
  * Cross-realm safe. The local-realm pair admits only direct local-realm
- * `AbortSignal` instances; the structural fallback admits foreign-realm
+ * `AbortSignal` instances. The structural fallback admits foreign-realm
  * `AbortSignal` instances on contract (the tag-read and constructor-walk
  * both work realm-independently). No legitimate `AbortSignal` is
  * rejected on realm membership alone.
  *
  * `AbortSignal` subclasses are rejected on both branches — by the
- * proto-identity check on the local-realm path, by the constructor-name
+ * `prototype` identity-check on the local-realm path, by the constructor-name
  * equality on the cross-realm path. Consistent with {@link isEventTarget}
  * and `isPromise`. Consumers needing subclass admission should compose
  * with {@link isAbortSignalLike}, which accepts subclasses via the
- * `instanceof` fast path.
+ * `instanceof` fast-path.
  *
  * Generic in `T` per the family pattern. The narrow returns
  * `T & AbortSignal`; `T = unknown` collapses to `AbortSignal`.
