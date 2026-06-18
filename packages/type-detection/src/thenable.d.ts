@@ -295,6 +295,26 @@ export interface AbortableThenable<out T> extends Thenable<T> {
   ): AbortableThenable<TResult1 | TResult2 | TResult3>;
 }
 
+/**
+ * Whether `value` is an instance of the realm-fixed `Promise` intrinsic
+ * captured at module load (or any subclass). Returns `false` when the
+ * runtime has no global `Promise` (pre-Node-15 environments, special
+ * embeddings), short-circuiting before the `instanceof` test ever runs.
+ *
+ * The subclass-admitting realm-membership building block shared by the
+ * thenable predicates — it carries no proto-identity narrowing, so the
+ * strict {@link isPromise} layers that check on top while the lenient
+ * {@link isThenable} / {@link isPromiseLike} use it as their fast-path
+ * arm. Assumes a truthy `value`. The public predicates apply the
+ * `!!value` guard before delegating.
+ *
+ * @param value - the value to test; assumed truthy by the caller
+ * @returns `true` when a `Promise` intrinsic was captured and
+ *  `value instanceof` it holds; `false` otherwise
+ * @internal
+ */
+export function isCurrentRealmPromiseInstance(value: unknown): boolean;
+
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 //
 //  Thenable Predicates

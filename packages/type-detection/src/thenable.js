@@ -29,12 +29,17 @@ const PromiseConstructor = /** @type {typeof Promise | null} */ (
 );
 const promisePrototype = PromiseConstructor && PromiseConstructor.prototype;
 /**
- * Whether `value` is an instance of the realm-fixed `Promise` capture
- * (or any subclass). The leading `!!PromiseConstructor` guard returns
- * `false` when the runtime lacks a global `Promise` (pre-Node-15
- * environments, special embeddings) without exercising `instanceof`.
+ * Whether `value` is an instance of the realm-fixed `PromiseConstructor`
+ * captured at module load (or any subclass). The leading
+ * `!!PromiseConstructor` guard returns `false` when the runtime lacks a
+ * global `Promise` (pre-Node-15 environments, special embeddings) without
+ * exercising `instanceof`.
  *
- * Invoked exclusively after the caller's `!!value` truthiness guard,
+ * The subclass-admitting realm-membership building block shared by the
+ * thenable predicates — it carries no proto-identity narrowing, so the
+ * strict {@link isPromise} layers that check on top while the lenient
+ * {@link isThenable} / {@link isPromiseLike} use it as their fast-path
+ * arm. Invoked exclusively after the caller's `!!value` truthiness guard,
  * so the helper carries the constructor-presence guard only.
  *
  * @param {unknown} value - the value to test; assumed truthy by the caller
