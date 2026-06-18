@@ -67,21 +67,20 @@ realm-fixed pattern used for cached `@/config` primitives.
 
 ## Predicate composition
 
-Five predicates — two public, three `@internal` — composing the polyfill stack. Two
-supporting types and two interface declarations round out the surface:
+Five predicates — two public, three `@internal` — composing the polyfill stack. Three
+supporting types and one interface declaration round out the surface:
 
-| Symbol                        | Kind        | Composition / shape                                                                                     |
-| ----------------------------- | ----------- | ------------------------------------------------------------------------------------------------------- |
-| `GenericError`                | type        | `DOMException \| Error` — TypeScript approximation of `[[ErrorData]]`-bearing values                    |
-| `AbortErrorName`              | type        | `` `${string}AbortError` `` — template-literal type for the abort-channel naming convention             |
-| `AbortError`                  | type        | `GenericError & { name: AbortErrorName }` — refined intersection                                        |
-| `ErrorConstructorES2025`      | interface   | `ErrorConstructor` extended with optional `isError?(v): v is GenericError` (`@internal`)                |
-| `ErrorConstructorWithIsError` | interface   | `ErrorConstructor` extended with required `isError(v): v is GenericError` (`@internal`)                 |
-| `hasErrorPrototypeContract`   | `@internal` | descriptor walk: 4 own descriptors of `prototype` + trailing-`'Error'` name marker; recursive `isError` |
-| `doesMatchErrorContract`      | `@internal` | `sig === '[object Error]' \|\| sig === '[object DOMException]' \|\| (sig === '[object Object]' && ...)` |
-| `isGenericError`              | `@internal` | `!!v && (v instanceof Error \|\| doesMatchErrorContract(v))`                                            |
-| `isError`                     | `public`    | `const isError = isFunction(nativeIsError) ? nativeIsError : isGenericError` (captured at module-load)  |
-| `isAbortError`                | `public`    | `isError(v) && v.name.endsWith('AbortError')`                                                           |
+| Symbol                      | Kind        | Composition / shape                                                                                     |
+| --------------------------- | ----------- | ------------------------------------------------------------------------------------------------------- |
+| `GenericError`              | type        | `DOMException \| Error` — TypeScript approximation of `[[ErrorData]]`-bearing values                    |
+| `AbortErrorName`            | type        | `` `${string}AbortError` `` — template-literal type for the abort-channel naming convention             |
+| `AbortError`                | type        | `GenericError & { name: AbortErrorName }` — refined intersection                                        |
+| `ErrorConstructorES2025`    | interface   | `ErrorConstructor` extended with optional `isError?(v): v is GenericError` (`@internal`)                |
+| `hasErrorPrototypeContract` | `@internal` | descriptor walk: 4 own descriptors of `prototype` + trailing-`'Error'` name marker; recursive `isError` |
+| `doesMatchErrorContract`    | `@internal` | `sig === '[object Error]' \|\| sig === '[object DOMException]' \|\| (sig === '[object Object]' && ...)` |
+| `isGenericError`            | `@internal` | `!!v && (v instanceof Error \|\| doesMatchErrorContract(v))`                                            |
+| `isError`                   | `public`    | `const isError = isFunction(nativeIsError) ? nativeIsError : isGenericError` (captured at module-load)  |
+| `isAbortError`              | `public`    | `isError(v) && v.name.endsWith('AbortError')`                                                           |
 
 The composition mirrors the established `doesMatch<X>Contract` pattern from thenable
 (`doesMatchPromiseContract`) and evented (`doesMatchEventTargetContract`,
@@ -144,9 +143,8 @@ The capture is realm-fixed by construction: the binding does not re-read
 constructor's `isError` does not affect this predicate. The pattern mirrors the
 realm-fixed capture used for cached `@/config` primitives. The capture also documents the
 runtime feature-detection pattern at the type level: `ErrorConstructorES2025` declares the
-optional method; `ErrorConstructorWithIsError` declares the required form (the
-asserted-presence variant useful for downstream code that's already verified the runtime
-supports the native method). See decision #032.
+optional `isError?` method, narrowed to its present-or-absent form by the runtime
+`isFunction` gate. See decision #032.
 
 ## `AbortError` as a name-suffix refinement
 
