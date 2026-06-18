@@ -133,6 +133,6 @@ spec-writing phase (the test-green close comes later, at axis-1 generation).
 | evented   | frozen 2026-06-18 | —            | 4 predicates (2 lattices) + 4 exported helpers; decidability passed          |
 | error     | frozen 2026-06-18 | —            | isError (native-or-polyfill) + isAbortError + 3 helpers; decidability passed |
 | object    | frozen 2026-06-18 | —            | 4 predicates + 2 helpers; decidability passed (fixed 1 stale doc claim)      |
-| function  | —                 | —            | largest surface; last                                                        |
+| function  | frozen 2026-06-19 | —            | 11 predicates + hasConstructSlot + 9 helpers; Symbol/BigInt-as-class ruling  |
 | utility   | —                 | —            | public readers; lighter spec                                                 |
 | config    | —                 | —            | `@internal` realm-fixed; boundary-retyped signature contracts only           |

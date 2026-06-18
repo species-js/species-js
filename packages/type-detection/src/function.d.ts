@@ -405,6 +405,13 @@ export interface NewableFunction<Args extends unknown[] = unknown[], T = object>
  * since they preserve `[[Construct]]`. Arrow functions, methods, async
  * functions, and generator functions do not.
  *
+ * Built-in factory functions such as `Symbol` and `BigInt` are admitted:
+ * they carry a `[[Construct]]` slot (so the wrap succeeds), even though
+ * invoking it with `new` throws. The probe reports slot presence, not
+ * invocation outcome — newability is having `[[Construct]]`, orthogonal to
+ * whether the slot returns or throws. `Math.max` and `parseInt`, by
+ * contrast, carry no slot at all and cannot be wrapped.
+ *
  * @param value - the value to probe; omitted is treated as `undefined`, which
  *  carries no `[[Construct]]`
  * @returns `true` when the value carries `[[Construct]]`; `false` otherwise
