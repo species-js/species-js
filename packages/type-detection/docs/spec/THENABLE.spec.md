@@ -30,10 +30,12 @@ value's methods or probes engine-internal slots.
 
 - `doesMatchPromiseContract(value?)` — declared in both `.js` and `.d.ts`.
 - `isCurrentRealmPromiseInstance(value)` — exported from both `thenable.js` and
-  `thenable.d.ts` (the `.d.ts` declaration was added when Open item #1 was resolved).
+  `thenable.d.ts` (the `.d.ts` declaration was added when item #1 below was resolved).
 
 **Exported types without a predicate:** `Thenable<T>`, `PromiseLike<T>`,
-`AbortableThenable<T>`. `AbortableThenable` is type-only by design — no axis-1 vectors.
+`AbortableThenable<T>`. `AbortableThenable` is type-only by design — a delivered interface
+for future external consumers; no type-detection `.js` imports it, so it carries no test
+(its well-formedness is covered by the package `tsc` typecheck).
 
 ## Cross-cutting vectors
 
@@ -232,7 +234,7 @@ caller's job).
 - `dMPC/B1` — short-circuit order is `then` → `catch` → `finally`; the order is a cost
   optimization, not observable behavior beyond which method a malformed input fails at.
 
-### `isCurrentRealmPromiseInstance(value)` — `@internal` (`.js` only)
+### `isCurrentRealmPromiseInstance(value)` — `@internal` (declared in both `.js` and `.d.ts`)
 
 `!!PromiseConstructor && value instanceof PromiseConstructor`. Assumes a truthy `value`
 (the public callers guard with `!!value` first). Subclass-admitting — no proto-identity
@@ -249,21 +251,30 @@ narrowing (that is layered on by `isPromise`'s ternary).
 
 ---
 
-## Open items (for the design owner)
+## Resolved items
 
-1. **`isCurrentRealmPromiseInstance` typed-surface asymmetry — RESOLVED.** Was exported
-   from `thenable.js` with `@internal` but undeclared in `thenable.d.ts`. Ruling:
-   exporting an internal helper (for testing) obligates a parallel exported type
-   declaration, even though `@internal` keeps it out of the built package's public
-   surface. The `@internal` `.d.ts` declaration was added (mirroring
-   `doesMatchPromiseContract`). A package-wide scan confirmed this was the only
-   `.js`-export missing from its `.d.ts`; evented keeps its `isCurrentRealm*Instance`
-   helpers module-local, so no broader fix was needed.
-2. **`isPromise/B2` policy.** Accept the prototype-graft admission as a documented
-   structural boundary, or add an internal-slot probe? There is no non-invoking public
-   Promise-slot test, so a probe would mean calling a `Promise.prototype` method against
-   the value — which breaks the inspect-without-invoke contract. Recommendation:
-   accept-and-document.
-3. **`AbortableThenable` type-only verification.** No runtime predicate (decision #037).
-   If a type-level test axis (`tsd`/`expectTypeOf`) is in scope, the chain-preservation
-   and three-channel-callback claims belong there; otherwise this type carries no test.
+All items surfaced while drafting this spec have been resolved; none remain open.
+
+1. **`isCurrentRealmPromiseInstance` typed-surface asymmetry.** Was exported from
+   `thenable.js` with `@internal` but undeclared in `thenable.d.ts`. **Resolution:**
+   exporting an internal helper for the helper-unit axis obligates a parallel exported
+   type declaration, even though `@internal` keeps it out of the built package's public
+   surface. The `.d.ts` declaration was added (mirroring `doesMatchPromiseContract`); a
+   package-wide scan confirmed it was the only `.js`-export missing from its `.d.ts`
+   (evented keeps its `isCurrentRealm*Instance` helpers module-local). Generalized into
+   the spec process — see the surface-inventory step in [`./README.md`](./README.md).
+2. **`isPromise/B2` prototype-graft admission.** `Object.create(Promise.prototype)` is
+   admitted by the local-realm arm (`instanceof` + proto-identity) despite carrying no
+   `[[PromiseState]]`. **Resolution: accept-and-document.** There is no non-invoking
+   public Promise-slot probe, and any probe would mean calling a `Promise.prototype`
+   method against the value — breaking the inspect-without-invoke contract that the whole
+   module upholds. The admission stands as the documented structural boundary
+   `isPromise/B2`; no code change. A consumer needing genuine Promise-instance identity
+   must round-trip the value through `await`/`.then` at runtime, which is outside
+   type-detection's structural remit.
+3. **`AbortableThenable` — nothing to test.** It is a delivered interface, shipped purely
+   to cover future external use/consumption of the type. No `.js` file in any
+   type-detection module imports or consumes it; it lives solely in `thenable.d.ts`. It
+   has no runtime predicate (decision #037), and the package never exercises it, so there
+   is no behavior to assert. Its well-formedness is already guaranteed by the package
+   typecheck (`tsc` over the `.d.ts`); it carries no spec vector and no test.

@@ -79,7 +79,11 @@ Each `<MODULE>.spec.md` follows this shape:
    the architecture doc's mental model so the spec stands alone).
 2. **Surface inventory** — every public predicate, every exported `@internal` helper, and
    every exported type-without-predicate. Mechanical-completeness first (per the audit
-   discipline): the list must be exhaustive before any vectors are written.
+   discipline): the list must be exhaustive before any vectors are written. Confirm each
+   exported helper carries a parallel `.d.ts` declaration — exporting an `@internal`
+   helper for the helper-unit axis obligates its type-declaration pair (CLAUDE.md's
+   `@internal`-present-in-both-files rule). A helper exported from `.js` but undeclared in
+   `.d.ts` is a `doc↔impl` gap to fix at the source, not to record as a spec note.
 3. **Cross-cutting vectors** — inputs every predicate in the module must handle the same
    way (nullish, falsy primitives, the omitted argument). Stated once, referenced per
    predicate.
@@ -90,7 +94,8 @@ Each `<MODULE>.spec.md` follows this shape:
    resolution would change a vector).
 5. **Helper specification** — for each exported `@internal` helper: its isolated
    contract + vectors (axis 4).
-6. **Open items** — spec-level questions surfaced while writing, for the design owner.
+6. **Open / resolved items** — spec-level questions surfaced while writing, with their
+   resolutions once decided, for the design owner.
 
 ## Writing process (the repeatable loop)
 
