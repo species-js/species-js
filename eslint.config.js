@@ -158,9 +158,12 @@ export default tseslint.config(
       '@typescript-eslint/no-wrapper-object-types': 'off',
     },
   },
-  // --- Tests: JSDoc rules off ---
+  // --- Tests + test-support files: JSDoc rules off ---
+  // Covers `*.test.js` suites and the `_helpers.js` / `_cross-realm.js`
+  // support files under any `test/` directory — fixtures and harness code are
+  // not consumer-grade surface and do not carry full JSDoc contracts.
   {
-    files: ['**/*.test.js'],
+    files: ['**/*.test.js', '**/test/**/*.js'],
     rules: {
       'jsdoc/require-jsdoc': 'off',
       'jsdoc/require-param': 'off',
