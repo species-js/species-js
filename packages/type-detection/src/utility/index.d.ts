@@ -262,6 +262,13 @@ export function getOwnPropertyDescriptorsKeySet(value?: unknown): Set<string>;
  * regardless of whether the getter returns a callable. The predicate
  * rejects accessor descriptors, so the inspection itself remains inert.
  *
+ * Throw-safe: a value whose `getOwnPropertyDescriptor` / `getPrototypeOf`
+ * Proxy trap throws yields `false` rather than propagating — a type-guard must
+ * answer, not raise. Extends the spec-defined-accessor trust boundary
+ * (decision #029) to the descriptor-walk reads. The sibling probes
+ * ({@link hasInertGetter}, {@link hasInertSetter}, {@link hasInertValue})
+ * share this guarantee.
+ *
  * Used by Promise-contract predicates to verify the spec-defined `then`,
  * `catch`, and `finally` methods of a _thenable_ or _promise-like_
  * type without triggering side effects. The helper is general-purpose:

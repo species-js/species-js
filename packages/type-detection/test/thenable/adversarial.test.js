@@ -24,6 +24,9 @@ import {
   fullContract,
   tagSpoofedPromise,
   promisePrototypeGraft,
+  throwingGetterThen,
+  throwingDescTrapProxy,
+  ownConstructorNamedPromise,
 } from './__config.js';
 
 describe('thenable — accessor traps (inspect-without-invoke)', () => {
@@ -33,6 +36,27 @@ describe('thenable — accessor traps (inspect-without-invoke)', () => {
 
   it('isPromiseLike/R3: accessor `finally` → false', () => {
     expect(isPromiseLike(accessorFinally())).toBe(false);
+  });
+});
+
+describe('thenable — throw-safety on hostile inputs (hardened hasInertMethod, #029-class)', () => {
+  // A throw here would surface as a test error, so asserting the boolean IS the
+  // throw-safety proof: pre-hardening these propagated the exception.
+  it('isThenable/B4: accessor `then` whose getter THROWS → false (inert read never invokes)', () => {
+    expect(isThenable(throwingGetterThen())).toBe(false);
+  });
+
+  it('isThenable/B5: Proxy with a throwing getOwnPropertyDescriptor trap → false, not thrown', () => {
+    expect(isThenable(throwingDescTrapProxy())).toBe(false);
+    expect(isPromiseLike(throwingDescTrapProxy())).toBe(false);
+  });
+});
+
+describe('isPromise — own-constructor tamper resistance (#047)', () => {
+  it('R6: tagged `Promise` carrying an own `constructor` named Promise → false', () => {
+    // getDefinedConstructor walks the prototype-chain and ignores the own
+    // `constructor` data property, so the walk reaches Object, not Promise.
+    expect(isPromise(ownConstructorNamedPromise())).toBe(false);
   });
 });
 

@@ -209,10 +209,16 @@ Public inert probe for a callable data property reachable through the chain.
 - `hIM/R4` — `(null, 'then')`, `(undefined, 'then')` → false (nullish short-circuit).
 - `hIM/R5` — `({ then() {} }, 1.5)` → false (invalid key → `undefined` descriptor →
   `isCallable(undefined)` false).
+- `hIM/R6` — a Proxy whose `getOwnPropertyDescriptor` (or `getPrototypeOf`) trap
+  **throws**, or a value whose `get then()` accessor throws on access → **false, not
+  thrown**. The descriptor walk runs through the private throw-swallowing
+  `getInertDescriptor` wrapper (Resolved items #2). The four inert probes share this
+  guarantee.
 
 **Cross-realm (axis 2):** realm-safe. **Spoof (axis 3):** the accessor-rejection (`R3`) is
-the inert guarantee — a lying `get then()` cannot fire. **Composition note (axis 4):**
-`getNextAvailablePropertyDescriptor` → `isCallable`.
+the inert guarantee — a lying `get then()` cannot fire; a throwing trap/accessor yields
+`false` (`R6`), not an exception. **Composition note (axis 4):** `getInertDescriptor`
+(wrapping `getNextAvailablePropertyDescriptor`) → `isCallable`.
 
 ---
 
@@ -396,6 +402,22 @@ descriptor holding `undefined` is still recognized (matches ECMA-262 §6.2.5.1
    the change was purely removing the `@internal` tag from both files — no new export, no
    new declaration. Public-function count: 12 → 15; `@internal` helpers: 3 → 0. No
    behavior change; the `hIG/*`, `hIS/*`, `hIV/*` vectors are unaffected.
+
+2. **Inert probes hardened against throwing traps — RESOLVED (2026-06-22).** An
+   adversarial probe of the `thenable` round found that a Proxy whose
+   `getOwnPropertyDescriptor` / `getPrototypeOf` trap throws made `hasInertMethod` (and
+   the sibling probes) **propagate the exception** rather than return a boolean — a sharp
+   edge for a type-guard, and the same class the `evented` module already hardened
+   (decision #029 / F7.2). The design owner ruled: harden. The four inert probes now route
+   their descriptor walk through a private `getInertDescriptor` wrapper
+   (`try { getNextAvailablePropertyDescriptor(…) } catch { undefined }`), so a hostile
+   trap yields `false` (`hIM/R6`). The raw `getNextAvailablePropertyDescriptor` stays
+   un-guarded for callers that want the honest throw (e.g. `getDefinedConstructor`).
+   Doc-only behavior addition; no signature change. This benefits every module composing
+   the inert probes (thenable, evented, error, …). Residual (NOT covered by this
+   hardening): throws from `instanceof` (`isCurrentRealm*` helpers) and from
+   `getTypeSignature` (a throwing `Symbol.toStringTag` getter) — separate surfaces,
+   tracked for a follow-up decision.
 
 ## Open items
 

@@ -73,6 +73,11 @@ basis: ECMA-262 `Get(value, "then")` resolution during `PromiseResolveThenableJo
   `hasInertMethod` finds the inherited `then`.
 - `isThenable/A6` — `Object.assign(() => {}, { then() {} })` → true — a callable carrying
   a `then` data property is still a thenable.
+- `isThenable/A7` — `{ then: class {} }` → true — a class is `typeof 'function'`, so it
+  satisfies the callable-`then` contract (isThenable admits any callable `then`).
+- `isThenable/A8` — a null-prototype object with an own callable `then`
+  (`Object.assign(Object.create(null), { then() {} })`) → true — own data property found
+  before the (absent) chain walk.
 
 **Rejects**
 
@@ -80,6 +85,10 @@ basis: ECMA-262 `Get(value, "then")` resolution during `PromiseResolveThenableJo
 - `isThenable/R2` — `{ get then() { return () => {}; } }` → false — accessor descriptor
   rejected (inspect-without-invoke), even though the getter would return a callable.
 - `isThenable/R3` — `{}` → false — no `then` anywhere in the chain.
+- `isThenable/R4` — an own non-callable `then` shadowing an inherited callable `then`
+  (`Object.assign(Object.create({ then() {} }), { then: 'nope' })`) → false — the
+  chain-walk returns the FIRST descriptor found (the own, non-callable one), matching
+  ECMA-262 `Get` shadowing.
 - (plus all CC/nullish, CC/falsy-primitive, CC/truthy-primitive)
 
 **Refuses to claim**
@@ -91,6 +100,13 @@ basis: ECMA-262 `Get(value, "then")` resolution during `PromiseResolveThenableJo
 - `isThenable/B3` — the `[[PromiseState]]` internal slot.
   `Object.create(Promise.prototype)` is admitted (inherits `then`, passes `instanceof`)
   despite not being a genuine Promise — structural detection cannot see internal slots.
+- `isThenable/B4` — a throwing accessor `then` (`{ get then() { throw … } }`) → false,
+  **not thrown** — the inert descriptor read never invokes the getter.
+- `isThenable/B5` — a Proxy whose `getOwnPropertyDescriptor` trap throws → false, **not
+  thrown** — `hasInertMethod` is throw-safe (hardened via `getInertDescriptor`; see
+  UTILITY.spec.md `hIM/R6` + Resolved items #2). Residual: a Proxy with a throwing
+  `getPrototypeOf` trap still throws via the `instanceof` arm
+  (`isCurrentRealmPromiseInstance`) — separate surface, follow-up decision.
 
 **Cross-realm expectation (axis 2):** admit foreign-realm `Promise` instances and any
 foreign object carrying a callable `then` (via the structural arm). No value is rejected
@@ -180,6 +196,11 @@ Spec basis: `Promise` identity — two-axis dispatch (decisions #023, #050).
 - `isPromise/R4` — a `PromiseLike` non-Promise `{ then() {}, catch() {}, finally() {} }` →
   false — not `instanceof`; tag is `'[object Object]'`.
 - `isPromise/R5` — `{ then() {} }` → false — not `instanceof`; tag mismatch.
+- `isPromise/R6` — a tag-spoof carrying an OWN `constructor` named `Promise`
+  (`{ [Symbol.toStringTag]: 'Promise', then(){}, catch(){}, finally(){}, constructor: function Promise(){} }`)
+  → false — `getDefinedConstructor` walks the prototype-chain and **ignores the own
+  `constructor` data property** (#047), so the walk reaches `Object`, not `Promise`.
+  Strengthens `R3` (the own-`constructor` variant of the tag-spoof).
 - (plus all cross-cutting vectors)
 
 **Refuses to claim**

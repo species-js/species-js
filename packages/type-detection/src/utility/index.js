@@ -202,6 +202,32 @@ export function getOwnPropertyDescriptorsKeySet(value) {
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 
 /**
+ * Walks for the next available descriptor like
+ * {@link getNextAvailablePropertyDescriptor}, but swallows any throw from a
+ * hostile `getOwnPropertyDescriptor` / `getPrototypeOf` Proxy trap and reports
+ * `undefined` instead.
+ *
+ * The inert probes built on it ({@link hasInertMethod} and its siblings) are
+ * type-guards: they must answer `true` / `false`, never propagate an exception
+ * from an adversarial host object. This extends the spec-defined-accessor trust
+ * boundary (decision #029) to the descriptor-walk reads. The raw walk stays
+ * un-guarded for callers (e.g. `getDefinedConstructor`) that want the honest
+ * throw.
+ *
+ * @param {unknown} type - the value to inspect
+ * @param {PropertyKey} key - the property key to resolve
+ * @returns {PropertyDescriptor | undefined} the first descriptor found while
+ *  walking the chain; `undefined` if none exists or a trap threw
+ */
+function getInertDescriptor(type, key) {
+  try {
+    return getNextAvailablePropertyDescriptor(type, key);
+  } catch {
+    return void 0;
+  }
+}
+
+/**
  * Tests whether the value carries a callable data property at `key`,
  * reachable through its prototype-chain.
  *
@@ -216,6 +242,11 @@ export function getOwnPropertyDescriptorsKeySet(value) {
  * property directly. An accessor `get key()` would fire on access
  * regardless of whether the getter returns a callable. The predicate
  * rejects accessor descriptors, so the inspection itself remains inert.
+ *
+ * Throw-safe: the descriptor walk runs through {@link getInertDescriptor}, so a
+ * value whose `getOwnPropertyDescriptor` / `getPrototypeOf` Proxy trap throws
+ * yields `false` rather than propagating — a type-guard must answer. The
+ * sibling probes share this guarantee.
  *
  * Used by Promise-contract predicates to verify the spec-defined `then`,
  * `catch`, and `finally` methods of a _thenable_ or _promise-like_
@@ -236,9 +267,7 @@ export function getOwnPropertyDescriptorsKeySet(value) {
  * hasInertMethod(null, 'then');                                // false
  */
 export function hasInertMethod(type = null, key) {
-  return (
-    type !== null && isCallable(getNextAvailablePropertyDescriptor(type, key)?.value)
-  );
+  return type !== null && isCallable(getInertDescriptor(type, key)?.value);
 }
 
 /**
@@ -262,7 +291,7 @@ export function hasInertMethod(type = null, key) {
  *  callable getter at `key` in its prototype-chain; `false` otherwise
  */
 export function hasInertGetter(type = null, key) {
-  return type !== null && isCallable(getNextAvailablePropertyDescriptor(type, key)?.get);
+  return type !== null && isCallable(getInertDescriptor(type, key)?.get);
 }
 
 /**
@@ -280,7 +309,7 @@ export function hasInertGetter(type = null, key) {
  *  callable setter at `key` in its prototype-chain; `false` otherwise
  */
 export function hasInertSetter(type = null, key) {
-  return type !== null && isCallable(getNextAvailablePropertyDescriptor(type, key)?.set);
+  return type !== null && isCallable(getInertDescriptor(type, key)?.set);
 }
 
 /**
@@ -311,10 +340,7 @@ export function hasInertSetter(type = null, key) {
  *  descriptors and missing descriptors)
  */
 export function hasInertValue(type = null, key) {
-  return (
-    type !== null &&
-    objectHasOwn(getNextAvailablePropertyDescriptor(type, key) ?? {}, 'value')
-  );
+  return type !== null && objectHasOwn(getInertDescriptor(type, key) ?? {}, 'value');
 }
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----

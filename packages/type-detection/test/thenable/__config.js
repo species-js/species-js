@@ -68,6 +68,43 @@ export const foreignPromise = () => foreignRealmEval('Promise.resolve(1)');
 export const foreignPromiseSubclassInstance = () =>
   foreignRealmEval('new (class MyPromise extends Promise {})((r) => r())');
 
+// matrix-scored edge shapes (added after the adversarial probe round)
+export const classThen = () => ({
+  then: class {
+    run() {
+      return 0;
+    }
+  },
+});
+export const nullProtoOwnThen = () => Object.assign(objectCreate(null), { then: noop });
+export const ownNonCallableShadowsThen = () =>
+  Object.assign(objectCreate({ then: noop }), { then: 'nope' });
+
+// throw-safety / tamper probes (targeted by adversarial.test.js)
+export const throwingGetterThen = () => ({
+  get then() {
+    throw new Error('then-getter');
+  },
+});
+export const throwingDescTrapProxy = () =>
+  new Proxy(
+    {},
+    {
+      getOwnPropertyDescriptor() {
+        throw new Error('desc-trap');
+      },
+    },
+  );
+export const ownConstructorNamedPromise = () => ({
+  [Symbol.toStringTag]: 'Promise',
+  then: noop,
+  catch: noop,
+  finally: noop,
+  constructor: function Promise() {
+    return undefined;
+  },
+});
+
 // ----- axis-1 contract matrix -----
 // Each row: a fresh-value factory + the expected outcome of all three chain
 // predicates + the spec vector IDs the row covers. `spec.test.js` asserts every
@@ -142,6 +179,24 @@ export const specMatrix = {
     make: () => ({}),
     expected: { isThenable: false, isPromiseLike: false, isPromise: false },
     vectors: ['isThenable/R3'],
+  },
+  classThen: {
+    description: '`then` is a class (callable)',
+    make: classThen,
+    expected: { isThenable: true, isPromiseLike: false, isPromise: false },
+    vectors: ['isThenable/A7'],
+  },
+  nullProtoOwnThen: {
+    description: 'a null-prototype object with an own callable `then`',
+    make: nullProtoOwnThen,
+    expected: { isThenable: true, isPromiseLike: false, isPromise: false },
+    vectors: ['isThenable/A8'],
+  },
+  ownNonCallableShadowsThen: {
+    description: 'an own non-callable `then` shadowing an inherited callable `then`',
+    make: ownNonCallableShadowsThen,
+    expected: { isThenable: false, isPromiseLike: false, isPromise: false },
+    vectors: ['isThenable/R4'],
   },
 };
 
