@@ -26,6 +26,8 @@ import {
   promisePrototypeGraft,
   throwingGetterThen,
   throwingDescTrapProxy,
+  throwingProtoTrapProxy,
+  throwingTagGetterWithContract,
   ownConstructorNamedPromise,
 } from './__config.js';
 
@@ -49,6 +51,23 @@ describe('thenable — throw-safety on hostile inputs (hardened hasInertMethod, 
   it('isThenable/B5: Proxy with a throwing getOwnPropertyDescriptor trap → false, not thrown', () => {
     expect(isThenable(throwingDescTrapProxy())).toBe(false);
     expect(isPromiseLike(throwingDescTrapProxy())).toBe(false);
+  });
+
+  it('B6: Proxy with a throwing getPrototypeOf trap → false on all three, not thrown', () => {
+    // The instanceof arm (isCurrentRealmPromiseInstance) is now throw-safe too.
+    const make = throwingProtoTrapProxy;
+    expect(isThenable(make())).toBe(false);
+    expect(isPromiseLike(make())).toBe(false);
+    expect(isPromise(make())).toBe(false);
+  });
+
+  it('B7: throwing Symbol.toStringTag getter + full contract → isPromise false, not thrown', () => {
+    // getTypeSignature is throw-safe; isThenable/isPromiseLike see the real
+    // methods (they never read the tag), isPromise's tag read yields undefined.
+    const make = throwingTagGetterWithContract;
+    expect(isThenable(make())).toBe(true);
+    expect(isPromiseLike(make())).toBe(true);
+    expect(isPromise(make())).toBe(false);
   });
 });
 

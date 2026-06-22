@@ -96,8 +96,8 @@ export function hasOwnWritablePrototype(value) {
  * Finite-but-non-integer numbers like `1.5` coerce to strings (`"1.5"`)
  * at runtime with lookup surprises. Integers beyond
  * `Number.MAX_SAFE_INTEGER` lose precision in the round-trip. Both are
- * excluded. `NaN` and `±Infinity` are also excluded — they fail the
- * finite check that underlies safe-integer.
+ * excluded. `NaN` and `±Infinity` are also excluded. They fail the
+ * finite check that underlies any safe-integer value.
  *
  * @param {unknown} [value] - the value to test; omitted is treated as
  *  `undefined`, which is not a property key
@@ -204,14 +204,14 @@ export function getOwnPropertyDescriptorsKeySet(value) {
 /**
  * Walks for the next available descriptor like
  * {@link getNextAvailablePropertyDescriptor}, but swallows any throw from a
- * hostile `getOwnPropertyDescriptor` / `getPrototypeOf` Proxy trap and reports
+ * hostile `getOwnPropertyDescriptor` / `getPrototypeOf` Proxy-trap and reports
  * `undefined` instead.
  *
  * The inert probes built on it ({@link hasInertMethod} and its siblings) are
  * type-guards: they must answer `true` / `false`, never propagate an exception
  * from an adversarial host object. This extends the spec-defined-accessor trust
  * boundary (decision #029) to the descriptor-walk reads. The raw walk stays
- * un-guarded for callers (e.g. `getDefinedConstructor`) that want the honest
+ * unguarded for callers (e.g. `getDefinedConstructor`) that want the honest
  * throw.
  *
  * @param {unknown} type - the value to inspect
@@ -243,10 +243,10 @@ function getInertDescriptor(type, key) {
  * regardless of whether the getter returns a callable. The predicate
  * rejects accessor descriptors, so the inspection itself remains inert.
  *
- * Throw-safe: the descriptor walk runs through {@link getInertDescriptor}, so a
- * value whose `getOwnPropertyDescriptor` / `getPrototypeOf` Proxy trap throws
- * yields `false` rather than propagating — a type-guard must answer. The
- * sibling probes share this guarantee.
+ * Throw-safe: the descriptor walk runs through {@link getInertDescriptor}, so
+ * a value whose `getOwnPropertyDescriptor` / `getPrototypeOf` Proxy-trap throws,
+ * yields `false` rather than propagating. And a type-guard must answer.
+ * The sibling probes share this guarantee.
  *
  * Used by Promise-contract predicates to verify the spec-defined `then`,
  * `catch`, and `finally` methods of a _thenable_ or _promise-like_
@@ -281,7 +281,7 @@ export function hasInertMethod(type = null, key) {
  * are rejected. The helper specifically tests for the accessor shape's
  * `get`.
  *
- * Fully inert. The descriptor is read without invocation; the `get`
+ * Fully inert. The descriptor is read without invocation. The `get`
  * function itself is referenced but never called.
  *
  * @param {unknown} type - the value to inspect
@@ -360,10 +360,17 @@ export function hasInertValue(type = null, key) {
  * passed `undefined`. Explicit `undefined` yields `'[object Undefined]'`.
  * An omitted call yields `undefined`.
  *
+ * Throw-safe: a value whose `Symbol.toStringTag` is an accessor that throws
+ * on read yields `undefined` rather than propagating. The tag read is the
+ * cross-realm `[[Class]]` probe behind several predicates, which must answer,
+ * not raise. (Extends the spec-defined-accessor trust boundary, decision #029,
+ * to the tag read.)
+ *
  * @param {...unknown} args - the first argument (`args[0]`) is the value to
  *  read; presence is detected via `args.length` rather than `!== undefined`
  * @returns {TypeSignature | undefined} the `[object Tag]` string when an
- *  argument was provided; `undefined` when no argument was passed
+ *  argument was provided; `undefined` when no argument was passed or a hostile
+ *  `Symbol.toStringTag` getter threw
  * @example
  * getTypeSignature([]);                // '[object Array]'
  * getTypeSignature(null);              // '[object Null]'
@@ -371,12 +378,14 @@ export function hasInertValue(type = null, key) {
  * getTypeSignature();                  // undefined
  */
 export function getTypeSignature(...args) {
-  const /** @type {unknown} */ value = args[0];
-
-  return /** @type {TypeSignature | undefined} */ (
-    (args.length > 0 && /** @type {TypeSignature} */ toObjectString.call(value)) ||
-      /** @type {undefined} */ value
-  );
+  if (args.length === 0) {
+    return void 0;
+  }
+  try {
+    return /** @type {TypeSignature} */ (toObjectString.call(args[0]));
+  } catch {
+    return void 0;
+  }
 }
 
 /**

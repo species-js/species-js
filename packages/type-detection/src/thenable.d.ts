@@ -297,7 +297,7 @@ export interface AbortableThenable<out T> extends Thenable<T> {
 
 /**
  * Whether `value` is an instance of the realm-fixed `Promise` intrinsic
- * captured at module load (or any subclass). Returns `false` when the
+ * captured at module-load (or any subclass). Returns `false` when the
  * runtime has no global `Promise` (pre-Node-15 environments, special
  * embeddings), short-circuiting before the `instanceof` test ever runs.
  *
@@ -308,9 +308,14 @@ export interface AbortableThenable<out T> extends Thenable<T> {
  * arm. Assumes a truthy `value`. The public predicates apply the
  * `!!value` guard before delegating.
  *
+ * Throw-safe: the `instanceof` walk is wrapped, so a Proxy whose `getPrototypeOf`
+ * trap throws yields `false` rather than propagating (decision #029 trust
+ * boundary, extended to the `instanceof` read).
+ *
  * @param value - the value to test; assumed truthy by the caller
  * @returns `true` when a `Promise` intrinsic was captured and
- *  `value instanceof` it holds; `false` otherwise
+ *  `value instanceof` it holds; `false` otherwise (including when a hostile
+ *  `getPrototypeOf` trap throws)
  * @internal
  */
 export function isCurrentRealmPromiseInstance(value: unknown): boolean;
@@ -445,7 +450,7 @@ export function isPromiseLike<T = unknown>(value?: T): value is T & PromiseLike<
  * with `getPrototypeOf(value) === promisePrototype`. The pair admits
  * only direct `Promise` instances; subclasses pass `instanceof` but
  * fail the prototype identity-check, preserving subclass rejection in
- * two O(1) operations. Both captures are realm-fixed at module load.
+ * two O(1) operations. Both captures are realm-fixed at module-load.
  *
  * On miss, falls back to a three-marker structural chain-run in cost-order:
  * the `[[Class]]` tag `'Promise'` (single `Object.prototype.toString.call`),

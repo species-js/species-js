@@ -236,9 +236,14 @@ the inert guarantee — a lying `get then()` cannot fire; a throwing trap/access
   `'[object Function]'`.
 - `gTS/B1` — omitted call `getTypeSignature()` → `undefined` (distinguished from explicit
   `undefined` via `args.length`).
+- `gTS/B2` — a value whose `Symbol.toStringTag` is an accessor that **throws** on read →
+  `undefined`, **not thrown** (throw-safe; the `toObjectString.call` is wrapped
+  `try/catch`). `getTaggedType` and `resolveType` inherit this (they compose
+  `getTypeSignature`). Extends decision #029 to the tag read.
 
 **Cross-realm (axis 2):** realm-safe — the cached `toObjectString` is realm-fixed and
-immune to a missing/overridden instance `toString`.
+immune to a missing/overridden instance `toString`. **Throw-safe (axis 3):** a hostile
+`Symbol.toStringTag` getter yields `undefined`, not an exception (`gTS/B2`).
 
 ---
 
@@ -414,10 +419,17 @@ descriptor holding `undefined` is still recognized (matches ECMA-262 §6.2.5.1
    trap yields `false` (`hIM/R6`). The raw `getNextAvailablePropertyDescriptor` stays
    un-guarded for callers that want the honest throw (e.g. `getDefinedConstructor`).
    Doc-only behavior addition; no signature change. This benefits every module composing
-   the inert probes (thenable, evented, error, …). Residual (NOT covered by this
-   hardening): throws from `instanceof` (`isCurrentRealm*` helpers) and from
-   `getTypeSignature` (a throwing `Symbol.toStringTag` getter) — separate surfaces,
-   tracked for a follow-up decision.
+   the inert probes (thenable, evented, error, …).
+
+3. **Tag read hardened (`getTypeSignature`) — RESOLVED (2026-06-22).** The follow-up to
+   #2: a throwing `Symbol.toStringTag` getter made `getTypeSignature` (and thus
+   `getTaggedType`, `resolveType`, and every tag-reading predicate) propagate. Now wrapped
+   `try/catch → undefined` (`gTS/B2`). Package-wide tag-read throw-safety in one place.
+   The sibling residual — `instanceof` in the per-module `isCurrentRealm*` helpers — was
+   hardened in each module's own file (thenable's `isCurrentRealmPromiseInstance` done;
+   evented / primitive / function inline `instanceof` to be wrapped in their rounds). The
+   unclosable proxy/rename spoofs (shape-not-liveness) are documented boundaries, not
+   bugs.
 
 ## Open items
 

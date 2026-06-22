@@ -55,7 +55,7 @@ export interface PropertyDescriptorMap {
 export interface DefinedConstructorAccessorOptions {
   /**
    * When `true`, treats the input value as a real prototype object and
-   * skips the walk-up via `getPrototypeOf` — the descriptor walk starts
+   * skips the walk-up via `getPrototypeOf`. The descriptor walk starts
    * at the value itself. Defaults to `false`.
    *
    * Per ECMA-262 §10.2.6, every function-created prototype carries an
@@ -170,8 +170,8 @@ export function hasOwnWritablePrototype(value?: unknown): boolean;
  * Finite-but-non-integer numbers like `1.5` coerce to strings (`"1.5"`)
  * at runtime with lookup surprises. Integers beyond
  * `Number.MAX_SAFE_INTEGER` lose precision in the round-trip. Both are
- * excluded. `NaN` and `±Infinity` are also excluded — they fail the
- * finite check that underlies safe-integer.
+ * excluded. `NaN` and `±Infinity` are also excluded. They fail the
+ * finite check that underlies any safe-integer value.
  *
  * @param value - the value to test; omitted is treated as `undefined`, which
  *  is not a property key
@@ -263,8 +263,8 @@ export function getOwnPropertyDescriptorsKeySet(value?: unknown): Set<string>;
  * rejects accessor descriptors, so the inspection itself remains inert.
  *
  * Throw-safe: a value whose `getOwnPropertyDescriptor` / `getPrototypeOf`
- * Proxy trap throws yields `false` rather than propagating — a type-guard must
- * answer, not raise. Extends the spec-defined-accessor trust boundary
+ * Proxy-trap throws, yields `false` rather than propagating. And a type-guard
+ * must answer, not raise. Extends the spec-defined-accessor trust boundary
  * (decision #029) to the descriptor-walk reads. The sibling probes
  * ({@link hasInertGetter}, {@link hasInertSetter}, {@link hasInertValue})
  * share this guarantee.
@@ -300,7 +300,7 @@ export function hasInertMethod(type: unknown, key: PropertyKey): boolean;
  * are rejected. The helper specifically tests for the accessor shape's
  * `get`.
  *
- * Fully inert. The descriptor is read without invocation; the `get`
+ * Fully inert. The descriptor is read without invocation. The `get`
  * function itself is referenced but never called.
  *
  * @param type - the value to inspect
@@ -340,6 +340,9 @@ export function hasInertSetter(type: unknown, key: PropertyKey): boolean;
  * descriptor" from "the value is undefined" cleanly, matching
  * ECMA-262 §6.2.5.1 `IsDataDescriptor`.
  *
+ * The `?? {}` fallback guards against `objectHasOwn(undefined, ...)`,
+ * which throws per ECMA-262 §20.1.2.13 step 1 (ToObject).
+ *
  * Fully inert. Use to discriminate data-vs-accessor descriptor shapes
  * along a prototype-chain without invoking either getters or stored
  * values.
@@ -362,9 +365,16 @@ export function hasInertValue(type: unknown, key: PropertyKey): boolean;
 /**
  * Returns the value's internal `[[Class]]` signature.
  *
- * Reads the tag through `Object.prototype.toString.call`, which is the
- * realm-independent read of a value's built-in type and is immune to a
- * missing or overridden instance `toString`.
+ * Reads the tag through the cached `Object.prototype.toString.call`, which
+ * is the realm-independent read of a value's built-in type and is immune to
+ * a missing or overridden instance `toString`.
+ *
+ * Throw-safe: a value whose `Symbol.toStringTag` accessor throws on read, yields
+ * `undefined` at runtime rather than propagating (decision #029 trust boundary,
+ * extended to the tag read). The regular use-case features the `TypeSignature`
+ * type as its sole return type. However, the hostile-getter `undefined` is a
+ * runtime edge not modeled within the `TypeSignature` type itself, but via this
+ * function's return-type.
  *
  * @param value - the value to read
  * @returns the `[object Tag]` string for the value
@@ -373,7 +383,7 @@ export function hasInertValue(type: unknown, key: PropertyKey): boolean;
  * getTypeSignature(null);              // '[object Null]'
  * getTypeSignature(Promise.resolve()); // '[object Promise]'
  */
-export function getTypeSignature(value: unknown): TypeSignature;
+export function getTypeSignature(value: unknown): TypeSignature | undefined;
 
 /**
  * The no-argument overload. Returns `undefined`, distinguishing an
@@ -520,7 +530,7 @@ export function getDefinedConstructorName(value?: unknown): ConstructorName | un
  * a lowercase constructor name carries more information than the
  * uninformative `'Object'` tag, so it wins that specific conflict.
  *
- * The constructor-name read is tamper-resistant — user-supplied
+ * The constructor-name read is tamper-resistant. User-supplied
  * `constructor` data descriptors on the value cannot influence the
  * result.
  * The tag fallback therefore fires only for genuinely weak names

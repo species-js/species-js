@@ -95,6 +95,23 @@ export const throwingDescTrapProxy = () =>
       },
     },
   );
+export const throwingProtoTrapProxy = () =>
+  new Proxy(
+    {},
+    {
+      getPrototypeOf() {
+        throw new Error('proto-trap');
+      },
+    },
+  );
+export const throwingTagGetterWithContract = () => ({
+  get [Symbol.toStringTag]() {
+    throw new Error('tag-getter');
+  },
+  then: noop,
+  catch: noop,
+  finally: noop,
+});
 export const ownConstructorNamedPromise = () => ({
   [Symbol.toStringTag]: 'Promise',
   then: noop,

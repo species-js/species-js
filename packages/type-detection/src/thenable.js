@@ -30,7 +30,7 @@ const PromiseConstructor = /** @type {typeof Promise | null} */ (
 const promisePrototype = PromiseConstructor && PromiseConstructor.prototype;
 /**
  * Whether `value` is an instance of the realm-fixed `PromiseConstructor`
- * captured at module load (or any subclass). The leading
+ * captured at module-load (or any subclass). The leading
  * `!!PromiseConstructor` guard returns `false` when the runtime lacks a
  * global `Promise` (pre-Node-15 environments, special embeddings) without
  * exercising `instanceof`.
@@ -42,13 +42,26 @@ const promisePrototype = PromiseConstructor && PromiseConstructor.prototype;
  * arm. Invoked exclusively after the caller's `!!value` truthiness guard,
  * so the helper carries the constructor-presence guard only.
  *
+ * Throw-safe: `instanceof` walks the value's `[[Prototype]]` chain, so a Proxy
+ * whose `getPrototypeOf` trap throws would otherwise propagate. The check is
+ * wrapped to yield `false` instead — a realm-membership probe must answer, not
+ * raise (decision #029 trust boundary, extended to the `instanceof` read).
+ *
  * @param {unknown} value - the value to test; assumed truthy by the caller
  * @returns {boolean} `true` when `PromiseConstructor` is captured and
- *  `value instanceof PromiseConstructor` holds; `false` otherwise
+ *  `value instanceof PromiseConstructor` holds; `false` otherwise (including
+ *  when a hostile `getPrototypeOf` trap throws)
  * @internal
  */
 export function isCurrentRealmPromiseInstance(value) {
-  return !!PromiseConstructor && value instanceof PromiseConstructor;
+  if (!PromiseConstructor) {
+    return false;
+  }
+  try {
+    return value instanceof PromiseConstructor;
+  } catch {
+    return false;
+  }
 }
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
@@ -197,7 +210,7 @@ export function isPromiseLike(value) {
  * `getPrototypeOf(value) === promisePrototype`. The pair admits only
  * direct `Promise` instances; subclasses pass `instanceof` but fail the
  * prototype identity-check, preserving subclass rejection in two O(1)
- * operations. Both captures are realm-fixed at module load.
+ * operations. Both captures are realm-fixed at module-load.
  *
  * On miss, falls back to a three-marker structural chain-run in cost-order:
  * the `[[Class]]` tag `'Promise'` (single `Object.prototype.toString.call`),

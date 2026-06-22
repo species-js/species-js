@@ -104,9 +104,10 @@ basis: ECMA-262 `Get(value, "then")` resolution during `PromiseResolveThenableJo
   **not thrown** — the inert descriptor read never invokes the getter.
 - `isThenable/B5` — a Proxy whose `getOwnPropertyDescriptor` trap throws → false, **not
   thrown** — `hasInertMethod` is throw-safe (hardened via `getInertDescriptor`; see
-  UTILITY.spec.md `hIM/R6` + Resolved items #2). Residual: a Proxy with a throwing
-  `getPrototypeOf` trap still throws via the `instanceof` arm
-  (`isCurrentRealmPromiseInstance`) — separate surface, follow-up decision.
+  UTILITY.spec.md `hIM/R6`).
+- `isThenable/B6` — a Proxy whose `getPrototypeOf` trap throws → false on **all three**
+  predicates, **not thrown** — `isCurrentRealmPromiseInstance`'s `instanceof` arm is now
+  throw-safe too (wrapped `try/catch → false`).
 
 **Cross-realm expectation (axis 2):** admit foreign-realm `Promise` instances and any
 foreign object carrying a callable `then` (via the structural arm). No value is rejected
@@ -217,10 +218,17 @@ Spec basis: `Promise` identity — two-axis dispatch (decisions #023, #050).
   probe the way boxed primitives use `valueOf`). Structural detection verifies _shape, not
   liveness_; the graft throws on first real use. Accept-and-document — see decision #052;
   a host-backed tier is deferred to Q.005.
-
-**Cross-realm expectation (axis 2):** admit foreign-realm _direct_ `Promise` instances
-(cross-realm arm); reject foreign-realm subclasses (constructor-name) — symmetric with the
-local-realm subclass rejection.
+- `isPromise/B3` — a throwing `Symbol.toStringTag` getter (with a full contract) → false,
+  **not thrown** — the cross-realm arm's tag read goes through the throw-safe
+  `getTypeSignature` (yields `undefined`, fails the `=== '[object Promise]'` check). The
+  by-contract predicates (`isThenable`, `isPromiseLike`) admit such a value — they read
+  the real methods, never the tag (`isThenable/B7` pairing).
+- `isPromise/B4` — **unclosable spoofs (extend B2's shape-not-liveness boundary):** a
+  Proxy lying `getPrototypeOf → Promise.prototype` passes the local-realm arm; a foreign
+  `Promise` subclass whose constructor `.name` is forced to `'Promise'` passes the
+  cross-realm arm. Structural detection cannot beat a fully-committed proxy/rename — named
+  here, not closed. (cross-realm arm); reject foreign-realm subclasses (constructor-name)
+  — symmetric with the local-realm subclass rejection.
 
 **Spoof-resistance expectation (axis 3):** the three cross-realm markers are independent
 and each closes a distinct false-positive class — `doesMatchPromiseContract` rejects
