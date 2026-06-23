@@ -14,7 +14,7 @@ inherits everything the structural markers read — the `Symbol.toStringTag` dat
 `[[Prototype]]` — yet carries no `[[PromiseState]]` internal slot. It therefore passes
 every marker `isPromise` applies: the local-realm arm (`instanceof Promise` +
 `getPrototypeOf === Promise.prototype`), and, were it to reach the cross-realm arm, the
-`[[Class]]` tag, the constructor-name walk, and `doesMatchPromiseContract`. The spec
+`[[Class]]` tag, the constructor-name walk, and `doesImplementPromiseContract`. The spec
 captured this as vector `isPromise/B2` in `THENABLE.spec.md` and re-surfaced it while
 drafting `PRIMITIVE.spec.md`, where the contrast is sharp: the boxed predicates reject the
 analogous graft, `isPromise` admits it.

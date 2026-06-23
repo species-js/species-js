@@ -3,10 +3,11 @@
 **Date:** 2026-06-04
 
 **Context.** `hasInertMethod(value, key)` was introduced in the thenable migration as the
-inspect-without-invoke primitive. Its callers (`isThenable`, `doesMatchPromiseContract`)
-read inherited `Promise.prototype` methods (`then`, `catch`, `finally`). Decision #020
-says "inherited → direct access (let the engine resolve)" but direct access would invoke
-any accessor at the key — wrong for a predicate that must inspect without invocation.
+inspect-without-invoke primitive. Its callers (`isThenable`,
+`doesImplementPromiseContract`) read inherited `Promise.prototype` methods (`then`,
+`catch`, `finally`). Decision #020 says "inherited → direct access (let the engine
+resolve)" but direct access would invoke any accessor at the key — wrong for a predicate
+that must inspect without invocation.
 
 **Decision.** Extend the spec-shape rule with a third pattern. The full rule now reads:
 

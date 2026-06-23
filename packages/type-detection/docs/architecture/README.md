@@ -26,9 +26,11 @@ architectural questions that the code has not yet answered.
 Each module embeds the cross-cutting patterns it uses. The patterns themselves
 (boundary-retyping at `@/config`, conservative-narrowing posture, spec-shape access
 discipline, family pattern with sub-helpers, strict-by-default + composable lenient forms,
-cross-realm fast path + structural fallback, structural sealability) are referenced from
-the relevant module files. They are not deduplicated into a workspace-level document yet —
-that will land if and when a second package adopts them.
+cross-realm fast path + structural fallback, structural sealability, throw-safe
+introspection — descriptor / tag / prototype reads answer with a sentinel rather than
+propagating a hostile Proxy-trap, decisions #029 / #056) are referenced from the relevant
+module files. They are not deduplicated into a workspace-level document yet — that will
+land if and when a second package adopts them.
 
 **Structural sealability** (decision #052) is the principle that unifies the
 boxed-primitive slot-seal with the predicates that cannot have one: a runtime type is

@@ -337,8 +337,11 @@ export function isBuiltInClass(value) {
 //
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 
+const PromiseConstructor = /** @type {typeof Promise | null} */ (
+  isCallable(Promise) ? Promise : null
+);
 const AsyncFunctionConstructor = /** @type {NewableFunction} */ (
-  getDefinedConstructor(async () => Promise.resolve())
+  getDefinedConstructor(async () => PromiseConstructor?.resolve() ?? null)
 );
 
 /**
@@ -514,7 +517,7 @@ const GeneratorFunctionConstructor = /** @type {NewableFunction} */ (
 );
 const AsyncGeneratorFunctionConstructor = /** @type {NewableFunction} */ (
   getDefinedConstructor(async function* () {
-    await Promise.resolve();
+    await (async () => PromiseConstructor?.resolve() ?? null)();
     yield;
   })
 );

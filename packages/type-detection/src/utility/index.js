@@ -12,17 +12,21 @@
 import {
   getOwnPropertyDescriptors,
   getOwnPropertyDescriptor,
-  getPrototypeOf,
+  getPrototypeOf as nativeGetPrototypeOf,
   objectHasOwn,
   objectKeys,
   toObjectString,
   isSafeIntegerValue,
 } from '@/config';
 
-import { isStringValue, isSymbolValue } from '@/primitive';
-import { isCallable, isFunction } from '@/function';
+import { isStringValue, isSymbolValue, unguardedIsUnregisteredSymbol } from '@/primitive';
+import { isCallable, isFunction, isNewableFunction } from '@/function';
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
+
+/** @typedef {import('./index').WeakKey} WeakKey */
+
+/** @typedef {import('./index').DefinedConstructorAccessorOptions} DefinedConstructorAccessorOptions */
 
 /** @typedef {import('./index').PropertyDescriptor} PropertyDescriptor */
 /** @typedef {import('./index').ConstructorName} ConstructorName */
@@ -30,9 +34,247 @@ import { isCallable, isFunction } from '@/function';
 /** @typedef {import('./index').TaggedType} TaggedType */
 /** @typedef {import('./index').ResolvedType} ResolvedType */
 
+/** @typedef {import('@/function').Callable} Callable */
+
 /** @typedef {import('@/function').NewableFunction} NewableFunction */
 /** @typedef {import('@/function').ES3Function} ES3Function */
 /** @typedef {import('@/function').ClassConstructor} ClassConstructor */
+
+/** @typedef {import('./index').PredicateFunction} PredicateFunction */
+
+// ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
+//
+//  Weak-Key Validation
+//
+// ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
+
+const weakKeyTypeSignatures = new Set(['object', 'function']);
+
+/**
+ * Narrows a value to {@link WeakKey} — a value usable as a `WeakMap` / `WeakSet` key:
+ * an object, a function, or (where the runtime supports it) an unregistered symbol.
+ *
+ * The implementation is selected once at module-load by the `createIsValidWeakKeyPredicate`
+ * factory: it probes whether this realm admits symbols as weak keys (the ES2023 capability)
+ * and only then enables the symbol branch — which additionally excludes registered symbols
+ * (rejected by the engine) via {@link unguardedIsUnregisteredSymbol}. On engines without
+ * the capability the predicate admits objects and functions only. `Symbol` is injected as
+ * `SymbolFactory` so the probe is realm-explicit.
+ *
+ * @param {unknown} value - the value to test; omitted is
+ *  treated as `undefined`, which is not a valid weak key
+ * @returns {value is WeakKey}
+ *  `true` when the value can be used as a weak key,
+ *   narrowing to {@link WeakKey}; `false` otherwise
+ */
+export const isValidWeakKey = (function createIsValidWeakKeyPredicate(SymbolFactory) {
+  const supportsSymbolAsWeakKey = (() => {
+    try {
+      new WeakSet().add(SymbolFactory());
+      return true;
+    } catch {
+      return false;
+    }
+  })();
+
+  if (supportsSymbolAsWeakKey) {
+    weakKeyTypeSignatures.add('symbol');
+  }
+  return (
+    supportsSymbolAsWeakKey
+      ? {
+          /**
+           * @param {unknown} value - the value to test; omitted is
+           *  treated as `undefined`, which is not a valid weak key
+           * @returns {value is WeakKey}
+           *  `true` when the value can be used as a weak key,
+           *   narrowing to {@link WeakKey}; `false` otherwise
+           */
+          isValidWeakKey(value) {
+            const keyType = typeof (value ?? void 0);
+            return (
+              weakKeyTypeSignatures.has(keyType) &&
+              (keyType !== 'symbol' ||
+                unguardedIsUnregisteredSymbol(/** @type {symbol} */ (value)))
+            );
+          },
+        }
+      : {
+          /**
+           * @param {unknown} value - the value to test; omitted is
+           *  treated as `undefined`, which is not a valid weak key
+           * @returns {value is WeakKey}
+           *  `true` when the value can be used as a weak key,
+           *   narrowing to {@link WeakKey}; `false` otherwise
+           */
+          isValidWeakKey(value) {
+            return !!value && weakKeyTypeSignatures.has(typeof value);
+          },
+        }
+  ).isValidWeakKey;
+})(Symbol);
+
+// ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
+
+const prototypeRegistry = /** @type {WeakMap<WeakKey, object | Callable | null>} */ (
+  new WeakMap()
+);
+const constructorRegistry =
+  /** @type {WeakMap<WeakKey, Map<string, NewableFunction>>} */ (new WeakMap());
+const constructorNameRegistry = /** @type {WeakMap<WeakKey, Map<string, string>>} */ (
+  new WeakMap()
+);
+
+/**
+ * @param {boolean} assumePrototype - predicate value which defines the returned key's value.
+ * @returns {'proto' | 'default'}
+ * @internal
+ */
+function whichConstructorStorageKey(assumePrototype) {
+  return assumePrototype ? 'proto' : 'default';
+}
+
+/**
+ * @param {unknown} key - always a non-nullish key-value
+ * @param {object | Callable | null} value - the retrieved and to be registered `prototype`
+ * @returns {WeakMap<WeakKey, object | Callable | null> | undefined}
+ * @internal
+ */
+function registerPrototype(key, value) {
+  // no other guard than the key predicate is needed.
+  if (isValidWeakKey(key)) {
+    return prototypeRegistry.set(key, value);
+  }
+  return void 0;
+}
+/**
+ * @param {unknown} key - always a non-nullish key-value
+ * @returns {object | Callable | null | undefined}
+ * @internal
+ */
+function getRegisteredPrototype(key) {
+  return prototypeRegistry.get(/** @type {WeakKey} */ (key));
+}
+
+/**
+ * @param {unknown} key - always a non-nullish key-value
+ * @param {NewableFunction} value - the retrieved and to be registered constructor function
+ * @param {boolean} assumePrototype - whether `value` is going to be treated as a real
+ *  prototype object; defaults to `false`
+ * @returns {WeakMap<WeakKey, Map<string, NewableFunction>> | undefined}
+ * @internal
+ */
+function registerConstructor(key, value, assumePrototype) {
+  // no other guard than the key predicate is needed.
+  if (isValidWeakKey(key)) {
+    /** @type {Map<string, NewableFunction>} */ (
+      constructorRegistry.get(key) ?? constructorRegistry.set(key, new Map()).get(key)
+    ).set(whichConstructorStorageKey(assumePrototype), value);
+
+    return constructorRegistry;
+  }
+  return void 0;
+}
+/**
+ * @param {unknown} key
+ * @param {boolean} assumePrototype
+ * @returns {NewableFunction | undefined}
+ * @internal
+ */
+function getRegisteredConstructor(key, assumePrototype) {
+  return constructorRegistry
+    .get(/** @type {WeakKey} */ (key))
+    ?.get(whichConstructorStorageKey(assumePrototype));
+}
+
+/**
+ * @param {unknown} key - always a non-nullish key-value
+ * @param {string} value - the retrieved and to be registered constructor name
+ * @param {boolean} assumePrototype - whether `value` is going to be treated as a real
+ *  prototype object; defaults to `false`
+ * @returns {WeakMap<WeakKey, Map<string, string>> | undefined}
+ * @internal
+ */
+function registerConstructorName(key, value, assumePrototype) {
+  // no other guard than the key predicate is needed.
+  if (isValidWeakKey(key)) {
+    /** @type {Map<string, string>} */ (
+      constructorNameRegistry.get(key) ??
+        constructorNameRegistry.set(key, new Map()).get(key)
+    ).set(whichConstructorStorageKey(assumePrototype), value);
+
+    return constructorNameRegistry;
+  }
+  return void 0;
+}
+/**
+ * @param {unknown} key
+ * @param {boolean} assumePrototype
+ * @returns {string}
+ * @internal
+ */
+function getRegisteredConstructorName(key, assumePrototype) {
+  // ACCESSED internally only and ALWAYS GUARDED by `hasRegisteredConstructorName`
+  return /** @type {string} */ (
+    /** @type {Map<string, string>} */ (
+      constructorNameRegistry.get(/** @type {WeakKey} */ (key))
+    ).get(whichConstructorStorageKey(assumePrototype))
+  );
+}
+/**
+ * @param {unknown} key
+ * @param {boolean} assumePrototype
+ * @returns {boolean}
+ * @internal
+ */
+function hasRegisteredConstructorName(key, assumePrototype) {
+  return !!constructorNameRegistry
+    .get(/** @type {WeakKey} */ (key))
+    ?.has(whichConstructorStorageKey(assumePrototype));
+}
+
+// ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
+//
+//  Guarded/Inert Prototype Access
+//
+// ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
+
+/**
+ * Reads `getPrototypeOf(value)` throw-safely and memoized.
+ *
+ * Wraps the realm-fixed `getPrototypeOf` (`nativeGetPrototypeOf`) in a
+ * `try/catch` so a hostile `getPrototypeOf` Proxy-trap yields `undefined`
+ * rather than propagating, and caches the resolved prototype per value in the
+ * module-scoped `prototypeRegistry` `WeakMap` (via `registerPrototype` /
+ * `getRegisteredPrototype`). The cache assumes the value's `[[Prototype]]` is
+ * structurally stable; a later `setPrototypeOf` is not reflected.
+ *
+ * @param {unknown} [value] - the value whose prototype to read; omitted/`null`
+ *  yields `undefined`
+ * @returns {object | Callable | null | undefined} the value's prototype (an
+ *  object, a callable, or `null`); `undefined` for nullish input or when a
+ *  hostile trap threw
+ * @internal
+ */
+export function guardedGetPrototypeOf(value = null) {
+  if (value === null) {
+    return void 0;
+  }
+  const fastResult = getRegisteredPrototype(value);
+
+  if (fastResult || fastResult === null) {
+    return fastResult;
+  }
+  try {
+    const result = nativeGetPrototypeOf(value);
+
+    registerPrototype(value, result);
+
+    return result;
+  } catch {
+    return void 0;
+  }
+}
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 //
@@ -113,10 +355,10 @@ export function isValidPropertyKey(value) {
  * value's prototype-chain.
  *
  * Uses the parameter-default-to-`null` pattern so the `!== null` loop
- * guard narrows `value` through each `getPrototypeOf` step. Each
+ * guard narrows `value` through each guarded `getPrototypeOf` step. Each
  * iteration reads the own descriptor at the current level, then steps
- * up via `getPrototypeOf(value) ?? null`. The loop terminates on the
- * first descriptor hit or when the chain runs out.
+ * up via `guardedGetPrototypeOf(value) ?? null`. The loop terminates on
+ * the first descriptor hit or when the chain runs out.
  *
  * Accessor descriptors are returned as-is. The getter is never invoked.
  *
@@ -124,8 +366,8 @@ export function isValidPropertyKey(value) {
  *  inspected
  * @param {PropertyKey} key - the property key to resolve; invalid keys
  *  yield `undefined`
- * @returns {PropertyDescriptor | undefined} the first descriptor found while
- *  walking up the chain; `undefined` if none exists
+ * @returns {PropertyDescriptor | undefined} the first descriptor found
+ *  while walking up the chain; `undefined` if none exists
  */
 export function getNextAvailablePropertyDescriptor(value = null, key) {
   if (!isValidPropertyKey(key)) {
@@ -138,7 +380,7 @@ export function getNextAvailablePropertyDescriptor(value = null, key) {
     descriptor = /** @type {PropertyDescriptor | undefined} */ (
       getOwnPropertyDescriptor(value, key)
     );
-    value = getPrototypeOf(value) ?? null;
+    value = guardedGetPrototypeOf(value) ?? null;
   }
   return descriptor;
 }
@@ -200,6 +442,10 @@ export function getOwnPropertyDescriptorsKeySet(value) {
 }
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
+//
+//  Guarded/Inert Property-Key Utilities
+//
+// ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 
 /**
  * Walks for the next available descriptor like
@@ -210,16 +456,19 @@ export function getOwnPropertyDescriptorsKeySet(value) {
  * The inert probes built on it ({@link hasInertMethod} and its siblings) are
  * type-guards: they must answer `true` / `false`, never propagate an exception
  * from an adversarial host object. This extends the spec-defined-accessor trust
- * boundary (decision #029) to the descriptor-walk reads. The raw walk stays
- * unguarded for callers (e.g. `getDefinedConstructor`) that want the honest
- * throw.
+ * boundary (decision #029) to the descriptor-walk reads — and
+ * {@link getDefinedConstructor} routes through it too, so the whole
+ * constructor-resolution layer is throw-safe (decision #056). The raw
+ * {@link getNextAvailablePropertyDescriptor} remains for callers that supply
+ * their own guarding (e.g. `getValidatedStandardConstructorAndPrototypeTuple`,
+ * which wraps its walk in a `try/catch`).
  *
  * @param {unknown} type - the value to inspect
  * @param {PropertyKey} key - the property key to resolve
  * @returns {PropertyDescriptor | undefined} the first descriptor found while
  *  walking the chain; `undefined` if none exists or a trap threw
  */
-function getInertDescriptor(type, key) {
+export function getInertDescriptor(type, key) {
   try {
     return getNextAvailablePropertyDescriptor(type, key);
   } catch {
@@ -446,8 +695,8 @@ export function getTaggedType(...args) {
  *
  * Two-stage walk:
  *
- * 1. {@link getNextAvailablePropertyDescriptor} on the pivot finds the
- *    first `constructor` descriptor along its `[[Prototype]]` chain.
+ * 1. {@link getInertDescriptor} (the throw-safe descriptor walk) on the pivot
+ *    finds the first `constructor` descriptor along its `[[Prototype]]` chain.
  *    For the common case, the descriptor's value is a function, returned
  *    directly.
  * 2. For the generator-function family, the first walk lands on a
@@ -457,7 +706,11 @@ export function getTaggedType(...args) {
  *    object recovers the actual function constructor
  *    (`%GeneratorFunction%`, `%AsyncGeneratorFunction%`).
  *
- * Fully inert — accessor getters are never invoked. There are valid
+ * Fully inert — accessor getters are never invoked — and throw-safe: the
+ * descriptor walk routes through {@link getInertDescriptor}, so a hostile
+ * `getOwnPropertyDescriptor` / `getPrototypeOf` Proxy-trap yields `undefined`
+ * (the contract's "no reachable constructor") rather than propagating
+ * (decision #056). There are valid
  * cases where a reachable `constructor` reference is neither newable
  * nor a function at all. If such a descriptor-structure appears, it
  * gets resolved. The returned value is always either `undefined` or
@@ -467,12 +720,13 @@ export function getTaggedType(...args) {
  * stage, via {@link isFunction}.
  *
  * @param {unknown} [value] - the value whose constructor should be retrieved
- * @param {{ assumePrototype?: boolean }} [options] - call-site hints.
+ * @param {DefinedConstructorAccessorOptions} [options] - call-site hints.
  *  `assumePrototype: true` treats `value` as a real prototype object
  *  and walks from `value` itself rather than from `getPrototypeOf(value)`,
  *  matching ECMA-262 §10.2.6 for known prototypes.
  * @returns {NewableFunction | undefined} the constructor function when
- *  reachable; `undefined` otherwise
+ *  reachable; `undefined` otherwise (including when a hostile Proxy-trap
+ *  throws during the descriptor walk)
  * @example
  * getDefinedConstructor([]);                                          // Array
  * getDefinedConstructor(new Date());                                  // Date
@@ -486,18 +740,31 @@ export function getDefinedConstructor(value = null, options) {
     return void 0;
   }
   const { assumePrototype = false } =
-    /** @type {{ assumePrototype?: boolean }} */ (options) ?? {};
+    /** @type {DefinedConstructorAccessorOptions} */ (options) ?? {};
 
-  const type = isCallable(value) || assumePrototype ? value : getPrototypeOf(value);
+  const fastResult = getRegisteredConstructor(value, assumePrototype);
 
-  const creator = getNextAvailablePropertyDescriptor(type, 'constructor')?.value ?? null;
+  if (fastResult) {
+    return /** @type {NewableFunction} */ (fastResult);
+  }
+  const type =
+    isCallable(value) || assumePrototype ? value : guardedGetPrototypeOf(value);
+
+  const creator = getInertDescriptor(type, 'constructor')?.value ?? null;
 
   if (isFunction(creator)) {
+    registerConstructor(value, /** @type {NewableFunction} */ (creator), assumePrototype);
+
     return /** @type {NewableFunction} */ (creator);
   } else if (creator !== null) {
-    const constructor = getNextAvailablePropertyDescriptor(creator, 'constructor')?.value;
+    const constructor = getInertDescriptor(creator, 'constructor')?.value;
 
     if (isFunction(constructor)) {
+      registerConstructor(
+        value,
+        /** @type {NewableFunction} */ (constructor),
+        assumePrototype,
+      );
       return /** @type {NewableFunction} */ (constructor);
     }
   }
@@ -529,6 +796,10 @@ export function getDefinedConstructor(value = null, options) {
  *
  * @param {unknown} [value] - the value whose constructor name should be
  *  retrieved
+ * @param {DefinedConstructorAccessorOptions} [options] - call-site hints.
+ *  `assumePrototype: true` treats `value` as a real prototype object
+ *  and walks from `value` itself rather than from `getPrototypeOf(value)`,
+ *  matching ECMA-262 §10.2.6 for known prototypes.
  * @returns {ConstructorName | undefined} the constructor's `name` string
  *  when reachable; `undefined` otherwise
  * @example
@@ -536,8 +807,15 @@ export function getDefinedConstructor(value = null, options) {
  * getDefinedConstructorName(new Date()); // 'Date'
  * getDefinedConstructorName(null);       // undefined
  */
-export function getDefinedConstructorName(value) {
-  const constructor = getDefinedConstructor(value) ?? null;
+export function getDefinedConstructorName(value, options) {
+  const { assumePrototype = false } =
+    /** @type {DefinedConstructorAccessorOptions} */ (options) ?? {};
+
+  // fast result.
+  if (hasRegisteredConstructorName(value, assumePrototype)) {
+    return getRegisteredConstructorName(value, assumePrototype);
+  }
+  const constructor = getDefinedConstructor(value, options) ?? null;
 
   if (constructor === null) {
     return void 0;
@@ -548,6 +826,8 @@ export function getDefinedConstructorName(value) {
   if (!isStringValue(name)) {
     return void 0;
   }
+  registerConstructorName(value, name, assumePrototype);
+
   return name;
 }
 
@@ -609,6 +889,53 @@ export function resolveType(...args) {
   const type = getTaggedType(value);
 
   return type === 'Object' && name ? name : type;
+}
+
+// ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
+//
+//  Standard-Constructor Validation
+//
+// ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
+
+/**
+ * Validates a standard built-in constructor and returns its realm-fixed
+ * `[constructor, prototype]` tuple, or `[]` when validation fails.
+ *
+ * The single, throw-safe capture helper behind the per-module realm-fixed
+ * intrinsic pairs (e.g. `Promise` for `@/thenable`). It confirms `constructor`
+ * is newable via {@link isNewableFunction}, reads its own `prototype` descriptor
+ * inertly (the raw walk, wrapped here in `try/catch`), and accepts the pair only
+ * when the prototype satisfies both the injected `doesImplementFeatureContract`
+ * predicate and reciprocally back-references the constructor
+ * (`prototype.constructor === constructor`) — the tamper-resistant identity
+ * check. Any throw (hostile descriptor/accessor) collapses to `[]`.
+ *
+ * @param {unknown} constructor - the candidate standard constructor; validated
+ *  internally via {@link isNewableFunction}, so an untrusted value is accepted
+ *  (a non-newable yields `[]`)
+ * @param {PredicateFunction} doesImplementFeatureContract - the feature-contract
+ *  gate applied to the constructor's `prototype`
+ * @returns {[NewableFunction, object] | []} the validated
+ *  `[constructor, prototype]` tuple, or `[]` when validation fails
+ */
+export function getValidatedStandardConstructorAndPrototypeTuple(
+  constructor,
+  doesImplementFeatureContract,
+) {
+  if (!isNewableFunction(constructor)) {
+    return [];
+  }
+  try {
+    const prototype = getNextAvailablePropertyDescriptor(constructor, 'prototype')?.value;
+
+    return doesImplementFeatureContract(prototype) &&
+      /** @type {{ constructor?: unknown } | undefined} */ (prototype)?.constructor ===
+        constructor
+      ? [constructor, /** @type {object} */ (prototype)]
+      : [];
+  } catch {
+    return [];
+  }
 }
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----

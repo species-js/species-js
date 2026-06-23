@@ -20,7 +20,7 @@
 
 import { objectCreate } from '@/index.js';
 
-import { foreignRealmEval } from '../_cross-realm.js';
+import { foreignRealmEval, createForeignRealm } from '../_cross-realm.js';
 
 // A non-empty no-op callable, used as the `then` / `catch` / `finally` member
 // value (a callable data property is what the structural arms read).
@@ -112,6 +112,28 @@ export const throwingTagGetterWithContract = () => ({
   catch: noop,
   finally: noop,
 });
+// own tag 'Promise' + own contract, but its `[[Prototype]]` is a Proxy whose
+// `getOwnPropertyDescriptor` trap throws — so the constructor-walk
+// (`getDefinedConstructor`) pivots INTO the hostile proto. Pre-#056 this made
+// `isPromise` propagate the trap's throw; now the walk routes through
+// `getInertDescriptor` → `undefined` → `isPromise` answers `false`.
+export const taggedPromiseOverThrowingProtoTrap = () =>
+  Object.assign(
+    objectCreate(
+      new Proxy(
+        {},
+        {
+          getOwnPropertyDescriptor() {
+            throw new Error('proto-desc-trap');
+          },
+          getPrototypeOf() {
+            return null;
+          },
+        },
+      ),
+    ),
+    { [Symbol.toStringTag]: 'Promise', then: noop, catch: noop, finally: noop },
+  );
 export const ownConstructorNamedPromise = () => ({
   [Symbol.toStringTag]: 'Promise',
   then: noop,
@@ -121,6 +143,35 @@ export const ownConstructorNamedPromise = () => ({
     return undefined;
   },
 });
+// A NULL-prototype tag-spoof carrying a full OWN contract. Distinct from
+// `tagSpoofedPromise` (whose chain reaches `Object`): the constructor-walk pivots
+// to the value's `[[Prototype]]` — here `null` — so the name resolves to
+// `undefined`, exercising the null-`[[Prototype]]` branch of the cross-realm arm.
+export const nullProtoTagSpoofedPromise = () =>
+  Object.assign(objectCreate(null), {
+    [Symbol.toStringTag]: 'Promise',
+    then: noop,
+    catch: noop,
+    finally: noop,
+  });
+
+// ----- axis-4 helper-unit inputs (prototype objects + constructors) -----
+// The `@internal` structural-equivalence helpers operate on PROTOTYPE objects
+// and constructor pairs, not the value-universe the matrix scores.
+//
+// CONTAMINATION DISCIPLINE (decision #054): the constructor registries are
+// value-keyed, so a no-option and an `{ assumePrototype: true }` resolution of
+// the SAME object poison each other. To stay order-independent, each prototype
+// object below is resolved under exactly ONE option-setting across the suite:
+//   - `localPromisePrototype` / `foreignPromisePrototype`  → assumePrototype-only
+//   - `isolatedForeignPromisePrototype`                    → no-option-only (fresh realm)
+export const localPromisePrototype = () => Promise.prototype;
+export const foreignPromisePrototype = () => foreignRealmEval('Promise.prototype');
+export const foreignPromiseConstructor = () => foreignRealmEval('Promise');
+// Fresh, isolated realm: its `Promise.prototype` is resolved ONLY no-option
+// (hPIS/R1), so poisoning it cannot reach any `assumePrototype` vector.
+export const isolatedForeignPromisePrototype = () =>
+  createForeignRealm()('Promise.prototype');
 
 // ----- axis-1 contract matrix -----
 // Each row: a fresh-value factory + the expected outcome of all three chain

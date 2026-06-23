@@ -26,7 +26,7 @@ halves separately. The resulting composition stack:
    §20.1.3.6 step 17), `'[object DOMException]'` (WebIDL's separate tag), or
    `'[object Object]'` with prototype passing `hasErrorPrototypeContract` (the legacy
    `Object.create(Error.prototype)` and ES3-style cases). Parallel to
-   `doesMatchPromiseContract` (thenable), `doesMatchEventTargetContract`,
+   `doesImplementPromiseContract` (thenable), `doesMatchEventTargetContract`,
    `doesMatchAbortSignalContract` (evented).
 3. `isGenericError` (`@internal`) — polyfill body that composes `value instanceof Error`
    (realm-fast-path) with `doesMatchErrorContract` (structural fallback) inside a single

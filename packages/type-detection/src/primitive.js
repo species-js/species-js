@@ -46,8 +46,8 @@
  * established by `isPromise` / `isEventTarget` / `isAbortSignal`
  * (decisions #010, #023, #028) with engine-attested internal-slot
  * evidence (decision #042). The two-branch identity check on String /
- * Number / Boolean and the factory-function carve-out for Symbol /
- * BigInt are decision #049.
+ * Number / Boolean and the factory-function carve-out for `Symbol` /
+ * `BigInt` are decision #049.
  *
  * See the sibling `.d.ts` for the per-predicate doc. This `.js` carries
  * the runtime implementation with parallel JSDoc.
@@ -91,6 +91,9 @@ const StringConstructor = String;
 const NumberConstructor = Number;
 const BooleanConstructor = Boolean;
 
+const SymbolFactory = Symbol;
+const BigIntFactory = BigInt;
+
 const stringPrototype = StringConstructor.prototype;
 const numberPrototype = NumberConstructor.prototype;
 const booleanPrototype = BooleanConstructor.prototype;
@@ -98,8 +101,11 @@ const booleanPrototype = BooleanConstructor.prototype;
 const toStringValue = stringPrototype.valueOf;
 const toNumberValue = numberPrototype.valueOf;
 const toBooleanValue = booleanPrototype.valueOf;
-const toSymbolValue = Symbol.prototype.valueOf;
-const toBigIntValue = BigInt.prototype.valueOf;
+
+const symbolKeyFor = SymbolFactory.keyFor;
+
+const toSymbolValue = SymbolFactory.prototype.valueOf;
+const toBigIntValue = BigIntFactory.prototype.valueOf;
 
 /**
  * Whether `value` is a direct current-realm `String` instance — passes
@@ -499,8 +505,8 @@ export function isNumber(value) {
  * `ToPrimitive("string")` which unwraps via `Boolean.prototype.toString`.
  *
  * Boolean is the only one of the five primitive equality helpers whose
- * boxed-side comparison routes through `prototype.toString` (String and
- * BigInt use direct `===`, Number uses `Object.is`, Symbol uses a
+ * boxed-side comparison routes through `prototype.toString` (`String` and
+ * `BigInt` use direct `===`, Number uses `Object.is`, `Symbol` uses a
  * description cross-check). The asymmetry is forced by the
  * `ToBoolean(Object) → true` trap, which closes off the direct-`===`
  * path the other families use. As a consequence, the helper assumes
@@ -673,7 +679,7 @@ export function isBoolean(value) {
  * slot.
  *
  * The description cross-check catches the own-property-shadowing
- * tampering surface. A real boxed Symbol whose `description` getter
+ * tampering surface. A real boxed `Symbol` whose `description` getter
  * has been overridden by an own data property has a valueOf that still
  * works but an observable description that lies. The unboxed-side read
  * goes through the primitive's `[[Description]]` slot via
@@ -813,6 +819,22 @@ export function isSymbol(value) {
   return isSymbolValue(value) || isBoxedSymbol(value);
 }
 
+/**
+ * @param {symbol} value
+ * @returns {boolean}
+ * @internal
+ */
+export function unguardedIsUnregisteredSymbol(value) {
+  return symbolKeyFor(value) === void 0;
+}
+/**
+ * @param {unknown} value
+ * @returns {boolean}
+ */
+export function isRegisteredSymbol(value) {
+  return isSymbolValue(value) && !unguardedIsUnregisteredSymbol(value);
+}
+
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 //
 //  BigInt Family
@@ -827,7 +849,7 @@ export function isSymbol(value) {
  * `BigInt.prototype.valueOf` (`toBigIntValue`) via `.call`. The call
  * throws on any value lacking the `[[BigIntData]]` slot. `BigInt(value)`
  * per ECMA-262 §21.2.1.1 starts with `ToPrimitive(value, "number")`,
- * which calls `valueOf` on the boxed BigInt and unwraps, so both sides
+ * which calls `valueOf` on the boxed `BigInt` and unwraps, so both sides
  * land on the same primitive `bigint`. Direct `===` is sufficient.
  *
  * @param {unknown} value - the value to test
@@ -837,7 +859,7 @@ export function isSymbol(value) {
  */
 export function doesHaveStrictUnboxedBigIntValueEquality(value) {
   try {
-    return toBigIntValue.call(value) === BigInt(/** @type {bigint} */ (value));
+    return toBigIntValue.call(value) === BigIntFactory(/** @type {bigint} */ (value));
   } catch {
     return false;
   }

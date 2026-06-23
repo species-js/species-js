@@ -14,6 +14,8 @@
  * PromiseLike refinement and is discriminated by {@link isPromise}.
  */
 
+import type { DefinedConstructorAccessorOptions } from '@/utility';
+
 import type { AbortError } from '@/error';
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
@@ -107,7 +109,7 @@ export interface Thenable<out T> {
  *
  * A value satisfies `PromiseLike<T>` when it carries three callable
  * methods: `then` (inherited from `Thenable`), `catch`, and `finally`.
- * This is the contract native `Promise` instances and their subclasses
+ * This is the contract which native `Promise` instances and their subclasses
  * naturally satisfy, and the contract custom Promise-like implementations
  * need to match to be safely usable in code that calls the full chaining
  * API.
@@ -295,6 +297,98 @@ export interface AbortableThenable<out T> extends Thenable<T> {
   ): AbortableThenable<TResult1 | TResult2 | TResult3>;
 }
 
+// ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
+//
+//  Promise Predicates
+//
+// ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
+
+/**
+ * Verifies that the value matches the `Promise.prototype` method
+ * contract — callable `then`, `catch`, and `finally` data properties
+ * reachable through the value's prototype-chain.
+ *
+ * Composes three `hasInertMethod` checks for the methods defined on
+ * `Promise.prototype` by ECMA-262 §27.2. Short-circuit `&&` enforces
+ * an inner cost ordering: `then` (the spec-defined adoption hook) runs
+ * first, `catch` second, and `finally` last.
+ *
+ * Used as the structural fallback inside {@link isPromiseLike} when the
+ * realm-fixed `instanceof PromiseConstructor` fast-path fails — for
+ * example, on cross-realm `Promise` instances or userland Promise-like
+ * implementations such as Bluebird or Q.
+ *
+ * Does not require `Symbol.toStringTag === 'Promise'` or a particular
+ * constructor-name; that level of identity narrowing belongs to
+ * `isPromise`. `doesImplementPromiseContract` is purely structural.
+ *
+ * @param value - the value to inspect; omitted is treated as
+ * `undefined`, which does not match the Promise-method contract
+ * @returns `true` when all three methods are callable data
+ *  properties in the value's prototype-chain; `false` otherwise
+ * @example
+ * doesImplementPromiseContract(Promise.resolve());  // true (inherited from prototype)
+ * doesImplementPromiseContract({ then: () => {} }); // false (no `catch` or `finally`)
+ * doesImplementPromiseContract(42);                 // false
+ * @internal
+ */
+export function doesImplementPromiseContract(value?: unknown): boolean;
+
+/**
+ * Whether the value carries both of `Promise`'s string-shape identity
+ * markers — the `[[Class]]` tag `'Promise'` and the resolved
+ * constructor-name `'Promise'`.
+ *
+ * @param value - the value whose promise-shape signal to probe
+ * @param options - call-site hints
+ * @param options.assumePrototype - treats `value` as a real prototype-object
+ *  and walks from `value` itself rather than from `getPrototypeOf(value)`,
+ *  matching ECMA-262 §10.2.6 for known prototypes; defaults to `false`
+ * @returns `true` when both string-shape markers match `Promise`'s
+ *  signature; `false` otherwise
+ * @internal
+ */
+export function hasPromiseIdentitySignal(
+  value?: unknown,
+  options?: DefinedConstructorAccessorOptions,
+): boolean;
+
+/**
+ * Whether `prototype` is structurally `Promise.prototype` — it carries
+ * the Promise identity signal and method contract and reciprocally
+ * back-references `constructor`.
+ *
+ * @param prototype - the candidate `Promise.prototype` to validate
+ * @param constructor - the resolved constructor to reference back
+ *  against; a falsy value short-circuits
+ * @returns `true` when `prototype` carries the Promise identity signal
+ *  and method contract and reciprocally back-references `constructor`;
+ *  `false` otherwise
+ * @internal
+ */
+export function isStructuralPromisePrototypeEquivalent(
+  prototype: unknown,
+  constructor: unknown,
+): boolean;
+
+/**
+ * Whether `value` is structurally a `Promise` — it carries the Promise
+ * identity signal and method contract and resolves to a validated
+ * prototype/constructor pair.
+ *
+ * @param value - the candidate to test for structural `Promise` equivalence
+ * @param prototype - the value's already-read prototype, if the caller
+ *  has it; otherwise resolved internally
+ * @returns `true` when `value` is structurally a `Promise` — Promise identity
+ *  signal, method contract, and a validated prototype/constructor pair;
+ *  `false` otherwise
+ * @internal
+ */
+export function isStructuralPromiseEquivalent(
+  value: unknown,
+  prototype?: unknown,
+): boolean;
+
 /**
  * Whether `value` is an instance of the realm-fixed `Promise` intrinsic
  * captured at module-load (or any subclass). Returns `false` when the
@@ -308,21 +402,118 @@ export interface AbortableThenable<out T> extends Thenable<T> {
  * arm. Assumes a truthy `value`. The public predicates apply the
  * `!!value` guard before delegating.
  *
- * Throw-safe: the `instanceof` walk is wrapped, so a Proxy whose `getPrototypeOf`
- * trap throws yields `false` rather than propagating (decision #029 trust
- * boundary, extended to the `instanceof` read).
+ * Throw-safe: `instanceof` walks the value's `[[Prototype]]` chain, so a Proxy
+ * whose `getPrototypeOf` trap throws would otherwise propagate. The check is
+ * wrapped to yield `false` instead — a realm-membership probe must answer, not
+ * raise (decision #029 trust boundary, extended to the `instanceof` read).
  *
+ * Generic in `T` per the family-pattern, narrowing exactly as
+ * {@link isPromiseLike}. The narrow returns `T & PromiseLike<unknown>`;
+ * `T = unknown` collapses to `PromiseLike<unknown>`.
+ *
+ * @typeParam T - the caller-side type of `value`; defaults to `unknown`
  * @param value - the value to test; assumed truthy by the caller
- * @returns `true` when a `Promise` intrinsic was captured and
- *  `value instanceof` it holds; `false` otherwise (including when a hostile
- *  `getPrototypeOf` trap throws)
+ * @returns `true` when a `Promise` intrinsic was captured and `value instanceof`
+ *  it holds, narrowing `value` to `T & PromiseLike<unknown>`; `false` otherwise
+ *  (including when a hostile `getPrototypeOf` trap throws)
  * @internal
  */
-export function isCurrentRealmPromiseInstance(value: unknown): boolean;
+export function isCurrentRealmPromiseInstance<T = unknown>(
+  value?: T,
+): value is T & PromiseLike<unknown>;
+
+/**
+ * Narrows a value to `PromiseLike<unknown>` via either local-realm
+ * `Promise` identity or the structural `Promise.prototype` method
+ * contract.
+ *
+ * Tests in cost-order: the inexpensive `instanceof PromiseConstructor`
+ * check against the realm-fixed `Promise` capture catches local-realm
+ * `Promise` instances and their subclasses in a single prototype walk.
+ * If that fails, falls back to `doesImplementPromiseContract` for the
+ * structural inspect-without-invoke check — which catches cross-realm
+ * `Promise` instances (produced in iframes, workers, vm contexts) and
+ * userland _promise-like_ implementations (such as Bluebird or Q) that
+ * satisfy the full Promise-method contract.
+ *
+ * The leading `!!value` guard short-circuits on nullish input before
+ * any property work, so neither branch runs for `null` or `undefined`.
+ *
+ * Cross-realm safe by construction. The `instanceof` branch admits
+ * local-realm `Promise` instances on identity; the `doesImplementPromiseContract`
+ * branch admits foreign-realm `Promise` instances on structure. No
+ * value satisfying the `Promise.prototype` method contract is rejected
+ * on realm membership alone.
+ *
+ * Generic in `T` per the family-pattern. The narrow returns
+ * `T & PromiseLike<unknown>`; `T = unknown` collapses to `PromiseLike<unknown>`.
+ *
+ * @typeParam T - the caller-side type of `value`; defaults to `unknown`
+ * @param value - the value to test; omitted is treated as `undefined`,
+ *  which is not a _promise-like_ type
+ * @returns `true` when the value is either a local-realm `Promise`
+ *  (or subclass) or satisfies the `Promise.prototype` method contract,
+ *  narrowing `value` to `T & PromiseLike<unknown>`; `false` otherwise
+ * @example
+ * isPromiseLike(Promise.resolve());                                      // true (instanceof)
+ * isPromiseLike({ then: () => {} });                                     // false (no `catch`/`finally`)
+ * isPromiseLike({ then: () => {}, catch: () => {}, finally: () => {} }); // true (structural)
+ * isPromiseLike(null);                                                   // false
+ */
+export function isPromiseLike<T = unknown>(value?: T): value is T & PromiseLike<unknown>;
+
+/**
+ * Narrows a value to `Promise<unknown>` via a two-branch identity check.
+ *
+ * The local-realm fast-path pairs `value instanceof PromiseConstructor`
+ * with `getPrototypeOf(value) === promisePrototype`. The pair admits
+ * only direct `Promise` instances; subclasses pass `instanceof` but
+ * fail the prototype identity-check, preserving subclass rejection in
+ * two O(1) operations. Both captures are realm-fixed at module-load.
+ *
+ * On miss, falls back to a three-marker structural chain-run in cost-order:
+ * the `[[Class]]` tag `'Promise'` (single `Object.prototype.toString.call`),
+ * the constructor-name `'Promise'` resolved through the package's
+ * constructor-walk, and `doesImplementPromiseContract` for the `Promise.prototype`
+ * method contract from ECMA-262 §27.2. The structural arm calls
+ * `doesImplementPromiseContract` directly rather than cascading through
+ * {@link isPromiseLike}, which would re-run the `instanceof` check already
+ * disproved by the local-realm arm.
+ *
+ * Cross-realm safe. The local-realm pair admits only direct local-realm
+ * `Promise` instances; the structural fallback admits foreign-realm
+ * `Promise` instances on contract (the tag-read and constructor-walk
+ * both work realm-independently). No legitimate `Promise` is rejected
+ * on realm membership alone.
+ *
+ * `Promise` subclasses are rejected on both branches — by the
+ * prototype identity-check on the local-realm path, by the
+ * constructor-name equality on the structural path. A value of
+ * `class MyPromise extends Promise {}` resolves its constructor-name to
+ * `'MyPromise'`, which fails the cross-realm constructor-name equality.
+ * Consumers needing subclass admission should compose with a
+ * constructor-chain walk on top of this predicate.
+ *
+ * Generic in `T` per the family-pattern. The narrow returns
+ * `T & Promise<unknown>`; `T = unknown` collapses to `Promise<unknown>`.
+ *
+ * @typeParam T - the caller-side type of `value`; defaults to `unknown`
+ * @param value - the value to test; omitted is treated as `undefined`,
+ *  which is not a `Promise`
+ * @returns `true` when either the local-realm identity pair or
+ *  the cross-realm structural chain holds, narrowing `value`
+ *  to `T & Promise<unknown>`; `false` otherwise
+ * @example
+ * isPromise(Promise.resolve());                                   // true (instanceof + proto)
+ * isPromise({ then: () => {} });                                  // false
+ * isPromise({ [Symbol.toStringTag]: 'Promise', then: () => {} }); // false (spoof)
+ * isPromise(42);                                                  // false
+ */
+export function isPromise<T = unknown>(value?: T): value is T & Promise<unknown>;
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 //
-//  Thenable Predicates
+//  The Sole Thenable Predicate
 //
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 
@@ -371,125 +562,5 @@ export function isCurrentRealmPromiseInstance(value: unknown): boolean;
  * isThenable(null);                                // false
  */
 export function isThenable<T = unknown>(value?: T): value is T & Thenable<unknown>;
-
-/**
- * Verifies that the value matches the `Promise.prototype` method
- * contract — callable `then`, `catch`, and `finally` data properties
- * reachable through the value's prototype-chain.
- *
- * Composes three `hasInertMethod` checks for the methods defined on
- * `Promise.prototype` by ECMA-262 §27.2. Short-circuit `&&` enforces
- * an inner cost ordering: `then` (the spec-defined adoption hook) runs
- * first, `catch` second, and `finally` last.
- *
- * Used as the structural fallback inside {@link isPromiseLike} when the
- * realm-fixed `instanceof PromiseConstructor` fast-path fails — for
- * example, on cross-realm `Promise` instances or userland Promise-like
- * implementations such as Bluebird or Q.
- *
- * Does not require `Symbol.toStringTag === 'Promise'` or a particular
- * constructor-name; that level of identity narrowing belongs to
- * `isPromise`. `doesMatchPromiseContract` is purely structural.
- *
- * @param value - the value to inspect; omitted is treated as `undefined`,
- *  which does not match the Promise-method contract
- * @returns `true` when all three methods are callable data properties
- *  in the value's prototype-chain; `false` otherwise
- * @example
- * doesMatchPromiseContract(Promise.resolve());  // true (inherited from prototype)
- * doesMatchPromiseContract({ then: () => {} }); // false (no `catch` or `finally`)
- * doesMatchPromiseContract(42);                 // false
- * @internal
- */
-export function doesMatchPromiseContract(value?: unknown): boolean;
-
-/**
- * Narrows a value to `PromiseLike<unknown>` via either local-realm
- * `Promise` identity or the structural `Promise.prototype` method
- * contract.
- *
- * Tests in cost-order: the inexpensive `instanceof PromiseConstructor`
- * check against the realm-fixed `Promise` capture catches local-realm
- * `Promise` instances and their subclasses in a single prototype walk.
- * If that fails, falls back to `doesMatchPromiseContract` for the
- * structural inspect-without-invoke check — which catches cross-realm
- * `Promise` instances (produced in iframes, workers, vm contexts) and
- * userland _promise-like_ implementations (such as Bluebird or Q) that
- * satisfy the full Promise-method contract.
- *
- * The leading `!!value` guard short-circuits on nullish input before
- * any property work, so neither branch runs for `null` or `undefined`.
- *
- * Cross-realm safe by construction. The `instanceof` branch admits
- * local-realm `Promise` instances on identity; the `doesMatchPromiseContract`
- * branch admits foreign-realm `Promise` instances on structure. No
- * value satisfying the `Promise.prototype` method contract is rejected
- * on realm membership alone.
- *
- * Generic in `T` per the family-pattern. The narrow returns
- * `T & PromiseLike<unknown>`; `T = unknown` collapses to `PromiseLike<unknown>`.
- *
- * @typeParam T - the caller-side type of `value`; defaults to `unknown`
- * @param value - the value to test; omitted is treated as `undefined`,
- *  which is not a _promise-like_ type
- * @returns `true` when the value is either a local-realm `Promise`
- *  (or subclass) or satisfies the `Promise.prototype` method contract,
- *  narrowing `value` to `T & PromiseLike<unknown>`; `false` otherwise
- * @example
- * isPromiseLike(Promise.resolve());                                      // true (instanceof)
- * isPromiseLike({ then: () => {} });                                     // false (no `catch`/`finally`)
- * isPromiseLike({ then: () => {}, catch: () => {}, finally: () => {} }); // true (structural)
- * isPromiseLike(null);                                                   // false
- */
-export function isPromiseLike<T = unknown>(value?: T): value is T & PromiseLike<unknown>;
-
-/**
- * Narrows a value to `Promise<unknown>` via a two-branch identity check.
- *
- * The local-realm fast-path pairs `value instanceof PromiseConstructor`
- * with `getPrototypeOf(value) === promisePrototype`. The pair admits
- * only direct `Promise` instances; subclasses pass `instanceof` but
- * fail the prototype identity-check, preserving subclass rejection in
- * two O(1) operations. Both captures are realm-fixed at module-load.
- *
- * On miss, falls back to a three-marker structural chain-run in cost-order:
- * the `[[Class]]` tag `'Promise'` (single `Object.prototype.toString.call`),
- * the constructor-name `'Promise'` resolved through the package's
- * constructor-walk, and `doesMatchPromiseContract` for the `Promise.prototype`
- * method contract from ECMA-262 §27.2. The structural arm calls
- * `doesMatchPromiseContract` directly rather than cascading through
- * {@link isPromiseLike}, which would re-run the `instanceof` check already
- * disproved by the local-realm arm.
- *
- * Cross-realm safe. The local-realm pair admits only direct local-realm
- * `Promise` instances; the structural fallback admits foreign-realm
- * `Promise` instances on contract (the tag-read and constructor-walk
- * both work realm-independently). No legitimate `Promise` is rejected
- * on realm membership alone.
- *
- * `Promise` subclasses are rejected on both branches — by the
- * prototype identity-check on the local-realm path, by the
- * constructor-name equality on the structural path. A value of
- * `class MyPromise extends Promise {}` resolves its constructor-name to
- * `'MyPromise'`, which fails the cross-realm constructor-name equality.
- * Consumers needing subclass admission should compose with a
- * constructor-chain walk on top of this predicate.
- *
- * Generic in `T` per the family-pattern. The narrow returns
- * `T & Promise<unknown>`; `T = unknown` collapses to `Promise<unknown>`.
- *
- * @typeParam T - the caller-side type of `value`; defaults to `unknown`
- * @param value - the value to test; omitted is treated as `undefined`,
- *  which is not a `Promise`
- * @returns `true` when either the local-realm identity pair or
- *  the cross-realm structural chain holds, narrowing `value`
- *  to `T & Promise<unknown>`; `false` otherwise
- * @example
- * isPromise(Promise.resolve());                                   // true (instanceof + proto)
- * isPromise({ then: () => {} });                                  // false
- * isPromise({ [Symbol.toStringTag]: 'Promise', then: () => {} }); // false (spoof)
- * isPromise(42);                                                  // false
- */
-export function isPromise<T = unknown>(value?: T): value is T & Promise<unknown>;
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----

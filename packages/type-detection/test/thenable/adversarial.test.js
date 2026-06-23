@@ -23,11 +23,13 @@ import {
   accessorFinally,
   fullContract,
   tagSpoofedPromise,
+  nullProtoTagSpoofedPromise,
   promisePrototypeGraft,
   throwingGetterThen,
   throwingDescTrapProxy,
   throwingProtoTrapProxy,
   throwingTagGetterWithContract,
+  taggedPromiseOverThrowingProtoTrap,
   ownConstructorNamedPromise,
 } from './__config.js';
 
@@ -69,6 +71,17 @@ describe('thenable — throw-safety on hostile inputs (hardened hasInertMethod, 
     expect(isPromiseLike(make())).toBe(true);
     expect(isPromise(make())).toBe(false);
   });
+
+  it('isPromise/B5: own tag+contract over a throwing-getOwnPropertyDescriptor-trap prototype → false, not thrown (#056)', () => {
+    // The cross-realm arm's constructor-walk pivots into the hostile proto.
+    // getDefinedConstructor now routes through getInertDescriptor → undefined →
+    // hasPromiseIdentitySignal false → isPromise answers false instead of throwing.
+    // isThenable/isPromiseLike already stayed safe (own then/contract found first).
+    const make = taggedPromiseOverThrowingProtoTrap;
+    expect(isThenable(make())).toBe(true);
+    expect(isPromiseLike(make())).toBe(true);
+    expect(isPromise(make())).toBe(false);
+  });
 });
 
 describe('isPromise — own-constructor tamper resistance (#047)', () => {
@@ -82,6 +95,12 @@ describe('isPromise — own-constructor tamper resistance (#047)', () => {
 describe('isPromise — spoof-resistance', () => {
   it('R3: Symbol.toStringTag = "Promise" over a plain contract → false (ctor-walk reaches Object)', () => {
     expect(isPromise(tagSpoofedPromise())).toBe(false);
+  });
+
+  it('R7: null-prototype tag-spoof with full own contract → false, not thrown (ctor-walk hits null)', () => {
+    // Distinct path from R3/R6: the constructor-walk pivots to the value's
+    // [[Prototype]] — here null — so the name resolves to undefined, not Object.
+    expect(isPromise(nullProtoTagSpoofedPromise())).toBe(false);
   });
 
   it('a tag-spoof is still admitted by the by-contract predicates (no identity claim)', () => {

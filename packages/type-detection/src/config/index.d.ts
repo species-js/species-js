@@ -262,7 +262,7 @@ export declare const getOwnPropertySymbols: typeof Object.getOwnPropertySymbols;
  * Same lib-gap pattern as {@link toFunctionString} above.
  * @internal
  */
-export declare const getPrototypeOf: (o: unknown) => object | null;
+export declare const getPrototypeOf: (o: unknown) => object | Callable | null;
 
 /**
  * `Object.setPrototypeOf`, realm-fixed at module-load.

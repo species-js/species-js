@@ -29,7 +29,7 @@ The cascade had three costs that became visible once the entry-point shortcut fr
    same rejection takes one O(1) comparison.
 3. The cross-realm arm calling `Like` re-ran the realm-fixed `instanceof` check that the
    strict-caller had already disproved by reaching the cross-realm path. The
-   structural-contract helper (`doesMatchPromiseContract` etc.) lived inside `Like`'s
+   structural-contract helper (`doesImplementPromiseContract` etc.) lived inside `Like`'s
    structural fallback, reachable only by paying for the re-run.
 
 A separate force also bound: the per-case shape from #049 (bare `instanceof` for
@@ -53,7 +53,7 @@ export function isPromise(value) {
       ? getPrototypeOf(value) === promisePrototype
       : getTypeSignature(value) === '[object Promise]' &&
         getDefinedConstructorName(value) === 'Promise' &&
-        doesMatchPromiseContract(value))
+        doesImplementPromiseContract(value))
   );
 }
 ```
@@ -84,10 +84,10 @@ the bare `instanceof`.
   `||`-between-arms + trailing-seal is the right shape there.
 
   Promise / EventTarget / AbortSignal have no engine-attested bottom seal. The closest
-  analogue (`doesMatchPromiseContract` etc.) is a three-descriptor-walk structural check,
-  and on the local-realm arm it is already implied by `proto-identity` — a value with
-  `Promise.prototype` necessarily inherits the contract methods. Pulling the contract to a
-  shared trailing position would pay for it redundantly on the local-realm hot path.
+  analogue (`doesImplementPromiseContract` etc.) is a three-descriptor-walk structural
+  check, and on the local-realm arm it is already implied by `proto-identity` — a value
+  with `Promise.prototype` necessarily inherits the contract methods. Pulling the contract
+  to a shared trailing position would pay for it redundantly on the local-realm hot path.
   Keeping it inside an `||`'ed cross-realm arm would still fall through to it on
   local-realm subclass rejection (pay tag → constructor-name → contract to reach the same
   `false`). The two arms have different bottom semantics — `proto-identity` for
@@ -104,10 +104,10 @@ the bare `instanceof`.
   every false-positive case.
 
 - **Direct call to the structural-contract helper closes the wasted re-run.** When the
-  cross-realm arm calls `doesMatchPromiseContract` directly rather than `isPromiseLike`,
-  the `instanceof` check the latter would run has already been disproved by reaching the
-  cross-realm arm. The direct call is the structurally honest cost: pay only for what is
-  not already known.
+  cross-realm arm calls `doesImplementPromiseContract` directly rather than
+  `isPromiseLike`, the `instanceof` check the latter would run has already been disproved
+  by reaching the cross-realm arm. The direct call is the structurally honest cost: pay
+  only for what is not already known.
 
 The framing from #049 — "the public entry point is where the shortcut belongs; subclass
 policy decides the shape" — was extended in this round with two additional rulings: (a)

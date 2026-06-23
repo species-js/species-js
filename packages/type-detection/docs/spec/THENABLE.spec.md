@@ -2,10 +2,11 @@
 
 > Spec format and the multi-axis model are defined in [`./README.md`](./README.md).
 > Vectors are reasoned from the canon (`thenable.d.ts`, `thenable.js`,
-> `architecture/thenable.md`, decisions #021–#024, #036, #037). Status: **FROZEN
-> 2026-06-18** — decidability check passed (local-realm vectors run against the real
-> predicates through the `@/index.js` barrel). This spec is the base for the axis-1 suite;
-> axes 2–4 derive alongside.
+> `architecture/thenable.md`, decisions #021–#024, #036, #037, #050, #054). Status:
+> **FROZEN 2026-06-18** — decidability check passed (local-realm vectors run against the
+> real predicates through the `@/index.js` barrel). This spec is the base for the axis-1
+> suite; axes 2–4 derive alongside. White-box annotations amended 2026-06-23 (decision
+> #054); behavioral vectors unchanged — see Resolved items #4.
 
 ## Module contract
 
@@ -30,7 +31,15 @@ value's methods or probes engine-internal slots.
 
 **Exported `@internal` helpers (axis 4):**
 
-- `doesMatchPromiseContract(value?)` — declared in both `.js` and `.d.ts`.
+- `doesImplementPromiseContract(value?)` — declared in both `.js` and `.d.ts`.
+- `hasPromiseIdentitySignal(value?, options?)` — the two string-shape identity markers
+  (tag and constructor-name); `options.assumePrototype` switches the name resolution to a
+  prototype object's own constructor (decision #054).
+- `isStructuralPromisePrototypeEquivalent(prototype, constructor)` — prototype-side
+  structural validation with reciprocal own-constructor identity (decision #054).
+- `isStructuralPromiseEquivalent(value, prototype?)` — `isPromise`'s cross-realm arm,
+  orchestrating the value-side signal, the method contract, and prototype-equivalence
+  (decision #054).
 - `isCurrentRealmPromiseInstance(value)` — exported from both `thenable.js` and
   `thenable.d.ts` (the `.d.ts` declaration was added when item #1 below was resolved).
 
@@ -49,8 +58,8 @@ Applied identically by all three public predicates (each opens with a `!!value` 
 - **CC/truthy-primitive** — `42`, `'x'`, `true`, `1n`, `Symbol()` → reject (truthy, but
   carry no `then` / contract in their prototype chain).
 
-`doesMatchPromiseContract` has no `!!value` guard of its own; it inherits nullish-safety
-from `hasInertMethod` (which returns `false` for nullish input).
+`doesImplementPromiseContract` has no `!!value` guard of its own; it inherits
+nullish-safety from `hasInertMethod` (which returns `false` for nullish input).
 
 ---
 
@@ -125,7 +134,7 @@ spoof — an own callable `then` is admitted _by contract_, not by oversight.
 ## `isPromiseLike`
 
 `isPromiseLike<T = unknown>(value?: T): value is T & PromiseLike<unknown>` Composition:
-`!!value && (isCurrentRealmPromiseInstance(value) || doesMatchPromiseContract(value))`
+`!!value && (isCurrentRealmPromiseInstance(value) || doesImplementPromiseContract(value))`
 Spec basis: the `Promise.prototype` method contract — ECMA-262 §27.2 (`then`, `catch`,
 `finally`).
 
@@ -165,7 +174,7 @@ rejected. There is no identity to spoof — a non-Promise carrying the three met
 admitted _by contract_.
 
 **Composition note (axis 4):** drives `isCurrentRealmPromiseInstance` and
-`doesMatchPromiseContract`. Subclass-admitting because the `instanceof` arm carries no
+`doesImplementPromiseContract`. Subclass-admitting because the `instanceof` arm carries no
 proto-identity narrowing.
 
 ---
@@ -173,8 +182,13 @@ proto-identity narrowing.
 ## `isPromise`
 
 `isPromise<T = unknown>(value?: T): value is T & Promise<unknown>` Composition:
-`!!value && (isCurrentRealmPromiseInstance(value) ? getPrototypeOf(value) === promisePrototype : getTypeSignature(value) === '[object Promise]' && getDefinedConstructorName(value) === 'Promise' && doesMatchPromiseContract(value))`
-Spec basis: `Promise` identity — two-axis dispatch (decisions #023, #050).
+`!!value && (isCurrentRealmPromiseInstance(value) ? getPrototypeOf(value) === promisePrototype : isStructuralPromiseEquivalent(value, getPrototypeOf(value)))`
+where the cross-realm arm `isStructuralPromiseEquivalent` expands to the value-side
+identity signal (`hasPromiseIdentitySignal`) + the method contract
+(`doesImplementPromiseContract`) + prototype-equivalence
+(`isStructuralPromisePrototypeEquivalent` — the fourth marker, prototype/constructor
+reciprocal identity). Spec basis: `Promise` identity — two-axis dispatch (decisions #023,
+#050, #054).
 
 **Admits**
 
@@ -202,6 +216,12 @@ Spec basis: `Promise` identity — two-axis dispatch (decisions #023, #050).
   → false — `getDefinedConstructor` walks the prototype-chain and **ignores the own
   `constructor` data property** (#047), so the walk reaches `Object`, not `Promise`.
   Strengthens `R3` (the own-`constructor` variant of the tag-spoof).
+- `isPromise/R7` — a NULL-prototype tag-spoof with a full OWN contract
+  (`Object.assign(Object.create(null), { [Symbol.toStringTag]: 'Promise', then, catch, finally })`)
+  → false, **not thrown** — the constructor-walk pivots to the value's `[[Prototype]]`
+  (here `null`), so `getNextAvailablePropertyDescriptor` finds no `constructor` and the
+  resolved name is `undefined`, not `'Promise'`. Companion to `R3`/`R6`, exercising the
+  null-`[[Prototype]]` branch of the cross-realm arm's constructor resolution.
 - (plus all cross-cutting vectors)
 
 **Refuses to claim**
@@ -229,20 +249,36 @@ Spec basis: `Promise` identity — two-axis dispatch (decisions #023, #050).
   cross-realm arm. Structural detection cannot beat a fully-committed proxy/rename — named
   here, not closed. (cross-realm arm); reject foreign-realm subclasses (constructor-name)
   — symmetric with the local-realm subclass rejection.
+- `isPromise/B5` — a value with own tag `'Promise'` + own `then`/`catch`/`finally` whose
+  `[[Prototype]]` is a `Proxy` with a throwing `getOwnPropertyDescriptor` trap → false,
+  **not thrown** — the cross-realm arm's constructor-walk pivots INTO the hostile proto,
+  but `getDefinedConstructor` routes its descriptor reads through the throw-safe
+  `getInertDescriptor` (decision #056), so the trap yields `undefined` (no reachable
+  constructor) and the name fails `=== 'Promise'`. `isThenable` / `isPromiseLike` stay
+  admitting — they find the own `then` / contract before any chain walk. Closes the last
+  unguarded throw surface in `isPromise` (after the `getTypeSignature` and `instanceof`
+  wraps); the same hardening makes every constructor-walk consumer (`@/object`,
+  `@/function`, `@/primitive`, `@/evented`) throw-safe.
 
-**Spoof-resistance expectation (axis 3):** the three cross-realm markers are independent
-and each closes a distinct false-positive class — `doesMatchPromiseContract` rejects
+**Spoof-resistance expectation (axis 3):** the four cross-realm markers are independent
+and each closes a distinct false-positive class — `doesImplementPromiseContract` rejects
 tag/ctor-name claimants lacking the methods; the `[[Class]]` tag rejects
 contract-satisfiers tagged otherwise; the constructor-name closes the `Symbol.toStringTag`
-spoof hole the tag alone leaves open (`isPromise/R3`). The one _unclosed_ surface is the
+spoof hole the tag alone leaves open (`isPromise/R3`); and the prototype/constructor
+reciprocal-identity marker (`isStructuralPromisePrototypeEquivalent`, decision #054)
+rejects a value whose own markers are forged but whose prototype's own constructor
+disagrees with the value's resolved constructor. The one _unclosed_ surface is the
 prototype-graft (`isPromise/B2`).
 
 **Composition note (axis 4):** two-axis ternary over `isCurrentRealmPromiseInstance`; the
 local-realm arm uses `getPrototypeOf` (`@/config`) and the realm-fixed `promisePrototype`
-capture; the cross-realm arm uses `getTypeSignature` + `getDefinedConstructorName`
-(`@/utility`)
-
-- `doesMatchPromiseContract`.
+capture; the cross-realm arm is `isStructuralPromiseEquivalent`, composing
+`hasPromiseIdentitySignal` (tag via `getTypeSignature`, name via
+`getDefinedConstructorName`), `doesImplementPromiseContract`, and
+`isStructuralPromisePrototypeEquivalent` — the last resolving the prototype's own
+constructor through `getDefinedConstructor` / `getDefinedConstructorName` under
+`{ assumePrototype: true }`, plus `guardedGetPrototypeOf` (all `@/utility`). Decision
+#054.
 
 **Policy flags:** `isPromise/R1`-`R2` encode the _current shipped_ subclass-rejection
 behavior; if a subclass-admission policy is ever adopted these vectors invert.
@@ -251,7 +287,7 @@ behavior; if a subclass-admission policy is ever adopted these vectors invert.
 
 ## Helper specification (axis 4)
 
-### `doesMatchPromiseContract(value?)` — `@internal`
+### `doesImplementPromiseContract(value?)` — `@internal`
 
 Purely structural Promise-method-contract check; no `instanceof` fast-path (that is the
 caller's job).
@@ -268,6 +304,65 @@ caller's job).
   `!!value` guard).
 - `dMPC/B1` — short-circuit order is `then` → `catch` → `finally`; the order is a cost
   optimization, not observable behavior beyond which method a malformed input fails at.
+
+### `hasPromiseIdentitySignal(value?, options?)` — `@internal`
+
+The two string-shape identity markers, independent of the method contract.
+`getTypeSignature(value) === '[object Promise]' && getDefinedConstructorName(value, options) === 'Promise'`.
+`options.assumePrototype` (decision #054) switches the constructor-name resolution to read
+a prototype object's OWN constructor (ECMA-262 §10.2.6) rather than walking up its
+`[[Prototype]]` — required when `value` is itself a prototype object.
+
+- `hPIS/A1` — `Promise.resolve()` (no options) → true — instance: tag
+  `'[object Promise]'`, name walked to `'Promise'`.
+- `hPIS/A2` — `Promise.prototype` with `{ assumePrototype: true }` → true — reads the
+  prototype's own `constructor` name `'Promise'`.
+- `hPIS/R1` — `Promise.prototype` WITHOUT options → false — the name resolution walks up
+  to `Object.prototype` and yields `'Object'`. Documents why the prototype leg must pass
+  `assumePrototype` (the bug decision #054 fixed).
+- `hPIS/R2` — `{ [Symbol.toStringTag]: 'Promise' }` (no real constructor) → false — tag
+  passes, name reaches `'Object'`.
+- `hPIS/R3` — `{ then() {}, catch() {}, finally() {} }` (PromiseLike, tag
+  `'[object Object]'`) → false — tag mismatch.
+- `hPIS/B1` — a throwing `Symbol.toStringTag` getter → false, **not thrown** — the tag
+  read goes through the throw-safe `getTypeSignature`.
+
+### `isStructuralPromisePrototypeEquivalent(prototype, constructor)` — `@internal`
+
+Validates that `prototype` IS structurally `Promise.prototype`, anchored on a reciprocal
+own-constructor identity.
+`!!constructor && hasPromiseIdentitySignal(prototype, { assumePrototype: true }) && doesImplementPromiseContract(prototype) && getDefinedConstructor(prototype, { assumePrototype: true }) === constructor`.
+Threads `{ assumePrototype: true }` to BOTH resolving legs so the two reads agree on the
+prototype's own constructor (decision #054).
+
+- `iSPPE/A1` — `(Promise.prototype, Promise)` → true.
+- `iSPPE/A2` — `(foreign Promise.prototype, foreign Promise constructor)` → true —
+  realm-independent (markers and the reciprocal read are all structural).
+- `iSPPE/R1` — `(Promise.prototype, undefined)` → false — falsy `constructor`
+  short-circuits.
+- `iSPPE/R2` — `(Object.prototype, Object)` → false — tag is `'[object Object]'`.
+- `iSPPE/R3` — `(prototype, mismatchedConstructor)` → false — the reciprocal
+  `getDefinedConstructor(prototype, { assumePrototype: true }) === constructor` fails.
+
+### `isStructuralPromiseEquivalent(value, prototype?)` — `@internal`
+
+`isPromise`'s full cross-realm arm: the value-side identity signal + method contract +
+prototype-equivalence.
+`hasPromiseIdentitySignal(value) && doesImplementPromiseContract(value) && isStructuralPromisePrototypeEquivalent(isObject(prototype) ? prototype : guardedGetPrototypeOf(value), getDefinedConstructor(value))`.
+The INSTANCE is resolved option-less (an instance walks to its prototype's constructor);
+the PROTOTYPE is delegated to the assume-path helper. `prototype` may be supplied by the
+caller (`isPromise` passes its already-read `getPrototypeOf(value)`) or resolved
+internally. These vectors are the white-box counterparts of the public `isPromise`
+cross-realm vectors.
+
+- `iSPE/A1` — a cross-realm _direct_ `Promise` (fixture) → true — mirrors `isPromise/A3`.
+- `iSPE/R1` — a cross-realm `Promise` subclass (fixture) → false — instance name
+  `'MyPromise'`; mirrors `isPromise/R2`.
+- `iSPE/R2` — tag-spoof
+  `{ [Symbol.toStringTag]: 'Promise', then() {}, catch() {}, finally() {} }` → false — the
+  instance name walks to `'Object'`; mirrors `isPromise/R3`.
+- `iSPE/R3` — a `PromiseLike` non-Promise → false — tag `'[object Object]'`; mirrors
+  `isPromise/R4`.
 
 ### `isCurrentRealmPromiseInstance(value)` — `@internal` (declared in both `.js` and `.d.ts`)
 
@@ -288,14 +383,15 @@ narrowing (that is layered on by `isPromise`'s ternary).
 
 ## Resolved items
 
-All items surfaced while drafting this spec have been resolved; none remain open.
+All items surfaced while drafting this spec have been resolved; none remain open. One
+post-freeze amendment is recorded below (item 4).
 
 1. **`isCurrentRealmPromiseInstance` typed-surface asymmetry.** Was exported from
    `thenable.js` with `@internal` but undeclared in `thenable.d.ts`. **Resolution:**
    exporting an internal helper for the helper-unit axis obligates a parallel exported
    type declaration, even though `@internal` keeps it out of the built package's public
-   surface. The `.d.ts` declaration was added (mirroring `doesMatchPromiseContract`); a
-   package-wide scan confirmed it was the only `.js`-export missing from its `.d.ts`
+   surface. The `.d.ts` declaration was added (mirroring `doesImplementPromiseContract`);
+   a package-wide scan confirmed it was the only `.js`-export missing from its `.d.ts`
    (evented keeps its `isCurrentRealm*Instance` helpers module-local). Generalized into
    the spec process — see the surface-inventory step in [`./README.md`](./README.md).
 2. **`isPromise/B2` prototype-graft admission.** `Object.create(Promise.prototype)` is
@@ -315,3 +411,15 @@ All items surfaced while drafting this spec have been resolved; none remain open
    has no runtime predicate (decision #037), and the package never exercises it, so there
    is no behavior to assert. Its well-formedness is already guaranteed by the package
    typecheck (`tsc` over the `.d.ts`); it carries no spec vector and no test.
+4. **Post-freeze amendment (2026-06-23) — `isPromise` cross-realm factoring.** The
+   cross-realm arm was factored into `isStructuralPromiseEquivalent` over three new
+   exported `@internal` helpers (`hasPromiseIdentitySignal`,
+   `isStructuralPromisePrototypeEquivalent`, `isStructuralPromiseEquivalent`) and gained a
+   fourth marker — prototype/constructor reciprocal identity via
+   `{ assumePrototype: true }` (generalized from decision #047 to
+   `getDefinedConstructorName`). **No behavioral vector changed** — every
+   `isPromise/A*`/`R*`/`B*` admit-or-reject verdict is identical; the amendment touched
+   only the white-box composition annotations and the axis-4 helper inventory/specs above.
+   The freeze of the behavioral oracle is preserved. Full rationale — including the
+   value-keyed-registry caveat and the thread-the-option-vs-registry- hardening choice —
+   in **decision #054**.

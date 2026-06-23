@@ -83,7 +83,7 @@ supporting types and one interface declaration round out the surface:
 | `isAbortError`              | `public`    | `isError(v) && v.name.endsWith('AbortError')`                                                           |
 
 The composition mirrors the established `doesMatch<X>Contract` pattern from thenable
-(`doesMatchPromiseContract`) and evented (`doesMatchEventTargetContract`,
+(`doesImplementPromiseContract`) and evented (`doesMatchEventTargetContract`,
 `doesMatchAbortSignalContract`) — same "structural fallback dispatcher" role at the
 internal layer. The realm-fast-path inlining inside `isGenericError` matches the
 `isPromiseLike` / `isEventTargetLike` shape, where the `instanceof <Constructor>` fast

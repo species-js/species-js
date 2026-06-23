@@ -7,7 +7,7 @@
  * downstream packages that need the same cross-realm-safe primitives.
  */
 
-import type { NewableFunction } from '@/function';
+import type { Callable, NewableFunction } from '@/function';
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 //
@@ -119,6 +119,130 @@ export type ResolvedType = string;
  * distinction `'[object Array]' !== 'Array'` survives in the type system.
  */
 export type TypeSignature = `[object ${TaggedType}]`;
+
+declare global {
+  /**
+   * Opts into symbol-as-`WeakKey` typing (the ECMA-262 "Symbols as WeakMap
+   * keys" semantics) without raising the package's `lib` to ES2023 — which
+   * would type-enable ES2021+ runtime APIs and break the ES2020 floor. This
+   * declaration merge mirrors exactly the `symbol` member that
+   * `lib.es2023.collection.d.ts` adds, so the global `WeakKey` resolves to
+   * `object | symbol` and `WeakMap` / `WeakSet` accept symbol keys. (The engine
+   * still rejects *registered* symbols at insertion; that is a runtime
+   * precondition not modeled in the type.)
+   */
+  interface WeakKeyTypes {
+    symbol: symbol;
+  }
+}
+export type WeakKey = symbol | object | Callable;
+
+// ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
+//
+//  Function Types
+//
+// ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
+
+/**
+ * A non-narrowing boolean predicate over a single value — the shape of the
+ * package's structural contract checks (`doesImplement…Contract`, the
+ * `has…Shape` helpers, `hasConstructSlot`): it answers a yes/no question about
+ * `value` and returns a plain `boolean`, narrowing nothing.
+ *
+ * Generic in the accepted argument type so a caller can constrain the input
+ * (e.g. `PredicateFunction<object>`); defaults to `unknown` per the package's
+ * `unknown`-over-`any` discipline. The argument is optional, matching the
+ * package convention that an omitted value is treated as `undefined` — so a
+ * predicate declared `(value?: unknown) => boolean` is assignable here.
+ *
+ * Distinct from a narrowing type-guard (`(value?: T) => value is T & X`):
+ * that carries a `value is …` predicate and cannot collapse into one reusable
+ * alias, because the narrowed target `X` differs per guard. `PredicateFunction`
+ * is the right type for a predicate passed as a value — e.g. the
+ * `doesImplementFeatureContract` callback injected into
+ * {@link getValidatedStandardConstructorAndPrototypeTuple}.
+ *
+ * @typeParam T - the accepted argument type; defaults to `unknown`
+ */
+export type PredicateFunction<T = unknown> = (value?: T) => boolean;
+
+// ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
+//
+//  Standard-Constructor Validation
+//
+// ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
+
+/**
+ * Validates a standard built-in constructor and returns its realm-fixed
+ * `[constructor, prototype]` tuple, or `[]` when validation fails.
+ *
+ * The single, throw-safe capture helper behind the per-module realm-fixed
+ * intrinsic pairs (e.g. `Promise` for `@/thenable`). It confirms `constructor`
+ * is newable, reads its own `prototype` inertly, and accepts the pair only when
+ * the prototype satisfies both the injected `doesImplementFeatureContract`
+ * predicate and reciprocally back-references the constructor
+ * (`prototype.constructor === constructor`) — the tamper-resistant identity
+ * check. Any throw (hostile descriptor/accessor) collapses to `[]`.
+ *
+ * @param constructor - the candidate standard constructor; non-newable yields
+ *  `[]`
+ * @param doesImplementFeatureContract - the feature-contract gate applied to
+ *  the constructor's `prototype`
+ * @returns the validated `[constructor, prototype]` tuple, or `[]`
+ */
+export function getValidatedStandardConstructorAndPrototypeTuple(
+  constructor: unknown,
+  doesImplementFeatureContract: PredicateFunction,
+): [NewableFunction, object] | [];
+
+// ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
+//
+//  Weak-Key Validation
+//
+// ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
+
+/**
+ * Narrows a value to {@link WeakKey} — a value usable as a `WeakMap` / `WeakSet`
+ * key: any object, function, or symbol. Returns `false` for primitives other
+ * than symbols and for nullish input.
+ *
+ * Two runtime conditions the static {@link WeakKey} type cannot express:
+ * symbols are admitted only where the engine supports symbol weak keys (the
+ * ES2023 capability, probed once at module-load); and registered symbols
+ * (`Symbol.for`) are rejected even then, matching the engine's own refusal to
+ * hold them weakly.
+ *
+ * @param value - the value to test; omitted is treated as `undefined`, which is
+ *  not a valid weak key
+ * @returns `true` when the value can be used as a weak key, narrowing to
+ *  {@link WeakKey}; `false` otherwise
+ */
+export function isValidWeakKey(value?: unknown): value is WeakKey;
+
+// ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
+//
+//  Guarded/Inert Prototype Access
+//
+// ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
+
+/**
+ * Reads `getPrototypeOf(value)` throw-safely and memoized.
+ *
+ * Wraps the realm-fixed `getPrototypeOf` so a hostile `getPrototypeOf` Proxy
+ * trap yields `undefined` rather than propagating, and caches the resolved
+ * prototype per value in a module-scoped `WeakMap`. The cache assumes the
+ * value's `[[Prototype]]` is structurally stable; a later `setPrototypeOf` is
+ * not reflected.
+ *
+ * @param value - the value whose prototype to read; omitted/`null` yields
+ *  `undefined`
+ * @returns the value's prototype (an object, a callable, or `null`);
+ *  `undefined` for nullish input or when a hostile trap threw
+ * @internal
+ */
+export function guardedGetPrototypeOf(
+  value?: unknown,
+): object | Callable | null | undefined;
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 //
@@ -245,6 +369,36 @@ export function getOwnPropertyDescriptorsKeys(value?: unknown): string[];
 export function getOwnPropertyDescriptorsKeySet(value?: unknown): Set<string>;
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
+//
+//  Guarded/Inert Property-Key Utilities
+//
+// ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
+
+/**
+ * Walks for the next available descriptor like
+ * {@link getNextAvailablePropertyDescriptor}, but swallows any throw from a
+ * hostile `getOwnPropertyDescriptor` / `getPrototypeOf` Proxy-trap and reports
+ * `undefined` instead.
+ *
+ * The inert probes built on it ({@link hasInertMethod} and its siblings) are
+ * type-guards: they must answer `true` / `false`, never propagate an exception
+ * from an adversarial host object. This extends the spec-defined-accessor trust
+ * boundary (decision #029) to the descriptor-walk reads — and
+ * {@link getDefinedConstructor} routes through it too, so the whole
+ * constructor-resolution layer is throw-safe (decision #056). The raw
+ * {@link getNextAvailablePropertyDescriptor} remains for callers that supply
+ * their own guarding (e.g. {@link getValidatedStandardConstructorAndPrototypeTuple},
+ * which wraps its walk in a `try/catch`).
+ *
+ * @param type - the value to inspect
+ * @param key - the property key to resolve through the value's prototype-chain
+ * @returns the first descriptor found while walking the chain; `undefined` if
+ *  none exists or a trap threw
+ */
+export function getInertDescriptor(
+  type: unknown,
+  key: PropertyKey,
+): PropertyDescriptor | undefined;
 
 /**
  * Tests whether the value carries a callable data property at `key`,
@@ -456,7 +610,10 @@ export function getTaggedType(): undefined;
  *    object recovers the actual function constructor
  *    (`%GeneratorFunction%`, `%AsyncGeneratorFunction%`).
  *
- * Fully inert — accessor getters are never invoked. There are valid
+ * Fully inert — accessor getters are never invoked — and throw-safe: a
+ * hostile `getOwnPropertyDescriptor` / `getPrototypeOf` Proxy-trap yields
+ * `undefined` (the contract's "no reachable constructor") rather than
+ * propagating. There are valid
  * cases where a reachable `constructor` reference is neither newable
  * nor a function at all. If such a descriptor-structure appears, it
  * gets resolved. The returned value is always either `undefined` or
@@ -471,6 +628,7 @@ export function getTaggedType(): undefined;
  *  prototype-object and walks from `value` itself rather than
  *  from `getPrototypeOf(value)`. Defaults to `false`.
  * @returns the constructor function when reachable; `undefined` otherwise
+ *  (including when a hostile Proxy-trap throws during the descriptor walk)
  * @example
  * getDefinedConstructor([]);                                          // Array
  * getDefinedConstructor(new Date());                                  // Date
@@ -506,6 +664,10 @@ export function getDefinedConstructor(
  * - A value with no reachable constructor returns `undefined`.
  *
  * @param value - the value whose constructor name should be retrieved
+ * @param options - call-site hints
+ * @param options.assumePrototype - treats `value` as a real
+ *  prototype-object and walks from `value` itself rather than
+ *  from `getPrototypeOf(value)`. Defaults to `false`.
  * @returns the constructor's name string when reachable; `undefined`
  *  otherwise
  * @example
@@ -513,7 +675,10 @@ export function getDefinedConstructor(
  * getDefinedConstructorName(new Date()); // 'Date'
  * getDefinedConstructorName(null);       // undefined
  */
-export function getDefinedConstructorName(value?: unknown): ConstructorName | undefined;
+export function getDefinedConstructorName(
+  value?: unknown,
+  options?: DefinedConstructorAccessorOptions,
+): ConstructorName | undefined;
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 //
