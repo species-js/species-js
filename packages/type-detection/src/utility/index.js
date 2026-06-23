@@ -116,9 +116,6 @@ export const isValidWeakKey = (function createIsValidWeakKeyPredicate(SymbolFact
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 
-const prototypeRegistry = /** @type {WeakMap<WeakKey, object | Callable | null>} */ (
-  new WeakMap()
-);
 const constructorRegistry =
   /** @type {WeakMap<WeakKey, Map<string, NewableFunction>>} */ (new WeakMap());
 const constructorNameRegistry = /** @type {WeakMap<WeakKey, Map<string, string>>} */ (
@@ -132,28 +129,6 @@ const constructorNameRegistry = /** @type {WeakMap<WeakKey, Map<string, string>>
  */
 function whichConstructorStorageKey(assumePrototype) {
   return assumePrototype ? 'proto' : 'default';
-}
-
-/**
- * @param {unknown} key - always a non-nullish key-value
- * @param {object | Callable | null} value - the retrieved and to be registered `prototype`
- * @returns {WeakMap<WeakKey, object | Callable | null> | undefined}
- * @internal
- */
-function registerPrototype(key, value) {
-  // no other guard than the key predicate is needed.
-  if (isValidWeakKey(key)) {
-    return prototypeRegistry.set(key, value);
-  }
-  return void 0;
-}
-/**
- * @param {unknown} key - always a non-nullish key-value
- * @returns {object | Callable | null | undefined}
- * @internal
- */
-function getRegisteredPrototype(key) {
-  return prototypeRegistry.get(/** @type {WeakKey} */ (key));
 }
 
 /**
@@ -240,14 +215,14 @@ function hasRegisteredConstructorName(key, assumePrototype) {
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 
 /**
- * Reads `getPrototypeOf(value)` throw-safely and memoized.
+ * Reads `getPrototypeOf(value)` throw-safely.
  *
  * Wraps the realm-fixed `getPrototypeOf` (`nativeGetPrototypeOf`) in a
  * `try/catch` so a hostile `getPrototypeOf` Proxy-trap yields `undefined`
- * rather than propagating, and caches the resolved prototype per value in the
- * module-scoped `prototypeRegistry` `WeakMap` (via `registerPrototype` /
- * `getRegisteredPrototype`). The cache assumes the value's `[[Prototype]]` is
- * structurally stable; a later `setPrototypeOf` is not reflected.
+ * rather than propagating — a structural read must answer, not raise
+ * (decision #029 trust boundary, extended to the prototype read). No
+ * memoization: `getPrototypeOf` is a trivial intrinsic, cheaper to call than
+ * to cache (decision #057); per-value caching is the consumer's concern.
  *
  * @param {unknown} [value] - the value whose prototype to read; omitted/`null`
  *  yields `undefined`
@@ -260,17 +235,8 @@ export function guardedGetPrototypeOf(value = null) {
   if (value === null) {
     return void 0;
   }
-  const fastResult = getRegisteredPrototype(value);
-
-  if (fastResult || fastResult === null) {
-    return fastResult;
-  }
   try {
-    const result = nativeGetPrototypeOf(value);
-
-    registerPrototype(value, result);
-
-    return result;
+    return nativeGetPrototypeOf(value);
   } catch {
     return void 0;
   }

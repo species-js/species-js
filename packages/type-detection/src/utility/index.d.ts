@@ -226,13 +226,13 @@ export function isValidWeakKey(value?: unknown): value is WeakKey;
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 
 /**
- * Reads `getPrototypeOf(value)` throw-safely and memoized.
+ * Reads `getPrototypeOf(value)` throw-safely.
  *
  * Wraps the realm-fixed `getPrototypeOf` so a hostile `getPrototypeOf` Proxy
- * trap yields `undefined` rather than propagating, and caches the resolved
- * prototype per value in a module-scoped `WeakMap`. The cache assumes the
- * value's `[[Prototype]]` is structurally stable; a later `setPrototypeOf` is
- * not reflected.
+ * trap yields `undefined` rather than propagating — a structural read must
+ * answer, not raise (decision #029 trust boundary). No memoization:
+ * `getPrototypeOf` is a trivial intrinsic, cheaper to call than to cache
+ * (decision #057); per-value caching is the consumer's concern.
  *
  * @param value - the value whose prototype to read; omitted/`null` yields
  *  `undefined`
