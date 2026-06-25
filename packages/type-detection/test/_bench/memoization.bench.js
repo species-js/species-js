@@ -37,6 +37,7 @@ import {
   isCallable,
   isFunction,
   isStringValue,
+  isValidWeakKey,
   getTypeSignature,
   objectCreate,
   doesImplementPromiseContract,
@@ -88,22 +89,6 @@ const getCtorPlain = (value, assumePrototype = false) => {
   return undefined;
 };
 
-/**
- * @param {unknown} value - the value whose constructor name to resolve
- * @param {boolean} [assumePrototype] - treat `value` as a real prototype object
- */
-const getCtorNamePlain = (value, assumePrototype = false) => {
-  const constructor = getCtorPlain(value, assumePrototype) ?? null;
-
-  if (constructor === null) {
-    return undefined;
-  }
-  const name = /** @type {unknown} */ (
-    getOwnPropertyDescriptor(/** @type {object} */ (constructor), 'name')?.value
-  );
-  return isStringValue(name) ? name : undefined;
-};
-
 // ----- inputs -----
 
 // repeated (cache-hit) fixtures — one shared identity reused every iteration.
@@ -118,42 +103,42 @@ const sharedForeignPromise = foreignRealmEval('Promise.resolve(1)');
 
 const opts = { time: 500, warmupTime: 150 };
 
-// ----- Group 1: resolver head-to-head (the decision) -----
+// ----- Group 1: resolver head-to-head — current (no-cache) vs the dropped registry -----
 
-describe('guardedGetPrototypeOf · distinct (cache misses)', () => {
-  bench('memo ', () => void guardedGetPrototypeOf({}), opts);
-  bench('plain', () => void getProtoPlain({}), opts);
+describe('guardedGetPrototypeOf · distinct (registry miss)', () => {
+  bench('registry', () => void getProtoMemo({}), opts);
+  bench('current ', () => void guardedGetPrototypeOf({}), opts);
 });
-describe('guardedGetPrototypeOf · repeated (cache hits)', () => {
-  bench('memo ', () => void guardedGetPrototypeOf(sharedObj), opts);
-  bench('plain', () => void getProtoPlain(sharedObj), opts);
-});
-
-describe('getDefinedConstructor · instance · distinct (cache misses)', () => {
-  bench('memo ', () => void getDefinedConstructor({}), opts);
-  bench('plain', () => void getCtorPlain({}), opts);
-});
-describe('getDefinedConstructor · instance · repeated (cache hits)', () => {
-  bench('memo ', () => void getDefinedConstructor(sharedObj), opts);
-  bench('plain', () => void getCtorPlain(sharedObj), opts);
+describe('guardedGetPrototypeOf · repeated (registry hit)', () => {
+  bench('registry', () => void getProtoMemo(sharedObj), opts);
+  bench('current ', () => void guardedGetPrototypeOf(sharedObj), opts);
 });
 
-describe('getDefinedConstructor · assumePrototype · repeated proto (recurring-prototype case)', () => {
+describe('getDefinedConstructor · instance · distinct (registry miss)', () => {
+  bench('registry', () => void getCtorMemo({}), opts);
+  bench('current ', () => void getDefinedConstructor({}), opts);
+});
+describe('getDefinedConstructor · instance · repeated (registry hit)', () => {
+  bench('registry', () => void getCtorMemo(sharedObj), opts);
+  bench('current ', () => void getDefinedConstructor(sharedObj), opts);
+});
+
+describe('getDefinedConstructor · assumePrototype · repeated proto (registry hit)', () => {
+  bench('registry', () => void getCtorMemo(sharedProto, true), opts);
   bench(
-    'memo ',
+    'current ',
     () => void getDefinedConstructor(sharedProto, { assumePrototype: true }),
     opts,
   );
-  bench('plain', () => void getCtorPlain(sharedProto, true), opts);
 });
 
-describe('getDefinedConstructorName · instance · distinct (cache misses)', () => {
-  bench('memo ', () => void getDefinedConstructorName({}), opts);
-  bench('plain', () => void getCtorNamePlain({}), opts);
+describe('getDefinedConstructorName · instance · distinct (registry miss)', () => {
+  bench('registry', () => void getCtorNameMemo({}), opts);
+  bench('current ', () => void getDefinedConstructorName({}), opts);
 });
-describe('getDefinedConstructorName · instance · repeated (cache hits)', () => {
-  bench('memo ', () => void getDefinedConstructorName(sharedObj), opts);
-  bench('plain', () => void getCtorNamePlain(sharedObj), opts);
+describe('getDefinedConstructorName · instance · repeated (registry hit)', () => {
+  bench('registry', () => void getCtorNameMemo(sharedObj), opts);
+  bench('current ', () => void getDefinedConstructorName(sharedObj), opts);
 });
 
 // ----- Group 2: public-predicate baselines (current impl) -----
@@ -188,13 +173,14 @@ describe('isPromiseLike · current impl', () => {
   );
 });
 
-// ----- Group 3: structural-refactor prototype (memo vs no-memo + threaded) -----
+// ----- Group 3: full cold structural — current (shipped) vs registry vs threaded -----
 //
-// Candidate for dropping the two CONSTRUCTOR registries: resolve each
-// constructor ONCE (no cache) and thread it + its derived name down the cold
-// path, instead of resolving twice and memoizing. `threadedStructural` is the
-// faithful no-memo + threaded twin of the live, memoized
-// `isStructuralPromiseEquivalent`; a module-load self-check asserts they agree.
+// #059 dropped the two constructor registries; the shipped isStructuralPromiseEquivalent
+// is now the threaded no-cache form. Three faithful shapes, self-checked to agree:
+//   - registry : the pre-#059 form, resolving through the reconstructed memoized resolvers
+//                (within-call dedup via cache + cross-call hits, at WeakMap cost).
+//   - current  : the live shipped isStructuralPromiseEquivalent (threaded, no cache).
+//   - threaded : the standalone no-cache threaded twin (resolve once, thread down).
 
 const noop = () => undefined;
 
@@ -230,6 +216,113 @@ const threadedStructural = (value) => {
   );
 };
 
+// ----- ruled-out registry candidates, reconstructed inline -----
+//
+// The shipped getDefinedConstructor / getDefinedConstructorName / guardedGetPrototypeOf are
+// now NO-CACHE (#057 dropped prototypeRegistry, #059 dropped the two constructor
+// registries). To bench current-vs-ruled-out directly, the dropped caches are rebuilt here:
+// a per-value WeakMap, the constructor ones keyed (value, assumePrototype) via a nested
+// `Map<'proto' | 'default', …>` (the #055 keying), guarded by `isValidWeakKey`.
+
+/** @type {WeakMap<object, unknown>} */
+const protoRegistry = new WeakMap();
+/** @type {WeakMap<object, Map<string, unknown>>} */
+const ctorRegistry = new WeakMap();
+/** @type {WeakMap<object, Map<string, string | undefined>>} */
+const ctorNameRegistry = new WeakMap();
+
+/** @param {boolean} assumePrototype - the resolution interpretation */
+const storageSlot = (assumePrototype) => (assumePrototype ? 'proto' : 'default');
+
+/** @param {unknown} value - the value whose prototype to read (memoized) */
+const getProtoMemo = (value) => {
+  if (!isValidWeakKey(value)) {
+    return getProtoPlain(value);
+  }
+  const key = /** @type {object} */ (value);
+
+  if (protoRegistry.has(key)) {
+    return protoRegistry.get(key);
+  }
+  const proto = getProtoPlain(value);
+  protoRegistry.set(key, proto);
+  return proto;
+};
+
+/**
+ * @param {unknown} value - the value whose constructor to resolve (memoized)
+ * @param {boolean} [assumePrototype] - treat `value` as a real prototype object
+ */
+const getCtorMemo = (value, assumePrototype = false) => {
+  if (!isValidWeakKey(value)) {
+    return getCtorPlain(value, assumePrototype);
+  }
+  const key = /** @type {object} */ (value);
+  const slot = storageSlot(assumePrototype);
+  const inner = ctorRegistry.get(key);
+
+  if (inner?.has(slot)) {
+    return inner.get(slot);
+  }
+  const ctor = getCtorPlain(value, assumePrototype);
+  /** @type {Map<string, unknown>} */ (
+    inner ?? ctorRegistry.set(key, new Map()).get(key)
+  ).set(slot, ctor);
+  return ctor;
+};
+
+/**
+ * @param {unknown} value - the value whose constructor name to resolve (memoized)
+ * @param {boolean} [assumePrototype] - treat `value` as a real prototype object
+ */
+const getCtorNameMemo = (value, assumePrototype = false) => {
+  const slot = storageSlot(assumePrototype);
+  const weak = isValidWeakKey(value);
+
+  if (weak) {
+    const cached = ctorNameRegistry.get(/** @type {object} */ (value));
+    if (cached?.has(slot)) {
+      return cached.get(slot);
+    }
+  }
+  // faithful to the deleted getDefinedConstructorName: resolve via the (memoized) ctor,
+  // so the constructor cache is populated as a side effect — the within-call dedup.
+  const ctor = getCtorMemo(value, assumePrototype);
+  const name = ctor ? nameOfCtor(ctor) : undefined;
+
+  if (weak) {
+    const key = /** @type {object} */ (value);
+    /** @type {Map<string, string | undefined>} */ (
+      ctorNameRegistry.get(key) ?? ctorNameRegistry.set(key, new Map()).get(key)
+    ).set(slot, name);
+  }
+  return name;
+};
+
+// The pre-#059 isStructuralPromiseEquivalent: resolves through the memoized resolvers,
+// so the value's constructor is resolved once and the second read hits the cache
+// (within-call dedup), and repeated values hit across calls.
+/** @param {unknown} value - the candidate to test for structural Promise equivalence */
+const registryStructural = (value) => {
+  if (
+    getTypeSignature(value) !== '[object Promise]' ||
+    getCtorNameMemo(value) !== 'Promise' ||
+    !doesImplementPromiseContract(value)
+  ) {
+    return false;
+  }
+  const ctor = getCtorMemo(value);
+  const proto = getProtoMemo(value);
+
+  return (
+    !!ctor &&
+    getTypeSignature(proto) === '[object Promise]' &&
+    getCtorNameMemo(proto, true) === 'Promise' &&
+    doesImplementPromiseContract(proto) &&
+    getCtorMemo(proto, true) === ctor
+  );
+};
+
 // A fresh value driving the FULL cold structural path: own `Promise` tag +
 // inherited contract + a prototype whose own `constructor` is named `Promise`,
 // so both constructor resolutions run and both name checks pass. Distinct per
@@ -257,35 +350,38 @@ for (const make of [
   () => ({ [Symbol.toStringTag]: 'Promise', then: noop, catch: noop, finally: noop }),
 ]) {
   const v = make();
+  const live = isStructuralPromiseEquivalent(v);
 
-  if (threadedStructural(v) !== isStructuralPromiseEquivalent(v)) {
-    throw new Error('threadedStructural disagrees with isStructuralPromiseEquivalent');
+  if (threadedStructural(v) !== live || registryStructural(v) !== live) {
+    throw new Error(
+      'a structural candidate disagrees with isStructuralPromiseEquivalent',
+    );
   }
 }
+const liveForeign = isStructuralPromiseEquivalent(sharedForeignPromise);
 if (
-  threadedStructural(sharedForeignPromise) !==
-  isStructuralPromiseEquivalent(sharedForeignPromise)
+  threadedStructural(sharedForeignPromise) !== liveForeign ||
+  registryStructural(sharedForeignPromise) !== liveForeign
 ) {
-  throw new Error('threadedStructural disagrees on a foreign Promise');
+  throw new Error('a structural candidate disagrees on a foreign Promise');
 }
 
 const sharedColdHit = makeColdHit();
 
-describe('cold structural · distinct (caches miss)', () => {
-  bench('memo     ', () => void isStructuralPromiseEquivalent(makeColdHit()), opts);
-  bench('threaded ', () => void threadedStructural(makeColdHit()), opts);
+describe('cold structural · distinct (registry miss)', () => {
+  bench('registry', () => void registryStructural(makeColdHit()), opts);
+  bench('current ', () => void isStructuralPromiseEquivalent(makeColdHit()), opts);
+  bench('threaded', () => void threadedStructural(makeColdHit()), opts);
 });
-describe('cold structural · repeated synthetic (caches hit)', () => {
-  bench('memo     ', () => void isStructuralPromiseEquivalent(sharedColdHit), opts);
-  bench('threaded ', () => void threadedStructural(sharedColdHit), opts);
+describe('cold structural · repeated synthetic (registry hit)', () => {
+  bench('registry', () => void registryStructural(sharedColdHit), opts);
+  bench('current ', () => void isStructuralPromiseEquivalent(sharedColdHit), opts);
+  bench('threaded', () => void threadedStructural(sharedColdHit), opts);
 });
-describe('cold structural · repeated foreign Promise (caches hit)', () => {
-  bench(
-    'memo     ',
-    () => void isStructuralPromiseEquivalent(sharedForeignPromise),
-    opts,
-  );
-  bench('threaded ', () => void threadedStructural(sharedForeignPromise), opts);
+describe('cold structural · repeated foreign Promise (registry hit)', () => {
+  bench('registry', () => void registryStructural(sharedForeignPromise), opts);
+  bench('current ', () => void isStructuralPromiseEquivalent(sharedForeignPromise), opts);
+  bench('threaded', () => void threadedStructural(sharedForeignPromise), opts);
 });
 
 // ----- Group 4: contract-check variants (the unit isPromiseLike/isPromise burn) -----
