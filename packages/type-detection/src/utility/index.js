@@ -51,7 +51,9 @@ import { isCallable, isFunction, isNewableFunction } from '@/function';
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 
-const TRUSTED_DATA_CONFIRMATION = /** @type {TRUSTED_DATA_CONFIRMATION_FLAG} */ (true);
+export const TRUSTED_DATA_CONFIRMATION = /** @type {TRUSTED_DATA_CONFIRMATION_FLAG} */ (
+  true
+);
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 //
