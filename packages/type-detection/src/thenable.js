@@ -19,7 +19,7 @@ import {
   TRUSTED_DATA_CONFIRMATION,
   hasInertMethod,
   getTypeSignature,
-  getDefinedConstructorName,
+  getVerifiedOwnName,
   getDefinedConstructor,
   guardedGetPrototypeOf,
   getValidatedStandardConstructorAndPrototypeTuple,
@@ -31,8 +31,6 @@ import { isObject } from '@/object';
 
 /** @typedef {import('@/function').Callable} Callable */
 /** @typedef {import('@/function').NewableFunction} NewableFunction */
-
-/** @typedef {import('@/utility').DefinedConstructorAccessorOptions} AccessorOptions */
 
 /** @typedef {import('@/thenable').Thenable<unknown>} Thenable */
 /** @typedef {import('@/thenable').PromiseLike<unknown>} PromiseLike */
@@ -92,23 +90,20 @@ export function doesImplementPromiseContract(value) {
 
 /**
  * Whether the value carries both of `Promise`'s string-shape identity
- * markers — the `[[Class]]` tag `'Promise'` (via `getTypeSignature`) and
- * the resolved constructor-name `'Promise'` (via `getDefinedConstructorName`).
+ * markers — the `[[Class]]` tag `'Promise'` (via `getTypeSignature`) and the
+ * resolved constructor-name `'Promise'`. The name is threaded in by the caller,
+ * which resolves the constructor once and derives its name via
+ * `getVerifiedOwnName`; this helper does no constructor resolution of its own.
  *
- * @param {unknown} [value] - the value whose promise-shape signal to probe
- * @param {AccessorOptions} [options] - call-site hints
- *  `assumePrototype: true` treats `value` as a real prototype-object
- *  and walks from `value` itself rather than from `getPrototypeOf(value)`,
- *  matching ECMA-262 §10.2.6 for known prototypes; defaults to `false`
+ * @param {unknown} [value] - the value whose promise-shape tag to probe
+ * @param {string} [name] - the value's already-resolved constructor name,
+ *  threaded in by the caller; matched against `'Promise'`
  * @returns {boolean} `true` when both string-shape markers match `Promise`'s
  *  signature; `false` otherwise
  * @internal
  */
-export function hasPromiseIdentitySignal(value, options) {
-  return (
-    getTypeSignature(value) === '[object Promise]' &&
-    getDefinedConstructorName(value, options) === 'Promise'
-  );
+export function hasPromiseIdentitySignal(value, name) {
+  return getTypeSignature(value) === '[object Promise]' && name === 'Promise';
 }
 
 /**
@@ -124,13 +119,14 @@ export function hasPromiseIdentitySignal(value, options) {
  * @internal
  */
 export function isStructuralPromisePrototypeEquivalent(prototype, constructor) {
-  const options = { assumePrototype: true };
+  const definedConstructor =
+    constructor && getDefinedConstructor(prototype, { assumePrototype: true });
 
   return (
     !!constructor &&
-    hasPromiseIdentitySignal(prototype, options) &&
-    doesImplementPromiseContract(prototype) &&
-    getDefinedConstructor(prototype, options) === constructor
+    constructor === definedConstructor &&
+    hasPromiseIdentitySignal(prototype, getVerifiedOwnName(definedConstructor)) &&
+    doesImplementPromiseContract(prototype)
   );
 }
 
@@ -149,14 +145,16 @@ export function isStructuralPromisePrototypeEquivalent(prototype, constructor) {
  * @internal
  */
 export function isStructuralPromiseEquivalent(value, prototype) {
+  const definedConstructor = getDefinedConstructor(value);
+
   return (
-    hasPromiseIdentitySignal(value) &&
+    hasPromiseIdentitySignal(value, getVerifiedOwnName(definedConstructor)) &&
     doesImplementPromiseContract(value) &&
     isStructuralPromisePrototypeEquivalent(
       isObject(prototype)
         ? prototype
         : /** @type {object | Callable | null} */ (guardedGetPrototypeOf(value)),
-      getDefinedConstructor(value),
+      definedConstructor,
     )
   );
 }

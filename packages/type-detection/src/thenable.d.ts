@@ -14,8 +14,6 @@
  * PromiseLike refinement and is discriminated by {@link isPromise}.
  */
 
-import type { DefinedConstructorAccessorOptions } from '@/utility';
-
 import type { AbortError } from '@/error';
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
@@ -336,22 +334,18 @@ export function doesImplementPromiseContract(value?: unknown): boolean;
 
 /**
  * Whether the value carries both of `Promise`'s string-shape identity
- * markers — the `[[Class]]` tag `'Promise'` and the resolved
- * constructor-name `'Promise'`.
+ * markers — the `[[Class]]` tag `'Promise'` and the resolved constructor-name
+ * `'Promise'`. The name is threaded in by the caller (which resolves the
+ * constructor once); this helper does no constructor resolution of its own.
  *
- * @param value - the value whose promise-shape signal to probe
- * @param options - call-site hints
- * @param options.assumePrototype - treats `value` as a real prototype-object
- *  and walks from `value` itself rather than from `getPrototypeOf(value)`,
- *  matching ECMA-262 §10.2.6 for known prototypes; defaults to `false`
+ * @param value - the value whose promise-shape tag to probe
+ * @param name - the value's already-resolved constructor name, matched against
+ *  `'Promise'`
  * @returns `true` when both string-shape markers match `Promise`'s
  *  signature; `false` otherwise
  * @internal
  */
-export function hasPromiseIdentitySignal(
-  value?: unknown,
-  options?: DefinedConstructorAccessorOptions,
-): boolean;
+export function hasPromiseIdentitySignal(value?: unknown, name?: string): boolean;
 
 /**
  * Whether `prototype` is structurally `Promise.prototype` — it carries

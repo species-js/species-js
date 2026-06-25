@@ -128,100 +128,6 @@ export const isValidWeakKey = (function createIsValidWeakKeyPredicate(SymbolFact
 })(Symbol);
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
-
-const constructorRegistry =
-  /** @type {WeakMap<WeakKey, Map<string, NewableFunction>>} */ (new WeakMap());
-const constructorNameRegistry = /** @type {WeakMap<WeakKey, Map<string, string>>} */ (
-  new WeakMap()
-);
-
-/**
- * @param {boolean} assumePrototype - predicate value which defines the returned key's value.
- * @returns {'proto' | 'default'}
- * @internal
- */
-function whichConstructorStorageKey(assumePrototype) {
-  return assumePrototype ? 'proto' : 'default';
-}
-
-/**
- * @param {unknown} key - always a non-nullish key-value
- * @param {NewableFunction} value - the retrieved and to be registered constructor function
- * @param {boolean} assumePrototype - whether `value` is going to be treated as a real
- *  prototype object; defaults to `false`
- * @returns {WeakMap<WeakKey, Map<string, NewableFunction>> | undefined}
- * @internal
- */
-function registerConstructor(key, value, assumePrototype) {
-  // no other guard than the key predicate is needed.
-  if (isValidWeakKey(key)) {
-    /** @type {Map<string, NewableFunction>} */ (
-      constructorRegistry.get(key) ?? constructorRegistry.set(key, new Map()).get(key)
-    ).set(whichConstructorStorageKey(assumePrototype), value);
-
-    return constructorRegistry;
-  }
-  return void 0;
-}
-/**
- * @param {unknown} key
- * @param {boolean} assumePrototype
- * @returns {NewableFunction | undefined}
- * @internal
- */
-function getRegisteredConstructor(key, assumePrototype) {
-  return constructorRegistry
-    .get(/** @type {WeakKey} */ (key))
-    ?.get(whichConstructorStorageKey(assumePrototype));
-}
-
-/**
- * @param {unknown} key - always a non-nullish key-value
- * @param {string} value - the retrieved and to be registered constructor name
- * @param {boolean} assumePrototype - whether `value` is going to be treated as a real
- *  prototype object; defaults to `false`
- * @returns {WeakMap<WeakKey, Map<string, string>> | undefined}
- * @internal
- */
-function registerConstructorName(key, value, assumePrototype) {
-  // no other guard than the key predicate is needed.
-  if (isValidWeakKey(key)) {
-    /** @type {Map<string, string>} */ (
-      constructorNameRegistry.get(key) ??
-        constructorNameRegistry.set(key, new Map()).get(key)
-    ).set(whichConstructorStorageKey(assumePrototype), value);
-
-    return constructorNameRegistry;
-  }
-  return void 0;
-}
-/**
- * @param {unknown} key
- * @param {boolean} assumePrototype
- * @returns {string}
- * @internal
- */
-function getRegisteredConstructorName(key, assumePrototype) {
-  // ACCESSED internally only and ALWAYS GUARDED by `hasRegisteredConstructorName`
-  return /** @type {string} */ (
-    /** @type {Map<string, string>} */ (
-      constructorNameRegistry.get(/** @type {WeakKey} */ (key))
-    ).get(whichConstructorStorageKey(assumePrototype))
-  );
-}
-/**
- * @param {unknown} key
- * @param {boolean} assumePrototype
- * @returns {boolean}
- * @internal
- */
-function hasRegisteredConstructorName(key, assumePrototype) {
-  return !!constructorNameRegistry
-    .get(/** @type {WeakKey} */ (key))
-    ?.has(whichConstructorStorageKey(assumePrototype));
-}
-
-// ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 //
 //  Guarded/Inert Prototype Access
 //
@@ -599,6 +505,39 @@ export function hasInertValue(type = null, key, trustedData) {
   );
 }
 
+/**
+ * The verified own `name` of a value — reads the value's OWN `name` property
+ * descriptor and returns its data `value` only when that value is a string
+ * primitive; `undefined` otherwise.
+ *
+ * Generic and constructor-agnostic: it takes any `value` and reports the string
+ * `name` it declares as own data. Own-descriptor read only (no chain walk); the
+ * chain-walking counterpart is reserved under the name `getVerifiedNextAvailableName`,
+ * mirroring the `getOwnPropertyDescriptor` / {@link getNextAvailablePropertyDescriptor}
+ * pair.
+ *
+ * Inert and throw-safe: an accessor on `name` leaves the descriptor's `value`
+ * `undefined` and is rejected by the {@link isStringValue} narrow (the getter is
+ * never invoked), and the own-descriptor read is wrapped so a nullish input or a
+ * hostile `getOwnPropertyDescriptor` Proxy-trap yields `undefined` rather than
+ * propagating.
+ *
+ * @param {unknown} [value] - the value whose own `name` to read
+ * @returns {string | undefined} the own `name` value when present and a string
+ *  primitive; `undefined` otherwise
+ * @internal
+ */
+export function getVerifiedOwnName(value) {
+  try {
+    const name = /** @type {unknown} */ (
+      getOwnPropertyDescriptor(/** @type {object} */ (value), 'name')?.value
+    );
+    return isStringValue(name) ? name : void 0;
+  } catch {
+    return void 0;
+  }
+}
+
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 //
 //  Type-Signature Readers
@@ -749,11 +688,6 @@ export function getDefinedConstructor(value = null, options) {
   const { assumePrototype = false } =
     /** @type {DefinedConstructorAccessorOptions} */ (options) ?? {};
 
-  const fastResult = getRegisteredConstructor(value, assumePrototype);
-
-  if (fastResult) {
-    return /** @type {NewableFunction} */ (fastResult);
-  }
   const type =
     isCallable(value) || assumePrototype ? value : guardedGetPrototypeOf(value);
 
@@ -761,8 +695,6 @@ export function getDefinedConstructor(value = null, options) {
     getInertDescriptor(type, 'constructor', TRUSTED_DATA_CONFIRMATION)?.value ?? null;
 
   if (isFunction(creator)) {
-    registerConstructor(value, /** @type {NewableFunction} */ (creator), assumePrototype);
-
     return /** @type {NewableFunction} */ (creator);
   } else if (creator !== null) {
     const constructor = getInertDescriptor(
@@ -772,11 +704,6 @@ export function getDefinedConstructor(value = null, options) {
     )?.value;
 
     if (isFunction(constructor)) {
-      registerConstructor(
-        value,
-        /** @type {NewableFunction} */ (constructor),
-        assumePrototype,
-      );
       return /** @type {NewableFunction} */ (constructor);
     }
   }
@@ -786,17 +713,15 @@ export function getDefinedConstructor(value = null, options) {
 /**
  * Returns the constructor's `name` via its property descriptor.
  *
- * `name` is spec-defined as an own data descriptor on every function
- * (ECMA-262 §10.2.9 `SetFunctionName`), so reading via
- * `getOwnPropertyDescriptor(constructor, 'name').value` returns the data
- * value directly. An accessor on `name` leaves the descriptor's `value`
- * undefined and is therefore rejected by the {@link isStringValue} narrow
- * that follows. A malicious
- * `Object.defineProperty(Cls, 'name', { get: () => 'Spoofed' })` is the
- * canonical example. No direct-access fallback, because direct `.name`
- * access would invoke the accessor.
+ * Composes {@link getDefinedConstructor} (the throw-safe, tamper-resistant
+ * constructor walk) with {@link getVerifiedOwnName} (the own `name` descriptor
+ * read, narrowed to a string primitive). Reading `name` via its descriptor —
+ * rather than direct `.name` access — keeps the read inert: an accessor `name`
+ * (the canonical `Object.defineProperty(Cls, 'name', { get: () => 'Spoofed' })`)
+ * leaves the descriptor's `value` undefined and is rejected, never invoked.
  *
- * Composes {@link getDefinedConstructor} as the upstream walk.
+ * `name` is spec-defined as an own data descriptor on every function
+ * (ECMA-262 §10.2.9 `SetFunctionName`), so the own read suffices.
  *
  * Edge cases:
  *
@@ -820,27 +745,7 @@ export function getDefinedConstructor(value = null, options) {
  * getDefinedConstructorName(null);       // undefined
  */
 export function getDefinedConstructorName(value, options) {
-  const { assumePrototype = false } =
-    /** @type {DefinedConstructorAccessorOptions} */ (options) ?? {};
-
-  // fast result.
-  if (hasRegisteredConstructorName(value, assumePrototype)) {
-    return getRegisteredConstructorName(value, assumePrototype);
-  }
-  const constructor = getDefinedConstructor(value, options) ?? null;
-
-  if (constructor === null) {
-    return void 0;
-  }
-  const name = /** @type {unknown} */ (
-    getOwnPropertyDescriptor(/** @type {object} */ (constructor), 'name')?.value
-  );
-  if (!isStringValue(name)) {
-    return void 0;
-  }
-  registerConstructorName(value, name, assumePrototype);
-
-  return name;
+  return getVerifiedOwnName(getDefinedConstructor(value, options));
 }
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----

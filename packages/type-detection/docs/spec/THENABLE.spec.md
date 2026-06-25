@@ -6,7 +6,9 @@
 > **FROZEN 2026-06-18** — decidability check passed (local-realm vectors run against the
 > real predicates through the `@/index.js` barrel). This spec is the base for the axis-1
 > suite; axes 2–4 derive alongside. White-box annotations amended 2026-06-23 (decision
-> #054); behavioral vectors unchanged — see Resolved items #4.
+> #054) and 2026-06-25 (decision #059, registry-drop + constructor threading — the only
+> `@internal` contract change, `hasPromiseIdentitySignal`); public behavioral vectors
+> unchanged throughout — see Resolved items #4 and #5.
 
 ## Module contract
 
@@ -32,9 +34,9 @@ value's methods or probes engine-internal slots.
 **Exported `@internal` helpers (axis 4):**
 
 - `doesImplementPromiseContract(value?)` — declared in both `.js` and `.d.ts`.
-- `hasPromiseIdentitySignal(value?, options?)` — the two string-shape identity markers
-  (tag and constructor-name); `options.assumePrototype` switches the name resolution to a
-  prototype object's own constructor (decision #054).
+- `hasPromiseIdentitySignal(value?, name?)` — the two string-shape identity markers: the
+  value's `[[Class]]` tag and the constructor `name` threaded in by the caller; does no
+  constructor resolution of its own (decision #059).
 - `isStructuralPromisePrototypeEquivalent(prototype, constructor)` — prototype-side
   structural validation with reciprocal own-constructor identity (decision #054).
 - `isStructuralPromiseEquivalent(value, prototype?)` — `isPromise`'s cross-realm arm,
@@ -273,12 +275,12 @@ prototype-graft (`isPromise/B2`).
 **Composition note (axis 4):** two-axis ternary over `isCurrentRealmPromiseInstance`; the
 local-realm arm uses `getPrototypeOf` (`@/config`) and the realm-fixed `promisePrototype`
 capture; the cross-realm arm is `isStructuralPromiseEquivalent`, composing
-`hasPromiseIdentitySignal` (tag via `getTypeSignature`, name via
-`getDefinedConstructorName`), `doesImplementPromiseContract`, and
-`isStructuralPromisePrototypeEquivalent` — the last resolving the prototype's own
-constructor through `getDefinedConstructor` / `getDefinedConstructorName` under
-`{ assumePrototype: true }`, plus `guardedGetPrototypeOf` (all `@/utility`). Decision
-#054.
+`hasPromiseIdentitySignal` (tag via `getTypeSignature`, name threaded in by the caller),
+`doesImplementPromiseContract`, and `isStructuralPromisePrototypeEquivalent` — each
+structural helper resolving its object's constructor ONCE via `getDefinedConstructor` and
+reusing it for both the name (via `getVerifiedOwnName`) and the reciprocal-identity
+compare, the prototype leg under `{ assumePrototype: true }`, plus `guardedGetPrototypeOf`
+(all `@/utility`). Decisions #054, #059.
 
 **Policy flags:** `isPromise/R1`-`R2` encode the _current shipped_ subclass-rejection
 behavior; if a subclass-admission policy is ever adopted these vectors invert.
@@ -305,35 +307,42 @@ caller's job).
 - `dMPC/B1` — short-circuit order is `then` → `catch` → `finally`; the order is a cost
   optimization, not observable behavior beyond which method a malformed input fails at.
 
-### `hasPromiseIdentitySignal(value?, options?)` — `@internal`
+### `hasPromiseIdentitySignal(value?, name?)` — `@internal`
 
 The two string-shape identity markers, independent of the method contract.
-`getTypeSignature(value) === '[object Promise]' && getDefinedConstructorName(value, options) === 'Promise'`.
-`options.assumePrototype` (decision #054) switches the constructor-name resolution to read
-a prototype object's OWN constructor (ECMA-262 §10.2.6) rather than walking up its
-`[[Prototype]]` — required when `value` is itself a prototype object.
+`getTypeSignature(value) === '[object Promise]' && name === 'Promise'`. The `name` is the
+caller's already-resolved constructor name — the caller resolves the constructor once and
+derives its name via `getVerifiedOwnName`; this helper does no constructor resolution of
+its own (decision #059, which replaced the former `options.assumePrototype` parameter that
+existed only to drive an internal `getDefinedConstructorName` call; the
+prototype-vs-instance resolution distinction now lives entirely in the caller that
+resolves the constructor).
 
-- `hPIS/A1` — `Promise.resolve()` (no options) → true — instance: tag
-  `'[object Promise]'`, name walked to `'Promise'`.
-- `hPIS/A2` — `Promise.prototype` with `{ assumePrototype: true }` → true — reads the
-  prototype's own `constructor` name `'Promise'`.
-- `hPIS/R1` — `Promise.prototype` WITHOUT options → false — the name resolution walks up
-  to `Object.prototype` and yields `'Object'`. Documents why the prototype leg must pass
-  `assumePrototype` (the bug decision #054 fixed).
-- `hPIS/R2` — `{ [Symbol.toStringTag]: 'Promise' }` (no real constructor) → false — tag
-  passes, name reaches `'Object'`.
-- `hPIS/R3` — `{ then() {}, catch() {}, finally() {} }` (PromiseLike, tag
-  `'[object Object]'`) → false — tag mismatch.
-- `hPIS/B1` — a throwing `Symbol.toStringTag` getter → false, **not thrown** — the tag
-  read goes through the throw-safe `getTypeSignature`.
+- `hPIS/A1` — `(Promise.resolve(), 'Promise')` → true — both markers: tag
+  `'[object Promise]'` and the threaded name `'Promise'`.
+- `hPIS/A2` — `(Promise.prototype, 'Promise')` → true — a prototype object carries the
+  Promise tag too; with the matching threaded name it passes.
+- `hPIS/R1` — `(Promise.resolve(), 'Object')` → false — the tag passes, but the threaded
+  name marker is load-bearing and rejects a non-`'Promise'` name.
+- `hPIS/R2` — `({ [Symbol.toStringTag]: 'Promise' }, 'Object')` → false — the
+  `Symbol.toStringTag` spoof is defeated by the threaded real constructor name.
+- `hPIS/R3` — `({ then() {}, catch() {}, finally() {} }, 'Promise')` → false — tag
+  `'[object Object]'` mismatch (a matching name cannot rescue a failed tag).
+- `hPIS/R4` — `(Promise.resolve(), undefined)` → false — no reachable name was threaded in
+  (the caller's `getVerifiedOwnName` found none).
+- `hPIS/B1` — `(throwing Symbol.toStringTag getter, 'Promise')` → false, **not thrown** —
+  the tag read goes through the throw-safe `getTypeSignature`.
 
 ### `isStructuralPromisePrototypeEquivalent(prototype, constructor)` — `@internal`
 
 Validates that `prototype` IS structurally `Promise.prototype`, anchored on a reciprocal
-own-constructor identity.
-`!!constructor && hasPromiseIdentitySignal(prototype, { assumePrototype: true }) && doesImplementPromiseContract(prototype) && getDefinedConstructor(prototype, { assumePrototype: true }) === constructor`.
-Threads `{ assumePrototype: true }` to BOTH resolving legs so the two reads agree on the
-prototype's own constructor (decision #054).
+own-constructor identity. Resolves the prototype's own constructor ONCE —
+`const definedConstructor = constructor && getDefinedConstructor(prototype, { assumePrototype: true })`
+— then
+`!!constructor && constructor === definedConstructor && hasPromiseIdentitySignal(prototype, getVerifiedOwnName(definedConstructor)) && doesImplementPromiseContract(prototype)`.
+The single resolution (`{ assumePrototype: true }`, ECMA-262 §10.2.6) feeds both the
+reciprocal-identity compare and the threaded name; the falsy-`constructor` guard
+short-circuits before any walk (decisions #054, #059).
 
 - `iSPPE/A1` — `(Promise.prototype, Promise)` → true.
 - `iSPPE/A2` — `(foreign Promise.prototype, foreign Promise constructor)` → true —
@@ -342,16 +351,18 @@ prototype's own constructor (decision #054).
   short-circuits.
 - `iSPPE/R2` — `(Object.prototype, Object)` → false — tag is `'[object Object]'`.
 - `iSPPE/R3` — `(prototype, mismatchedConstructor)` → false — the reciprocal
-  `getDefinedConstructor(prototype, { assumePrototype: true }) === constructor` fails.
+  `constructor === definedConstructor` identity fails.
 
 ### `isStructuralPromiseEquivalent(value, prototype?)` — `@internal`
 
 `isPromise`'s full cross-realm arm: the value-side identity signal + method contract +
-prototype-equivalence.
-`hasPromiseIdentitySignal(value) && doesImplementPromiseContract(value) && isStructuralPromisePrototypeEquivalent(isObject(prototype) ? prototype : guardedGetPrototypeOf(value), getDefinedConstructor(value))`.
-The INSTANCE is resolved option-less (an instance walks to its prototype's constructor);
-the PROTOTYPE is delegated to the assume-path helper. `prototype` may be supplied by the
-caller (`isPromise` passes its already-read `getPrototypeOf(value)`) or resolved
+prototype-equivalence. Resolves the value's constructor ONCE —
+`const definedConstructor = getDefinedConstructor(value)` — then
+`hasPromiseIdentitySignal(value, getVerifiedOwnName(definedConstructor)) && doesImplementPromiseContract(value) && isStructuralPromisePrototypeEquivalent(isObject(prototype) ? prototype : guardedGetPrototypeOf(value), definedConstructor)`.
+The single resolution is threaded both into the value's name marker (via
+`getVerifiedOwnName`) and down to the prototype helper as the reciprocal target (decision
+#059); the prototype leg does its own assume-path resolution. `prototype` may be supplied
+by the caller (`isPromise` passes its already-read `getPrototypeOf(value)`) or resolved
 internally. These vectors are the white-box counterparts of the public `isPromise`
 cross-realm vectors.
 
@@ -423,3 +434,15 @@ post-freeze amendment is recorded below (item 4).
    The freeze of the behavioral oracle is preserved. Full rationale — including the
    value-keyed-registry caveat and the thread-the-option-vs-registry- hardening choice —
    in **decision #054**.
+5. **Post-freeze amendment (2026-06-25) — registry-drop + constructor threading (decision
+   #059).** The constructor registries were removed; the structural helpers now thread the
+   once-resolved constructor instead of caching it across calls.
+   `hasPromiseIdentitySignal`'s `@internal` signature changed from `(value, options)` to
+   `(value, name)` — it no longer resolves a constructor; the caller threads in the name,
+   derived once via the new `getVerifiedOwnName`. **No public behavioral vector changed**
+   — every `isPromise/A*`/`R*`/`B*` verdict is identical. The amendment touched the
+   white-box composition annotations, the axis-4 `hasPromiseIdentitySignal` contract and
+   its `hPIS` vectors (one added — `hPIS/R4`; `hPIS/R2` now asserts the threaded name
+   defeats a `Symbol.toStringTag` spoof), and retired the value-keyed-registry caveat from
+   amendment 4 (no cache remains to poison). The freeze of the behavioral oracle is
+   preserved. Full rationale in **decision #059**.

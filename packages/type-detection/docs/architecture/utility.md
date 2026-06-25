@@ -7,8 +7,9 @@ predicates: descriptor walks (`getNextAvailablePropertyDescriptor` and its throw
 wrapper `getInertDescriptor`), inert method and accessor probes (`hasInertMethod`,
 `hasInertGetter`, `hasInertSetter`, `hasInertValue`), tag and type-signature readers
 (`getTypeSignature`, `getTaggedType`), the inert constructor walk (`getDefinedConstructor`
-and `getDefinedConstructorName` — decisions #047, #054–#056), and the user-facing
-type-name resolver (`resolveType`).
+and `getDefinedConstructorName` — decisions #047, #054–#059) plus the generic
+verified-name reader (`getVerifiedOwnName`), and the user-facing type-name resolver
+(`resolveType`).
 
 The discipline is uniform: every property read is descriptor-based, accessor invocation is
 deliberately avoided, and — since decision #056 — the descriptor-walk reads are
@@ -52,22 +53,33 @@ refinements layer on the #047 walk:
 - **`assumePrototype` option (decisions #047, #054).** When the caller knows the input IS
   a real prototype object (e.g. the result of `getPrototypeOf(instance)`),
   `{ assumePrototype: true }` reads the prototype's OWN `constructor` (ECMA-262 §10.2.6)
-  instead of walking up. #054 generalized the option from `getDefinedConstructor` to
-  `getDefinedConstructorName`; its two call sites are `hasPlainObjectPrototypeContract`
-  (`@/object`) and the thenable cross-realm prototype-equivalence check.
-- **Per-interpretation memoization (decision #055).** The `constructorRegistry` /
-  `constructorNameRegistry` `WeakMap`s are keyed by `(value, assumePrototype)` — a nested
-  `Map<'proto' | 'default', …>` — because the SAME prototype object resolves to two
-  different constructors depending on the option (its own §10.2.6 constructor vs. the
-  walked-up one). A flat value-keyed cache conflated the two and poisoned cross-caller
-  reads — reachable through the public accessors — which the per-interpretation key
-  closes.
-- **Throw-safety (decision #056).** Both descriptor reads route through
-  `getInertDescriptor`, so a hostile trap yields `undefined` ("no reachable constructor")
-  rather than propagating. This applies the same #029 trust boundary the inert probes use,
-  making every constructor-walk consumer (`@/thenable`, `@/object`, `@/function`,
-  `@/primitive`, `@/evented`) throw-safe. The earlier "honest throw" stance is retracted —
-  `undefined` is the contract-consistent answer, and no consumer relied on the throw.
+  instead of walking up. The option lives on `getDefinedConstructor` and threads through
+  `getDefinedConstructorName`; its `assumePrototype` call sites are
+  `hasPlainObjectPrototypeContract` (`@/object`) and the thenable cross-realm
+  prototype-equivalence check (`isStructuralPromisePrototypeEquivalent`).
+- **No cross-call memoization; intra-call threading (decision #059).**
+  `getDefinedConstructorName` is
+  `getVerifiedOwnName(getDefinedConstructor(value, options))` — the constructor is
+  resolved once and its `name` read from that resolved constructor via the generic
+  `getVerifiedOwnName` (the own `name` descriptor's value, narrowed to a string primitive;
+  own-only, with `getVerifiedNextAvailableName` reserved as the future chain-walking
+  seam). The former `constructorRegistry` / `constructorNameRegistry` `WeakMap`s were
+  removed: a benchmark showed they lost on the dominant distinct-object path and won only
+  on caller-owned repeated detection. Within a single cross-realm call the once-resolved
+  constructor is THREADED into the structural helpers (feeding both the name marker and
+  the reciprocal-identity compare) rather than cached across calls — restoring the
+  "memoization is the consumer's concern" ruling. This completes the registry-unwind begun
+  for `prototypeRegistry` (#057) and retires the `(value, assumePrototype)` keying and
+  poisoning fix of #054/#055 along with the caches.
+- **Throw-safety (decisions #056, #059).** `getDefinedConstructor`'s two descriptor reads
+  route through `getInertDescriptor`, and `getVerifiedOwnName`'s own `name` read is
+  wrapped, so a hostile trap (or a nullish input) yields `undefined` ("no reachable
+  constructor" / "no verified name") rather than propagating. This applies the same #029
+  trust boundary the inert probes use, making every constructor-walk consumer
+  (`@/thenable`, `@/object`, `@/function`, `@/primitive`, `@/evented`) throw-safe; #059
+  extends it to the name read, closing the former raw `getOwnPropertyDescriptor` name
+  read. The earlier "honest throw" stance is retracted — `undefined` is the
+  contract-consistent answer, and no consumer relied on the throw.
 
 ## Open architectural questions
 

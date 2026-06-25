@@ -3,22 +3,21 @@
 /**
  * @module test/_bench/memoization
  *
- * Benchmark harness for the constructor/prototype memoization decision.
+ * Benchmark harness for the constructor/prototype resolution cost questions.
  *
- * The three registries (`prototypeRegistry`, `constructorRegistry`,
- * `constructorNameRegistry`) live entirely inside `guardedGetPrototypeOf`,
- * `getDefinedConstructor`, and `getDefinedConstructorName`. So the cleanest,
- * fairest memo-vs-no-memo comparison is at the RESOLVER level: the memoized
- * versions (imported from the barrel) head-to-head against faithful no-cache
- * re-implementations built from the same exported primitives. Everything
- * downstream (the predicates) just composes these, so the resolver result
- * generalizes.
+ * Originally built to decide the constructor/prototype memoization question. The three
+ * registries it measured (`prototypeRegistry`, `constructorRegistry`,
+ * `constructorNameRegistry`) were all REMOVED on these numbers — `prototypeRegistry`
+ * (#057), the descriptor-batching/memo experiments (#058), and the two constructor
+ * registries in favour of intra-call threading (#059). The harness is retained as the
+ * standing cost instrument: the resolver-level groups compare the shipped (no-cache,
+ * threaded) resolvers against memoized re-implementations built from the same exported
+ * primitives, so any future "should this be cached?" question can be measured the same way.
  *
- * The decisive axis is distinct-objects (cache always misses — the dominant
- * "classify each value once" pattern) vs repeated-object (cache hits — the
- * re-detection pattern the consumer could memoize itself). A second group
- * baselines the public predicates (current impl) to show hot-path vs cold-path
- * magnitude and how much they even exercise the resolvers.
+ * The decisive axis is distinct-objects (cache always misses — the dominant "classify each
+ * value once" pattern) vs repeated-object (cache hits — the re-detection pattern the
+ * consumer could memoize itself). A second group baselines the public predicates to show
+ * hot-path vs cold-path magnitude and how much they even exercise the resolvers.
  *
  * Run: `npx vitest bench memoization` (NOT picked up by `test/**\/*.test.js`).
  */

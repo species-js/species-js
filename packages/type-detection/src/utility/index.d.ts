@@ -536,6 +536,27 @@ export function hasInertValue(
   trustedData?: boolean,
 ): boolean;
 
+/**
+ * The verified own `name` of a value — the value of its OWN `name` property
+ * descriptor, but only when that value is a string primitive; `undefined`
+ * otherwise.
+ *
+ * Generic and constructor-agnostic. Own-descriptor read only (no chain walk);
+ * the chain-walking counterpart is reserved under the name
+ * `getVerifiedNextAvailableName`, mirroring the `getOwnPropertyDescriptor` /
+ * {@link getNextAvailablePropertyDescriptor} pair.
+ *
+ * Inert and throw-safe: an accessor on `name` is rejected (its descriptor `value`
+ * is `undefined`, never invoked), and a nullish input or a hostile
+ * `getOwnPropertyDescriptor` Proxy-trap yields `undefined` rather than throwing.
+ *
+ * @param value - the value whose own `name` to read
+ * @returns the own `name` value when present and a string primitive; `undefined`
+ *  otherwise
+ * @internal
+ */
+export function getVerifiedOwnName(value?: unknown): string | undefined;
+
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 //
 //  Type-Signature Readers

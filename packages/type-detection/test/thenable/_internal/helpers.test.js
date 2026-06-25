@@ -6,21 +6,14 @@
  * Axis 4 — helper-unit (white-box). The five exported `@internal` helpers
  * tested in isolation:
  *   - `doesImplementPromiseContract` — the structural three-method contract.
- *   - `hasPromiseIdentitySignal` — the two string-shape markers (tag + name),
- *     with the `assumePrototype` option for prototype-object inputs.
+ *   - `hasPromiseIdentitySignal` — the two string-shape markers: the value's
+ *     `[[Class]]` tag and the constructor name threaded in by the caller.
  *   - `isStructuralPromisePrototypeEquivalent` — prototype-side validation with
  *     reciprocal own-constructor identity.
  *   - `isStructuralPromiseEquivalent` — `isPromise`'s full cross-realm arm.
  *   - `isCurrentRealmPromiseInstance` — the local-realm instanceof arm.
  * Testing these directly catches contract violations the orchestrator-only
  * suites would mask, and exercises the cross-realm path on local values.
- *
- * CONTAMINATION NOTE (decision #054): the constructor registries are
- * value-keyed, so a prototype object resolved both with and without
- * `assumePrototype` would poison its own cache entry. Every prototype input
- * here is resolved under ONE option-setting (see the `__config.js` axis-4
- * inputs); the single no-option demonstration (hPIS/R1) uses an isolated fresh
- * realm so it cannot reach any `assumePrototype` vector.
  *
  * Mirrors the "Helper specification (axis 4)" section in
  * `docs/spec/THENABLE.spec.md`.
@@ -50,7 +43,6 @@ import {
   localPromisePrototype,
   foreignPromisePrototype,
   foreignPromiseConstructor,
-  isolatedForeignPromisePrototype,
 } from '../__config.js';
 
 describe('[Internal] doesImplementPromiseContract', () => {
@@ -85,32 +77,36 @@ describe('[Internal] doesImplementPromiseContract', () => {
 });
 
 describe('[Internal] hasPromiseIdentitySignal', () => {
-  it('hPIS/A1: Promise.resolve() (no options) → true (tag + walked ctor-name)', () => {
-    expect(hasPromiseIdentitySignal(Promise.resolve())).toBe(true);
+  it('hPIS/A1: (Promise.resolve(), "Promise") → true (both markers: tag + threaded name)', () => {
+    expect(hasPromiseIdentitySignal(Promise.resolve(), 'Promise')).toBe(true);
   });
 
-  it('hPIS/A2: Promise.prototype with { assumePrototype: true } → true (own ctor-name)', () => {
-    expect(
-      hasPromiseIdentitySignal(localPromisePrototype(), { assumePrototype: true }),
-    ).toBe(true);
+  it('hPIS/A2: (Promise.prototype, "Promise") → true (prototype object carries the Promise tag)', () => {
+    expect(hasPromiseIdentitySignal(localPromisePrototype(), 'Promise')).toBe(true);
   });
 
-  it('hPIS/R1: a (fresh-realm) Promise.prototype WITHOUT options → false (name walks up to Object)', () => {
-    // Why the prototype legs MUST pass assumePrototype — the bug #054 fixed. An
-    // ISOLATED realm, so this no-option resolution cannot poison an assume vector.
-    expect(hasPromiseIdentitySignal(isolatedForeignPromisePrototype())).toBe(false);
+  it('hPIS/R1: (Promise.resolve(), "Object") → false (the threaded name marker is load-bearing)', () => {
+    expect(hasPromiseIdentitySignal(Promise.resolve(), 'Object')).toBe(false);
   });
 
-  it('hPIS/R2: { [toStringTag]: "Promise" } with no real constructor → false (name reaches Object)', () => {
-    expect(hasPromiseIdentitySignal({ [Symbol.toStringTag]: 'Promise' })).toBe(false);
+  it('hPIS/R2: ({ [toStringTag]: "Promise" }, "Object") → false (tag-spoof defeated by the real name)', () => {
+    expect(hasPromiseIdentitySignal({ [Symbol.toStringTag]: 'Promise' }, 'Object')).toBe(
+      false,
+    );
   });
 
-  it('hPIS/R3: full-contract PromiseLike (tag [object Object]) → false (tag mismatch)', () => {
-    expect(hasPromiseIdentitySignal(fullContract())).toBe(false);
+  it('hPIS/R3: (full-contract PromiseLike, "Promise") → false (tag [object Object] mismatch)', () => {
+    expect(hasPromiseIdentitySignal(fullContract(), 'Promise')).toBe(false);
   });
 
-  it('hPIS/B1: throwing Symbol.toStringTag getter → false, not thrown (throw-safe tag read)', () => {
-    expect(hasPromiseIdentitySignal(throwingTagGetterWithContract())).toBe(false);
+  it('hPIS/R4: (Promise.resolve(), undefined) → false (no reachable name threaded in)', () => {
+    expect(hasPromiseIdentitySignal(Promise.resolve(), undefined)).toBe(false);
+  });
+
+  it('hPIS/B1: (throwing toStringTag getter, "Promise") → false, not thrown (throw-safe tag read)', () => {
+    expect(hasPromiseIdentitySignal(throwingTagGetterWithContract(), 'Promise')).toBe(
+      false,
+    );
   });
 });
 

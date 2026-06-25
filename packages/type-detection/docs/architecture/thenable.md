@@ -47,9 +47,15 @@ value-side identity signal (`hasPromiseIdentitySignal` — the `[[Class]]` tag p
 constructor name), the method contract (`doesImplementPromiseContract`), and a
 prototype-side validation (`isStructuralPromisePrototypeEquivalent`). The last anchors on
 a reciprocal own-constructor identity, reading the prototype's OWN `constructor` (ECMA-262
-§10.2.6) via `getDefinedConstructor` / `getDefinedConstructorName` under
-`{ assumePrototype: true }` — the option generalized from `@/object`'s sole call site by
-decision #054.
+§10.2.6) via `getDefinedConstructor` under `{ assumePrototype: true }` — the option
+generalized from `@/object`'s sole call site by decision #054.
+
+Since decision #059 these helpers THREAD the once-resolved constructor instead of
+re-resolving it (the former `constructorRegistry` / `constructorNameRegistry` were removed
+on benchmark numbers). Each structural helper resolves its object's constructor once via
+`getDefinedConstructor` and reuses it for both the reciprocal-identity compare and the
+name marker — `hasPromiseIdentitySignal(value, name)` now takes the already-derived name
+(via the generic `getVerifiedOwnName`) and does no constructor resolution of its own.
 
 `thenable.js` and `evented.js` share the named-helper `isCurrentRealm{X}Instance`
 extraction (`isCurrentRealmPromiseInstance` here, `isCurrentRealmEventTargetInstance` and
@@ -102,17 +108,18 @@ promotion is to `@/config` alongside the other intrinsics.
 
 Each predicate is a clean composition over the layer below it, and `isPromise`'s
 cross-realm arm decomposes further into structural-equivalence helpers (decision #054).
-Reading from the floor up (`aP` = `{ assumePrototype: true }`):
+Reading from the floor up (`aP` = `{ assumePrototype: true }`, `dc` = the once-resolved
+defined constructor threaded through the helper, decision #059):
 
-| Predicate / helper                       | Composition                                                                                                                                 |
-| ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
-| `isThenable`                             | `!!v && (isCurrentRealmPromiseInstance(v) \|\| hasInertMethod(v, 'then'))`                                                                  |
-| `doesImplementPromiseContract`           | `hasInertMethod(v, 'then') && hasInertMethod(v, 'catch') && hasInertMethod(v, 'finally')`                                                   |
-| `isPromiseLike`                          | `!!v && (isCurrentRealmPromiseInstance(v) \|\| doesImplementPromiseContract(v))`                                                            |
-| `hasPromiseIdentitySignal`               | `getTypeSignature(v) === '[object Promise]' && getDefinedConstructorName(v, opts) === 'Promise'`                                            |
-| `isStructuralPromisePrototypeEquivalent` | `!!ctor && hasPromiseIdentitySignal(proto, aP) && doesImplementPromiseContract(proto) && getDefinedConstructor(proto, aP) === ctor`         |
-| `isStructuralPromiseEquivalent`          | `hasPromiseIdentitySignal(v) && doesImplementPromiseContract(v) && isStructuralPromisePrototypeEquivalent(proto, getDefinedConstructor(v))` |
-| `isPromise`                              | `!!v && (isCurrentRealmPromiseInstance(v) ? getPrototypeOf(v) === promisePrototype : isStructuralPromiseEquivalent(v, getPrototypeOf(v)))`  |
+| Predicate / helper                       | Composition                                                                                                                                                                  |
+| ---------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `isThenable`                             | `!!v && (isCurrentRealmPromiseInstance(v) \|\| hasInertMethod(v, 'then'))`                                                                                                   |
+| `doesImplementPromiseContract`           | `hasInertMethod(v, 'then') && hasInertMethod(v, 'catch') && hasInertMethod(v, 'finally')`                                                                                    |
+| `isPromiseLike`                          | `!!v && (isCurrentRealmPromiseInstance(v) \|\| doesImplementPromiseContract(v))`                                                                                             |
+| `hasPromiseIdentitySignal`               | `getTypeSignature(v) === '[object Promise]' && name === 'Promise'` (caller threads `name`)                                                                                   |
+| `isStructuralPromisePrototypeEquivalent` | `dc = ctor && getDefinedConstructor(proto, aP); !!ctor && ctor === dc && hasPromiseIdentitySignal(proto, getVerifiedOwnName(dc)) && doesImplementPromiseContract(proto)`     |
+| `isStructuralPromiseEquivalent`          | `dc = getDefinedConstructor(v); hasPromiseIdentitySignal(v, getVerifiedOwnName(dc)) && doesImplementPromiseContract(v) && isStructuralPromisePrototypeEquivalent(proto, dc)` |
+| `isPromise`                              | `!!v && (isCurrentRealmPromiseInstance(v) ? getPrototypeOf(v) === promisePrototype : isStructuralPromiseEquivalent(v, getPrototypeOf(v)))`                                   |
 
 Each layer adds exactly one semantic level. No layer redoes work the layer below already
 did. Short-circuit `&&` enforces a _"least expensive first"_ ordering at each layer: in
