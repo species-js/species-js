@@ -14,6 +14,19 @@
  * threaded) resolvers against memoized re-implementations built from the same exported
  * primitives, so any future "should this be cached?" question can be measured the same way.
  *
+ * MAINTENANCE NOTE — the `registry`, `batched`, `memoized`, and `level-memo` arms are
+ * deliberate inline RECONSTRUCTIONS of implementations DELETED from `src` (the constructor
+ * / prototype registries, the descriptor-batching). They are neither live code nor dead
+ * duplication: do NOT remove them as cruft. They exist so the ruled-out candidates stay
+ * benchable against the shipped `current` arms after the candidate code itself is gone.
+ * The trap they avoid: the pre-rework `memo` arm simply pointed at the shipped functions,
+ * so once #057/#059 de-memoized those, it silently DEGENERATED — `memo` collapsed into the
+ * no-cache `current`/`plain`/`threaded` code and the bench kept passing while measuring
+ * nothing. A passing benchmark that lies about its comparison is worse than a failing one.
+ * The module-load self-check (each structural candidate must equal the live
+ * `isStructuralPromiseEquivalent`) is what keeps the reconstructions faithful — if it ever
+ * throws, a reconstruction has drifted from shipped behavior.
+ *
  * The decisive axis is distinct-objects (cache always misses — the dominant "classify each
  * value once" pattern) vs repeated-object (cache hits — the re-detection pattern the
  * consumer could memoize itself). A second group baselines the public predicates to show
