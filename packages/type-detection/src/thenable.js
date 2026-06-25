@@ -16,6 +16,7 @@
  */
 
 import {
+  TRUSTED_DATA_CONFIRMATION,
   hasInertMethod,
   getTypeSignature,
   getDefinedConstructorName,
@@ -83,9 +84,9 @@ const [promiseConstructor, promisePrototype] =
  */
 export function doesImplementPromiseContract(value) {
   return (
-    hasInertMethod(value, 'then') &&
-    hasInertMethod(value, 'catch') &&
-    hasInertMethod(value, 'finally')
+    hasInertMethod(value, 'then', TRUSTED_DATA_CONFIRMATION) &&
+    hasInertMethod(value, 'catch', TRUSTED_DATA_CONFIRMATION) &&
+    hasInertMethod(value, 'finally', TRUSTED_DATA_CONFIRMATION)
   );
 }
 
@@ -358,7 +359,9 @@ export function isPromise(value) {
  */
 export function isThenable(value) {
   return (
-    !!value && (isCurrentRealmPromiseInstance(value) || hasInertMethod(value, 'then'))
+    !!value &&
+    (isCurrentRealmPromiseInstance(value) ||
+      hasInertMethod(value, 'then', TRUSTED_DATA_CONFIRMATION))
   );
 }
 

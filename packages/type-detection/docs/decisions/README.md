@@ -109,6 +109,7 @@ Open architectural questions live in [open-questions.md](./open-questions.md).
 | [055](./0055-constructor-registries-per-interpretation-keying.md)                 | Constructor registries keyed by `(value, assumePrototype)`; #054 deferral overturned    | 2026-06-23 |
 | [056](./0056-get-defined-constructor-throw-safe-via-inert-descriptor.md)          | `getDefinedConstructor` routed through `getInertDescriptor`; honest-throw retracted     | 2026-06-23 |
 | [057](./0057-drop-prototype-registry-guarded-get-prototype-of-throw-safe-only.md) | `prototypeRegistry` dropped (benchmark-driven); `guardedGetPrototypeOf` throw-safe-only | 2026-06-23 |
+| [058](./0058-descriptor-batching-and-descriptor-memo-rejected.md)                 | Descriptor-batching and descriptor-memoization rejected (benchmark-driven)              | 2026-06-24 |
 
 ## Decisions by date (chronological)
 
@@ -174,3 +175,4 @@ order with one-line summaries:
 | 2026-06-23 | [055](./0055-constructor-registries-per-interpretation-keying.md)                 | Constructor registries keyed by `(value, assumePrototype)`         |
 | 2026-06-23 | [056](./0056-get-defined-constructor-throw-safe-via-inert-descriptor.md)          | `getDefinedConstructor` throw-safe via `getInertDescriptor`        |
 | 2026-06-23 | [057](./0057-drop-prototype-registry-guarded-get-prototype-of-throw-safe-only.md) | `prototypeRegistry` dropped (benchmark-driven)                     |
+| 2026-06-24 | [058](./0058-descriptor-batching-and-descriptor-memo-rejected.md)                 | Descriptor-batching + descriptor-memo rejected (benchmark-driven)  |

@@ -137,6 +137,8 @@ declare global {
 }
 export type WeakKey = symbol | object | Callable;
 
+export const TRUSTED_DATA_CONFIRMATION = true;
+
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 //
 //  Function Types
@@ -313,12 +315,14 @@ export function isValidPropertyKey(value?: unknown): value is PropertyKey;
  *
  * @param value - the value whose descriptor chain should be inspected
  * @param key - the property key to resolve; invalid keys yield `undefined`
+ * @param trustedData - call-site hint
  * @returns the first descriptor found while walking up the chain;
  *  `undefined` if none exists
  */
 export function getNextAvailablePropertyDescriptor(
   value: unknown,
   key: PropertyKey,
+  trustedData?: boolean,
 ): PropertyDescriptor | undefined;
 
 /**
@@ -392,12 +396,14 @@ export function getOwnPropertyDescriptorsKeySet(value?: unknown): Set<string>;
  *
  * @param type - the value to inspect
  * @param key - the property key to resolve through the value's prototype-chain
+ * @param trustedData - call-site hint
  * @returns the first descriptor found while walking the chain; `undefined` if
  *  none exists or a trap threw
  */
 export function getInertDescriptor(
   type: unknown,
   key: PropertyKey,
+  trustedData?: boolean,
 ): PropertyDescriptor | undefined;
 
 /**
@@ -432,6 +438,7 @@ export function getInertDescriptor(
  * @param type - the value to inspect
  * @param key - the property key to resolve through the value's
  *  prototype-chain
+ * @param trustedData - call-site hint
  * @returns `true` when the value carries a callable data property at
  *  `key` in its prototype-chain; `false` otherwise
  * @example
@@ -441,7 +448,11 @@ export function getInertDescriptor(
  * hasInertMethod({ get then() { return () => {}; } }, 'then'); // false (accessor)
  * hasInertMethod(null, 'then');                                // false
  */
-export function hasInertMethod(type: unknown, key: PropertyKey): boolean;
+export function hasInertMethod(
+  type: unknown,
+  key: PropertyKey,
+  trustedData?: boolean,
+): boolean;
 
 /**
  * Tests whether the value carries an accessor `get` at `key`, reachable
@@ -460,10 +471,15 @@ export function hasInertMethod(type: unknown, key: PropertyKey): boolean;
  * @param type - the value to inspect
  * @param key - the property key to resolve through the value's
  *  prototype-chain
+ * @param trustedData - call-site hint
  * @returns `true` when the value carries an accessor with a callable
  *  getter at `key` in its prototype-chain; `false` otherwise
  */
-export function hasInertGetter(type: unknown, key: PropertyKey): boolean;
+export function hasInertGetter(
+  type: unknown,
+  key: PropertyKey,
+  trustedData?: boolean,
+): boolean;
 
 /**
  * Tests whether the value carries an accessor `set` at `key`, reachable
@@ -476,10 +492,15 @@ export function hasInertGetter(type: unknown, key: PropertyKey): boolean;
  * @param type - the value to inspect
  * @param key - the property key to resolve through the value's
  *  prototype-chain
+ * @param trustedData - call-site hint
  * @returns `true` when the value carries an accessor with a callable
  *  setter at `key` in its prototype-chain; `false` otherwise
  */
-export function hasInertSetter(type: unknown, key: PropertyKey): boolean;
+export function hasInertSetter(
+  type: unknown,
+  key: PropertyKey,
+  trustedData?: boolean,
+): boolean;
 
 /**
  * Tests whether the value carries a data property at `key`, reachable
@@ -504,11 +525,16 @@ export function hasInertSetter(type: unknown, key: PropertyKey): boolean;
  * @param type - the value to inspect
  * @param key - the property key to resolve through the value's
  *  prototype-chain
+ * @param trustedData - call-site hint
  * @returns `true` when the value carries a data descriptor at `key`
  *  in its prototype-chain; `false` otherwise (including accessor
  *  descriptors and missing descriptors)
  */
-export function hasInertValue(type: unknown, key: PropertyKey): boolean;
+export function hasInertValue(
+  type: unknown,
+  key: PropertyKey,
+  trustedData?: boolean,
+): boolean;
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 //

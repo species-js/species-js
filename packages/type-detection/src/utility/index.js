@@ -16,18 +16,25 @@ import {
   objectHasOwn,
   objectKeys,
   toObjectString,
-  isSafeIntegerValue,
 } from '@/config';
 
-import { isStringValue, isSymbolValue, unguardedIsUnregisteredSymbol } from '@/primitive';
+import {
+  isStringValue,
+  isNumberValue,
+  isSymbolValue,
+  unguardedIsUnregisteredSymbol,
+} from '@/primitive';
+
 import { isCallable, isFunction, isNewableFunction } from '@/function';
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 
-/** @typedef {import('./index').WeakKey} WeakKey */
+/** @typedef {import('./index').TRUSTED_DATA_CONFIRMATION} TRUSTED_DATA_CONFIRMATION_FLAG */
 
+/** @typedef {import('./index').WeakKey} WeakKey */
 /** @typedef {import('./index').DefinedConstructorAccessorOptions} DefinedConstructorAccessorOptions */
 
+/** @typedef {import('./index').PropertyDescriptorMap} PropertyDescriptorMap */
 /** @typedef {import('./index').PropertyDescriptor} PropertyDescriptor */
 /** @typedef {import('./index').ConstructorName} ConstructorName */
 /** @typedef {import('./index').TypeSignature} TypeSignature */
@@ -41,6 +48,10 @@ import { isCallable, isFunction, isNewableFunction } from '@/function';
 /** @typedef {import('@/function').ClassConstructor} ClassConstructor */
 
 /** @typedef {import('./index').PredicateFunction} PredicateFunction */
+
+// ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
+
+const TRUSTED_DATA_CONFIRMATION = /** @type {TRUSTED_DATA_CONFIRMATION_FLAG} */ (true);
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 //
@@ -294,18 +305,13 @@ export function hasOwnWritablePrototype(value) {
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 
 /**
- * Narrows a value to `PropertyKey`.
+ * Narrows the value to a valid `PropertyKey`.
  *
  * Composes {@link isStringValue}, {@link isSymbolValue}, and
- * {@link isSafeIntegerValue} — the last from `@/config`, capturing
- * `Number.isSafeInteger` with a polyfill fallback. The safe-integer
- * restriction means numeric property keys are limited to the range
- * `[-(2^53 - 1), 2^53 - 1]` where they round-trip losslessly.
- * Finite-but-non-integer numbers like `1.5` coerce to strings (`"1.5"`)
- * at runtime with lookup surprises. Integers beyond
- * `Number.MAX_SAFE_INTEGER` lose precision in the round-trip. Both are
- * excluded. `NaN` and `±Infinity` are also excluded. They fail the
- * finite check that underlies any safe-integer value.
+ * {@link isNumberValue}. The latter check is sufficient, since
+ * every number value, including infinite number values and even
+ * `NaN`, coerce to string primitives the very moment each gets
+ * assigned as an object's property-key.
  *
  * @param {unknown} [value] - the value to test; omitted is treated as
  *  `undefined`, which is not a property key
@@ -313,7 +319,7 @@ export function hasOwnWritablePrototype(value) {
  *  as a property key; `false` otherwise
  */
 export function isValidPropertyKey(value) {
-  return isStringValue(value) || isSymbolValue(value) || isSafeIntegerValue(value);
+  return isStringValue(value) || isSymbolValue(value) || isNumberValue(value);
 }
 
 /**
@@ -332,11 +338,13 @@ export function isValidPropertyKey(value) {
  *  inspected
  * @param {PropertyKey} key - the property key to resolve; invalid keys
  *  yield `undefined`
+ * @param {TRUSTED_DATA_CONFIRMATION_FLAG} [trustedData] - call-site hint
  * @returns {PropertyDescriptor | undefined} the first descriptor found
  *  while walking up the chain; `undefined` if none exists
+ * @throws {unknown} at a malicious `getOwnPropertyDescriptors` proxy-trap
  */
-export function getNextAvailablePropertyDescriptor(value = null, key) {
-  if (!isValidPropertyKey(key)) {
+export function getNextAvailablePropertyDescriptor(value = null, key, trustedData) {
+  if (trustedData !== true && !isValidPropertyKey(key)) {
     return void 0;
   }
   /** @type {PropertyDescriptor | undefined} */
@@ -378,6 +386,29 @@ export function getNextAvailablePropertyDescriptor(value = null, key) {
 export function getOwnPropertyDescriptorsKeys(value) {
   return objectKeys(getOwnPropertyDescriptors(value ?? !0));
 }
+
+// /**
+//  * Returns the passed value's own string- and/or symbol-based property keys,
+//  * including the non-enumerable ones.
+//  *
+//  * The `value ?? !0` shorthand coerces nullish input to a boxed `true`,
+//  * which sidesteps the `TypeError` that `getOwnPropertyDescriptors(null)`
+//  * would raise.
+//  *
+//  * @param {unknown} [value] - the value whose own string-keyed property names
+//  *  should be returned; nullish (or omitted) yields `[]`
+//  * @returns {Array<string | symbol> the array of own string- and/or symbol-based
+//  *  property keys
+//  * @example
+//  * const obj = Object.defineProperty({ a: 1 }, 'b', { value: 2 });
+//  * Object.keys(obj);                    // ['a']
+//  * getOwnPropertyDescriptorsKeys(obj);  // ['a', 'b']
+//  * getOwnPropertyDescriptorsKeys(null); // []
+//  */
+// export function getOwnPropertyDescriptorsKeys(value) {
+//   get
+//   return objectKeys(getOwnPropertyDescriptors(value ?? !0));
+// }
 
 /**
  * Returns the own string-keyed property names of a value as a `Set<string>`.
@@ -431,12 +462,13 @@ export function getOwnPropertyDescriptorsKeySet(value) {
  *
  * @param {unknown} type - the value to inspect
  * @param {PropertyKey} key - the property key to resolve
- * @returns {PropertyDescriptor | undefined} the first descriptor found while
- *  walking the chain; `undefined` if none exists or a trap threw
+ * @param {TRUSTED_DATA_CONFIRMATION_FLAG} [trustedData] - call-site hint
+ * @returns {PropertyDescriptor | undefined} the first descriptor found
+ *  while walking the chain; `undefined` if none exists or a trap threw
  */
-export function getInertDescriptor(type, key) {
+export function getInertDescriptor(type, key, trustedData) {
   try {
-    return getNextAvailablePropertyDescriptor(type, key);
+    return getNextAvailablePropertyDescriptor(type, key, trustedData);
   } catch {
     return void 0;
   }
@@ -472,6 +504,7 @@ export function getInertDescriptor(type, key) {
  * @param {unknown} type - the value to inspect
  * @param {PropertyKey} key - the property key to resolve through the
  *  value's prototype-chain
+ * @param {TRUSTED_DATA_CONFIRMATION_FLAG} [trustedData] - call-site hint
  * @returns {boolean} `true` when the value carries a callable data
  *  property at `key` in its prototype-chain; `false` otherwise
  * @example
@@ -481,8 +514,8 @@ export function getInertDescriptor(type, key) {
  * hasInertMethod({ get then() { return () => {}; } }, 'then'); // false (accessor)
  * hasInertMethod(null, 'then');                                // false
  */
-export function hasInertMethod(type = null, key) {
-  return type !== null && isCallable(getInertDescriptor(type, key)?.value);
+export function hasInertMethod(type = null, key, trustedData) {
+  return type !== null && isCallable(getInertDescriptor(type, key, trustedData)?.value);
 }
 
 /**
@@ -502,11 +535,12 @@ export function hasInertMethod(type = null, key) {
  * @param {unknown} type - the value to inspect
  * @param {PropertyKey} key - the property key to resolve through the
  *  value's prototype-chain
+ * @param {TRUSTED_DATA_CONFIRMATION_FLAG} [trustedData] - call-site hint
  * @returns {boolean} `true` when the value carries an accessor with a
  *  callable getter at `key` in its prototype-chain; `false` otherwise
  */
-export function hasInertGetter(type = null, key) {
-  return type !== null && isCallable(getInertDescriptor(type, key)?.get);
+export function hasInertGetter(type = null, key, trustedData) {
+  return type !== null && isCallable(getInertDescriptor(type, key, trustedData)?.get);
 }
 
 /**
@@ -520,11 +554,12 @@ export function hasInertGetter(type = null, key) {
  * @param {unknown} type - the value to inspect
  * @param {PropertyKey} key - the property key to resolve through the
  *  value's prototype-chain
+ * @param {TRUSTED_DATA_CONFIRMATION_FLAG} [trustedData] - call-site hint
  * @returns {boolean} `true` when the value carries an accessor with a
  *  callable setter at `key` in its prototype-chain; `false` otherwise
  */
-export function hasInertSetter(type = null, key) {
-  return type !== null && isCallable(getInertDescriptor(type, key)?.set);
+export function hasInertSetter(type = null, key, trustedData) {
+  return type !== null && isCallable(getInertDescriptor(type, key, trustedData)?.set);
 }
 
 /**
@@ -550,12 +585,16 @@ export function hasInertSetter(type = null, key) {
  * @param {unknown} type - the value to inspect
  * @param {PropertyKey} key - the property key to resolve through the
  *  value's prototype-chain
+ * @param {TRUSTED_DATA_CONFIRMATION_FLAG} [trustedData] - call-site hint
  * @returns {boolean} `true` when the value carries a data descriptor at
  *  `key` in its prototype-chain; `false` otherwise (including accessor
  *  descriptors and missing descriptors)
  */
-export function hasInertValue(type = null, key) {
-  return type !== null && objectHasOwn(getInertDescriptor(type, key) ?? {}, 'value');
+export function hasInertValue(type = null, key, trustedData) {
+  return (
+    type !== null &&
+    objectHasOwn(getInertDescriptor(type, key, trustedData) ?? {}, 'value')
+  );
 }
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
@@ -716,14 +755,19 @@ export function getDefinedConstructor(value = null, options) {
   const type =
     isCallable(value) || assumePrototype ? value : guardedGetPrototypeOf(value);
 
-  const creator = getInertDescriptor(type, 'constructor')?.value ?? null;
+  const creator =
+    getInertDescriptor(type, 'constructor', TRUSTED_DATA_CONFIRMATION)?.value ?? null;
 
   if (isFunction(creator)) {
     registerConstructor(value, /** @type {NewableFunction} */ (creator), assumePrototype);
 
     return /** @type {NewableFunction} */ (creator);
   } else if (creator !== null) {
-    const constructor = getInertDescriptor(creator, 'constructor')?.value;
+    const constructor = getInertDescriptor(
+      creator,
+      'constructor',
+      TRUSTED_DATA_CONFIRMATION,
+    )?.value;
 
     if (isFunction(constructor)) {
       registerConstructor(
@@ -803,7 +847,7 @@ export function getDefinedConstructorName(value, options) {
 //
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 
-const startsWithUpperCase = /^\p{Lu}/u;
+const regXStartsWithUpperCase = /^\p{Lu}/u;
 
 /**
  * Resolves a value to its type-name.
@@ -849,7 +893,7 @@ export function resolveType(...args) {
   }
   const name = getDefinedConstructorName(value);
 
-  if (name && startsWithUpperCase.test(name)) {
+  if (name && regXStartsWithUpperCase.test(name)) {
     return name;
   }
   const type = getTaggedType(value);
@@ -892,7 +936,11 @@ export function getValidatedStandardConstructorAndPrototypeTuple(
     return [];
   }
   try {
-    const prototype = getNextAvailablePropertyDescriptor(constructor, 'prototype')?.value;
+    const prototype = getNextAvailablePropertyDescriptor(
+      constructor,
+      'prototype',
+      TRUSTED_DATA_CONFIRMATION,
+    )?.value;
 
     return doesImplementFeatureContract(prototype) &&
       /** @type {{ constructor?: unknown } | undefined} */ (prototype)?.constructor ===

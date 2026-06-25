@@ -236,6 +236,12 @@ export declare const objectValues: typeof Object.values;
 export declare const objectEntries: typeof Object.entries;
 
 /**
+ * `Object.fromEntries`, realm-fixed at module-load.
+ * @internal
+ */
+export declare const objectFromEntries: typeof Object.fromEntries;
+
+/**
  * `Object.getOwnPropertyNames`, realm-fixed at module-load.
  * @internal
  */

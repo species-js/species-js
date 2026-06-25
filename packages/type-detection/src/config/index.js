@@ -239,6 +239,12 @@ export const objectValues = o.values;
 export const objectEntries = o.entries;
 
 /**
+ * `Object.fromEntries`, realm-fixed at module-load.
+ * @internal
+ */
+export const objectFromEntries = o.fromEntries;
+
+/**
  * `Object.getOwnPropertyNames`, realm-fixed at module-load.
  * @internal
  */

@@ -21,7 +21,12 @@
  */
 
 import { getPrototypeOf } from '@/config';
-import { hasInertMethod, getTypeSignature, getDefinedConstructorName } from '@/utility';
+import {
+  TRUSTED_DATA_CONFIRMATION,
+  hasInertMethod,
+  getTypeSignature,
+  getDefinedConstructorName,
+} from '@/utility';
 
 import { isCallable } from '@/function';
 import { isBooleanValue } from '@/primitive';
@@ -127,9 +132,9 @@ export function isCurrentRealmAbortSignalInstance(value) {
  */
 export function doesMatchEventTargetContract(value) {
   return (
-    hasInertMethod(value, 'dispatchEvent') &&
-    hasInertMethod(value, 'addEventListener') &&
-    hasInertMethod(value, 'removeEventListener')
+    hasInertMethod(value, 'dispatchEvent', TRUSTED_DATA_CONFIRMATION) &&
+    hasInertMethod(value, 'addEventListener', TRUSTED_DATA_CONFIRMATION) &&
+    hasInertMethod(value, 'removeEventListener', TRUSTED_DATA_CONFIRMATION)
   );
 }
 
@@ -300,7 +305,7 @@ export function isEventTarget(value) {
 export function doesMatchAbortSignalContract(value) {
   try {
     return (
-      hasInertMethod(value, 'throwIfAborted') &&
+      hasInertMethod(value, 'throwIfAborted', TRUSTED_DATA_CONFIRMATION) &&
       isBooleanValue(/** @type {{ aborted?: unknown }} */ (value).aborted) &&
       doesMatchEventTargetContract(value)
     );
