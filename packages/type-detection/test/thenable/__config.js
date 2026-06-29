@@ -30,6 +30,10 @@ export const noop = () => undefined;
 
 // clean contract shapes (matrix-scored)
 export const localPromise = () => Promise.resolve(1);
+export const localPromiseViaConstructor = () =>
+  new Promise(() => {
+    // never settles — identity, not resolution, is what isPromise/A2 scores
+  });
 export const promiseSubclassInstance = () =>
   new (class extends Promise {})((resolve) => {
     resolve(undefined);
@@ -84,6 +88,16 @@ export const ownNonCallableShadowsThen = () =>
 export const throwingGetterThen = () => ({
   get then() {
     throw new Error('then-getter');
+  },
+});
+// callable own `then` data property, but `catch` is a throwing accessor — the
+// isThenable/isPromiseLike divergence under a throwing LATER-method getter:
+// isThenable finds the own `then` (true), isPromiseLike's contract read hits the
+// `catch` accessor and rejects it inertly (false), neither invokes the getter.
+export const throwingGetterCatchAfterThen = () => ({
+  then: noop,
+  get catch() {
+    throw new Error('catch-getter');
   },
 });
 export const throwingDescTrapProxy = () =>
@@ -194,6 +208,12 @@ export const specMatrix = {
     expected: { isThenable: true, isPromiseLike: true, isPromise: true },
     vectors: ['isThenable/A1', 'isPromiseLike/A1', 'isPromise/A1'],
   },
+  localPromiseViaConstructor: {
+    description: 'a local `new Promise(() => {})` instance',
+    make: localPromiseViaConstructor,
+    expected: { isThenable: true, isPromiseLike: true, isPromise: true },
+    vectors: ['isPromise/A2'],
+  },
   promiseSubclassInstance: {
     description: 'a local Promise subclass instance',
     make: promiseSubclassInstance,
@@ -273,4 +293,55 @@ export const crossCuttingRejections = {
   nullish: [null, undefined],
   falsyPrimitive: [0, '', false, NaN, 0n],
   truthyPrimitive: [42, 'x', true, 1n, Symbol('s')],
+};
+
+// ----- throw-safety matrix (axis 3): hostile-input-class × predicate -----
+// The universal invariant (docs/spec/README.md → "Throw-safety — the universal
+// invariant"; THENABLE.spec.md Module-contract Throw-safety paragraph): every
+// predicate answers a boolean on EVERY hostile input and never propagates a
+// throw. `throw-safety.test.js` asserts BOTH not-thrown AND the honest by-contract
+// verdict for every cell; the invariant is met ⟺ every cell is filled. The
+// throwing-tag and pivoted-proto values carry a real method contract, so the
+// by-contract predicates (isThenable/isPromiseLike) admit them while isPromise
+// (which reads the tag/constructor) rejects.
+
+/**
+ * @typedef {object} ThrowSafetyRow
+ * @property {string} surface - the throw-surface class this row exercises
+ * @property {() => unknown} make - fresh hostile-value factory
+ * @property {{ isThenable: boolean, isPromiseLike: boolean, isPromise: boolean }} expected - honest verdict per predicate (all must NOT throw)
+ */
+
+/** @type {Record<string, ThrowSafetyRow>} */
+export const throwSafetyMatrix = {
+  accessorThrow: {
+    surface: 'accessor-throw: `{ get then() { throw } }`',
+    make: throwingGetterThen,
+    expected: { isThenable: false, isPromiseLike: false, isPromise: false },
+  },
+  accessorThrowOnLaterMethod: {
+    surface: 'accessor-throw on a later method: `{ then, get catch() { throw } }`',
+    make: throwingGetterCatchAfterThen,
+    expected: { isThenable: true, isPromiseLike: false, isPromise: false },
+  },
+  descriptorTrap: {
+    surface: 'descriptor-trap: Proxy whose `getOwnPropertyDescriptor` throws',
+    make: throwingDescTrapProxy,
+    expected: { isThenable: false, isPromiseLike: false, isPromise: false },
+  },
+  prototypeTrap: {
+    surface: 'prototype-trap: Proxy whose `getPrototypeOf` throws',
+    make: throwingProtoTrapProxy,
+    expected: { isThenable: false, isPromiseLike: false, isPromise: false },
+  },
+  tagGetterThrow: {
+    surface: 'tag-getter-throw: throwing `Symbol.toStringTag` + full contract',
+    make: throwingTagGetterWithContract,
+    expected: { isThenable: true, isPromiseLike: true, isPromise: false },
+  },
+  pivotedProtoDescriptorTrap: {
+    surface: 'descriptor-trap on pivoted `[[Prototype]]` + own tag/contract',
+    make: taggedPromiseOverThrowingProtoTrap,
+    expected: { isThenable: true, isPromiseLike: true, isPromise: false },
+  },
 };
