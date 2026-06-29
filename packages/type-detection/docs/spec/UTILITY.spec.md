@@ -9,7 +9,11 @@
 > barrel, single realm). No surprises — the canon was accurate and every vector matched
 > the real impl on the first run. The three inert-probe siblings
 > (`hasInertGetter`/`Setter`/ `Value`) were promoted from `@internal` to public after the
-> run (Resolved items #1). Base for the axis-1 suite; axes 2–4 derive alongside.
+> run (Resolved items #1). Base for the axis-1 suite; axes 2–4 derive alongside. Amended
+> 2026-06-25 — the `getInertPrototypeOf` rename (was `guardedGetPrototypeOf`) and the
+> retirement of the `getOwnPropertyDescriptors{Keys,KeySet}` pair in favour of
+> `getOwnPropertyKeys` + the throw-safe `getInertOwnProperty{Names,Symbols,Keys}` family
+> (see Resolved items #2).
 
 ## Module contract
 
@@ -37,8 +41,7 @@ returns `boolean`, a `string`/`Set`/descriptor, or `undefined`.
 - Prototype-property probes: `hasOwnPrototype`, `hasOwnWritablePrototype` (boolean).
 - Property-key: `isValidPropertyKey` (the one narrowing guard → `value is PropertyKey`),
   `getNextAvailablePropertyDescriptor` (chain walk → descriptor | undefined),
-  `getOwnPropertyDescriptorsKeys` (→ `string[]`), `getOwnPropertyDescriptorsKeySet` (→
-  `Set<string>`).
+  `getOwnPropertyKeys` (→ `(string | symbol)[]`, own string + symbol keys).
 - Inert (inspect-without-invoke) probes: `hasInertMethod` (callable data property),
   `hasInertGetter` (accessor `get`), `hasInertSetter` (accessor `set`), `hasInertValue`
   (data-descriptor presence) — each resolved along the prototype-chain. All four are
@@ -50,24 +53,27 @@ returns `boolean`, a `string`/`Set`/descriptor, or `undefined`.
 - Constructor inspection: `getDefinedConstructor`, `getDefinedConstructorName`.
 - Type resolution: `resolveType` (overloaded: omitted arg → `undefined`).
 
-**Exported `@internal` helpers — none.** The module exposes no internal-only surface: the
-former `@internal` tags on `hasInertGetter`/`hasInertSetter`/`hasInertValue` were removed
-(see Resolved items #1) so the full inert-probe set is public.
+**Exported `@internal` helpers — 3:** the throw-safe own-key readers
+`getInertOwnPropertyNames`, `getInertOwnPropertySymbols`, `getInertOwnPropertyKeys` (added
+post-freeze 2026-06-25; see Resolved items #2). The inert _probe_ set
+(`hasInertGetter`/`hasInertSetter`/`hasInertValue`) is public — its former `@internal`
+tags were removed (Resolved items #1).
 
 **Exported types (8):** `PropertyDescriptor`, `PropertyDescriptorMap`,
 `DefinedConstructorAccessorOptions`, `BlankType`, `ConstructorName`, `TaggedType`,
 `ResolvedType`, `TypeSignature`.
 
-Re-confirmation gate: 15 `.js` value exports = 15 `.d.ts` declarations (18 function
-signatures − 3 no-arg overloads on `getTypeSignature`/`getTaggedType`/`resolveType`); 8
-type exports match; no `@internal` in either file (the three inert siblings promoted to
-public); `architecture/utility.md` matches the code (it already listed all four inert
-probes uniformly — no drift, no open questions).
+Re-confirmation gate (as amended 2026-06-25): 14 public `.js` value exports + 3
+`@internal` own-key readers, each with a matching `.d.ts` declaration; the retired
+`getOwnPropertyDescriptorsKeys` / `getOwnPropertyDescriptorsKeySet` pair was removed and
+the public `getOwnPropertyKeys` added (Resolved items #2); 8 type exports match;
+`architecture/utility.md` matches the code. The exact surface tally is re-derived during
+the utility test round.
 
 ## Cross-cutting vectors
 
 - **CC/nullish-safe** — `hasOwnPrototype`, `hasOwnWritablePrototype`,
-  `getOwnPropertyDescriptorsKeys`, `getOwnPropertyDescriptorsKeySet`,
+  `getOwnPropertyKeys`, `getInertOwnPropertyNames`/`Symbols`/`Keys`,
   `getDefinedConstructor`, `getDefinedConstructorName`, `isValidPropertyKey` all accept
   `null`/`undefined`/omitted without throwing (each returns its empty/false/undefined
   floor). The inert probes (`hasInertMethod`/`Getter`/`Setter`/`Value`) take `null` as the
@@ -159,37 +165,42 @@ realm-independent. **Composition note (axis 4):** the chain-walk primitive behin
 
 ---
 
-## `getOwnPropertyDescriptorsKeys`
+## `getOwnPropertyKeys`
 
-`getOwnPropertyDescriptorsKeys(value?: unknown): string[]` —
-`objectKeys(getOwnPropertyDescriptors(value ?? !0))`.
+`getOwnPropertyKeys(value?: unknown): (string | symbol)[]` —
+`getOwnPropertyNames(value ?? !0).concat(getOwnPropertySymbols(value ?? !0))`. All own
+keys — string-named and symbol-keyed, enumerable and non-enumerable. The raw form; the
+throw-safe twin is `getInertOwnPropertyKeys`.
 
-- `gOPDK/A1` — `Object.defineProperty({ a: 1 }, 'b', { value: 2 })` → `['a', 'b']`
-  (non-enumerable `b` included — the point of going through `getOwnPropertyDescriptors`).
-- `gOPDK/A2` — `['x', 'y']` → `['0', '1', 'length']` (array's own non-enumerable `length`
-  is included — pin this).
-- `gOPDK/A3` — `{}` → `[]`; `Object.create(null)` → `[]`.
-- `gOPDK/R1` — symbol keys excluded: `{ [Symbol('s')]: 1, a: 1 }` → `['a']`.
-- `gOPDK/R2` — `null`, `undefined`/omitted → `[]` (the `?? !0` coerces nullish to a boxed
-  `true`, dodging the `getOwnPropertyDescriptors(null)` throw).
+- `gOPK/A1` — `Object.defineProperty({ a: 1 }, 'b', { value: 2 })` → `['a', 'b']`
+  (non-enumerable `b` included).
+- `gOPK/A2` — `{ [Symbol('s')]: 1, a: 1 }` → `['a', Symbol(s)]` (symbol keys INCLUDED —
+  contrast the retired `getOwnPropertyDescriptorsKeys`, which was string-only).
+- `gOPK/A3` — `{}` → `[]`; `Object.create(null)` → `[]`.
+- `gOPK/R1` — `null`, `undefined`/omitted → `[]` (the `?? !0` coerces nullish to a boxed
+  `true`, dodging the `getOwnPropertyNames(null)` throw).
 
 **Cross-realm (axis 2):** realm-safe.
 
 ---
 
-## `getOwnPropertyDescriptorsKeySet`
+## `getInertOwnPropertyNames` / `getInertOwnPropertySymbols` / `getInertOwnPropertyKeys` — `@internal`
 
-`getOwnPropertyDescriptorsKeySet(value?: unknown): Set<string>` —
-`new Set(getOwnPropertyDescriptorsKeys(value))`.
+The throw-safe variants of `getOwnPropertyNames` / `getOwnPropertySymbols` / {@link
+getOwnPropertyKeys}: each wraps its read so a hostile `Proxy` `ownKeys` trap (or nullish
+input) yields `[]` rather than propagating. `getInertOwnPropertyKeys` concatenates the
+other two.
 
-- `gOPDKS/A1` — `Object.defineProperty({ a: 1 }, 'b', { value: 2 })` → `Set { 'a', 'b' }`.
-- `gOPDKS/A2` — `{}` → empty `Set`; `null`/omitted → empty `Set`.
-- `gOPDKS/A3` — membership: `getOwnPropertyDescriptorsKeySet({ a: 1 }).has('a')` → true;
-  `.has('z')` → false (the per-key probe that the function-family proto-surface helpers
-  drive).
+- `gIOPN/A1` — own string names incl. non-enumerable; nullish → `[]`; a `Proxy` whose
+  `ownKeys` trap throws → `[]`, **not thrown**.
+- `gIOPS/A1` — own symbol keys; nullish → `[]`; throwing `ownKeys` trap → `[]`, **not
+  thrown**.
+- `gIOPK/A1` — string + symbol keys (the two above concatenated); throwing trap → `[]`.
 
-**Cross-realm (axis 2):** realm-safe. Same key-coverage as
-`getOwnPropertyDescriptorsKeys`.
+These feed the function-family proto-surface helpers, e.g.
+`new Set(getInertOwnPropertyNames(getInertPrototypeOf(value)))`.
+
+**Cross-realm (axis 2):** realm-safe.
 
 ---
 
@@ -430,6 +441,25 @@ descriptor holding `undefined` is still recognized (matches ECMA-262 §6.2.5.1
    evented / primitive / function inline `instanceof` to be wrapped in their rounds). The
    unclosable proxy/rename spoofs (shape-not-liveness) are documented boundaries, not
    bugs.
+
+4. **Property-key helper retirement + inert own-key family — RESOLVED (2026-06-25).** Two
+   surface changes landed during the `function` / `object` rounds:
+   - **Rename:** `guardedGetPrototypeOf` → `getInertPrototypeOf` (the throw-safe prototype
+     reader), aligning it with the `getInert*` naming of the rest of the inert layer. Pure
+     rename; same behavior. All `src` + doc references updated (only `dist/` build
+     artifacts carry the old name until the next build).
+   - **Retirement:** the `getOwnPropertyDescriptorsKeys` /
+     `getOwnPropertyDescriptorsKeySet` pair was removed. The function-family proto-surface
+     helpers migrated to `new Set(getInertOwnPropertyNames(getInertPrototypeOf(value)))`,
+     leaving the pair with no consumers (reference-checked: dead). In their place: the
+     public `getOwnPropertyKeys` (own string **and symbol** keys — a superset of the old
+     string-only `…Keys`) and the throw-safe `@internal` family `getInertOwnPropertyNames`
+     / `getInertOwnPropertySymbols` / `getInertOwnPropertyKeys`. The retired sections'
+     `gOPDK/*` / `gOPDKS/*` vectors are replaced by `gOPK/*` and `gIOP{N,S,K}/*` above.
+     ADR #011 (the `Set` shape-probe decision) stands — only the underlying key-reader
+     changed, the `Set`-membership probe pattern is intact; #011 is left as append-only
+     history. Full vector tables for the new helpers are reconciled in the utility test
+     round.
 
 ## Open items
 

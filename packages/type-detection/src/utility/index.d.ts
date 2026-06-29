@@ -223,7 +223,7 @@ export function isValidWeakKey(value?: unknown): value is WeakKey;
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 //
-//  Guarded/Inert Prototype Access
+//  Inert Prototype Access
 //
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 
@@ -242,7 +242,7 @@ export function isValidWeakKey(value?: unknown): value is WeakKey;
  *  `undefined` for nullish input or when a hostile trap threw
  * @internal
  */
-export function guardedGetPrototypeOf(
+export function getInertPrototypeOf(
   value?: unknown,
 ): object | Callable | null | undefined;
 
@@ -307,6 +307,22 @@ export function hasOwnWritablePrototype(value?: unknown): boolean;
 export function isValidPropertyKey(value?: unknown): value is PropertyKey;
 
 /**
+ * Returns all own property keys of a value — both string-named and symbol-keyed,
+ * enumerable and non-enumerable — as a single array.
+ *
+ * Concatenates the own string keys (including non-enumerable ones) with the own
+ * symbol keys. A nullish (or omitted) argument yields `[]` rather than throwing.
+ * This is the raw form; {@link getInertOwnPropertyKeys} is the throw-safe twin
+ * that also absorbs a hostile `Proxy` `ownKeys` trap (the raw/inert pairing used
+ * across this module).
+ *
+ * @param value - the value whose own keys to collect; nullish (or omitted)
+ *  yields `[]`
+ * @returns the own string and symbol keys; an empty array when there are none
+ */
+export function getOwnPropertyKeys(value?: unknown): (string | symbol)[];
+
+/**
  * Returns the first {@link PropertyDescriptor} found while walking the
  * value's prototype-chain.
  *
@@ -325,58 +341,53 @@ export function getNextAvailablePropertyDescriptor(
   trustedData?: boolean,
 ): PropertyDescriptor | undefined;
 
-/**
- * Returns the own string-keyed property names of a value, including
- * non-enumerable ones.
- *
- * `Object.getOwnPropertyDescriptors` produces enumerable descriptor entries
- * on its returned object regardless of the source's enumerability, so
- * `Object.keys` over that result surfaces every own string-keyed name.
- *
- * Symbol-keyed entries are excluded, since `Object.keys` reads strings
- * only. Nullish input (or an omitted call) yields `[]`.
- *
- * @param value - the value whose own string-keyed property names should be
- *  returned; nullish (or omitted) yields `[]`
- * @returns the array of own string-keyed property names
- * @example
- * const obj = Object.defineProperty({ a: 1 }, 'b', { value: 2 });
- * Object.keys(obj);                    // ['a']
- * getOwnPropertyDescriptorsKeys(obj);  // ['a', 'b']
- * getOwnPropertyDescriptorsKeys(null); // []
- */
-export function getOwnPropertyDescriptorsKeys(value?: unknown): string[];
-
-/**
- * Returns the own string-keyed property names of a value as a `Set<string>`.
- *
- * Composes {@link getOwnPropertyDescriptorsKeys} with the `Set` constructor.
- *
- * The Set carries set-equality, subset, and superset semantics natively
- * and supports per-key membership checks (`.has(key)`) directly. This is
- * the right primitive for shape-comparison checks that read individual
- * key presence or absence rather than full-shape equality.
- *
- * Same key-coverage as {@link getOwnPropertyDescriptorsKeys}.
- * Non-enumerable own string keys are included. Symbol-keyed entries are
- * excluded. Nullish input (or an omitted call) yields an empty `Set`.
- *
- * @param value - the value whose own string-keyed names should be returned
- *  as a Set; nullish (or omitted) yields an empty `Set`
- * @returns a `Set` of the value's own string-keyed property names
- * @example
- * const obj = Object.defineProperty({ a: 1 }, 'b', { value: 2 });
- * getOwnPropertyDescriptorsKeySet(obj);   // Set { 'a', 'b' }
- * getOwnPropertyDescriptorsKeySet({});    // Set {}
- * getOwnPropertyDescriptorsKeySet(null);  // Set {}
- */
-export function getOwnPropertyDescriptorsKeySet(value?: unknown): Set<string>;
-
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 //
-//  Guarded/Inert Property-Key Utilities
+//  Inert Property-Key Utilities
 //
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
+
+/**
+ * The throw-safe variant of `Object.getOwnPropertyNames` — a value's own
+ * string-keyed property names (enumerable and non-enumerable), or `[]` when
+ * none are reachable (nullish input or a hostile `Proxy` `ownKeys` trap).
+ *
+ * @param value - the value whose own string-keyed names to read; nullish (or
+ *  omitted) yields `[]`
+ * @returns the own string-keyed property names; `[]` when none are reachable
+ *  or a trap threw
+ * @internal
+ */
+export function getInertOwnPropertyNames(value?: unknown): string[];
+
+/**
+ * The throw-safe variant of `Object.getOwnPropertySymbols` — a value's own
+ * symbol-keyed properties, or `[]` when none are reachable (nullish input or a
+ * hostile `Proxy` `ownKeys` trap).
+ *
+ * @param value - the value whose own symbol keys to read; nullish (or omitted)
+ *  yields `[]`
+ * @returns the own symbol-keyed properties; `[]` when none are reachable or a
+ *  trap threw
+ * @internal
+ */
+export function getInertOwnPropertySymbols(value?: unknown): symbol[];
+
+/**
+ * The throw-safe variant of {@link getOwnPropertyKeys} — all of a value's own
+ * property keys, both string-named and symbol-keyed, as a single array.
+ *
+ * Concatenates {@link getInertOwnPropertyNames} and
+ * {@link getInertOwnPropertySymbols}, inheriting their inert discipline: nullish
+ * input and hostile traps yield `[]` rather than throwing.
+ *
+ * @param value - the value whose own keys to collect; nullish (or omitted)
+ *  yields `[]`
+ * @returns the own string and symbol keys; `[]` when none are reachable or a
+ *  trap threw
+ * @internal
+ */
+export function getInertOwnPropertyKeys(value?: unknown): (string | symbol)[];
 
 /**
  * Walks for the next available descriptor like

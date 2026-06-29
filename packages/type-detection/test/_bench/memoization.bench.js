@@ -38,7 +38,7 @@
 import { bench, describe } from 'vitest';
 
 import {
-  guardedGetPrototypeOf,
+  getInertPrototypeOf,
   getDefinedConstructor,
   getDefinedConstructorName,
   getPrototypeOf,
@@ -118,13 +118,13 @@ const opts = { time: 500, warmupTime: 150 };
 
 // ----- Group 1: resolver head-to-head — current (no-cache) vs the dropped registry -----
 
-describe('guardedGetPrototypeOf · distinct (registry miss)', () => {
+describe('getInertPrototypeOf · distinct (registry miss)', () => {
   bench('registry', () => void getProtoMemo({}), opts);
-  bench('current ', () => void guardedGetPrototypeOf({}), opts);
+  bench('current ', () => void getInertPrototypeOf({}), opts);
 });
-describe('guardedGetPrototypeOf · repeated (registry hit)', () => {
+describe('getInertPrototypeOf · repeated (registry hit)', () => {
   bench('registry', () => void getProtoMemo(sharedObj), opts);
-  bench('current ', () => void guardedGetPrototypeOf(sharedObj), opts);
+  bench('current ', () => void getInertPrototypeOf(sharedObj), opts);
 });
 
 describe('getDefinedConstructor · instance · distinct (registry miss)', () => {
@@ -231,7 +231,7 @@ const threadedStructural = (value) => {
 
 // ----- ruled-out registry candidates, reconstructed inline -----
 //
-// The shipped getDefinedConstructor / getDefinedConstructorName / guardedGetPrototypeOf are
+// The shipped getDefinedConstructor / getDefinedConstructorName / getInertPrototypeOf are
 // now NO-CACHE (#057 dropped prototypeRegistry, #059 dropped the two constructor
 // registries). To bench current-vs-ruled-out directly, the dropped caches are rebuilt here:
 // a per-value WeakMap, the constructor ones keyed (value, assumePrototype) via a nested
@@ -441,7 +441,7 @@ const contractBatched = (value) => {
           remaining.delete(key);
         }
       }
-      level = guardedGetPrototypeOf(level) ?? null;
+      level = getInertPrototypeOf(level) ?? null;
     }
   } catch {
     return false;
@@ -473,7 +473,7 @@ const contractTargeted = (value) => {
           remaining.delete(key);
         }
       }
-      level = guardedGetPrototypeOf(level) ?? null;
+      level = getInertPrototypeOf(level) ?? null;
     }
   } catch {
     return false;
@@ -574,7 +574,7 @@ const contractLevelMemoized = (value) => {
           remaining.delete(key);
         }
       }
-      level = guardedGetPrototypeOf(level) ?? null;
+      level = getInertPrototypeOf(level) ?? null;
     }
   } catch {
     return false;

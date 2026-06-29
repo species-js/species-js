@@ -480,6 +480,12 @@ export function isES3Function<T = unknown>(value?: T): value is T & ES3Function;
  * short-circuits to `false`. The {@link NewableFunction} gate still admits
  * bound newables; this guard does not.
  *
+ * Throw-safe: the `prototype` descriptor read routes through the throw-safe
+ * `getInertDescriptor`, so a hostile `getOwnPropertyDescriptor` Proxy-trap on
+ * `value` yields `undefined` (→ `false`) rather than propagating — extending
+ * the decision #056 constructor-resolution throw-safety to `isClass` and every
+ * consumer (notably the cross-realm `@/object` plain-object contract).
+ *
  * Generic in `T` per the family-pattern. The narrow returns
  * `T & ClassConstructor`. `T = unknown` collapses to `ClassConstructor`.
  *

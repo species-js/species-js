@@ -17,11 +17,11 @@
 
 import {
   TRUSTED_DATA_CONFIRMATION,
+  getInertPrototypeOf,
   hasInertMethod,
   getTypeSignature,
   getVerifiedOwnName,
   getDefinedConstructor,
-  guardedGetPrototypeOf,
   getValidatedStandardConstructorAndPrototypeTuple,
 } from '@/utility';
 
@@ -103,7 +103,7 @@ export function doesImplementPromiseContract(value) {
  * @internal
  */
 export function hasPromiseIdentitySignal(value, name) {
-  return getTypeSignature(value) === '[object Promise]' && name === 'Promise';
+  return name === 'Promise' && getTypeSignature(value) === '[object Promise]';
 }
 
 /**
@@ -133,12 +133,12 @@ export function isStructuralPromisePrototypeEquivalent(prototype, constructor) {
 /**
  * Whether `value` is structurally a `Promise` — it carries the Promise
  * identity signal and method contract and resolves to a validated
- * prototype/constructor pair (via `guardedGetPrototypeOf` and
+ * prototype/constructor pair (via `getInertPrototypeOf` and
  * `getDefinedConstructor` when the caller supplies no prototype).
  *
  * @param {unknown} value - the candidate to test for structural `Promise` equivalence
  * @param {unknown} [prototype] - the value's already-read prototype, if the caller
- *  has it; otherwise resolved internally via `guardedGetPrototypeOf`
+ *  has it; otherwise resolved internally via `getInertPrototypeOf`
  * @returns {boolean} `true` when `value` is structurally a `Promise` — Promise
  *  identity signal, method contract, and a validated prototype/constructor pair;
  *  `false` otherwise
@@ -153,7 +153,7 @@ export function isStructuralPromiseEquivalent(value, prototype) {
     isStructuralPromisePrototypeEquivalent(
       isObject(prototype)
         ? prototype
-        : /** @type {object | Callable | null} */ (guardedGetPrototypeOf(value)),
+        : /** @type {object | Callable | null} */ (getInertPrototypeOf(value)),
       definedConstructor,
     )
   );
@@ -298,7 +298,7 @@ export function isPromise(value) {
   if (!value) {
     return false;
   }
-  const prototype = guardedGetPrototypeOf(value);
+  const prototype = getInertPrototypeOf(value);
 
   return isCurrentRealmPromiseInstance(value)
     ? prototype === promisePrototype

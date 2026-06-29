@@ -10,7 +10,9 @@
 > the implementation correct — newability is slot presence, orthogonal to throw-on-`new` —
 > and the spec vectors were corrected to admit them (see Resolved items #1). One neutral
 > clarifying note was added to `hasConstructSlot`'s doc-comment. Base for the axis-1
-> suite; axes 2–4 derive alongside.
+> suite; axes 2–4 derive alongside. Amended 2026-06-25 — `isClass` throw-safety root-fix
+> (its `prototype` descriptor read now routes through `getInertDescriptor`); surfaced by
+> the `@/object` round, no behavioral verdict changed — see Resolved items #3.
 
 ## Module contract
 
@@ -265,9 +267,11 @@ spec). **Composition note (axis 4):** `isNewableFunction` → `hasOwnWritablePro
 ## `isClass`
 
 `isClass<T = unknown>(value?: T): value is T & ClassConstructor` —
-`isNewableFunction(value) && getOwnPropertyDescriptor(value, 'prototype')?.writable === false`.
+`isNewableFunction(value) && getInertDescriptor(value, 'prototype')?.writable === false`.
 The strict class shape: a newable with an own **readonly** `prototype` descriptor. Covers
-both custom (`class`-syntax) and built-in class constructors.
+both custom (`class`-syntax) and built-in class constructors. The `prototype` descriptor
+read routes through the throw-safe `getInertDescriptor` (amended 2026-06-25 — see Resolved
+items #2), so a hostile constructor cannot make the read throw.
 
 - `isClass/A1` — `class C {}`, `class Foo extends Array {}` → true (custom).
 - `isClass/A2` — `Array`, `Map`, `Date`, `Number`, `Object` → true (built-in classes; own
@@ -286,14 +290,20 @@ both custom (`class`-syntax) and built-in class constructors.
   newable, or no own readonly `prototype`).
 - `isClass/R4` — `Math.max`, `parseInt` → false (no `[[Construct]]` slot at all — not
   newable; contrast `Symbol`/`BigInt` in `A3`).
+- `isClass/B1` — a `Proxy` (newable target) whose `getOwnPropertyDescriptor` trap throws →
+  false, **not thrown** — the `prototype` descriptor read routes through the throw-safe
+  `getInertDescriptor` (amended 2026-06-25, decision-aligned with #056). Exercised by the
+  `@/object` cross-realm round (a hostile constructor reached through the plain-object
+  contract walk); to be covered directly in the `function` round.
 - (plus CC vectors.)
 
 **Refuses to claim:** bound classes (own `prototype` stripped). **Cross-realm (axis 2):**
 realm-safe — the own-`prototype`-readonly descriptor read is realm-independent; built-in
 classes from a foreign realm still expose a readonly own `prototype`. **Spoof (axis 3):**
 the `writable === false` own-descriptor read is the only spec-given class/ES3
-discriminator. **Composition note (axis 4):** `isNewableFunction` →
-`getOwnPropertyDescriptor` (`@/config`).
+discriminator; routed through the throw-safe `getInertDescriptor` so a hostile constructor
+yields `false`, not a throw. **Composition note (axis 4):** `isNewableFunction` →
+`getInertDescriptor` (`@/utility`).
 
 ---
 
@@ -488,8 +498,8 @@ both shape helpers and both fast paths.
 
 ### `hasAsyncFunctionPrototypeSurface(value)` — `@internal`
 
-`getOwnPropertyDescriptorsKeySet(getPrototypeOf(value))` has `'constructor'` and **not**
-`'prototype'`.
+`new Set(getInertOwnPropertyNames(getInertPrototypeOf(value)))` has `'constructor'` and
+**not** `'prototype'`.
 
 - `hAFPS/A1` — `async function () {}`, `async () => {}` → true
   (`%AsyncFunction.prototype%` own keys: `constructor`, no `prototype`).
@@ -519,8 +529,8 @@ both shape helpers and both fast paths.
 
 ### `hasAnyGeneratorFunctionPrototypeSurface(value)` — `@internal` (family-shared)
 
-`getOwnPropertyDescriptorsKeySet(getPrototypeOf(value))` has **both** `'constructor'` and
-`'prototype'`.
+`new Set(getInertOwnPropertyNames(getInertPrototypeOf(value)))` has **both**
+`'constructor'` and `'prototype'`.
 
 - `hAGFPS/A1` — `function* () {}`, `async function* () {}` → true (both generator protos
   carry `constructor` + `prototype`).
@@ -606,6 +616,19 @@ both shape helpers and both fast paths.
    though the newable predicates are built on top of it. It is therefore an axis-1 surface
    member (a non-narrowing public predicate returning `boolean`), specced above alongside
    the narrowing predicates. No `@internal` tag is to be added.
+
+3. **`isClass` throw-safety (impl change, 2026-06-25) — RESOLVED.** Surfaced by the
+   `@/object` cross-realm test round: `isClass` did its own raw
+   `getOwnPropertyDescriptor(value, 'prototype')`, so a hostile constructor (a `Proxy`
+   whose `getOwnPropertyDescriptor` trap throws) made `isClass` — and therefore every
+   consumer, notably the `@/object` plain-object contract — **throw** rather than answer a
+   boolean. The design owner green-lit the cross-module root-fix: route the read through
+   the throw-safe `getInertDescriptor` (#056), so a hostile trap yields `undefined` (→
+   `false`). Behavior unchanged for all legit inputs (own `prototype` is found at level 0
+   of the walk); `isClass/B1` added above. **Finding deferred to the `function` round:**
+   the sibling `@/utility` helpers `hasOwnPrototype` / `hasOwnWritablePrototype` (feeding
+   `isES3Function` etc.) carry the same raw-`getOwnPropertyDescriptor` surface and want
+   the same treatment. Decision-aligned with #056/#029 (no new ADR).
 
 ## Open items
 

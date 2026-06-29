@@ -1,16 +1,16 @@
-# 057 — `prototypeRegistry` dropped; `guardedGetPrototypeOf` is throw-safe-only
+# 057 — `prototypeRegistry` dropped; `getInertPrototypeOf` is throw-safe-only
 
 **Date:** 2026-06-23
 
 **Context.** The constructor-resolution layer carried three module-scoped `WeakMap`
-memoizations — `prototypeRegistry` (behind `guardedGetPrototypeOf`),
-`constructorRegistry`, and `constructorNameRegistry`. The latter two were keyed by
-`(value, assumePrototype)` after #054/#055; `prototypeRegistry` cached
-`getPrototypeOf(value)` per value. The memoization had been added on intuition, never
-measured. After the thenable hardening rounds — and after #055 had to spend real effort
-fixing a cache-coherence bug (cross-caller poisoning) that existed _only because_ the
-cache existed — the premise was worth testing: does the memoization actually earn its
-keep, given the spec's own ruling that "memoization is the consumer's concern"?
+memoizations — `prototypeRegistry` (behind `getInertPrototypeOf`), `constructorRegistry`,
+and `constructorNameRegistry`. The latter two were keyed by `(value, assumePrototype)`
+after #054/#055; `prototypeRegistry` cached `getPrototypeOf(value)` per value. The
+memoization had been added on intuition, never measured. After the thenable hardening
+rounds — and after #055 had to spend real effort fixing a cache-coherence bug
+(cross-caller poisoning) that existed _only because_ the cache existed — the premise was
+worth testing: does the memoization actually earn its keep, given the spec's own ruling
+that "memoization is the consumer's concern"?
 
 A benchmark harness (`test/_bench/memoization.bench.js`) was built to measure each
 registry head-to-head against a faithful no-cache reimplementation of the same algorithm,
@@ -18,7 +18,7 @@ across the decisive axis: **distinct objects** (cache always misses — the domi
 "classify each value once" pattern) vs **repeated object** (cache hits — the re-detection
 pattern). The result for the prototype cache was unambiguous:
 
-| `guardedGetPrototypeOf` | winner   | margin |
+| `getInertPrototypeOf`   | winner   | margin |
 | ----------------------- | -------- | ------ |
 | distinct (cache misses) | no-cache | 3.67×  |
 | repeated (cache hits)   | no-cache | 1.13×  |
@@ -26,15 +26,15 @@ pattern). The result for the prototype cache was unambiguous:
 The cache lost on distinct **and on hits**. `getPrototypeOf` is a trivial engine intrinsic
 — cheaper to call than a `WeakMap.get` round-trip plus the `isValidWeakKey` register
 guard. So caching it is pure overhead in every case. And `prototypeRegistry` is the one
-registry on a hot path: `isPromise` calls `guardedGetPrototypeOf` on every call (for the
+registry on a hot path: `isPromise` calls `getInertPrototypeOf` on every call (for the
 proto-identity compare), so the tax was paid on the common path, not just the rare
 structural one.
 
 **Decision.** Remove `prototypeRegistry`, `registerPrototype`, and
-`getRegisteredPrototype`. Rewrite `guardedGetPrototypeOf` as throw-safe-only:
+`getRegisteredPrototype`. Rewrite `getInertPrototypeOf` as throw-safe-only:
 
 ```js
-export function guardedGetPrototypeOf(value = null) {
+export function getInertPrototypeOf(value = null) {
   if (value === null) return void 0;
   try {
     return nativeGetPrototypeOf(value);
@@ -73,7 +73,7 @@ composes it. Only the cache is gone.
 
 **Consequences.**
 
-- **Behavior unchanged.** `guardedGetPrototypeOf` returns exactly what it returned before
+- **Behavior unchanged.** `getInertPrototypeOf` returns exactly what it returned before
   (object / callable / `null` / `undefined`), just uncached. The full test suite is green;
   no spec vector moves. This is a robustness/cost change, not a contract change.
 

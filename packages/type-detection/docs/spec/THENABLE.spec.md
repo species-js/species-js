@@ -279,7 +279,7 @@ capture; the cross-realm arm is `isStructuralPromiseEquivalent`, composing
 `doesImplementPromiseContract`, and `isStructuralPromisePrototypeEquivalent` — each
 structural helper resolving its object's constructor ONCE via `getDefinedConstructor` and
 reusing it for both the name (via `getVerifiedOwnName`) and the reciprocal-identity
-compare, the prototype leg under `{ assumePrototype: true }`, plus `guardedGetPrototypeOf`
+compare, the prototype leg under `{ assumePrototype: true }`, plus `getInertPrototypeOf`
 (all `@/utility`). Decisions #054, #059.
 
 **Policy flags:** `isPromise/R1`-`R2` encode the _current shipped_ subclass-rejection
@@ -358,7 +358,7 @@ short-circuits before any walk (decisions #054, #059).
 `isPromise`'s full cross-realm arm: the value-side identity signal + method contract +
 prototype-equivalence. Resolves the value's constructor ONCE —
 `const definedConstructor = getDefinedConstructor(value)` — then
-`hasPromiseIdentitySignal(value, getVerifiedOwnName(definedConstructor)) && doesImplementPromiseContract(value) && isStructuralPromisePrototypeEquivalent(isObject(prototype) ? prototype : guardedGetPrototypeOf(value), definedConstructor)`.
+`hasPromiseIdentitySignal(value, getVerifiedOwnName(definedConstructor)) && doesImplementPromiseContract(value) && isStructuralPromisePrototypeEquivalent(isObject(prototype) ? prototype : getInertPrototypeOf(value), definedConstructor)`.
 The single resolution is threaded both into the value's name marker (via
 `getVerifiedOwnName`) and down to the prototype helper as the reciprocal target (decision
 #059); the prototype leg does its own assume-path resolution. `prototype` may be supplied
