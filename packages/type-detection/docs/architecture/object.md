@@ -41,7 +41,7 @@ The type-level discrimination matches the runtime discrimination:
   property of the specific built-in `Object` constructor type. Runtime characteristic:
   `getPrototypeOf(value) === Object.prototype` (local-realm fast path) or the cross-realm
   structural anchor — two cheap string-shape signal markers
-  (`[[Class]] === '[object Object]'` + constructor name `'Object'`) plus a five-marker
+  (`[[Class]] === '[object Object]'` + constructor name `'Object'`) plus a six-marker
   prototype contract on the constructor reached from `value`'s prototype (see "Structural
   anchor for `isPlainObject`" below).
 
@@ -79,18 +79,24 @@ every realm.
 anchor:
 
 ```js
+// the prototype is resolved ONCE and threaded into the anchor (#059):
+const prototype = getPrototypeOf(value); // conceptual; impl uses getInertPrototypeOf
 isObject(value) &&
-  (getPrototypeOf(value) === objectPrototype ||
-    (hasPlainObjectIdentitySignal(value) && hasPlainObjectPrototypeContract(value)));
+  !!prototype &&
+  (prototype === objectPrototype ||
+    (hasPlainObjectIdentitySignal(value) && isObjectPrototypeEquivalent(prototype)));
 ```
 
-The fast path (`getPrototypeOf === objectPrototype`) catches the common case in a single
+The fast path (`prototype === objectPrototype`) catches the common case in a single
 reference comparison. `objectPrototype` is the realm-fixed `Object.prototype` capture from
 `@/config` — taken once at module-load so the comparison is immune to a post-load
-reassignment of `globalThis.Object`. The structural anchor catches cross-realm Plain
-Objects whose prototype is the _other_ realm's `Object.prototype` (different reference,
-same structural shape). The signal half is two cheap string-shape markers; the contract
-half is the five-marker spec-mechanic-anchored chain detailed below.
+reassignment of `globalThis.Object`. The `!!prototype` guard is a dictionary fast-reject
+(a plain object always has _some_ realm's `Object.prototype`, never `null`/`undefined`).
+The structural anchor catches cross-realm Plain Objects whose prototype is the _other_
+realm's `Object.prototype` (different reference, same structural shape). The signal half
+is two cheap string-shape markers; the contract half is the six-marker
+spec-mechanic-anchored chain detailed below — `isObjectPrototypeEquivalent`, fed the
+already-resolved `[[Prototype]]`.
 
 `isDictionaryObject` is realm-orthogonal because prototype-less is prototype-less
 regardless of realm:
@@ -98,14 +104,17 @@ regardless of realm:
 ```js
 isObject(value) &&
   getPrototypeOf(value) === null &&
-  getDefinedConstructor(value) === undefined &&
-  getTypeSignature(value) === '[object Object]';
+  // hasDictionaryObjectIdentitySignal — cheap tag first, then the ctor-absence walk:
+  getTypeSignature(value) === '[object Object]' &&
+  getDefinedConstructor(value) === undefined;
 ```
 
-The fourth marker (`getTypeSignature === '[object Object]'`) closes the rare surface where
-a prototype-less object has been hand-decorated with an own `Symbol.toStringTag` property
-to lie about its `[[Class]]` — for the hashmap semantic the type targets, a tag would
-never be set legitimately.
+The tag marker (`getTypeSignature === '[object Object]'`) closes the rare surface where a
+prototype-less object has been hand-decorated with an own `Symbol.toStringTag` property to
+lie about its `[[Class]]` — for the hashmap semantic the type targets, a tag would never
+be set legitimately. It runs before the `getDefinedConstructor === undefined` walk
+(cheap-tag first, the order the `hasDictionaryObjectIdentitySignal` helper bundles them
+in).
 
 `isPlainOrDictionaryObject` is a _fused_ implementation rather than a naive
 `isPlainObject(v) || isDictionaryObject(v)` composition: one shared `isObject` gate, one
@@ -123,9 +132,11 @@ round, decision-aligned with #056/#057/#029):
 - **Prototype reads** → `getInertPrototypeOf` (`@/utility`, the #057 wrapper). A throwing
   `getPrototypeOf` trap yields `undefined` — matching neither `objectPrototype` nor
   `null`.
-- **The five-marker contract** (`hasPlainObjectPrototypeContract`) reads the constructor's
-  own `name` via `getVerifiedOwnName` (#059) and its `prototype` round-trip via
-  `getInertDescriptor` (#056), not raw `getOwnPropertyDescriptor`.
+- **The six-marker contract** (`isObjectPrototypeEquivalent`) reads the constructor's own
+  `name` via `getVerifiedOwnName` (#059) and its `prototype` round-trip via
+  `getInertDescriptor` (#056), not raw `getOwnPropertyDescriptor`; its member-surface
+  marker 6 (`doesImplementObjectPrototypeContract`) wraps `getOwnPropertyDescriptors` in a
+  `try/catch` so a throwing `ownKeys` trap yields `false`.
 - **`isClass`** (`@/function`) was the upstream root cause — it did its own raw
   `getOwnPropertyDescriptor(value, 'prototype')`, so a hostile constructor threw there
   before object's own markers ran. Root-fixed to route through `getInertDescriptor`
@@ -136,14 +147,16 @@ round, decision-aligned with #056/#057/#029):
   signal gate.
 
 The prototype is also resolved ONCE per call and threaded into
-`hasPlainObjectPrototypeContract(value, prototype)` (the #059 threading learning),
-eliminating the redundant re-read the helper would otherwise perform on the cross-realm
-path.
+`isObjectPrototypeEquivalent(prototype)` — a one-arg helper fed the already-resolved
+`[[Prototype]]` (the #059 threading learning), eliminating the redundant re-read the
+helper would otherwise perform on the cross-realm path.
 
 ## Structural anchor for `isPlainObject`
 
 The cross-realm fallback in `isPlainObject` pairs two cheap string-shape signal markers
-with a five-marker spec-mechanic-anchored prototype contract. The shape:
+with a six-marker spec-mechanic-anchored prototype contract. Unlike the conceptual
+snippets above, the contract body below is faithful to the implementation — every
+descriptor and prototype read routes through a throw-safe reader. The shape:
 
 ```js
 export function hasPlainObjectIdentitySignal(value) {
@@ -153,17 +166,21 @@ export function hasPlainObjectIdentitySignal(value) {
   );
 }
 
-export function hasPlainObjectPrototypeContract(value) {
-  const prototype = getPrototypeOf(value);
+// fed the already-resolved `[[Prototype]]` (#059); never re-reads it. Faithful to
+// code — every read is throw-safe (the `getInert*` readers, `getVerifiedOwnName`,
+// the guarded `getOwnPropertyDescriptors` inside marker 6).
+export function isObjectPrototypeEquivalent(prototype) {
   const constructor =
     isObject(prototype) && getDefinedConstructor(prototype, { assumePrototype: true });
 
   return (
-    isClass(constructor) &&
-    getTypeSignature(prototype) === '[object Object]' &&
-    getOwnPropertyDescriptor(constructor, 'name')?.value === 'Object' &&
-    getOwnPropertyDescriptor(constructor, 'prototype')?.value === prototype &&
-    getPrototypeOf(prototype) === null
+    isClass(constructor) && // 1 — newable class shape
+    getTypeSignature(prototype) === '[object Object]' && // 2 — prototype's [[Class]] tag
+    getVerifiedOwnName(constructor) === 'Object' && // 3 — ctor own `name` (accessor → undefined)
+    getInertDescriptor(constructor, 'prototype', TRUSTED_DATA_CONFIRMATION)?.value ===
+      prototype && // 4 — round-trip identity
+    getInertPrototypeOf(prototype) === null && // 5 — chain-depth (top-level prototype)
+    doesImplementObjectPrototypeContract(prototype) // 6 — own member surface
   );
 }
 ```
@@ -205,6 +222,15 @@ The contract markers in cost order:
 5. **Chain-depth invariant** — `getPrototypeOf(prototype) === null`. Every realm's
    `Object.prototype` has a `[[Prototype]]` of `null`; class instances and built-in
    container instances have at least two prototype-chain levels.
+6. **Member-surface marker** — `doesImplementObjectPrototypeContract(prototype)`. The
+   prototype carries every canonical `Object.prototype` member (the host-calibrated set —
+   the seven core ES members plus whichever Annex-B accessor helpers the engine exposes)
+   as its own non-enumerable callable. This is the only marker that inspects members
+   rather than identity claims, so it is what rejects a hollow `class extends null`
+   renamed `'Object'`: that prototype satisfies markers 1–5 (null-rooted, tags
+   `'[object Object]'`, owns a round-tripping `'Object'`-named constructor) yet owns only
+   `constructor`. The own read is a `try/catch`-guarded `getOwnPropertyDescriptors`, so a
+   throwing `ownKeys` trap yields `false`. See decision #044.
 
 The descriptor-via-`.value` discipline (markers 3, 4) is uniform with `isClass`'s own use
 of `getOwnPropertyDescriptor(value, 'prototype')?.writable === false`. Reading own data
@@ -214,9 +240,30 @@ accessor-form definitions (closing the lying-getter spoof). See decision #044.
 
 The residual spoof surface is an attacker who constructs `FakeCtor` with a writable:false
 own `prototype` data property pointing to a hand-crafted `fakeProto` (`[[Prototype]]`
-null) and `FakeCtor.name === 'Object'`. At that point they have reconstructed the spec
-mechanics of `Object` from scratch — structurally indistinguishable from a foreign realm's
-`Object`. Not a spoof; a parallel implementation.
+null), `FakeCtor.name === 'Object'`, AND installs the full canonical `Object.prototype`
+member set on `fakeProto` as non-enumerable callables (to pass marker 6). At that point
+they have reconstructed the spec mechanics of `Object` from scratch — structurally
+indistinguishable from a foreign realm's `Object`. Not a spoof; a parallel implementation
+(`dIOPC/A2`).
+
+### Realm asymmetry on tampered inputs (deliberate)
+
+The two arms weigh evidence differently, so for a TAMPERED input they can disagree by
+realm. The local fast-path (`prototype === objectPrototype`) is pure identity and **blind
+to surface tampering**: a local plain object carrying a spoofed or throwing
+`Symbol.toStringTag` is still admitted, because it genuinely has the real
+`Object.prototype` and so genuinely is a plain `Object` instance — identity outranks a
+cosmetic marker. The cross-realm arm, lacking a local prototype to match, has **only**
+surface markers to go on, so the same tampering makes it reject. The _same_ tampered
+object therefore reads `true` locally and `false` cross-realm.
+
+This is inherent to having a fast identity path at all, and the local answer is the
+more-correct one. It is accepted, **not** reconciled: forcing the fast-path to also read
+the tag would cost its O(1)-identity nature and would wrongly reject a genuine local plain
+object. Every _legitimate_ (untampered) plain object agrees across realms (`true`) — the
+divergence appears only under tampering. The throwing-tag instance is pinned by the
+throw-safety matrix (local `true` / alien `false`); the non-throwing spoofed-tag instance
+by `adversarial.test.js`. See `docs/spec/OBJECT.spec.md` → `isPlainObject`.
 
 ## Cross-module: `BlankType` ↔ `DictionaryObject`
 
