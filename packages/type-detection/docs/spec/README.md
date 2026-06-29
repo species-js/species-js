@@ -28,13 +28,13 @@ A module's spec is the source of truth for **one** test axis. Full coverage of a
 implemented module comes from several accompanying axes, each answering a different
 question and drawing from a different source:
 
-| Axis | Suite                         | Question it answers                                                    | Source of truth                                                                                   |
-| ---- | ----------------------------- | ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
-| 1    | **Spec / contract**           | Does the public predicate honor its documented contract?               | `spec/<MODULE>.spec.md` (this directory)                                                          |
-| 2    | **Cross-realm**               | Do the same claims hold for foreign-realm values (`vm`/iframe/worker)? | the spec's per-predicate _cross-realm expectation_, re-verified through the realm-fixture harness |
-| 3    | **Adversarial / smart-alien** | Does it hold its _refuses-to-claim_ boundaries against spoofs?         | the spec's _boundary_ + _spoof-resistance_ vectors, exercised via alien-mock values               |
-| 4    | **Helper-unit**               | Does each `@internal` helper do its isolated job?                      | the implementation's helper inventory (white-box)                                                 |
-| 5    | **Coverage-completeness**     | Does every branch actually execute?                                    | the V8 coverage report, ratcheted                                                                 |
+| Axis | Suite                         | Question it answers                                                    | Source of truth                                                                                              |
+| ---- | ----------------------------- | ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| 1    | **Spec / contract**           | Does the public predicate honor its documented contract?               | `spec/<MODULE>.spec.md` (this directory)                                                                     |
+| 2    | **Cross-realm**               | Do the same claims hold for foreign-realm values (`vm`/iframe/worker)? | the spec's per-predicate _cross-realm expectation_, re-verified through the realm-fixture harness            |
+| 3    | **Adversarial / smart-alien** | Does it resist spoofs _and_ stay throw-safe on every path?             | the spec's _spoof-resistance_ vectors + the _throw-safety invariant_ (exhaustive hostile × predicate matrix) |
+| 4    | **Helper-unit**               | Does each `@internal` helper do its isolated job?                      | the implementation's helper inventory (white-box)                                                            |
+| 5    | **Coverage-completeness**     | Does every branch actually execute?                                    | the V8 coverage report, ratcheted                                                                            |
 
 The load-bearing point: **axes 2 and 3 are still spec claims** — cross-realm independence
 and spoof-resistance are behavioral guarantees, so the spec carries the _expectations_;
@@ -62,21 +62,72 @@ test round knows which suite consumes it.
 ## Vector notation
 
 Every vector has a **stable ID** so tests can cite it: `<predicate>/<class><n>`, where the
-class is `A` (admits), `R` (rejects), or `B` (boundary / refuses-to-claim). Example:
-`isThenable/A1`, `isPromise/R3`, `isThenable/B1`. IDs are append-only — never renumber a
-shipped vector; add a higher number or mark one withdrawn. A test asserting a vector
-should reference the ID in its description so spec ↔ test traceability survives refactors.
+class is `A` (admits), `R` (rejects), or `B` (a **testable boundary** — a documented
+known-admission or unclosable-spoof limit, _asserted_ to pin the boundary, e.g. the
+`Object.create(Promise.prototype)` graft → `true`). Example: `isThenable/A1`,
+`isPromise/R3`, `isPromise/B2`. IDs are append-only — never renumber a shipped vector; add
+a higher number or mark one withdrawn. A test asserting a vector should reference the ID
+in its description so spec ↔ test traceability survives refactoring.
 
 Each vector reads as `input → expected — rationale`. Inputs are written as runnable
 JavaScript expressions wherever possible; values that need construction (cross-realm,
 alien) name the fixture instead.
+
+Two things are deliberately **not** vectors — keeping them out of the ID space is what
+lets a spec read seamlessly instead of as a thicket of annotations:
+
+- **Refuses-to-claim** — the semantic scope a predicate declines to verify (`isThenable`
+  does not check `then`'s arity; no predicate probes `[[PromiseState]]`). It asserts
+  nothing, so it reads as **prose** in the predicate's _Refuses to claim_ subsection,
+  never as a vector ID. (Specs that earlier gave these `B` IDs are demoted in place — the
+  ID is marked withdrawn and the claim becomes prose.)
+- **Throw-safety** — a universal invariant (next section), stated once and proven by an
+  exhaustive matrix that lives in the **test suite**, not as per-input vectors.
+
+## Throw-safety — the universal invariant
+
+A type-detection predicate must answer a boolean on **every** input, including hostile
+ones: a `Proxy` whose `getPrototypeOf` / `getOwnPropertyDescriptor` / `ownKeys` trap
+throws, a throwing accessor getter (`get then() { throw }`), a throwing
+`Symbol.toStringTag` getter. The contract is uniform and non-negotiable, and it is the
+most honest thing a structural detector can do:
+
+- **Every predicate returns `false`** on any throw, on any path.
+- **Every `@internal` helper returns its sentinel** — `undefined` for resolver/reader
+  helpers, `false` for boolean probes — on any throw, so the predicates that compose them
+  collapse to `false`.
+
+This is **one coherent invariant, not a family of per-input boundary vectors.** Each spec
+states it **once** — a short _Throw-safety_ paragraph in the module contract — naming the
+hostile-input classes the module's reads are exposed to (prototype-trap, descriptor-trap,
+accessor-throw, tag-getter-throw) and the throw-safe reader each routes through
+(`getInert*` from `@/utility`, the `try/catch`-wrapped `instanceof` inside an
+`isCurrentRealm*Instance` helper, `getTypeSignature`, `getVerifiedOwnName`,
+`getDefinedConstructor`).
+
+The **exhaustive proof lives in the test suite, not the spec**: a config-driven
+`hostile-input-class × predicate` matrix (the same shape as the axis-1 candidate matrix),
+every cell asserting `false` / honest-by-contract verdict **and** not-thrown. The
+invariant is met for a module **⟺ every cell of its matrix is filled.** Keeping the matrix
+in the tests is what keeps the spec readable — the spec carries the contract, the suite
+carries the enumeration.
+
+**Code consequence.** A module is not throw-safe until every predicate fast-path that
+reads a prototype or descriptor routes through a throw-safe reader — **no raw
+`instanceof`, no raw `@/config` `getPrototypeOf` / `getOwnPropertyDescriptor` on the
+value.** Auditing this (and filling the matrix) is a required step of every module's test
+round; `object` and `thenable` satisfy it today, the remaining modules harden to it in
+their rounds.
 
 ## Per-module spec template
 
 Each `<MODULE>.spec.md` follows this shape:
 
 1. **Module contract** — one-paragraph purpose + the discrimination lattice (copied from
-   the architecture doc's mental model so the spec stands alone).
+   the architecture doc's mental model so the spec stands alone) + the one-paragraph
+   **Throw-safety** invariant (predicates → `false`, helpers → sentinel, on every path;
+   see the section above) naming the module's hostile-input classes and throw-safe
+   readers.
 2. **Surface inventory** — every public predicate, every exported `@internal` helper, and
    every exported type-without-predicate. Mechanical-completeness first (per the audit
    discipline): the list must be exhaustive before any vectors are written. Confirm each
@@ -88,10 +139,11 @@ Each `<MODULE>.spec.md` follows this shape:
    way (nullish, falsy primitives, the omitted argument). Stated once, referenced per
    predicate.
 4. **Per-predicate specification** — for each public predicate: signature, spec basis,
-   **Admits** / **Rejects** / **Refuses to claim** vector lists, **Cross-realm
-   expectation** (axis 2), **Spoof-resistance expectation** (axis 3), **Composition note**
-   (which helpers it drives → axis 4), and any **Policy flags** (open questions whose
-   resolution would change a vector).
+   **Admits** / **Rejects** `A`/`R` vector lists, a **Refuses to claim** subsection
+   (prose, not vectors), **Cross-realm expectation** (axis 2), **Spoof-resistance
+   expectation** (axis 3, including the throw-safety classes it is exposed to),
+   **Composition note** (which helpers it drives → axis 4), and any **Policy flags** (open
+   questions whose resolution would change a vector).
 5. **Helper specification** — for each exported `@internal` helper: its isolated
    contract + vectors (axis 4).
 6. **Open / resolved items** — spec-level questions surfaced while writing, with their
