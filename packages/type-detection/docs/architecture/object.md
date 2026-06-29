@@ -114,6 +114,32 @@ accept; `=== null` → verify the two non-prototype cross-validators; else → t
 contract walk). The fusion eliminates a redundant constructor walk and a redundant tag
 computation that would otherwise fire on `DictionaryObject` inputs.
 
+The `getPrototypeOf` reads in the snippets above are the conceptual operation; the
+implementation routes EVERY descriptor and prototype read in the detection paths through a
+throw-safe reader, so a type-guard answers a boolean on every input — including a hostile
+`Proxy` — rather than propagating a trap's throw (hardened during the 2026-06-25 test
+round, decision-aligned with #056/#057/#029):
+
+- **Prototype reads** → `getInertPrototypeOf` (`@/utility`, the #057 wrapper). A throwing
+  `getPrototypeOf` trap yields `undefined` — matching neither `objectPrototype` nor
+  `null`.
+- **The five-marker contract** (`hasPlainObjectPrototypeContract`) reads the constructor's
+  own `name` via `getVerifiedOwnName` (#059) and its `prototype` round-trip via
+  `getInertDescriptor` (#056), not raw `getOwnPropertyDescriptor`.
+- **`isClass`** (`@/function`) was the upstream root cause — it did its own raw
+  `getOwnPropertyDescriptor(value, 'prototype')`, so a hostile constructor threw there
+  before object's own markers ran. Root-fixed to route through `getInertDescriptor`
+  (#056), which makes every `isClass` consumer throw-safe for free. The from-every-angle
+  adversarial probe — a SURGICAL hostile constructor that throws only for `'prototype'`
+  and so passes the cheap identity-signal gate — is what drove the hostile value into this
+  surface and exposed it; a blanket-throwing Proxy is caught earlier by the throw-safe
+  signal gate.
+
+The prototype is also resolved ONCE per call and threaded into
+`hasPlainObjectPrototypeContract(value, prototype)` (the #059 threading learning),
+eliminating the redundant re-read the helper would otherwise perform on the cross-realm
+path.
+
 ## Structural anchor for `isPlainObject`
 
 The cross-realm fallback in `isPlainObject` pairs two cheap string-shape signal markers

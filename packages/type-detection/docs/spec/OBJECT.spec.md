@@ -8,7 +8,17 @@
 > corrected one stale doc-comment claim — the `isDictionaryObject` `getDefinedConstructor`
 > cross-validator admits (not rejects) an attached own `constructor` key (#047); the
 > `object.{js,d.ts}` comments were fixed. Base for the axis-1 suite; axes 2–4 derive
-> alongside.
+> alongside. Amended 2026-06-25 (test round) — throw-safety hardening (every descriptor /
+> prototype read routes through a throw-safe reader, incl. the `isClass` root-fix in
+> `@/function`) + #059 prototype-threading; public admit/reject verdicts unchanged, new
+> `*/B1`–`B3` adversarial vectors — see Resolved items #2. Amended 2026-06-29 (test round)
+> — the five-marker anchor became a **six-marker** anchor (the member-surface marker, a
+> new `doesImplementObjectPrototypeContract` helper); the cross-realm anchor was renamed
+> `hasPlainObjectPrototypeContract → isObjectPrototypeEquivalent` and now takes the
+> already-resolved `[[Prototype]]` (one arg, #059); the dictionary signal was extracted
+> into a new `hasDictionaryObjectIdentitySignal` helper; and a #059-threading regression
+> on `isPlainObject(Object.prototype)` was found and fixed (false→true→**false**),
+> restoring PlainObject/DictionaryObject disjointness — see Resolved items #3.
 
 ## Module contract
 
@@ -24,26 +34,41 @@ PlainOrDictionaryObject (isPlainOrDictionaryObject)  — PlainObject | Dictionar
 
 `PlainObject` and `DictionaryObject` are mutually exclusive (constructor === Object vs. no
 prototype) and type-disjoint (`constructor: ObjectConstructor` vs. `constructor?: never`).
-`isPlainObject` is **strict** (rejects `Object.create(null)`); the lodash-permissive set
-is the fused `isPlainOrDictionaryObject`. Decisions #040 (structural subtype over
-branding), #041/#046 (strict-vs-lodash), #044 (five-marker anchor), #045 (dictionary tag
-cross-validator), #047 (`getDefinedConstructor` pivot).
+The disjointness is structural: `isPlainObject` rejects every prototype-less value (its
+`!!prototype` guard — see below), so a null-prototype object is never plain.
+`Object.prototype` itself is the boundary case — being prototype-less with no reachable
+constructor it is a **DictionaryObject, not a PlainObject** (`isDictionaryObject/A4`,
+`isPlainObject/R7`). `isPlainObject` is **strict** (rejects `Object.create(null)`); the
+lodash-permissive set is the fused `isPlainOrDictionaryObject`. Decisions #040 (structural
+subtype over branding), #041/#046 (strict-vs-lodash), #044 (six-marker anchor), #045
+(dictionary tag cross-validator), #047 (`getDefinedConstructor` pivot).
 
 ## Surface inventory
 
 **Public predicates (axis 1):** `isObject`, `isPlainObject`, `isDictionaryObject`,
 `isPlainOrDictionaryObject`.
 
-**Exported `@internal` helpers (axis 4):** `hasPlainObjectIdentitySignal` (two cheap
-string-shape markers), `hasPlainObjectPrototypeContract` (the five-marker prototype
-contract). Exporting these is what makes the cross-realm structural arm of `isPlainObject`
-unit-testable on **local** plain objects (the helpers carry no local-realm fast-path, so
-they run the realm-independent logic directly — no `vm` realm needed).
+**Exported `@internal` helpers (axis 4):**
+
+- `hasPlainObjectIdentitySignal` — two inexpensive plain-object string-shape markers (tag
+  `'[object Object]'` + constructor-name `'Object'`).
+- `hasDictionaryObjectIdentitySignal` — the dictionary counterpart (tag
+  `'[object Object]'` and NO reachable constructor).
+- `isObjectPrototypeEquivalent` — the six-marker prototype contract over an
+  already-resolved `[[Prototype]]` (one arg, threaded by the caller per #059).
+- `doesImplementObjectPrototypeContract` — marker 6 in isolation: the prototype's own
+  member surface against the host-calibrated canonical `Object.prototype` member set.
+
+Exporting these is what makes the cross-realm structural arm of `isPlainObject`
+unit-testable on **local** values (the helpers carry no local-realm fast-path, so they run
+the realm-independent logic directly — no `vm` realm needed). The unexported seam
+`isAlienRealmPlainObject(value, prototype) = hasPlainObjectIdentitySignal(value) && isObjectPrototypeEquivalent(prototype)`
+is covered transitively through the two helpers it composes.
 
 **Exported types without a predicate:** `AnyObject`, `PlainObject`, `DictionaryObject`,
 `PlainOrDictionaryObject`.
 
-Re-confirmation gate: 6 `.js` exports = 6 `.d.ts` declarations, no surface gap;
+Re-confirmation gate: 8 `.js` exports = 8 `.d.ts` declarations, no surface gap;
 `architecture/object.md` matches the code (no drift).
 
 ## Cross-cutting vectors
@@ -78,51 +103,104 @@ none (syntactic operator).
 
 ## `isPlainObject`
 
-`isPlainObject<T = unknown>(value?: T): value is T & PlainObject` Composition:
-`isObject(value) && (getPrototypeOf(value) === objectPrototype || (hasPlainObjectIdentitySignal(value) && hasPlainObjectPrototypeContract(value)))`.
+`isPlainObject<T = unknown>(value?: T): value is T & PlainObject` Composition: the
+`isObject` gate, then the prototype is resolved ONCE
+(`prototype = getInertPrototypeOf(value)`, #059) and
+`!!prototype && (prototype === objectPrototype || isAlienRealmPlainObject(value, prototype))`.
+
+The `!!prototype` guard is a deliberate O(1) **dictionary fast-reject**: a plain object
+always has a (some realm's) `Object.prototype`, so a `null` prototype (a dictionary, or
+`Object.prototype` itself) and an `undefined` prototype (a throw-safe
+`getInertPrototypeOf` result on a hostile trap) are rejected before the signal +
+six-marker walk runs — and can never reject a true positive.
 
 - `isPlainObject/A1` — `{}`, `{ a: 1 }`, `new Object()`, `Object.create(Object.prototype)`
   → true (local-realm fast-path: proto === `objectPrototype`).
 - `isPlainObject/A2` — a cross-realm plain object (fixture) → true (structural arm:
-  signal + five-marker contract). The structural _logic_ is pinned in-realm by the helper
+  signal + six-marker contract). The structural _logic_ is pinned in-realm by the helper
   specs below.
 - `isPlainObject/R1` — `[]` (constructor `Array`), `new Date()`, `new Map()`, `/re/` →
   false.
 - `isPlainObject/R2` — `new (class Foo {})()` → false (constructor `Foo`, not `Object`).
-- `isPlainObject/R3` — `Object.create(null)` → false (no constructor — that's
-  `isDictionaryObject`).
+- `isPlainObject/R3` — `Object.create(null)` → false (null prototype → the `!!prototype`
+  fast-reject; that's `isDictionaryObject`).
 - `isPlainObject/R4` — `new String('x')` → false (tag `'[object String]'`, proto
   `String.prototype`).
 - `isPlainObject/R5` — `Object.create({ a: 1 })` → false (proto is a
-  non-`Object.prototype` plain object; fails fast-path; contract marker 5
-  `getPrototypeOf(prototype) === null` and constructor checks fail).
+  non-`Object.prototype` plain object; fails fast-path; contract marker 4 round-trip and
+  marker 5 chain-depth fail).
+- `isPlainObject/R6` — a value over a hollow `class extends null` whose `name` is
+  redefined to `'Object'` → false. Its prototype satisfies the five identity markers (1–5)
+  — null-rooted, tag `'[object Object]'`, own ctor-name `'Object'`, round-tripping
+  `prototype` — yet carries only `constructor`, none of `Object.prototype`'s methods. The
+  **member-surface marker 6** (`doesImplementObjectPrototypeContract`) is the sole marker
+  that rejects it.
+- `isPlainObject/R7` — `Object.prototype` → false (its own `[[Prototype]]` is `null` → the
+  `!!prototype` fast-reject). This preserves PlainObject/DictionaryObject disjointness:
+  `Object.prototype` is a dictionary, not a plain object (`isDictionaryObject/A4`).
+- `isPlainObject/B1` — a `Proxy` whose `getPrototypeOf` trap throws → false, **not
+  thrown** — every prototype read routes through the throw-safe `getInertPrototypeOf`
+  (hardened 2026-06-25, decision-aligned with #056/#057); the trap collapses to
+  `undefined` and the `!!prototype` guard rejects it.
+- `isPlainObject/B2` — a value whose prototype's own `constructor` is a `Proxy` whose
+  `getOwnPropertyDescriptor` trap throws ONLY for `'prototype'` (returning a normal
+  `name: 'Object'`) → false, **not thrown**. The surgical angle: it passes the cheap
+  identity-signal gate and so drives the hostile constructor into the contract walk
+  (`isClass` + markers 3/4), where `isClass` (root-fixed in `@/function`),
+  `getVerifiedOwnName` (marker 3), and `getInertDescriptor` (marker 4) each collapse the
+  trap to `false`. A blanket-throwing constructor is caught earlier by the throw-safe
+  identity-signal gate.
+- `isPlainObject/B3` — a value over a `[[Prototype]]` whose `getOwnPropertyDescriptor`
+  trap throws → false, **not thrown** — the constructor-walk routes through
+  `getInertDescriptor` (#056).
 - (plus CC/nullish, CC/primitive, CC/function.)
 
 **Refuses to claim:** prototype-less objects (delegated to `isDictionaryObject`).
 **Cross-realm (axis 2):** admit foreign-realm plain objects via the structural arm.
-**Spoof (axis 3):** the five-marker contract closes the tampered-`constructor`-pointer
-spoof (round-trip identity marker 4) and the lying-accessor spoof (descriptor-via-`.value`
-on markers 3/4); the chain-depth marker 5 rejects class/container instances structurally.
-Residual: a from-scratch reconstruction of `Object`'s spec mechanics = a parallel
-implementation, not a spoof. **Composition note (axis 4):** `isObject` gate → fast-path
-`objectPrototype` ref → `hasPlainObjectIdentitySignal` +
-`hasPlainObjectPrototypeContract`.
+**Spoof (axis 3):** the six-marker contract closes the tampered-`constructor`-pointer
+spoof (round-trip identity marker 4), the lying-accessor spoof (descriptor-via-`.value` on
+markers 3/4), the class/container instances (chain-depth marker 5), and the hollow
+`class extends null` renamed `'Object'` (member-surface marker 6). Residual: a
+from-scratch reconstruction of `Object`'s spec mechanics that ALSO installs the full
+canonical member set = a parallel implementation, not a spoof (`dIOPC/A2`). **Composition
+note (axis 4):** `isObject` gate → `getInertPrototypeOf` once → `!!prototype` reject →
+fast-path `objectPrototype` ref → `isAlienRealmPlainObject`
+(`hasPlainObjectIdentitySignal` + `isObjectPrototypeEquivalent`).
 
 ---
 
 ## `isDictionaryObject`
 
 `isDictionaryObject<T = unknown>(value?: T): value is T & DictionaryObject` Composition:
-`isObject(value) && getPrototypeOf(value) === null && getDefinedConstructor(value) === undefined && getTypeSignature(value) === '[object Object]'`.
+`isObject(value) && getInertPrototypeOf(value) === null && hasDictionaryObjectIdentitySignal(value)`,
+where the two non-gate cross-validators (`getDefinedConstructor(value) === undefined` and
+`getTypeSignature(value) === '[object Object]'`) are bundled in the helper:
+
+- `getInertPrototypeOf === null` is the spec-correct, throw-safe test for "no
+  prototype-chain." `Object.create(null)` is the canonical way to reach this state, but
+  any object whose prototype was later set to `null` via
+  `Object.setPrototypeOf(obj, null)` also passes.
+- `getDefinedConstructor === undefined` is the structural cross-validator: the four-source
+  constructor walk resolves no real constructor. The walk deliberately ignores an own
+  `constructor` data property (#047), so a prototype-less hashmap carrying a user-supplied
+  `constructor` key is still admitted — the key is data, not a reachable constructor.
+- `getTypeSignature === '[object Object]'` is the tag cross-validator closing the rare
+  surface where a prototype-less object has been hand-decorated with an own
+  `Symbol.toStringTag` to lie about its `[[Class]]`.
 
 - `isDictionaryObject/A1` — `Object.create(null)` → true.
 - `isDictionaryObject/A2` — `Object.setPrototypeOf({}, null)` → true (prototype later
-  nulled).
+  null-ed).
 - `isDictionaryObject/A3` — `Object.assign(Object.create(null), { constructor: Object })`
   → **true** — a prototype-less hashmap carrying a user-supplied `'constructor'` data key
   is still a dictionary. `getDefinedConstructor` deliberately ignores an own `constructor`
   property (#047), so the key is data, not a reachable constructor. (This corrected a
   stale doc claim — see Resolved items #1.)
+- `isDictionaryObject/A4` — `Object.prototype` → **true**. Its own `[[Prototype]]` is
+  `null` and, with #047 ignoring its own `constructor`, the walk resolves no reachable
+  constructor; the tag is `'[object Object]'`. This is the disjoint counterpart of
+  `isPlainObject/R7`: `Object.prototype` is classified as a dictionary, never a plain
+  object.
 - `isDictionaryObject/R1` — `{}` → false (proto `Object.prototype`).
 - `isDictionaryObject/R2` — `[]`, `new Date()`, `new (class {})()` → false (non-null
   proto).
@@ -130,6 +208,9 @@ implementation, not a spoof. **Composition note (axis 4):** `isObject` gate → 
 - `isDictionaryObject/R4` — a prototype-less object hand-decorated with own
   `Symbol.toStringTag` → false (the `getTypeSignature === '[object Object]'`
   cross-validator rejects the spoofed tag).
+- `isDictionaryObject/B1` — a `Proxy` whose `getPrototypeOf` trap throws → false, **not
+  thrown** — the prototype read routes through the throw-safe `getInertPrototypeOf` (trap
+  → `undefined`, which `!== null`).
 - (plus CC vectors.)
 
 **Refuses to claim:** prototype-bearing plain objects (that's `isPlainObject`).
@@ -137,32 +218,47 @@ implementation, not a spoof. **Composition note (axis 4):** `isObject` gate → 
 realm. **Spoof (axis 3):** the `getTypeSignature === '[object Object]'` cross-validator
 closes the spoofed-tag surface (`R4`). The `getDefinedConstructor === undefined` marker
 does NOT reject an attached own `constructor` key (it is ignored by design, #047 — see
-`A3`); it is defense-in-depth paired with `getPrototypeOf === null`. **Composition note
-(axis 4):** `isObject` + `getPrototypeOf` (`@/config`) + `getDefinedConstructor` +
-`getTypeSignature` (`@/utility`).
+`A3`); it is defense-in-depth paired with `getInertPrototypeOf === null`. **Composition
+note (axis 4):** `isObject` + `getInertPrototypeOf` (`@/utility`) +
+`hasDictionaryObjectIdentitySignal` (`getDefinedConstructor` + `getTypeSignature`,
+`@/utility`).
 
 ---
 
 ## `isPlainOrDictionaryObject`
 
 `isPlainOrDictionaryObject<T = unknown>(value?: T): value is T & PlainOrDictionaryObject`
-Fused: one `isObject` gate + one `getPrototypeOf` read, then dispatch —
-`=== objectPrototype` → accept; `=== null` → verify the two dictionary cross-validators;
-else → the cross-realm plain-object contract.
+Fused: one `isObject` gate + one throw-safe `getInertPrototypeOf` read, then dispatch by
+prototype value — `=== objectPrototype` → accept; `=== null` →
+`hasDictionaryObjectIdentitySignal(value)`; else →
+`isAlienRealmPlainObject(value, prototype)` (the cross-realm plain-object contract).
+
+Note the asymmetry with `isPlainObject` on a `null` prototype: `isPlainObject` rejects it
+(never plain), whereas the fused predicate routes it to the dictionary branch — so a
+null-proto value can still be admitted here as a dictionary.
 
 - `isPlainOrDictionaryObject/A1` — `{}`, `new Object()` → true (plain, fast-path).
 - `isPlainOrDictionaryObject/A2` — `Object.create(null)` → true (dictionary branch).
 - `isPlainOrDictionaryObject/A3` — a cross-realm plain object (fixture) → true
   (cross-realm fallback).
+- `isPlainOrDictionaryObject/A4` — `Object.prototype` → true (dictionary branch; matches
+  `isDictionaryObject/A4`).
 - `isPlainOrDictionaryObject/R1` — `[]`, `new Date()`, `new (class Foo {})()` → false.
 - `isPlainOrDictionaryObject/R2` — `Object.create({ a: 1 })` → false
   (non-`objectPrototype`, non-null proto; fails the contract walk).
+- `isPlainOrDictionaryObject/R3` — a hollow `class extends null` renamed `'Object'` →
+  false (cross-realm branch; member-surface marker 6 rejects it, as in
+  `isPlainObject/R6`).
+- `isPlainOrDictionaryObject/B1` — a `Proxy` whose `getPrototypeOf` trap throws → false,
+  **not thrown** — the shared prototype read routes through the throw-safe
+  `getInertPrototypeOf` (trap → `undefined`, matching neither dispatch branch, so it falls
+  to the structural fallback and returns false).
 - (plus CC vectors.)
 
 **Cross-realm / spoof (axes 2, 3):** inherits from the two strict predicates it fuses.
 **Composition note (axis 4):** shares the gate + prototype read; drives
-`getDefinedConstructor`, `getTypeSignature`, `hasPlainObjectIdentitySignal`,
-`hasPlainObjectPrototypeContract`.
+`hasDictionaryObjectIdentitySignal` (null branch) and `isAlienRealmPlainObject`
+(`hasPlainObjectIdentitySignal` + `isObjectPrototypeEquivalent`, else branch).
 
 ---
 
@@ -179,19 +275,79 @@ else → the cross-realm plain-object contract.
   not `'Object'`).
 - `hPOIS/R3` — `new (class Foo {})()` → false (constructor-name `'Foo'`).
 
-### `hasPlainObjectPrototypeContract(value?)` — `@internal` (the five-marker cross-realm anchor; runs the realm-independent logic on local values)
+### `hasDictionaryObjectIdentitySignal(value?)` — `@internal`
 
-- `hPOPC/A1` — `{}`, `new Object()` → true (all five markers hold for a real plain
-  object).
-- `hPOPC/R1` — `[]` → false (marker 2: `getTypeSignature(Array.prototype)` is
-  `'[object Array]'`).
-- `hPOPC/R2` — `new (class Foo {})()` → false (marker 3: constructor `name` is `'Foo'`,
-  not `'Object'`).
-- `hPOPC/R3` — `Object.create(null)` → false (`isObject(prototype)` is false → no
-  constructor → `isClass` fails).
-- `hPOPC/R4` — a plain object whose `constructor` is tampered to point at the global
-  `Object` while its prototype is a hand-crafted non-`Object.prototype` → false
-  (round-trip marker 4: `Object.prototype !== value`'s prototype).
+`getTypeSignature(value) === '[object Object]' && getDefinedConstructor(value) === undefined`.
+The dictionary counterpart of `hasPlainObjectIdentitySignal`: same tag marker, but it
+expects NO reachable constructor instead of constructor-name `'Object'`. Reused by
+`isDictionaryObject` and the `prototype === null` branch of the fused
+`isPlainOrDictionaryObject`.
+
+- `hDOIS/A1` — `Object.create(null)` → true (tag `'[object Object]'` + no reachable
+  constructor).
+- `hDOIS/A2` — `Object.assign(Object.create(null), { constructor: Object })` → true (the
+  own `constructor` key is ignored, #047 — so still no reachable constructor).
+- `hDOIS/R1` — `{}` → false (constructor resolves to `Object`, not `undefined`).
+- `hDOIS/R2` — a prototype-less object with a spoofed own `Symbol.toStringTag` → false
+  (the tag cross-validator rejects the lie).
+
+### `isObjectPrototypeEquivalent(prototype?)` — `@internal` (the six-marker cross-realm anchor; takes the already-resolved `[[Prototype]]`, #059; runs the realm-independent logic on local values)
+
+Markers, short-circuited in cost-order:
+
+1. `isClass(constructor)` — the constructor reached via
+   `getDefinedConstructor(prototype, { assumePrototype: true })` is a built-in or
+   `class`-syntax newable.
+2. `getTypeSignature(prototype) === '[object Object]'` — the prototype's own `[[Class]]`
+   tag matches.
+3. `getVerifiedOwnName(constructor) === 'Object'` — the constructor's own `name` reads
+   `'Object'` (throw-safe; accessor-form `name` yields `undefined`).
+4. `getInertDescriptor(constructor, 'prototype').value === prototype` — round-trip
+   identity (throw-safe; accessor-form yields `undefined`).
+5. `getInertPrototypeOf(prototype) === null` — chain-depth check (top-level prototype).
+6. `doesImplementObjectPrototypeContract(prototype)` — member-surface check: the prototype
+   carries every canonical `Object.prototype` member as its own non-enumerable callable.
+
+- `iOPE/A1` — the `[[Prototype]]` of `{}` / `new Object()` → true (all six markers hold
+  for a real `Object.prototype`).
+- `iOPE/R1` — the `[[Prototype]]` of `[]` → false (marker 2:
+  `getTypeSignature(Array.prototype)` is `'[object Array]'`).
+- `iOPE/R2` — the `[[Prototype]]` of `new (class Foo {})()` → false (marker 3: constructor
+  `name` is `'Foo'`, not `'Object'`).
+- `iOPE/R3` — a `null` prototype (`Object.create(null)`'s) → false (`isObject(prototype)`
+  is false → no constructor → `isClass` fails).
+- `iOPE/R4` — a hand-crafted prototype carrying a `constructor` tampered to point at the
+  global `Object` → false (round-trip marker 4:
+  `Object.prototype !== the hand-crafted prototype`).
+- `iOPE/R5` — the `[[Prototype]]` of a hollow `class extends null` renamed `'Object'` →
+  false. Satisfies markers 1–5; only the member-surface marker 6 rejects it.
+
+### `doesImplementObjectPrototypeContract(value?)` — `@internal` (marker 6 in isolation)
+
+Throw-safe `getOwnPropertyDescriptors(value)`, then every name in the host-calibrated
+canonical member set (the seven core ES members plus whichever Annex-B accessor helpers
+this engine exposes, calibrated once and memoized) must be present as a non-enumerable,
+callable-valued **own** data property. Reads own descriptors only — never inherited.
+
+- `dIOPC/A1` — a real `Object.prototype` (the `[[Prototype]]` of `{}`) → true (full
+  canonical member surface).
+- `dIOPC/A2` — a hand-built null-proto prototype carrying the FULL canonical member set as
+  non-enumerable callables → true. The documented residual: the structural contract closes
+  the cheap spoof, not every conceivable one.
+- `dIOPC/A3` — augmentation-tolerant: extra own properties (a polyfill, a monkeypatched
+  method) do not break it (presence of the canonical set, not set equality).
+- `dIOPC/R1` — the `[[Prototype]]` of a hollow `class extends null` renamed `'Object'` →
+  false (carries only `constructor`, none of the canonical members).
+- `dIOPC/R2` — `Array.prototype` → false (own, not inherited: it inherits the `Object`
+  methods rather than owning them).
+- `dIOPC/R3` — a prototype carrying the full canonical member NAMES but with the wrong
+  descriptor SHAPE (one accessor-form, one enumerable, one non-callable value) → false.
+  `isValidObjectPrototypeDescriptor` requires each member to be a non-enumerable,
+  callable-valued **data** property; this closes the "right names, wrong shape" spoof the
+  residual `dIOPC/A2` does not.
+- `dIOPC/B1` — a hostile `Proxy` prototype whose `ownKeys` trap throws → false, **not
+  thrown** — the `getOwnPropertyDescriptors` read is wrapped in a `try/catch`. Reachable
+  only standalone (the predicate path fails marker 1 before marker 6 runs).
 
 ---
 
@@ -206,9 +362,69 @@ else → the cross-realm plain-object contract.
    so `isDictionaryObject(Object.assign(Object.create(null), { constructor: Object }))` is
    **admitted** (`A3`), not rejected. The implementation is correct (a hashmap with a
    `'constructor'` key is still a dictionary); the doc-comments were corrected to describe
-   the marker's real behavior (defense-in-depth paired with `getPrototypeOf === null`).
-   `architecture/object.md` needed no change (it already attributed spoof-closing to the
-   tag cross-validator only). Both structural helpers were already exported `@internal`
-   (no #053-style action needed).
+   the marker's real behavior (defense-in-depth paired with
+   `getInertPrototypeOf === null`). `architecture/object.md` needed no change (it already
+   attributed spoof-closing to the tag cross-validator only). Both structural helpers were
+   already exported `@internal` (no #053-style action needed).
+
+2. **Throw-safety hardening (impl change, 2026-06-25 test round) — RESOLVED.** The test
+   round surfaced a throw surface across the object detection paths; the first pass fixed
+   only one of its four reads, and an every-angle adversarial probe (a SURGICAL hostile
+   constructor) exposed the rest. User ruling: **harden** the whole path (matching the
+   thenable/evented treatment), not document-the-throw — including the cross-module root
+   cause. The complete set of reads now routes through throw-safe readers:
+   - **Prototype reads** (`isPlainObject`, `isDictionaryObject`,
+     `isPlainOrDictionaryObject`) → `getInertPrototypeOf` (#057), replacing raw
+     `getPrototypeOf` (`@/config`).
+   - **Marker 3** (constructor `name`) → `getVerifiedOwnName` (#059); **marker 4**
+     (constructor `prototype` round-trip) → `getInertDescriptor` (#056), replacing raw
+     `getOwnPropertyDescriptor`.
+   - **`isClass` root-fix (`@/function`, cross-module, user green-lit).** `isClass` did
+     its own raw `getOwnPropertyDescriptor(value, 'prototype')` — the throw originated
+     there, upstream of object's markers. Routed through `getInertDescriptor` (#056);
+     every `isClass` consumer is now throw-safe for free. (The sibling `hasOwnPrototype` /
+     `hasOwnWritablePrototype` helpers carry the same raw-read surface — a finding
+     deferred to the `function` round; object does not depend on them.)
+
+   Decision-aligned with #056/#057/#029 (no new ADR — same trust-boundary posture).
+
+3. **Six-marker member-surface anchor + #059 threading regression (impl change, 2026-06-29
+   test round) — RESOLVED.** Three coupled changes landed while bringing the `object` test
+   suite green:
+   - **Member-surface marker 6.** The five-marker anchor admitted a hollow
+     `class extends null` whose `name` was redefined to `'Object'`: its prototype is
+     null-rooted, brands `'[object Object]'`, owns a `'Object'`-named round-tripping
+     constructor, yet carries none of `Object.prototype`'s methods. Added marker 6
+     (`doesImplementObjectPrototypeContract`) — the own member surface against a
+     host-calibrated canonical set — which is the only marker that rejects it
+     (`isPlainObject/R6`, `iOPE/R5`, `dIOPC/*`). The anchor was renamed
+     `hasPlainObjectPrototypeContract → isObjectPrototypeEquivalent` and now takes the
+     already-resolved `[[Prototype]]` (one arg, #059), not `value`. The dictionary signal
+     was extracted into `hasDictionaryObjectIdentitySignal` (mirrors
+     `hasPlainObjectIdentitySignal`). Surface gate moved 6 → 8 exports.
+   - **Load-cycle fix.** `object` participates in the
+     `config → primitive → object → config` import cycle. The member-surface calibration
+     first ran as an eager module-top-level IIFE touching the `@/config` captures
+     (`getOwnPropertyDescriptors`, `objectPrototype`) — which are still uninitialized when
+     `object`'s body executes mid-cycle, so every test failed at import
+     (`getOwnPropertyDescriptors is not a function`). Moved to a lazy, memoized
+     `getObjectPrototypeDescriptorNames()`: the captures are read only at first call,
+     never at module load — the same "no load-time work in the cycle" rule every other
+     config consumer already follows.
+   - **`isPlainObject(Object.prototype)` regression — found & fixed.** The #059 threading
+     rewrite had introduced
+     `prototype = value === objectPrototype ? objectPrototype : getInertPrototypeOf(value)`,
+     which routed `Object.prototype` itself into the local-realm fast-path and flipped
+     `isPlainObject(Object.prototype)` from **false → true**. Because
+     `isDictionaryObject(Object.prototype)` is true, this broke
+     PlainObject/DictionaryObject mutual exclusivity. Fixed by dropping the special-case
+     (`prototype = getInertPrototypeOf(value)`) and adding the `!!prototype` dictionary
+     fast-reject; `isPlainObject(Object.prototype)` is **false** again, `Object.prototype`
+     is a dictionary only (`isPlainObject/R7`, `isDictionaryObject/A4`), disjointness
+     holds. Verified empirically (mutual-exclusivity + union battery, incl.
+     foreign-realm).
+
+   Decision-aligned with #044/#056/#057/#059 (no new ADR — same anchor and trust-boundary
+   posture, one additional structural marker).
 
 No open items.

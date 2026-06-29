@@ -108,11 +108,12 @@ export type AnyObject = object & Record<PropertyKey, unknown>;
  * `getPrototypeOf(v) === Object.prototype` in the local realm, OR the
  * cross-realm-safe structural anchor — two string-shape signal
  * markers (`[[Class]] === '[object Object]'` and constructor name
- * `'Object'`) PLUS the five-marker prototype contract on the
+ * `'Object'`) PLUS the six-marker prototype contract on the
  * constructor (newable class shape, prototype's own tag, the
- * constructor's `name` and `prototype` data-descriptor reads, and
- * the chain-depth check `getPrototypeOf(prototype) === null`).
- * See the predicate JSDoc for the full marker list.
+ * constructor's `name` and `prototype` data-descriptor reads, the
+ * chain-depth check `getPrototypeOf(prototype) === null`, and the
+ * prototype's own member surface). See the predicate JSDoc for the full
+ * marker list.
  *
  * Structurally enforced via `constructor: ObjectConstructor` — the
  * presence and type of the `constructor` property is the load-bearing
@@ -288,7 +289,7 @@ export function isObject<T = unknown>(value?: T): value is T & AnyObject;
  *
  * Used as the inexpensive front-half of the cross-realm Plain Object
  * fallback in {@link isPlainObject}: if either marker fails, the more
- * expensive {@link hasPlainObjectPrototypeContract} walk is skipped.
+ * expensive {@link isObjectPrototypeEquivalent} walk is skipped.
  * Also reused by the fused {@link isPlainOrDictionaryObject} dispatch
  * on its cross-realm branch.
  *
@@ -300,10 +301,66 @@ export function isObject<T = unknown>(value?: T): value is T & AnyObject;
 export function hasPlainObjectIdentitySignal(value?: unknown): boolean;
 
 /**
+ * Probes the two markers that suggest a value is a prototype-less
+ * Dictionary Object — the `[[Class]]` tag (`'[object Object]'`) and the
+ * absence of a reachable constructor (the four-source walk resolves
+ * none). Both markers are cross-realm safe via the realm-fixed
+ * `toObjectString.call` capture and the constructor-walk's
+ * descriptor-discipline.
+ *
+ * The dictionary counterpart to {@link hasPlainObjectIdentitySignal}:
+ * where the plain signal expects the constructor name to read
+ * `'Object'`, this one expects no defined constructor at all. Reused by
+ * {@link isDictionaryObject} and by the `prototype === null` branch of
+ * the fused {@link isPlainOrDictionaryObject} dispatch.
+ *
+ * @param value - the value whose string-shape and constructor-absence
+ *  signal to probe
+ * @returns `true` when the tag matches and no constructor is reachable;
+ *  `false` otherwise
+ * @internal
+ */
+export function hasDictionaryObjectIdentitySignal(value?: unknown): boolean;
+
+/**
+ * The member-surface marker of the cross-realm Plain Object contract:
+ * confirms that `value` carries, as its own non-enumerable callable
+ * properties, every canonical `Object.prototype` member (the seven core
+ * ES members plus whichever Annex-B accessor helpers the host realm
+ * carries, calibrated once at module load).
+ *
+ * This is the one marker of {@link isObjectPrototypeEquivalent} that
+ * inspects the prototype's actual members rather than its identity
+ * claims. The five identity markers are all satisfiable by a hollow
+ * `class extends null` whose `name` was redefined to `'Object'`; this
+ * check rejects it because the canonical members are absent.
+ *
+ * Own, not inherited — by design: it reads own descriptors only, since
+ * the contract is about what the prototype itself implements, never what
+ * it inherits. Augmentation-tolerant: extra own properties do not break
+ * it. Residual: a spoof that installs the full canonical member set
+ * passes — accepted, as this closes the cheap spoof, not every one.
+ *
+ * Throw-safe: a hostile `Proxy` `ownKeys` / `getOwnPropertyDescriptor`
+ * trap that throws is absorbed and yields `false` rather than
+ * propagating.
+ *
+ * @param value - the prototype whose own member surface to verify
+ *  (callers pass an already-resolved `[[Prototype]]`); a nullish or
+ *  non-object value is absorbed by the guard and yields `false`
+ * @returns `true` when every canonical member is present as a
+ *  non-enumerable callable own property; `false` otherwise
+ * @internal
+ */
+export function doesImplementObjectPrototypeContract(value?: unknown): boolean;
+
+/**
  * Verifies the structural anchor for cross-realm Plain Object
- * discrimination: a five-marker chain that walks from `value` to its
- * prototype and the prototype's constructor, then verifies the
- * spec-mechanic invariants that `Object` carries in every realm.
+ * discrimination: a six-marker chain over a value's already-resolved
+ * `[[Prototype]]`. It walks from the threaded prototype to its
+ * constructor, verifies the spec-mechanic invariants that `Object`
+ * carries in every realm, then confirms the prototype's own member
+ * surface.
  *
  * Markers, short-circuited in cost-order:
  *
@@ -314,28 +371,44 @@ export function hasPlainObjectIdentitySignal(value?: unknown): boolean;
  * 2. `getTypeSignature(prototype) === '[object Object]'` — the
  *    prototype's own `[[Class]]` tag matches.
  * 3. The constructor's own `name` data property reads `'Object'`
- *    via `getOwnPropertyDescriptor(...).value` — accessor-form
- *    definitions yield `undefined` and fail the check.
+ *    via the throw-safe `getVerifiedOwnName` — an accessor-form `name`
+ *    definition yields `undefined` and fails the check.
  * 4. The constructor's own `prototype` data property points back to
- *    the prototype walked from `value` — round-trip identity, same
- *    descriptor discipline.
- * 5. `getPrototypeOf(prototype) === null` — chain-depth check: the
+ *    the threaded `prototype` — round-trip identity, read via the
+ *    throw-safe `getInertDescriptor(...).value` (same discipline).
+ * 5. `getInertPrototypeOf(prototype) === null` — chain-depth check: the
  *    prototype is a top-level (no further `[[Prototype]]`), which
  *    every realm's `Object.prototype` satisfies and which class
  *    instances and built-in container instances do not.
+ * 6. `doesImplementObjectPrototypeContract(prototype)` — member-surface
+ *    check: the prototype carries every canonical `Object.prototype`
+ *    member as its own non-enumerable callable property. The one marker
+ *    that inspects members rather than identity claims, separating a
+ *    genuine cross-realm `Object.prototype` from a hollow
+ *    `class extends null` renamed to `'Object'` (which satisfies
+ *    markers 1–5 yet carries only `constructor`).
  *
  * The descriptor-via-`.value` discipline (markers 3, 4) is deliberate:
  * any accessor-form property definition (`get`/`set`) yields `undefined`
- * from `?.value`, closing the lying-accessor spoof surface where a
- * getter returns one value during the check and a different value
- * to later observers.
+ * from `getVerifiedOwnName` / `?.value`, closing the lying-accessor spoof
+ * surface where a getter returns one value during the check and a
+ * different value to later observers.
  *
- * @param value - the candidate plain object whose prototype contract
- *  to verify
- * @returns `true` when all five markers hold; `false` otherwise
+ * Throw-safe end to end: the prototype read (`getInertPrototypeOf`), the
+ * constructor `name` (`getVerifiedOwnName`), the constructor `prototype`
+ * round-trip (`getInertDescriptor`), and the member-surface read (a
+ * guarded `getOwnPropertyDescriptors`) each absorb a hostile
+ * `getPrototypeOf` / `getOwnPropertyDescriptor` Proxy-trap, failing the
+ * contract rather than propagating. `isClass` is likewise throw-safe at
+ * its own descriptor read.
+ *
+ * @param prototype - the value's already-resolved `[[Prototype]]`,
+ *  threaded in by the caller that read it (decision #059); the helper
+ *  does not re-read it
+ * @returns `true` when all six markers hold; `false` otherwise
  * @internal
  */
-export function hasPlainObjectPrototypeContract(value?: unknown): boolean;
+export function isObjectPrototypeEquivalent(prototype?: unknown): boolean;
 
 /**
  * Narrows a value to {@link PlainObject} — an AnyObject whose direct
@@ -345,8 +418,8 @@ export function hasPlainObjectPrototypeContract(value?: unknown): boolean;
  * `getPrototypeOf(value) === Object.prototype` (an O(1) reference
  * comparison) and a cross-realm-safe structural anchor formed by
  * {@link hasPlainObjectIdentitySignal} (two inexpensive string-shape
- * signal markers) AND {@link hasPlainObjectPrototypeContract} (the
- * five-marker prototype contract):
+ * signal markers) AND {@link isObjectPrototypeEquivalent} (the
+ * six-marker prototype contract):
  *
  * - Signal markers (inexpensive, front-loaded): `[[Class]]` tag
  *   `'[object Object]'` and constructor name `'Object'`.
@@ -354,12 +427,14 @@ export function hasPlainObjectPrototypeContract(value?: unknown): boolean;
  *   constructor reached via `getDefinedConstructor(prototype)` is a
  *   newable class shape (`isClass`), the prototype's own
  *   `[[Class]]` tag is `'[object Object]'`, the constructor's own
- *   `name` and `prototype` properties read via
- *   `getOwnPropertyDescriptor(...).value` (skipping accessors), the
- *   `prototype` value round-trips back to the prototype walked from
- *   `value`, and `getPrototypeOf(prototype) === null` confirms the
- *   chain-depth invariant that every realm's `Object.prototype`
- *   carries.
+ *   `name` and `prototype` properties read via the throw-safe
+ *   `getVerifiedOwnName` / `getInertDescriptor(...).value` (skipping
+ *   accessors), the `prototype` value round-trips back to the threaded
+ *   prototype, `getInertPrototypeOf(prototype) === null` confirms the
+ *   chain-depth invariant that every realm's `Object.prototype` carries,
+ *   and `doesImplementObjectPrototypeContract(prototype)` confirms the
+ *   prototype's own member surface (every canonical `Object.prototype`
+ *   method present as a non-enumerable callable).
  *
  * The round-trip identity marker — verifying that the constructor's
  * own `prototype` data property points back to the prototype walked
@@ -372,7 +447,9 @@ export function hasPlainObjectPrototypeContract(value?: unknown): boolean;
  * the same spoof: an accessor-form definition yields `undefined` from
  * `?.value` and fails the check. The chain-depth check rules out class
  * instances and built-in container instances by structural shape
- * rather than by string fingerprint.
+ * rather than by string fingerprint. The member-surface check rejects a
+ * hollow `class extends null` renamed to `'Object'` — it satisfies the
+ * identity markers but carries none of `Object.prototype`'s methods.
  *
  * Short-circuit `&&` runs the `isObject` gate first (rejects null,
  * primitives, undefined, functions in O(1)). Inside the gate, the
@@ -382,13 +459,18 @@ export function hasPlainObjectPrototypeContract(value?: unknown): boolean;
  *
  * Cross-realm safe by construction. The fast-path matches local-realm
  * `Object.prototype` identity. The fallback uses realm-fixed captures
- * (`toObjectString.call` via `getTypeSignature`, `getPrototypeOf` and
- * `getOwnPropertyDescriptor` from `@/config`) and the four-source
- * constructor walk (via `getDefinedConstructor` /
+ * (`toObjectString.call` via `getTypeSignature`, the throw-safe
+ * `getInertPrototypeOf`, `getVerifiedOwnName` and `getInertDescriptor`,
+ * and a guarded `getOwnPropertyDescriptors` for the member surface) and
+ * the four-source constructor walk (via `getDefinedConstructor` /
  * `getDefinedConstructorName`). Cross-realm Plain Objects (from
  * iframes, workers, vm contexts) pass via the fallback: the local
  * `Object.prototype` reference does not match their prototype, but
  * their structural contract matches in every realm.
+ *
+ * Throw-safe: every prototype read routes through `getInertPrototypeOf`,
+ * so a hostile `getPrototypeOf` Proxy-trap yields `false` rather than
+ * propagating the throw.
  *
  * ## Strictness vs. lodash `_.isPlainObject`
  *
@@ -456,6 +538,10 @@ export function isPlainObject<T = unknown>(value?: T): value is T & PlainObject;
  * `getDefinedConstructor` walk and the `getTypeSignature` capture
  * are cross-realm safe.
  *
+ * Throw-safe: the prototype read routes through `getInertPrototypeOf`,
+ * so a hostile `getPrototypeOf` Proxy-trap yields `undefined` (not
+ * `null`) and the predicate returns `false` rather than propagating.
+ *
  * Generic in `T` per the family-pattern. The narrow returns
  * `T & DictionaryObject`; `T = unknown` collapses to `DictionaryObject`.
  *
@@ -479,22 +565,29 @@ export function isDictionaryObject<T = unknown>(value?: T): value is T & Diction
  * {@link PlainObject} (prototype-bearing, constructor === Object) or a
  * {@link DictionaryObject} (prototype-less).
  *
- * Fused implementation: shares one `isObject` gate and one
- * `getPrototypeOf` read across both branches, then dispatches by
+ * Fused implementation: shares one `isObject` gate and one throw-safe
+ * `getInertPrototypeOf` read across both branches, then dispatches by
  * prototype value:
  *
  * - `prototype === Object.prototype` → local-realm `PlainObject`,
  *   accept immediately (fast-path).
- * - `prototype === null` → `DictionaryObject` candidate, verify the
- *   two non-prototype cross-validators (`getDefinedConstructor ===
+ * - `prototype === null` → `DictionaryObject` candidate, verify the two
+ *   non-prototype cross-validators via
+ *   {@link hasDictionaryObjectIdentitySignal} (`getDefinedConstructor ===
  *   undefined` and `getTypeSignature === '[object Object]'`).
  * - otherwise → cross-realm `PlainObject` fallback via
- *   {@link hasPlainObjectIdentitySignal} + the prototype-contract walk.
+ *   {@link isObjectPrototypeEquivalent} (the six-marker prototype
+ *   contract) behind the {@link hasPlainObjectIdentitySignal} gate.
  *
  * The fused form avoids the redundant gate, prototype-read, tag-computation,
  * and constructor-walk that a naive `isPlainObject(v) || isDictionaryObject(v)`
  * composition would perform — especially in the `DictionaryObject` input case,
  * where the strict predicate runs its signal + contract checks before failing.
+ *
+ * Throw-safe: the shared prototype read routes through `getInertPrototypeOf`,
+ * so a hostile `getPrototypeOf` Proxy-trap yields `undefined` — matching
+ * neither dispatch branch, so it falls to the structural fallback and returns
+ * `false` rather than propagating the throw.
  *
  * This is the lodash-equivalent semantic — `_.isPlainObject` from
  * lodash admits both forms in one predicate. Use this when lodash
