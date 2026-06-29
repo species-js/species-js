@@ -81,6 +81,19 @@ export const foreignClassInstance = () => foreignRealmEval('new (class Foo {})()
 // lies about its [[Class]] — the tag cross-validator rejects it (isDictionaryObject/R4).
 export const tagSpoofedNullProto = () =>
   Object.assign(objectCreate(null), { [Symbol.toStringTag]: 'NotAnObject' });
+// a LOCAL plain object (prototype === Object.prototype) carrying a NON-throwing
+// spoofed own `Symbol.toStringTag`. isPlainObject admits it via the identity
+// fast-path, which never reads the tag (isPlainObject/A3) — the value genuinely
+// has Object.prototype. Pairs with `foreignTagSpoofedPlainObject` to pin the
+// deliberate realm asymmetry (spec → isPlainObject "Realm asymmetry on tampered
+// inputs"): same tampering, `true` locally / `false` cross-realm.
+export const localTagSpoofedPlainObject = () =>
+  Object.assign({}, { [Symbol.toStringTag]: 'NotObject' });
+// the FOREIGN-realm counterpart: a plain object (foreign Object.prototype) with
+// the same spoofed tag. The local fast-path fails (foreign proto !== local
+// objectPrototype), so the structural arm reads the tag and REJECTS — `false`.
+export const foreignTagSpoofedPlainObject = () =>
+  foreignRealmEval("Object.assign({}, { [Symbol.toStringTag]: 'NotObject' })");
 // a plain object whose own `constructor` is tampered to point at the global
 // Object while its prototype is a hand-crafted non-Object.prototype — the
 // round-trip identity marker (4) rejects it (iOPE/R4).
@@ -260,6 +273,32 @@ export const valueWithBlanketHostileConstructor = () => {
   Object.defineProperty(proto, 'constructor', { value: constructor });
   return objectCreate(proto);
 };
+
+// (5) a REAL local plain object with a throwing `Symbol.toStringTag` getter. Its
+// `[[Prototype]]` is still the local `Object.prototype`, so isPlainObject /
+// isPlainOrDictionaryObject admit it via the `=== objectPrototype` fast-path —
+// which short-circuits BEFORE any tag read, so the tampering is invisible to it
+// (true, not thrown). isObject is the realm-independent floor (true, no reads).
+export const localTagThrowPlainObject = () => {
+  const object = {};
+  Object.defineProperty(object, Symbol.toStringTag, {
+    get() {
+      throw new Error('tag-getter');
+    },
+  });
+  return object;
+};
+
+// (6) the SAME tampering in a FOREIGN realm: the foreign `Object.prototype` fails
+// the local `=== objectPrototype` fast-path, so isPlainObject / isPlainOrDictionary
+// fall to the structural arm, which DOES read the tag via `getTypeSignature` — the
+// throwing getter collapses it to `undefined`, rejecting (false, not thrown). The
+// realm-asymmetry counterpart of `localTagThrowPlainObject`: same value, opposite
+// plain-object verdict, because only the cross-realm arm reads the tag.
+export const foreignTagThrowPlainObject = () =>
+  foreignRealmEval(
+    '(() => { const o = {}; Object.defineProperty(o, Symbol.toStringTag, { get() { throw new Error("tag-getter"); } }); return o; })()',
+  );
 
 // ----- axis-1 contract matrix -----
 // Each row: a fresh-value factory + the expected outcome of all four predicates
@@ -505,4 +544,96 @@ export const crossCuttingRejections = {
       return undefined;
     },
   ],
+};
+
+// ----- throw-safety matrix (axis 3): hostile-input-class × predicate -----
+// The universal invariant (docs/spec/README.md → "Throw-safety — the universal
+// invariant"; OBJECT.spec.md Module-contract Throw-safety paragraph): every
+// predicate answers a boolean on EVERY hostile input and never propagates a
+// throw. `throw-safety.test.js` asserts BOTH not-thrown AND the honest by-contract
+// verdict for every cell; the invariant is met ⟺ every cell is filled.
+//
+// `isObject` is the realm-independent FLOOR — a `typeof` check, zero prototype /
+// descriptor / tag reads — so every (object-typed) hostile input is honestly an
+// object: its column is `true` throughout, never thrown. The two tag-getter rows
+// are the realm-asymmetry pair: the local fast-path admits (never reads the tag),
+// the foreign structural arm reads the tag and rejects. (The member-surface
+// `ownKeys`-trap is a HELPER-level boundary — `dIOPC/B1`, like thenable's
+// `hPIS/B1` — not a public-predicate row: the predicate path fails marker 1
+// before marker 6 runs.)
+
+/**
+ * @typedef {object} ThrowSafetyRow
+ * @property {string} surface - the throw-surface class this row exercises
+ * @property {() => unknown} make - fresh hostile-value factory
+ * @property {{ isObject: boolean, isPlainObject: boolean, isDictionaryObject: boolean, isPlainOrDictionaryObject: boolean }} expected - honest verdict per predicate (all must NOT throw)
+ */
+
+/** @type {Record<string, ThrowSafetyRow>} */
+export const throwSafetyMatrix = {
+  prototypeTrap: {
+    surface: 'prototype-trap: Proxy whose `getPrototypeOf` throws',
+    make: throwingProtoTrapProxy,
+    expected: {
+      isObject: T,
+      isPlainObject: F,
+      isDictionaryObject: F,
+      isPlainOrDictionaryObject: F,
+    },
+  },
+  descriptorTrapOnPrototype: {
+    surface:
+      'descriptor-trap: value over a `[[Prototype]]` whose `getOwnPropertyDescriptor` throws',
+    make: valueOverThrowingProtoDescTrap,
+    expected: {
+      isObject: T,
+      isPlainObject: F,
+      isDictionaryObject: F,
+      isPlainOrDictionaryObject: F,
+    },
+  },
+  surgicalConstructorTrap: {
+    surface:
+      'surgical constructor-trap: prototype ctor `getOwnPropertyDescriptor` throws on `prototype` only',
+    make: valueWithSurgicalHostileConstructor,
+    expected: {
+      isObject: T,
+      isPlainObject: F,
+      isDictionaryObject: F,
+      isPlainOrDictionaryObject: F,
+    },
+  },
+  blanketConstructorTrap: {
+    surface:
+      'blanket constructor-trap: prototype ctor `getOwnPropertyDescriptor` throws for every key',
+    make: valueWithBlanketHostileConstructor,
+    expected: {
+      isObject: T,
+      isPlainObject: F,
+      isDictionaryObject: F,
+      isPlainOrDictionaryObject: F,
+    },
+  },
+  localTagGetterThrow: {
+    surface:
+      'tag-getter-throw (local): `{}` + throwing `Symbol.toStringTag` — fast-path admits, never reads the tag',
+    make: localTagThrowPlainObject,
+    expected: {
+      isObject: T,
+      isPlainObject: T,
+      isDictionaryObject: F,
+      isPlainOrDictionaryObject: T,
+    },
+  },
+  alienTagGetterThrow: {
+    surface:
+      'tag-getter-throw (foreign): plain object + throwing `Symbol.toStringTag` — structural arm reads the tag, rejects',
+    make: foreignTagThrowPlainObject,
+    expected: {
+      isObject: T,
+      isPlainObject: F,
+      isDictionaryObject: F,
+      isPlainOrDictionaryObject: F,
+    },
+  },
 };

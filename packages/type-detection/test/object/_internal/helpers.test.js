@@ -49,6 +49,8 @@ import {
   fullMemberSurfaceProto,
   wrongShapeMemberSurfaceProto,
   throwingOwnKeysProto,
+  valueWithSurgicalHostileConstructor,
+  valueWithBlanketHostileConstructor,
 } from '../__config.js';
 
 describe('[Internal] hasPlainObjectIdentitySignal', () => {
@@ -120,6 +122,27 @@ describe('[Internal] isObjectPrototypeEquivalent (fed the resolved prototype)', 
     // satisfies markers 1–5; only the member-surface marker rejects it.
     expect(
       isObjectPrototypeEquivalent(getInertPrototypeOf(classExtendsNullRenamedObject())),
+    ).toBe(false);
+  });
+
+  it('iOPE/B1: a prototype carrying a hostile (throwing-descriptor) `constructor` → false, not thrown', () => {
+    // helper-level throw-safety boundary (parallel to dIOPC/B1, thenable hPIS/B1).
+    // Invoked directly — no signal gate in front — so the helper must itself be
+    // throw-safe at marker 1 (isClass) + markers 3/4 (getVerifiedOwnName /
+    // getInertDescriptor). The SURGICAL ctor throws only on `prototype` (reaching
+    // markers 3/4); the BLANKET ctor throws on every key (caught at isClass).
+    // A propagated throw surfaces here as a test error, not a `false`.
+    expect(
+      isObjectPrototypeEquivalent(
+        getInertPrototypeOf(valueWithSurgicalHostileConstructor()),
+      ),
+      'surgical',
+    ).toBe(false);
+    expect(
+      isObjectPrototypeEquivalent(
+        getInertPrototypeOf(valueWithBlanketHostileConstructor()),
+      ),
+      'blanket',
     ).toBe(false);
   });
 });

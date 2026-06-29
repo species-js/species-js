@@ -3,9 +3,9 @@
 /**
  * @module test/object/adversarial
  *
- * Axis 3 — adversarial / spoof-resistance. The structural predicates close
- * four spoof surfaces, all described in the "Spoof (axis 3)" notes of
- * `docs/spec/OBJECT.spec.md`:
+ * Axis 3 — adversarial / spoof-resistance (the NON-throwing surface). The
+ * structural predicates close four spoof surfaces, all described in the
+ * "Spoof (axis 3)" notes of `docs/spec/OBJECT.spec.md`:
  *   - a prototype-less object lying about its `[[Class]]` via an own
  *     `Symbol.toStringTag` (isDictionaryObject's tag cross-validator).
  *   - a plain object whose `constructor` is tampered to point at the global
@@ -18,39 +18,27 @@
  *     methods (the member-surface marker, decision-aligned with the six-marker
  *     contract).
  *
- * Plus the throw-safety surface, attacked from every trap angle: a type-guard
- * must answer a boolean on every input, including hostile Proxies. Every
- * descriptor/prototype read in the cross-realm path routes through a throw-safe
- * reader — `getInertPrototypeOf` (prototype), `getInertDescriptor` /
- * `getVerifiedOwnName` (constructor name + round-trip), and `isClass` is
- * throw-safe at its own read (root-fixed in `@/function`, decision-aligned with
- * #056/#057). The SURGICAL hostile-constructor vector is the angle that matters:
- * it passes the inexpensive identity-signal gate and so drives the hostile value
- * into the contract-walk, a blanket-throwing Proxy never reaches.
+ * Throw-safety (hostile Proxies: prototype-trap, descriptor-trap, surgical /
+ * blanket constructor-trap, throwing tag getter) is the universal invariant and
+ * lives in its own matrix — see `throw-safety.test.js`. The member-surface
+ * `ownKeys`-trap and the standalone `isObjectPrototypeEquivalent` throw-safety
+ * are HELPER-level boundaries (`dIOPC/B1`, `iOPE/B1`) — see
+ * `_internal/helpers.test.js`.
  *
  * Mirrors the "Spoof (axis 3)" expectations in `docs/spec/OBJECT.spec.md`.
  */
 
 import { describe, it, expect } from 'vitest';
 
-import {
-  isObject,
-  isDictionaryObject,
-  isPlainObject,
-  isPlainOrDictionaryObject,
-  isObjectPrototypeEquivalent,
-  getInertPrototypeOf,
-} from '@/index.js';
+import { isDictionaryObject, isPlainObject, isPlainOrDictionaryObject } from '@/index.js';
 
 import {
   tagSpoofedNullProto,
   tamperedConstructorPlainObject,
   accessorNameConstructorPrototype,
   classExtendsNullRenamedObject,
-  throwingProtoTrapProxy,
-  valueOverThrowingProtoDescTrap,
-  valueWithSurgicalHostileConstructor,
-  valueWithBlanketHostileConstructor,
+  localTagSpoofedPlainObject,
+  foreignTagSpoofedPlainObject,
 } from './__config.js';
 
 describe('object — adversarial / spoof-resistance (axis 3)', () => {
@@ -81,71 +69,22 @@ describe('object — adversarial / spoof-resistance (axis 3)', () => {
     expect(isPlainObject(classExtendsNullRenamedObject())).toBe(false);
     expect(isPlainOrDictionaryObject(classExtendsNullRenamedObject())).toBe(false);
   });
+});
 
-  it('isPlainObject/B1 + isDictionaryObject/B1 + isPlainOrDictionaryObject/B1: hostile getPrototypeOf trap → false, not thrown (throw-safe prototype read)', () => {
-    // every prototype read routes through getInertPrototypeOf, so the trap's
-    // throw collapses to `undefined` and each predicate answers `false`.
-    expect(isObject(throwingProtoTrapProxy()), 'isObject').toBe(true); // typeof, no proto read
-    expect(isPlainObject(throwingProtoTrapProxy()), 'isPlainObject').toBe(false);
-    expect(isDictionaryObject(throwingProtoTrapProxy()), 'isDictionaryObject').toBe(
-      false,
-    );
-    expect(
-      isPlainOrDictionaryObject(throwingProtoTrapProxy()),
-      'isPlainOrDictionaryObject',
-    ).toBe(false);
+describe('object — realm asymmetry on a (non-throwing) tag-spoofed plain object', () => {
+  // DELIBERATE, documented property (spec → isPlainObject "Realm asymmetry on
+  // tampered inputs"): the SAME tampering yields `true` locally / `false`
+  // cross-realm, because the local fast-path is identity-based (tag-blind) while
+  // the cross-realm arm is structural (tag-sensitive). The non-throwing
+  // counterpart of the throw-safety matrix's local/alien tag-getter pair — pinned
+  // here so the asymmetry is fixed against regression, not just the throwing case.
+  it('isPlainObject/A3: a LOCAL plain object with a spoofed `Symbol.toStringTag` → true (identity fast-path, tag never read)', () => {
+    expect(isPlainObject(localTagSpoofedPlainObject())).toBe(true);
+    expect(isPlainOrDictionaryObject(localTagSpoofedPlainObject())).toBe(true);
   });
 
-  it('isPlainObject/B3: value over a hostile getOwnPropertyDescriptor [[Prototype]] trap → false, not thrown', () => {
-    // the constructor-walk pivots into the hostile proto; getDefinedConstructor
-    // routes its reads through getInertDescriptor (#056) → undefined → false.
-    expect(isPlainObject(valueOverThrowingProtoDescTrap()), 'isPlainObject').toBe(false);
-    expect(
-      isDictionaryObject(valueOverThrowingProtoDescTrap()),
-      'isDictionaryObject',
-    ).toBe(false);
-    expect(
-      isPlainOrDictionaryObject(valueOverThrowingProtoDescTrap()),
-      'isPlainOrDictionaryObject',
-    ).toBe(false);
-  });
-
-  it('isPlainObject/B2: SURGICAL hostile constructor (throws only on `prototype`) → false, not thrown', () => {
-    // passes the identity-signal gate (tag + ctor-name `Object`) and so reaches
-    // the contract walk — isClass(constructor) + markers 3/4 — where the trap
-    // would throw on raw reads. The throw-safe isClass / getInertDescriptor /
-    // getVerifiedOwnName collapse it to `false`. This is the angle the blanket
-    // Proxy (below) never reaches.
-    expect(isPlainObject(valueWithSurgicalHostileConstructor()), 'isPlainObject').toBe(
-      false,
-    );
-    expect(
-      isPlainOrDictionaryObject(valueWithSurgicalHostileConstructor()),
-      'isPlainOrDictionaryObject',
-    ).toBe(false);
-  });
-
-  it('blanket hostile constructor (throws on every key) → false, not thrown', () => {
-    // caught earlier by the throw-safe identity-signal gate (name read → undefined).
-    expect(isPlainObject(valueWithBlanketHostileConstructor()), 'isPlainObject').toBe(
-      false,
-    );
-  });
-
-  it('helper isObjectPrototypeEquivalent called standalone on hostile ctor → false, not thrown', () => {
-    // axis-4: the @internal helper, invoked directly (no signal gate in front),
-    // must itself be throw-safe at isClass + markers 3/4. It takes the
-    // already-resolved [[Prototype]] (#059) — the hand-crafted proto carrying the
-    // hostile constructor.
-    expect(
-      isObjectPrototypeEquivalent(
-        getInertPrototypeOf(valueWithSurgicalHostileConstructor()),
-      ),
-    ).toBe(false);
-    expect(
-      isObjectPrototypeEquivalent(
-        getInertPrototypeOf(valueWithBlanketHostileConstructor()),
-      ),
-    ).toBe(false);
+  it('the FOREIGN-realm counterpart → false (structural arm reads the spoofed tag and rejects)', () => {
+    expect(isPlainObject(foreignTagSpoofedPlainObject())).toBe(false);
+    expect(isPlainOrDictionaryObject(foreignTagSpoofedPlainObject())).toBe(false);
   });
 });
