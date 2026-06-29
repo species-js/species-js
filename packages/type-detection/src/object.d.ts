@@ -472,6 +472,19 @@ export function isObjectPrototypeEquivalent(prototype?: unknown): boolean;
  * so a hostile `getPrototypeOf` Proxy-trap yields `false` rather than
  * propagating the throw.
  *
+ * ## Realm asymmetry on tampered inputs (deliberate)
+ *
+ * The local-realm fast-path (`prototype === objectPrototype`) is pure
+ * identity and blind to surface tampering: a local plain object carrying
+ * a spoofed or throwing `Symbol.toStringTag` is still admitted, because it
+ * genuinely has the real `Object.prototype` — identity outranks a cosmetic
+ * marker. The cross-realm arm, lacking a local prototype to match, has
+ * only surface markers, so the same tampering makes it reject. The same
+ * tampered object can therefore read `true` locally and `false`
+ * cross-realm — inherent to having a fast identity path, accepted and not
+ * reconciled. Every untampered plain object agrees across realms; the
+ * divergence appears only under tampering.
+ *
  * ## Strictness vs. lodash `_.isPlainObject`
  *
  * Lodash's permissive form admits prototype-less objects too. This

@@ -19,6 +19,12 @@
 > into a new `hasDictionaryObjectIdentitySignal` helper; and a #059-threading regression
 > on `isPlainObject(Object.prototype)` was found and fixed (false→true→**false**),
 > restoring PlainObject/DictionaryObject disjointness — see Resolved items #3.
+> Re-validated 2026-06-29 — adopted the package-wide clean throw-safety model (universal
+> invariant + axis-3 `hostile × predicate` matrix; refuses-to-claim demoted to prose),
+> withdrew the per-input public throw-safety vectors into the matrix, kept the
+> helper-level boundaries (`dIOPC/B1`, new `iOPE/B1`), and fixed the
+> `hasDictionaryObjectIdentitySignal` operand order in the `isDictionaryObject` prose; no
+> admit/reject verdict changed — see Resolved items #4.
 
 ## Module contract
 
@@ -42,6 +48,43 @@ constructor it is a **DictionaryObject, not a PlainObject** (`isDictionaryObject
 lodash-permissive set is the fused `isPlainOrDictionaryObject`. Decisions #040 (structural
 subtype over branding), #041/#046 (strict-vs-lodash), #044 (six-marker anchor), #045
 (dictionary tag cross-validator), #047 (`getDefinedConstructor` pivot).
+
+### Throw-safety (the universal invariant)
+
+Every predicate answers a boolean on **every** input, including hostile ones, and never
+propagates a throw: `isObject` / `isPlainObject` / `isDictionaryObject` /
+`isPlainOrDictionaryObject` return their honest verdict on any throw on any path, and
+every `@internal` helper returns its sentinel (`false` for the boolean probes) so the
+composing predicate collapses to `false`. The hostile-input classes this module's reads
+are exposed to, and the throw-safe reader each routes through:
+
+- **prototype-trap** (a `Proxy` whose `getPrototypeOf` throws) → `getInertPrototypeOf`;
+- **descriptor-trap** (a `Proxy` whose `getOwnPropertyDescriptor` throws — on the value,
+  on a pivoted `[[Prototype]]`, or on a hostile `constructor`) → `getInertDescriptor`,
+  `getDefinedConstructor` / `getDefinedConstructorName`, `getVerifiedOwnName`, and
+  `isClass` (each throw-safe at its own read; `isClass` root-fixed in `@/function`);
+- **ownKeys-trap** (a `Proxy` whose `ownKeys` throws) → the `try/catch`-wrapped
+  `getOwnPropertyDescriptors` inside `doesImplementObjectPrototypeContract` (marker 6);
+- **tag-getter-throw** (a throwing `Symbol.toStringTag`) → `getTypeSignature`.
+
+Two honest-by-contract verdicts follow, not leaks. **`isObject`** is the realm-independent
+floor — a `typeof` check, zero prototype/descriptor/tag reads — so an object-typed hostile
+`Proxy` is admitted (`true`), never thrown. A **throwing-tag plain object** splits by
+realm: the local-realm `prototype === objectPrototype` fast-path admits it
+(`isPlainObject` / `isPlainOrDictionaryObject` → `true`) because the fast-path
+short-circuits **before** any tag read, whereas the same value from a foreign realm fails
+the fast-path and falls to the structural arm, which reads the tag via `getTypeSignature`
+and **rejects** (`false`) — a realm asymmetry, same value, opposite plain-object verdict.
+This throwing-tag split is one instance of a general, deliberate property — a local plain
+object's surface tampering is invisible to the identity fast-path but decisive for the
+cross-realm structural arm; see
+[`isPlainObject` → **Realm asymmetry on tampered inputs**](#realm-asymmetry-on-tampered-inputs-deliberate).
+
+The exhaustive `hostile-class × predicate` proof lives in the test suite (axis 3), not
+here — see [`./README.md`](./README.md) → "Throw-safety — the universal invariant". The
+member-surface `ownKeys`-trap and the standalone `isObjectPrototypeEquivalent`
+throw-safety are **helper-level** boundaries (`dIOPC/B1`, `iOPE/B1`), kept as axis-4
+vectors.
 
 ## Surface inventory
 
@@ -119,6 +162,14 @@ six-marker walk runs — and can never reject a true positive.
 - `isPlainObject/A2` — a cross-realm plain object (fixture) → true (structural arm:
   signal + six-marker contract). The structural _logic_ is pinned in-realm by the helper
   specs below.
+- `isPlainObject/A3` — a **local** plain object carrying a tampered `Symbol.toStringTag`
+  (a spoofed `'NotObject'` string, or a throwing getter) → **true**. The local-realm
+  fast-path is `prototype === objectPrototype` (pure identity), which short-circuits
+  _before_ any tag read — so surface tampering is invisible to it. This is correct, not a
+  leak: the value genuinely has `Object.prototype` as its `[[Prototype]]`, so it really is
+  a plain `Object` instance; a cosmetic tag does not change its constructor identity. See
+  the **Realm asymmetry on tampered inputs** note below — the cross-realm counterpart is
+  rejected.
 - `isPlainObject/R1` — `[]` (constructor `Array`), `new Date()`, `new Map()`, `/re/` →
   false.
 - `isPlainObject/R2` — `new (class Foo {})()` → false (constructor `Foo`, not `Object`).
@@ -138,34 +189,52 @@ six-marker walk runs — and can never reject a true positive.
 - `isPlainObject/R7` — `Object.prototype` → false (its own `[[Prototype]]` is `null` → the
   `!!prototype` fast-reject). This preserves PlainObject/DictionaryObject disjointness:
   `Object.prototype` is a dictionary, not a plain object (`isDictionaryObject/A4`).
-- `isPlainObject/B1` — a `Proxy` whose `getPrototypeOf` trap throws → false, **not
-  thrown** — every prototype read routes through the throw-safe `getInertPrototypeOf`
-  (hardened 2026-06-25, decision-aligned with #056/#057); the trap collapses to
-  `undefined` and the `!!prototype` guard rejects it.
-- `isPlainObject/B2` — a value whose prototype's own `constructor` is a `Proxy` whose
-  `getOwnPropertyDescriptor` trap throws ONLY for `'prototype'` (returning a normal
-  `name: 'Object'`) → false, **not thrown**. The surgical angle: it passes the cheap
-  identity-signal gate and so drives the hostile constructor into the contract walk
-  (`isClass` + markers 3/4), where `isClass` (root-fixed in `@/function`),
-  `getVerifiedOwnName` (marker 3), and `getInertDescriptor` (marker 4) each collapse the
-  trap to `false`. A blanket-throwing constructor is caught earlier by the throw-safe
-  identity-signal gate.
-- `isPlainObject/B3` — a value over a `[[Prototype]]` whose `getOwnPropertyDescriptor`
-  trap throws → false, **not thrown** — the constructor-walk routes through
-  `getInertDescriptor` (#056).
 - (plus CC/nullish, CC/primitive, CC/function.)
 
-**Refuses to claim:** prototype-less objects (delegated to `isDictionaryObject`).
-**Cross-realm (axis 2):** admit foreign-realm plain objects via the structural arm.
-**Spoof (axis 3):** the six-marker contract closes the tampered-`constructor`-pointer
-spoof (round-trip identity marker 4), the lying-accessor spoof (descriptor-via-`.value` on
-markers 3/4), the class/container instances (chain-depth marker 5), and the hollow
-`class extends null` renamed `'Object'` (member-surface marker 6). Residual: a
-from-scratch reconstruction of `Object`'s spec mechanics that ALSO installs the full
-canonical member set = a parallel implementation, not a spoof (`dIOPC/A2`). **Composition
-note (axis 4):** `isObject` gate → `getInertPrototypeOf` once → `!!prototype` reject →
-fast-path `objectPrototype` ref → `isAlienRealmPlainObject`
-(`hasPlainObjectIdentitySignal` + `isObjectPrototypeEquivalent`).
+**Refuses to claim** (prose — semantic scope, asserts nothing): prototype-less objects
+(delegated to `isDictionaryObject`).
+
+Throw-safety against a `getPrototypeOf` trap (former `isPlainObject/B1`), a surgical /
+blanket hostile `constructor` descriptor-trap (former `isPlainObject/B2`), and a pivoted
+`[[Prototype]]` descriptor-trap (former `isPlainObject/B3`) is the universal invariant
+(see the Module contract's _Throw-safety_ paragraph) and is proven by the axis-3
+`hostile × predicate` matrix in the test suite. Those per-input vectors are **withdrawn**,
+subsumed by the matrix — no behavior changed. **Cross-realm (axis 2):** admit
+foreign-realm plain objects via the structural arm. **Spoof (axis 3):** the six-marker
+contract closes the tampered-`constructor`-pointer spoof (round-trip identity marker 4),
+the lying-accessor spoof (descriptor-via-`.value` on markers 3/4), the class/container
+instances (chain-depth marker 5), and the hollow `class extends null` renamed `'Object'`
+(member-surface marker 6). Residual: a from-scratch reconstruction of `Object`'s spec
+mechanics that ALSO installs the full canonical member set = a parallel implementation,
+not a spoof (`dIOPC/A2`). **Composition note (axis 4):** `isObject` gate →
+`getInertPrototypeOf` once → `!!prototype` reject → fast-path `objectPrototype` ref →
+`isAlienRealmPlainObject` (`hasPlainObjectIdentitySignal` +
+`isObjectPrototypeEquivalent`).
+
+### Realm asymmetry on tampered inputs (deliberate)
+
+`isPlainObject` answers via two arms that weigh evidence differently, and for a
+**tampered** input they can disagree _by realm_:
+
+- **Local-realm arm** — `prototype === objectPrototype`, pure identity. It is **blind to
+  surface tampering**: a local plain object with a spoofed or throwing
+  `Symbol.toStringTag` (or any other surface marker tampering) is still admitted (`true`,
+  `isPlainObject/A3`), because identity is decisive — the value genuinely has the real
+  `Object.prototype`, so it genuinely is a plain `Object` instance.
+- **Cross-realm arm** — `hasPlainObjectIdentitySignal` + `isObjectPrototypeEquivalent`,
+  structural. Lacking a local `Object.prototype` to match on, it has **only** surface
+  markers to go on, so the same tampering (spoofed tag → tag mismatch; throwing tag →
+  `getTypeSignature` yields `undefined`) makes it **reject** (`false`).
+
+So the _same_ structurally-tampered object can read `true` locally and `false`
+cross-realm. This is **inherent to having a fast identity path at all**, and the local
+answer is the more-correct one (identity outranks a cosmetic marker). It is **not** a
+defect and is **not** reconciled: forcing the local fast-path to also read the tag would
+cost its O(1)-identity nature and would wrongly reject a genuine local plain object.
+**Every _legitimate_ (untampered) plain object agrees across realms** (`true`); the
+divergence appears _only_ under tampering. The throwing-tag instance is pinned by the
+axis-3 throw-safety matrix (local `true` / alien `false`); the non-throwing spoofed-tag
+instance is pinned in `adversarial.test.js`.
 
 ---
 
@@ -173,8 +242,9 @@ fast-path `objectPrototype` ref → `isAlienRealmPlainObject`
 
 `isDictionaryObject<T = unknown>(value?: T): value is T & DictionaryObject` Composition:
 `isObject(value) && getInertPrototypeOf(value) === null && hasDictionaryObjectIdentitySignal(value)`,
-where the two non-gate cross-validators (`getDefinedConstructor(value) === undefined` and
-`getTypeSignature(value) === '[object Object]'`) are bundled in the helper:
+where the two non-gate cross-validators (`getTypeSignature(value) === '[object Object]'`
+and `getDefinedConstructor(value) === undefined`, in that short-circuit order — cheap tag
+first, matching the helper formula) are bundled in the helper:
 
 - `getInertPrototypeOf === null` is the spec-correct, throw-safe test for "no
   prototype-chain." `Object.create(null)` is the canonical way to reach this state, but
@@ -208,20 +278,21 @@ where the two non-gate cross-validators (`getDefinedConstructor(value) === undef
 - `isDictionaryObject/R4` — a prototype-less object hand-decorated with own
   `Symbol.toStringTag` → false (the `getTypeSignature === '[object Object]'`
   cross-validator rejects the spoofed tag).
-- `isDictionaryObject/B1` — a `Proxy` whose `getPrototypeOf` trap throws → false, **not
-  thrown** — the prototype read routes through the throw-safe `getInertPrototypeOf` (trap
-  → `undefined`, which `!== null`).
 - (plus CC vectors.)
 
-**Refuses to claim:** prototype-bearing plain objects (that's `isPlainObject`).
-**Cross-realm (axis 2):** realm-orthogonal — prototype-less is prototype-less in every
-realm. **Spoof (axis 3):** the `getTypeSignature === '[object Object]'` cross-validator
-closes the spoofed-tag surface (`R4`). The `getDefinedConstructor === undefined` marker
-does NOT reject an attached own `constructor` key (it is ignored by design, #047 — see
-`A3`); it is defense-in-depth paired with `getInertPrototypeOf === null`. **Composition
-note (axis 4):** `isObject` + `getInertPrototypeOf` (`@/utility`) +
-`hasDictionaryObjectIdentitySignal` (`getDefinedConstructor` + `getTypeSignature`,
-`@/utility`).
+**Refuses to claim** (prose — semantic scope, asserts nothing): prototype-bearing plain
+objects (that's `isPlainObject`).
+
+Throw-safety against a `getPrototypeOf` trap (former `isDictionaryObject/B1`, the trap →
+`undefined ≠ null`) is the universal invariant (axis-3 matrix); the per-input vector is
+**withdrawn**, no behavior changed. **Cross-realm (axis 2):** realm-orthogonal —
+prototype-less is prototype-less in every realm. **Spoof (axis 3):** the
+`getTypeSignature === '[object Object]'` cross-validator closes the spoofed-tag surface
+(`R4`). The `getDefinedConstructor === undefined` marker does NOT reject an attached own
+`constructor` key (it is ignored by design, #047 — see `A3`); it is defense-in-depth
+paired with `getInertPrototypeOf === null`. **Composition note (axis 4):** `isObject` +
+`getInertPrototypeOf` (`@/utility`) + `hasDictionaryObjectIdentitySignal`
+(`getDefinedConstructor` + `getTypeSignature`, `@/utility`).
 
 ---
 
@@ -249,11 +320,12 @@ null-proto value can still be admitted here as a dictionary.
 - `isPlainOrDictionaryObject/R3` — a hollow `class extends null` renamed `'Object'` →
   false (cross-realm branch; member-surface marker 6 rejects it, as in
   `isPlainObject/R6`).
-- `isPlainOrDictionaryObject/B1` — a `Proxy` whose `getPrototypeOf` trap throws → false,
-  **not thrown** — the shared prototype read routes through the throw-safe
-  `getInertPrototypeOf` (trap → `undefined`, matching neither dispatch branch, so it falls
-  to the structural fallback and returns false).
 - (plus CC vectors.)
+
+Throw-safety against a `getPrototypeOf` trap (former `isPlainOrDictionaryObject/B1`, the
+trap → `undefined`, matching neither dispatch branch → structural fallback → false) is the
+universal invariant (axis-3 matrix); the per-input vector is **withdrawn**, no behavior
+changed.
 
 **Cross-realm / spoof (axes 2, 3):** inherits from the two strict predicates it fuses.
 **Composition note (axis 4):** shares the gate + prototype read; drives
@@ -321,6 +393,12 @@ Markers, short-circuited in cost-order:
   `Object.prototype !== the hand-crafted prototype`).
 - `iOPE/R5` — the `[[Prototype]]` of a hollow `class extends null` renamed `'Object'` →
   false. Satisfies markers 1–5; only the member-surface marker 6 rejects it.
+- `iOPE/B1` — a prototype carrying a hostile `constructor` whose
+  `getOwnPropertyDescriptor` trap throws (surgical: only on `'prototype'`, reaching
+  markers 3/4; blanket: every key, caught at marker 1 `isClass`) → false, **not thrown**.
+  The helper-level throw-safety boundary (parallel to `dIOPC/B1`): invoked standalone with
+  no signal gate in front, it must itself be throw-safe at `isClass` +
+  `getVerifiedOwnName` + `getInertDescriptor`.
 
 ### `doesImplementObjectPrototypeContract(value?)` — `@internal` (marker 6 in isolation)
 
@@ -426,5 +504,42 @@ callable-valued **own** data property. Reads own descriptors only — never inhe
 
    Decision-aligned with #044/#056/#057/#059 (no new ADR — same anchor and trust-boundary
    posture, one additional structural marker).
+
+4. **Re-validation pass (2026-06-29) — clean throw-safety model + operand-order fix.** The
+   module was re-validated under the two-round verification gauntlet and adopted the
+   package-wide clean model (see `docs/spec/README.md` → "Throw-safety — the universal
+   invariant"). Three changes, **no public admit/reject verdict altered** (the 2026-06-25
+   hardening already made the code throw-safe; this pass reorganizes the spec + tests to
+   the convention):
+   - **Throw-safety promoted to a universal invariant**, stated once in the Module
+     contract and proven by an axis-3 `hostile × predicate` matrix in the test suite
+     (`test/object/throw-safety.test.js` + `throwSafetyMatrix`). The former per-input
+     public throw-safety vectors `isPlainObject/B1`–`B3`, `isDictionaryObject/B1`,
+     `isPlainOrDictionaryObject/B1` are **withdrawn** (IDs retired, behavior unchanged);
+     the refuses-to-claim notes are demoted to **prose**. The helper-level throw-safety
+     boundaries keep their IDs: `dIOPC/B1` (member-surface `ownKeys`-trap) and a new
+     `iOPE/B1` (the standalone `isObjectPrototypeEquivalent` throw-safety, relocated from
+     `adversarial.test.js` to `_internal/helpers.test.js`, parallel to thenable's
+     `hPIS/B1`). The matrix added two coverage gains over the old vectors: the `isObject`
+     floor column (a hostile `Proxy` is honestly an object — `true`, never thrown) and the
+     realm-asymmetry tag-getter pair (local fast-path admits a throwing-tag plain object;
+     the foreign structural arm reads the tag and rejects).
+   - **Operand-order fix.** The `isDictionaryObject` composition prose listed the two
+     bundled cross-validators constructor-first; the code and the canonical
+     `hasDictionaryObjectIdentitySignal` helper formula are tag-first
+     (`getTypeSignature(...) && getDefinedConstructor(...)`, cheap-tag-first per the
+     least-expensive-first rule). The prose now matches.
+   - **Realm-asymmetry ruling (user, design authority).** The matrix surfaced that
+     `isPlainObject` can return `true` locally and `false` cross-realm for the _same_
+     tampered object (a spoofed / throwing `Symbol.toStringTag`). Ruled a **deliberate,
+     accepted property**, not a defect: the local fast-path is identity-based and blind to
+     surface tampering (the value genuinely has `Object.prototype`); the cross-realm arm
+     is structural and tag-sensitive. Reconciling would cost the fast-path's O(1) identity
+     and wrongly reject a genuine local plain object. Documented as a named property
+     (`isPlainObject` → "Realm asymmetry on tampered inputs"), a new admission vector
+     `isPlainObject/A3` (local tampered-tag plain object → `true`), the `.js`/`.d.ts`
+     JSDoc, and pinned by both the throw-safety matrix (throwing tag) and an
+     `adversarial.test.js` pair (non-throwing spoofed tag). Every legitimate plain object
+     still agrees across realms; the divergence appears only under tampering.
 
 No open items.

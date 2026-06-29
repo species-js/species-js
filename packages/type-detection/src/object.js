@@ -465,6 +465,23 @@ function isAlienRealmPlainObject(value, prototype) {
  * neither `objectPrototype` nor a valid contract) and the predicate
  * returns `false` rather than propagating the throw.
  *
+ * ## Realm asymmetry on tampered inputs (deliberate)
+ *
+ * The two arms weigh evidence differently, so for a TAMPERED input they
+ * can disagree by realm. The local-realm fast-path
+ * (`prototype === objectPrototype`) is pure identity and blind to surface
+ * tampering: a local plain object carrying a spoofed or throwing
+ * `Symbol.toStringTag` is still admitted, because it genuinely has the
+ * real `Object.prototype` and so genuinely is a plain `Object` instance —
+ * identity outranks a cosmetic marker. The cross-realm arm, lacking a
+ * local prototype to match, has only surface markers to go on, so the
+ * same tampering makes it reject. The same tampered object can therefore
+ * read `true` locally and `false` cross-realm. This is inherent to having
+ * a fast identity path; it is accepted, not reconciled (forcing the
+ * fast-path to read the tag would cost its O(1) nature and wrongly reject
+ * a genuine local plain object). Every untampered plain object agrees
+ * across realms — the divergence appears only under tampering.
+ *
  * ## Strictness vs. lodash `_.isPlainObject`
  *
  * Lodash's permissive form admits prototype-less objects too. This
