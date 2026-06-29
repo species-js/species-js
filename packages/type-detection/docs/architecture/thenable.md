@@ -84,14 +84,16 @@ composing identity and structure rather than choosing one:
   `doesImplementPromiseContract` for the structural check. Cross-realm Promises pass via
   the fallback; userland Promise-likes pass via the fallback too.
 - `isPromise` runs the same realm-fixed `instanceof` check, then DISPATCHES — local-realm
-  arm commits to `getPrototypeOf(value) === promisePrototype` for direct-instance
-  discrimination in O(1); cross-realm arm runs `isStructuralPromiseEquivalent`, four
-  realm-independent markers — the `Promise` `[[Class]]`-tag (read through the realm-fixed
-  `Object.prototype.toString.call` capture), the `Promise` constructor-name (resolved
-  through the package's pivot-and-walk constructor resolution), the structural
-  `doesImplementPromiseContract` check, and a prototype/constructor reciprocal-identity
-  marker (`isStructuralPromisePrototypeEquivalent`, decision #054). The arms commit
-  mutually exclusively via the ternary; see "Two-axis dispatch on `isPromise`" below.
+  arm commits to `prototype === promisePrototype` (the once-resolved, throw-safe
+  `getInertPrototypeOf(value)` read threaded into both arms, decision #059) for
+  direct-instance discrimination in O(1); cross-realm arm runs
+  `isStructuralPromiseEquivalent`, four realm-independent markers — the `Promise`
+  `[[Class]]`-tag (read through the realm-fixed `Object.prototype.toString.call` capture),
+  the `Promise` constructor-name (resolved through the package's pivot-and-walk
+  constructor resolution), the structural `doesImplementPromiseContract` check, and a
+  prototype/constructor reciprocal-identity marker
+  (`isStructuralPromisePrototypeEquivalent`, decision #054). The arms commit mutually
+  exclusively via the ternary; see "Two-axis dispatch on `isPromise`" below.
 
 The `const PromiseConstructor = Promise;` and
 `const promisePrototype = PromiseConstructor && PromiseConstructor.prototype;` captures in
@@ -116,10 +118,10 @@ defined constructor threaded through the helper, decision #059):
 | `isThenable`                             | `!!v && (isCurrentRealmPromiseInstance(v) \|\| hasInertMethod(v, 'then'))`                                                                                                   |
 | `doesImplementPromiseContract`           | `hasInertMethod(v, 'then') && hasInertMethod(v, 'catch') && hasInertMethod(v, 'finally')`                                                                                    |
 | `isPromiseLike`                          | `!!v && (isCurrentRealmPromiseInstance(v) \|\| doesImplementPromiseContract(v))`                                                                                             |
-| `hasPromiseIdentitySignal`               | `getTypeSignature(v) === '[object Promise]' && name === 'Promise'` (caller threads `name`)                                                                                   |
+| `hasPromiseIdentitySignal`               | `name === 'Promise' && getTypeSignature(v) === '[object Promise]'` (caller threads `name`)                                                                                   |
 | `isStructuralPromisePrototypeEquivalent` | `dc = ctor && getDefinedConstructor(proto, aP); !!ctor && ctor === dc && hasPromiseIdentitySignal(proto, getVerifiedOwnName(dc)) && doesImplementPromiseContract(proto)`     |
 | `isStructuralPromiseEquivalent`          | `dc = getDefinedConstructor(v); hasPromiseIdentitySignal(v, getVerifiedOwnName(dc)) && doesImplementPromiseContract(v) && isStructuralPromisePrototypeEquivalent(proto, dc)` |
-| `isPromise`                              | `!!v && (isCurrentRealmPromiseInstance(v) ? getPrototypeOf(v) === promisePrototype : isStructuralPromiseEquivalent(v, getPrototypeOf(v)))`                                   |
+| `isPromise`                              | `!!v && (p = getInertPrototypeOf(v), isCurrentRealmPromiseInstance(v) ? p === promisePrototype : isStructuralPromiseEquivalent(v, p))`                                       |
 
 Each layer adds exactly one semantic level. No layer redoes work the layer below already
 did. Short-circuit `&&` enforces a _"least expensive first"_ ordering at each layer: in
@@ -140,8 +142,9 @@ future method-contract predicate compose cleanly. See decision #024.
 the `Like`-cascade pattern in decision #050. Two arms, mutually exclusive:
 
 - **Local-realm arm** (`isCurrentRealmPromiseInstance(v) === true`) — settles on
-  `getPrototypeOf(v) === promisePrototype`. Two O(1) operations. Admits only direct
-  `Promise` instances; subclasses pass `instanceof` but fail the proto-identity check.
+  `prototype === promisePrototype` (the once-resolved throw-safe
+  `getInertPrototypeOf(v)`). Two O(1) operations. Admits only direct `Promise` instances;
+  subclasses pass `instanceof` but fail the proto-identity check.
 - **Cross-realm arm** (`isCurrentRealmPromiseInstance(v) === false`) — runs
   `isStructuralPromiseEquivalent`, four realm-independent markers: the `[[Class]]` tag
   `'[object Promise]'`, the constructor-name `'Promise'` (via

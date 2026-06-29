@@ -8,7 +8,11 @@
 > suite; axes 2–4 derive alongside. White-box annotations amended 2026-06-23 (decision
 > #054) and 2026-06-25 (decision #059, registry-drop + constructor threading — the only
 > `@internal` contract change, `hasPromiseIdentitySignal`); public behavioral vectors
-> unchanged throughout — see Resolved items #4 and #5.
+> unchanged throughout — see Resolved items #4 and #5. Re-validated 2026-06-29 — adopted
+> the package-wide clean throw-safety model (universal invariant + axis-3
+> `hostile × predicate` matrix; refuses-to-claim demoted to prose), fixed the
+> `getInertPrototypeOf` rename drift, and closed the `isPromise/A2` + throw-safety-cell
+> coverage gaps; no admit/reject verdict changed — see Resolved items #6.
 
 ## Module contract
 
@@ -26,6 +30,30 @@ Thenable<T>                  (isThenable)      — callable `then` only
 orthogonal refinement with no runtime predicate (decision #037). Every predicate is purely
 structural — it reads descriptors and prototype-chain values, and never invokes the
 value's methods or probes engine-internal slots.
+
+### Throw-safety (the universal invariant)
+
+Every predicate answers a boolean on **every** input, including hostile ones, and never
+propagates a throw: `isThenable` / `isPromiseLike` / `isPromise` return `false` on any
+throw on any path, and every `@internal` helper returns its sentinel (`undefined` for
+readers, `false` for probes) so the composing predicate collapses to `false`. The
+hostile-input classes this module's reads are exposed to, and the throw-safe reader each
+routes through:
+
+- **prototype-trap** (a `Proxy` whose `getPrototypeOf` throws) → `getInertPrototypeOf`,
+  and the `try/catch`-wrapped `instanceof` inside `isCurrentRealmPromiseInstance`;
+- **descriptor-trap** (a `Proxy` whose `getOwnPropertyDescriptor` throws, including on a
+  pivoted `[[Prototype]]`) → `hasInertMethod` / `getDefinedConstructor`, both via
+  `getInertDescriptor`;
+- **accessor-throw** (`{ get then() { throw } }`) → the inert descriptor read never
+  invokes the getter;
+- **tag-getter-throw** (a throwing `Symbol.toStringTag`) → `getTypeSignature`.
+
+A throwing-tag value carrying a real method contract is **admitted** by `isThenable` /
+`isPromiseLike` (they read the methods, never the tag) and **rejected** by `isPromise`
+(its tag read yields `undefined`) — an honest by-contract verdict, not a leak. The
+exhaustive `hostile-class × predicate` proof lives in the test suite (axis 3), not here —
+see [`./README.md`](./README.md) → "Throw-safety — the universal invariant".
 
 ## Surface inventory
 
@@ -102,23 +130,23 @@ basis: ECMA-262 `Get(value, "then")` resolution during `PromiseResolveThenableJo
   ECMA-262 `Get` shadowing.
 - (plus all CC/nullish, CC/falsy-primitive, CC/truthy-primitive)
 
-**Refuses to claim**
+**Refuses to claim** (prose — semantic scope, asserts nothing)
 
-- `isThenable/B1` — the _arity or signature shape_ of `then` (a zero-arg `then` is
-  admitted).
-- `isThenable/B2` — whether the value honors the `resolve`/`reject` adoption protocol,
-  whether callbacks fire, when, or how often.
-- `isThenable/B3` — the `[[PromiseState]]` internal slot.
-  `Object.create(Promise.prototype)` is admitted (inherits `then`, passes `instanceof`)
-  despite not being a genuine Promise — structural detection cannot see internal slots.
-- `isThenable/B4` — a throwing accessor `then` (`{ get then() { throw … } }`) → false,
-  **not thrown** — the inert descriptor read never invokes the getter.
-- `isThenable/B5` — a Proxy whose `getOwnPropertyDescriptor` trap throws → false, **not
-  thrown** — `hasInertMethod` is throw-safe (hardened via `getInertDescriptor`; see
-  UTILITY.spec.md `hIM/R6`).
-- `isThenable/B6` — a Proxy whose `getPrototypeOf` trap throws → false on **all three**
-  predicates, **not thrown** — `isCurrentRealmPromiseInstance`'s `instanceof` arm is now
-  throw-safe too (wrapped `try/catch → false`).
+`isThenable` does not verify `then`'s _arity or signature shape_ (a zero-arg `then` is
+admitted), nor whether the value honors the `resolve`/`reject` adoption protocol (whether
+callbacks fire, when, or how often), nor the `[[PromiseState]]` internal slot — structural
+detection reads shape, not liveness.
+
+**Boundary (axis 3):**
+
+- `isThenable/B3` — `Object.create(Promise.prototype)` → **true** (inherits `then`, passes
+  `instanceof`) despite carrying no `[[PromiseState]]`; admitted by design, pinned to mark
+  the structurally-unsealable graft (decision #052).
+
+Throw-safety against a throwing accessor `then`, descriptor-trap, or prototype-trap is the
+universal invariant (see the Module contract's _Throw-safety_ paragraph) and is proven by
+the axis-3 `hostile × predicate` matrix in the test suite. The former per-input vectors
+`isThenable/B4`–`B6` are **withdrawn**, subsumed by that matrix — no behavior changed.
 
 **Cross-realm expectation (axis 2):** admit foreign-realm `Promise` instances and any
 foreign object carrying a callable `then` (via the structural arm). No value is rejected
@@ -160,13 +188,13 @@ Spec basis: the `Promise.prototype` method contract — ECMA-262 §27.2 (`then`,
   false — `finally` is an accessor (rejected).
 - (plus all cross-cutting vectors)
 
-**Refuses to claim**
+**Refuses to claim** (prose — semantic scope, asserts nothing)
 
-- `isPromiseLike/B1` — `Promise` _identity_. Any value satisfying the three-method
-  contract is admitted; no `[[Class]]` tag or constructor-name check (that is
-  `isPromise`'s job).
-- `isPromiseLike/B2` — the `[[PromiseState]]` slot and adoption protocol (as
-  `isThenable/B2-B3`).
+`isPromiseLike` makes no `Promise` _identity_ claim — any value satisfying the
+three-method contract is admitted, with no `[[Class]]` tag or constructor-name check (that
+is `isPromise`'s job) — and it does not probe the `[[PromiseState]]` slot or adoption
+protocol. Like `isThenable`, it admits the `Object.create(Promise.prototype)` graft on
+contract. Throw-safety is the universal invariant (axis-3 matrix).
 
 **Cross-realm expectation (axis 2):** admit foreign-realm `Promise` instances (structural
 fallback) and foreign contract-satisfiers.
@@ -183,9 +211,12 @@ proto-identity narrowing.
 
 ## `isPromise`
 
-`isPromise<T = unknown>(value?: T): value is T & Promise<unknown>` Composition:
-`!!value && (isCurrentRealmPromiseInstance(value) ? getPrototypeOf(value) === promisePrototype : isStructuralPromiseEquivalent(value, getPrototypeOf(value)))`
-where the cross-realm arm `isStructuralPromiseEquivalent` expands to the value-side
+`isPromise<T = unknown>(value?: T): value is T & Promise<unknown>` Composition: after the
+`!!value` guard the prototype is resolved ONCE via the throw-safe
+`getInertPrototypeOf(value)` (decision #059 threading) and that single read is threaded
+into both dispatch arms —
+`isCurrentRealmPromiseInstance(value) ? prototype === promisePrototype : isStructuralPromiseEquivalent(value, prototype)`
+— where the cross-realm arm `isStructuralPromiseEquivalent` expands to the value-side
 identity signal (`hasPromiseIdentitySignal`) + the method contract
 (`doesImplementPromiseContract`) + prototype-equivalence
 (`isStructuralPromisePrototypeEquivalent` — the fourth marker, prototype/constructor
@@ -226,41 +257,35 @@ reciprocal identity). Spec basis: `Promise` identity — two-axis dispatch (deci
   null-`[[Prototype]]` branch of the cross-realm arm's constructor resolution.
 - (plus all cross-cutting vectors)
 
-**Refuses to claim**
+**Refuses to claim** (prose — semantic scope, asserts nothing)
 
-- `isPromise/B1` — _subclass admission_: deliberately rejects both local- and cross-realm
-  subclasses (a documented strictness; consumers needing subclasses compose a
-  constructor-chain walk).
-- `isPromise/B2` — the `[[PromiseState]]` slot. **Known admission (decision #052):**
-  `Object.create(Promise.prototype)` passes the local-realm arm (`instanceof` true,
-  proto-identity true) and is admitted despite carrying no Promise internal state.
-  `Promise` is **structurally unsealable** — it exposes no inert internal-slot accessor
-  (its only `[[PromiseState]]` readers, `then` / `catch` / `finally`, invoke
-  `SpeciesConstructor` and allocate, so they cannot be used as an inspect-without-invoke
-  probe the way boxed primitives use `valueOf`). Structural detection verifies _shape, not
-  liveness_; the graft throws on first real use. Accept-and-document — see decision #052;
-  a host-backed tier is deferred to Q.005.
-- `isPromise/B3` — a throwing `Symbol.toStringTag` getter (with a full contract) → false,
-  **not thrown** — the cross-realm arm's tag read goes through the throw-safe
-  `getTypeSignature` (yields `undefined`, fails the `=== '[object Promise]'` check). The
-  by-contract predicates (`isThenable`, `isPromiseLike`) admit such a value — they read
-  the real methods, never the tag (`isThenable/B7` pairing).
-- `isPromise/B4` — **unclosable spoofs (extend B2's shape-not-liveness boundary):** a
-  Proxy lying `getPrototypeOf → Promise.prototype` passes the local-realm arm; a foreign
-  `Promise` subclass whose constructor `.name` is forced to `'Promise'` passes the
-  cross-realm arm. Structural detection cannot beat a fully-committed proxy/rename — named
-  here, not closed. (cross-realm arm); reject foreign-realm subclasses (constructor-name)
-  — symmetric with the local-realm subclass rejection.
-- `isPromise/B5` — a value with own tag `'Promise'` + own `then`/`catch`/`finally` whose
-  `[[Prototype]]` is a `Proxy` with a throwing `getOwnPropertyDescriptor` trap → false,
-  **not thrown** — the cross-realm arm's constructor-walk pivots INTO the hostile proto,
-  but `getDefinedConstructor` routes its descriptor reads through the throw-safe
-  `getInertDescriptor` (decision #056), so the trap yields `undefined` (no reachable
-  constructor) and the name fails `=== 'Promise'`. `isThenable` / `isPromiseLike` stay
-  admitting — they find the own `then` / contract before any chain walk. Closes the last
-  unguarded throw surface in `isPromise` (after the `getTypeSignature` and `instanceof`
-  wraps); the same hardening makes every constructor-walk consumer (`@/object`,
-  `@/function`, `@/primitive`, `@/evented`) throw-safe.
+`isPromise` deliberately rejects both local- and cross-realm `Promise` _subclasses_ (a
+documented strictness — see `isPromise/R1`-`R2`; consumers needing subclasses compose a
+constructor-chain walk on top), and it does not probe the `[[PromiseState]]` slot.
+
+Two structural limits are named but unclosable (shape-not-liveness, extending decision
+#052): a `Proxy` lying `getPrototypeOf → Promise.prototype` passes the local-realm arm,
+and a foreign `Promise` subclass whose constructor `.name` is forced to `'Promise'` passes
+the cross-realm arm. A fully committed proxy/rename cannot be beaten structurally.
+
+**Boundary (axis 3):**
+
+- `isPromise/B2` — `Object.create(Promise.prototype)` → **true**. Known admission
+  (decision #052): passes the local-realm arm (`instanceof` + proto-identity) despite
+  carrying no Promise internal state. `Promise` is **structurally unsealable** — it
+  exposes no inert internal-slot accessor (its only `[[PromiseState]]` readers, `then` /
+  `catch` / `finally`, invoke `SpeciesConstructor` and allocate, so they cannot serve as
+  an inspect-without-invoke probe the way boxed primitives use `valueOf`). Structural
+  detection verifies _shape, not liveness_; the graft throws on first real use. A
+  host-backed tier is deferred to Q.005.
+
+Throw-safety against a throwing `Symbol.toStringTag` getter and a descriptor-trap on the
+value's (or its pivoted `[[Prototype]]`'s) reads is the universal invariant: the
+cross-realm arm routes the tag read through `getTypeSignature` and the constructor-walk
+through `getInertDescriptor` (decision #056), so the by-contract predicates (`isThenable`,
+`isPromiseLike`) still admit a throwing-tag value while `isPromise` rejects it. The former
+per-input vectors `isPromise/B3` and `isPromise/B5` are **withdrawn**, subsumed by the
+axis-3 `hostile × predicate` matrix — no behavior changed.
 
 **Spoof-resistance expectation (axis 3):** the four cross-realm markers are independent
 and each closes a distinct false-positive class — `doesImplementPromiseContract` rejects
@@ -273,14 +298,15 @@ disagrees with the value's resolved constructor. The one _unclosed_ surface is t
 prototype-graft (`isPromise/B2`).
 
 **Composition note (axis 4):** two-axis ternary over `isCurrentRealmPromiseInstance`; the
-local-realm arm uses `getPrototypeOf` (`@/config`) and the realm-fixed `promisePrototype`
-capture; the cross-realm arm is `isStructuralPromiseEquivalent`, composing
-`hasPromiseIdentitySignal` (tag via `getTypeSignature`, name threaded in by the caller),
-`doesImplementPromiseContract`, and `isStructuralPromisePrototypeEquivalent` — each
-structural helper resolving its object's constructor ONCE via `getDefinedConstructor` and
-reusing it for both the name (via `getVerifiedOwnName`) and the reciprocal-identity
-compare, the prototype leg under `{ assumePrototype: true }`, plus `getInertPrototypeOf`
-(all `@/utility`). Decisions #054, #059.
+local-realm arm compares the once-resolved `getInertPrototypeOf` (`@/utility`) read
+against the realm-fixed `promisePrototype` capture; the cross-realm arm is
+`isStructuralPromiseEquivalent`, composing `hasPromiseIdentitySignal` (tag via
+`getTypeSignature`, name threaded in by the caller), `doesImplementPromiseContract`, and
+`isStructuralPromisePrototypeEquivalent` — each structural helper resolving its object's
+constructor ONCE via `getDefinedConstructor` and reusing it for both the name (via
+`getVerifiedOwnName`) and the reciprocal-identity compare, the prototype leg under
+`{ assumePrototype: true }`, plus `getInertPrototypeOf` (all `@/utility`). Decisions #054,
+#059.
 
 **Policy flags:** `isPromise/R1`-`R2` encode the _current shipped_ subclass-rejection
 behavior; if a subclass-admission policy is ever adopted these vectors invert.
@@ -304,13 +330,15 @@ caller's job).
 - `dMPC/R3` — `{ then() {}, catch() {}, get finally() {} }` → false — accessor `finally`.
 - `dMPC/R4` — `null`, `undefined` → false — via `hasInertMethod` nullish-safety (no own
   `!!value` guard).
-- `dMPC/B1` — short-circuit order is `then` → `catch` → `finally`; the order is a cost
-  optimization, not observable behavior beyond which method a malformed input fails at.
+
+The short-circuit order (`then` → `catch` → `finally`) is a cost optimization, not
+observable behavior (refuses-to-claim prose; the former `dMPC/B1` ID is withdrawn).
+Throw-safety follows from `hasInertMethod` and is covered by the axis-3 matrix.
 
 ### `hasPromiseIdentitySignal(value?, name?)` — `@internal`
 
 The two string-shape identity markers, independent of the method contract.
-`getTypeSignature(value) === '[object Promise]' && name === 'Promise'`. The `name` is the
+`name === 'Promise' && getTypeSignature(value) === '[object Promise]'`. The `name` is the
 caller's already-resolved constructor name — the caller resolves the constructor once and
 derives its name via `getVerifiedOwnName`; this helper does no constructor resolution of
 its own (decision #059, which replaced the former `options.assumePrototype` parameter that
@@ -362,9 +390,9 @@ prototype-equivalence. Resolves the value's constructor ONCE —
 The single resolution is threaded both into the value's name marker (via
 `getVerifiedOwnName`) and down to the prototype helper as the reciprocal target (decision
 #059); the prototype leg does its own assume-path resolution. `prototype` may be supplied
-by the caller (`isPromise` passes its already-read `getPrototypeOf(value)`) or resolved
-internally. These vectors are the white-box counterparts of the public `isPromise`
-cross-realm vectors.
+by the caller (`isPromise` passes its already-read `getInertPrototypeOf(value)`) or
+resolved internally via the same throw-safe reader. These vectors are the white-box
+counterparts of the public `isPromise` cross-realm vectors.
 
 - `iSPE/A1` — a cross-realm _direct_ `Promise` (fixture) → true — mirrors `isPromise/A3`.
 - `iSPE/R1` — a cross-realm `Promise` subclass (fixture) → false — instance name
@@ -446,3 +474,23 @@ post-freeze amendment is recorded below (item 4).
    defeats a `Symbol.toStringTag` spoof), and retired the value-keyed-registry caveat from
    amendment 4 (no cache remains to poison). The freeze of the behavioral oracle is
    preserved. Full rationale in **decision #059**.
+6. **Re-validation pass (2026-06-29) — clean throw-safety model + rename-drift fix.** The
+   module was re-validated under the two-round playbook and adopted the package-wide clean
+   model (see `docs/spec/README.md` → "Throw-safety — the universal invariant"). Three
+   changes, **no public admit/reject verdict altered**:
+   - **Throw-safety promoted to a universal invariant**, stated once in the Module
+     contract and proven by an axis-3 `hostile × predicate` matrix in the test suite. The
+     former per-input predicate throw-safety vectors `isThenable/B4`–`B6` and
+     `isPromise/B3`/`B5` are **withdrawn** (IDs retired, behavior unchanged); the
+     refuses-to-claim notes (`isThenable/B1`-`B2`, `isPromiseLike/B1`-`B2`,
+     `isPromise/B1`, the unclosable-spoof `isPromise/B4`, `dMPC/B1`) are demoted to
+     **prose**. The testable-boundary grafts (`isThenable/B3`, `isPromise/B2`) and the
+     helper-unit vectors (`hPIS/B1`, `iCRPI/B1`) keep their IDs. The dangling
+     `isThenable/B7` reference is resolved (folded into the invariant).
+   - **Rename drift fixed.** The 2026-06-29 `getInertPrototypeOf` rename had left
+     `getPrototypeOf` stragglers in `isPromise`'s composition formula and
+     Composition/helper notes; the spec now mirrors the threaded `getInertPrototypeOf`
+     code.
+   - **Coverage gap closed.** `isPromise/A2` (`new Promise(() => {})`) gained its missing
+     matrix row; the axis-3 throw-safety matrix filled the previously-empty
+     `isPromiseLike`/`isPromise` × accessor-throw and `isPromise` × descriptor-trap cells.

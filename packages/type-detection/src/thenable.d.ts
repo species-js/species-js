@@ -460,10 +460,12 @@ export function isPromiseLike<T = unknown>(value?: T): value is T & PromiseLike<
  * Narrows a value to `Promise<unknown>` via a two-branch identity check.
  *
  * The local-realm fast-path pairs `value instanceof PromiseConstructor`
- * with `getPrototypeOf(value) === promisePrototype`. The pair admits
- * only direct `Promise` instances; subclasses pass `instanceof` but
- * fail the prototype identity-check, preserving subclass rejection in
- * two O(1) operations. Both captures are realm-fixed at module-load.
+ * with `prototype === promisePrototype`, where `prototype` is the
+ * once-resolved throw-safe `getInertPrototypeOf(value)` read threaded
+ * into both arms. The pair admits only direct `Promise` instances;
+ * subclasses pass `instanceof` but fail the prototype identity-check,
+ * preserving subclass rejection in two O(1) operations. Both captures
+ * are realm-fixed at module-load.
  *
  * On miss, falls back to a three-marker structural chain-run in cost-order:
  * the `[[Class]]` tag `'Promise'` (single `Object.prototype.toString.call`),

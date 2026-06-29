@@ -251,10 +251,12 @@ export function isPromiseLike(value) {
  *
  * The local-realm fast-path pairs `isCurrentRealmPromiseInstance(value)`
  * (the captured `value instanceof promiseConstructor`) with
- * `getPrototypeOf(value) === promisePrototype`. The pair admits only
- * direct `Promise` instances; subclasses pass `instanceof` but fail the
- * prototype identity-check, preserving subclass rejection in two O(1)
- * operations. Both captures are realm-fixed at module-load.
+ * `prototype === promisePrototype`, where `prototype` is the once-resolved
+ * throw-safe `getInertPrototypeOf(value)` read threaded into both arms
+ * (decision #059). The pair admits only direct `Promise` instances;
+ * subclasses pass `instanceof` but fail the prototype identity-check,
+ * preserving subclass rejection in two O(1) operations. Both captures are
+ * realm-fixed at module-load.
  *
  * On miss, falls back to a three-marker structural chain-run in cost-order:
  * the `[[Class]]` tag `'Promise'` (single `Object.prototype.toString.call`),
