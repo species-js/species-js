@@ -112,8 +112,8 @@ export function isObject(value) {
  *
  * @param {unknown} [value] - the value whose string-shape and
  *  constructor-absence signal to probe
- * @returns {boolean} `true` when the tag matches and no constructor is
- *  reachable; `false` otherwise
+ * @returns {boolean} `true` when the tag matches and no constructor
+ *  is reachable; `false` otherwise
  * @internal
  */
 export function hasDictionaryObjectIdentitySignal(value) {
@@ -137,8 +137,8 @@ export function hasDictionaryObjectIdentitySignal(value) {
  * Also reused by the fused {@link isPlainOrDictionaryObject} dispatch
  * on its cross-realm branch.
  *
- * @param {unknown} [value] - the value whose string-shape signal to
- *  probe
+ * @param {unknown} [value] - the value whose string-shape signal
+ *  to probe
  * @returns {boolean} `true` when both string-shape markers match
  *  `Object`'s signature; `false` otherwise
  * @internal
@@ -271,16 +271,16 @@ function getObjectPrototypeDescriptorNames() {
  * Throw-safe: a hostile `Proxy` `ownKeys` / `getOwnPropertyDescriptor`
  * trap that throws is caught and yields `false` rather than propagating.
  *
- * @param {unknown} [value] - the prototype whose own member surface to
- *  verify (callers pass an already-resolved `[[Prototype]]`); a nullish
- *  or non-object value is absorbed by the guard and yields `false`
+ * @param {unknown} [prototype] - the prototype whose own member surface to
+ *  verify (callers pass an already-resolved `[[Prototype]]`); a nullish or
+ *  non-object value is absorbed by the guard and yields `false`
  * @returns {boolean} `true` when every canonical member is present as a
  *  non-enumerable callable own property; `false` otherwise
  * @internal
  */
-export function doesImplementObjectPrototypeContract(value) {
+export function doesImplementObjectPrototypeContract(prototype) {
   try {
-    const descriptors = getOwnPropertyDescriptors(/** @type {object} */ (value));
+    const descriptors = getOwnPropertyDescriptors(/** @type {object} */ (prototype));
 
     return getObjectPrototypeDescriptorNames().every((name) =>
       isValidObjectPrototypeDescriptor(descriptors[name]),
@@ -339,9 +339,9 @@ export function doesImplementObjectPrototypeContract(value) {
  * contract rather than propagating. `isClass` is likewise throw-safe at
  * its own descriptor read.
  *
- * @param {unknown} prototype - the value's already-resolved
- *  `[[Prototype]]`, threaded in by the caller that read it (decision
- *  #059); the helper does not re-read it
+ *
+ * @param {unknown} prototype - the value's already-resolved `[[Prototype]]`,
+ *  threaded in by the caller that read it first (decision #059)
  * @returns {boolean} `true` when all six markers hold; `false` otherwise
  * @internal
  */
@@ -355,8 +355,7 @@ export function isObjectPrototypeEquivalent(prototype) {
   // — which would overshoot, yielding `undefined` for the canonical
   // local-realm case. `prototype` is threaded in by the predicates that
   // already read it (decision #059); the helper never re-reads it.
-  const constructor =
-    isObject(prototype) && getDefinedConstructor(prototype, { assumePrototype: true });
+  const constructor = getDefinedConstructor(prototype, { assumePrototype: true });
 
   // Markers 3/4 read the constructor's own `name` / `prototype` through the
   // throw-safe `getVerifiedOwnName` and `getInertDescriptor` (decision #056):
@@ -370,7 +369,7 @@ export function isObjectPrototypeEquivalent(prototype) {
     getInertDescriptor(constructor, 'prototype', TRUSTED_DATA_CONFIRMATION)?.value ===
       prototype &&
     getInertPrototypeOf(prototype) === null &&
-    doesImplementObjectPrototypeContract(prototype)
+    doesImplementObjectPrototypeContract(/** @type {object} */ (prototype))
   );
 }
 
@@ -388,9 +387,8 @@ export function isObjectPrototypeEquivalent(prototype) {
  *
  * @param {unknown} value - the candidate whose Plain Object structure
  *  and contract is to be verified
- * @param {unknown} prototype - the value's already-resolved
- *  `[[Prototype]]`, threaded in by the caller that read it (decision
- *  #059)
+ * @param {object} prototype - the value's already-resolved `[[Prototype]]`,
+ *  threaded in by the caller that read it first (decision #059)
  * @returns {boolean} `true` when the signal gate and the structural
  *  contract both hold; `false` otherwise
  * @internal
@@ -662,12 +660,15 @@ export function isPlainOrDictionaryObject(value) {
   if (prototype === objectPrototype) {
     return true;
   }
-
   // DictionaryObject — prototype-less form, two cross-validators remain
   if (prototype === null) {
     return hasDictionaryObjectIdentitySignal(value);
   }
-
+  // - latest possible local-realm short-circuit
+  //   handling most likely "tampered-with" objects
+  if (!prototype) {
+    return false;
+  }
   // PlainObject — cross-realm fallback; thread the already-read prototype (#059)
   return isAlienRealmPlainObject(value, prototype);
 }

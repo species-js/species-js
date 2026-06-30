@@ -345,14 +345,14 @@ export function hasDictionaryObjectIdentitySignal(value?: unknown): boolean;
  * trap that throws is absorbed and yields `false` rather than
  * propagating.
  *
- * @param value - the prototype whose own member surface to verify
+ * @param prototype - the prototype whose own member surface to verify
  *  (callers pass an already-resolved `[[Prototype]]`); a nullish or
  *  non-object value is absorbed by the guard and yields `false`
  * @returns `true` when every canonical member is present as a
  *  non-enumerable callable own property; `false` otherwise
  * @internal
  */
-export function doesImplementObjectPrototypeContract(value?: unknown): boolean;
+export function doesImplementObjectPrototypeContract(prototype?: unknown): boolean;
 
 /**
  * Verifies the structural anchor for cross-realm Plain Object
@@ -403,8 +403,7 @@ export function doesImplementObjectPrototypeContract(value?: unknown): boolean;
  * its own descriptor read.
  *
  * @param prototype - the value's already-resolved `[[Prototype]]`,
- *  threaded in by the caller that read it (decision #059); the helper
- *  does not re-read it
+ *  threaded in by the caller that read it first (decision #059)
  * @returns `true` when all six markers hold; `false` otherwise
  * @internal
  */
