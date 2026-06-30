@@ -202,7 +202,8 @@ export interface AbortSignalLike extends EventTargetLike {
  * Throw-safe: a hostile `getPrototypeOf` Proxy-trap that throws during the
  * `instanceof` prototype-walk is absorbed, yielding `false`.
  *
- * @param value - the value to test; assumed truthy by the caller
+ * @param value - the value to test; assumed to be at least truthy by the
+ *  caller
  * @returns `true` when `value instanceof` the captured `EventTarget` holds;
  *  `false` otherwise (including on a throwing trap)
  * @internal
@@ -225,7 +226,8 @@ export function isCurrentRealmEventTargetInstance(value: unknown): boolean;
  * Throw-safe: a hostile `getPrototypeOf` Proxy-trap that throws during the
  * `instanceof` prototype-walk is absorbed, yielding `false`.
  *
- * @param value - the value to test; assumed truthy by the caller
+ * @param value - the value to test; assumed to be at least truthy by the
+ *  caller
  * @returns `true` when `value instanceof` the captured `AbortSignal` holds;
  *  `false` otherwise (including on a throwing trap)
  * @internal
@@ -278,27 +280,27 @@ export function hasEventTargetIdentitySignal(
  *
  * Does not require `Symbol.toStringTag === 'EventTarget'` or a
  * particular constructor-name. That level of identity narrowing belongs
- * to `isEventTarget`. `doesMatchEventTargetContract` is purely
+ * to `isEventTarget`. `doesImplementEventTargetContract` is purely
  * structural.
  *
- * @param value - the value to inspect; omitted is treated as
- *  `undefined`, which does not match the EventTarget method contract
+ * @param value - the value to inspect; assumed to be at least truthy by
+ *  the caller
  * @returns `true` when all three methods are callable data properties
  *  in the value's prototype-chain; `false` otherwise
  * @example
- * doesMatchEventTargetContract(new EventTarget()); // true (inherited)
- * doesMatchEventTargetContract(document);          // true (subclass methods inherited)
- * doesMatchEventTargetContract({});                // false
- * doesMatchEventTargetContract(42);                // false
+ * doesImplementEventTargetContract(new EventTarget()); // true (inherited)
+ * doesImplementEventTargetContract(document);          // true (subclass methods inherited)
+ * doesImplementEventTargetContract({});                // false
+ * doesImplementEventTargetContract(42);                // false
  * @internal
  */
-export function doesMatchEventTargetContract(value?: unknown): boolean;
+export function doesImplementEventTargetContract(value: unknown): boolean;
 
 /**
  * Whether `prototype` carries `EventTarget.prototype`'s own member surface —
  * the three DOM WHATWG methods `dispatchEvent`, `addEventListener`, and
  * `removeEventListener` as own callable data properties. The strict-tier
- * counterpart of the duck-typed {@link doesMatchEventTargetContract}: it
+ * counterpart of the duck-typed {@link doesImplementEventTargetContract}: it
  * reads the already-resolved `[[Prototype]]`'s own descriptors rather than
  * walking the value's prototype-chain, because the strict
  * {@link isEventTarget} admits only direct instances whose `[[Prototype]]`
@@ -362,7 +364,7 @@ export function isAlienRealmEventTarget(value: object, prototype: object): boole
  * check against the realm-fixed `EventTarget` capture catches
  * local-realm `EventTarget` instances and their subclasses (`Element`,
  * `Document`, `Window`, and so on) in a single prototype-walk. If that
- * fails, falls back to `doesMatchEventTargetContract` for the
+ * fails, falls back to `doesImplementEventTargetContract` for the
  * structural inspect-without-invoke check — which catches cross-realm
  * `EventTarget` instances and userland event-emitter implementations
  * that mirror the full method contract.
@@ -467,14 +469,14 @@ export function hasAbortSignalIdentitySignal(
  * `EventTargetLike` plus a boolean `aborted` and a callable
  * `throwIfAborted`.
  *
- * Composes two abort-specific markers with `doesMatchEventTargetContract`.
+ * Composes two abort-specific markers with `doesImplementEventTargetContract`.
  * Short-circuit `&&` orders the checks for both nullish-safety and
  * discrimination cost: `hasInertMethod(value, 'throwIfAborted')` runs
  * first as a nullish-safe leading gate — its descriptor-walk via the
  * parameter-default-to-`null` pattern returns `false` for any nullish
  * input without touching the property surface. The direct `aborted`
  * value-read runs after, by which point `value` is guaranteed non-nullish.
- * The three-descriptor-walk `doesMatchEventTargetContract` runs last as
+ * The three-descriptor-walk `doesImplementEventTargetContract` runs last as
  * the heaviest discriminator and the structural baseline.
  *
  * The `aborted` check uses `isBooleanValue(value.aborted)` and invokes
@@ -496,8 +498,8 @@ export function hasAbortSignalIdentitySignal(
  * example, on cross-realm `AbortSignal` instances or userland
  * abort-signal implementations.
  *
- * @param value - the value to inspect; omitted is treated as
- *  `undefined`, which does not match the AbortSignal method contract
+ * @param value - the value to inspect; assumed to be at least truthy by
+ *  the caller
  * @returns `true` when the value satisfies the EventTarget contract,
  *  has a boolean `aborted` property, and has a callable
  *  `throwIfAborted`; `false` otherwise (including when the `aborted`
@@ -509,7 +511,7 @@ export function hasAbortSignalIdentitySignal(
  * doesImplementAbortSignalContract({});                           // false
  * @internal
  */
-export function doesImplementAbortSignalContract(value?: unknown): boolean;
+export function doesImplementAbortSignalContract(value: unknown): boolean;
 
 /**
  * Whether `prototype` carries `AbortSignal.prototype`'s own member surface —

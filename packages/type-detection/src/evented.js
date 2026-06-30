@@ -80,7 +80,8 @@ const abortSignalPrototype =
  * Proxy-trap that throws during the `instanceof` prototype-walk, yielding
  * `false` rather than propagating (the package-wide throw-safety invariant).
  *
- * @param {unknown} value - the value to test; assumed truthy by the caller
+ * @param {unknown} value - the value to test; assumed to be at least truthy
+ *  by the caller
  * @returns {boolean} `true` when `value instanceof EventTargetConstructor`
  *  holds; `false` otherwise (including on a throwing trap)
  * @internal
@@ -109,7 +110,8 @@ export function isCurrentRealmEventTargetInstance(value) {
  * Proxy-trap that throws during the `instanceof` prototype-walk, yielding
  * `false` rather than propagating (the package-wide throw-safety invariant).
  *
- * @param {unknown} value - the value to test; assumed truthy by the caller
+ * @param {unknown} value - the value to test; assumed to be at least truthy
+ *  by the caller
  * @returns {boolean} `true` when `value instanceof AbortSignalConstructor`
  *  holds; `false` otherwise (including on a throwing trap)
  * @internal
@@ -167,21 +169,21 @@ export function hasEventTargetIdentitySignal(value, name) {
  *
  * Does not require `Symbol.toStringTag === 'EventTarget'` or a
  * particular constructor-name. That level of identity narrowing belongs
- * to `isEventTarget`. `doesMatchEventTargetContract` is purely
+ * to `isEventTarget`. `doesImplementEventTargetContract` is purely
  * structural.
  *
- * @param {unknown} [value] - the value to inspect; omitted is treated
- *  as `undefined`, which does not match the EventTarget method contract
+ * @param {unknown} value - the value to inspect; assumed to be at least
+ *  truthy by the caller
  * @returns {boolean} `true` when all three methods are callable data
  *  properties in the value's prototype-chain; `false` otherwise
  * @example
- * doesMatchEventTargetContract(new EventTarget()); // true (inherited)
- * doesMatchEventTargetContract(document);          // true (subclass methods inherited)
- * doesMatchEventTargetContract({});                // false
- * doesMatchEventTargetContract(42);                // false
+ * doesImplementEventTargetContract(new EventTarget()); // true (inherited)
+ * doesImplementEventTargetContract(document);          // true (subclass methods inherited)
+ * doesImplementEventTargetContract({});                // false
+ * doesImplementEventTargetContract(42);                // false
  * @internal
  */
-export function doesMatchEventTargetContract(value) {
+export function doesImplementEventTargetContract(value) {
   return (
     hasInertMethod(value, 'dispatchEvent', TRUSTED_DATA_CONFIRMATION) &&
     hasInertMethod(value, 'addEventListener', TRUSTED_DATA_CONFIRMATION) &&
@@ -193,7 +195,7 @@ export function doesMatchEventTargetContract(value) {
  * Whether `prototype` carries `EventTarget.prototype`'s own member surface —
  * the three DOM WHATWG methods `dispatchEvent`, `addEventListener`, and
  * `removeEventListener` as own callable data properties. The strict-tier
- * counterpart of the duck-typed {@link doesMatchEventTargetContract}: it
+ * counterpart of the duck-typed {@link doesImplementEventTargetContract}: it
  * reads the already-resolved `[[Prototype]]`'s OWN descriptors (decision
  * #059) rather than walking the value's prototype-chain, because the strict
  * {@link isEventTarget} admits only direct instances whose `[[Prototype]]`
@@ -287,7 +289,7 @@ export function isAlienRealmEventTarget(value, prototype) {
  * check against the realm-fixed `EventTarget` capture catches
  * local-realm `EventTarget` instances and their subclasses (`Element`,
  * `Document`, `Window`, and so on) in a single prototype-walk. If that
- * fails, falls back to `doesMatchEventTargetContract` for the
+ * fails, falls back to `doesImplementEventTargetContract` for the
  * structural inspect-without-invoke check — which catches cross-realm
  * `EventTarget` instances and userland event-emitter implementations
  * that mirror the full method contract.
@@ -323,7 +325,7 @@ export function isAlienRealmEventTarget(value, prototype) {
 export function isEventTargetLike(value) {
   return (
     !!value &&
-    (isCurrentRealmEventTargetInstance(value) || doesMatchEventTargetContract(value))
+    (isCurrentRealmEventTargetInstance(value) || doesImplementEventTargetContract(value))
   );
 }
 
@@ -409,14 +411,14 @@ export function hasAbortSignalIdentitySignal(value, name) {
  * `EventTargetLike` plus a boolean `aborted` and a callable
  * `throwIfAborted`.
  *
- * Composes two abort-specific markers with `doesMatchEventTargetContract`.
+ * Composes two abort-specific markers with `doesImplementEventTargetContract`.
  * Short-circuit `&&` orders the checks for both nullish-safety and
  * discrimination cost: `hasInertMethod(value, 'throwIfAborted')` runs
  * first as a nullish-safe leading gate — its descriptor-walk via the
  * parameter-default-to-`null` pattern returns `false` for any nullish
  * input without touching the property surface. The direct `aborted`
  * value-read runs after, by which point `value` is guaranteed non-nullish.
- * The three-descriptor-walk `doesMatchEventTargetContract` runs last as
+ * The three-descriptor-walk `doesImplementEventTargetContract` runs last as
  * the heaviest discriminator and the structural baseline.
  *
  * The `aborted` check uses `isBooleanValue(value.aborted)` and invokes
@@ -444,8 +446,8 @@ export function hasAbortSignalIdentitySignal(value, name) {
  * example, on cross-realm `AbortSignal` instances or userland
  * abort-signal implementations.
  *
- * @param {unknown} [value] - the value to inspect; omitted is treated
- *  as `undefined`, which does not match the AbortSignal method contract
+ * @param {unknown} value - the value to inspect; assumed to be at least
+ *  truthy by the caller
  * @returns {boolean} `true` when the value satisfies the EventTarget
  *  contract, has a boolean `aborted` property, and has a callable
  *  `throwIfAborted`; `false` otherwise (including when the `aborted`
@@ -462,7 +464,7 @@ export function doesImplementAbortSignalContract(value) {
     return (
       hasInertMethod(value, 'throwIfAborted', TRUSTED_DATA_CONFIRMATION) &&
       isBooleanValue(/** @type {{ aborted?: unknown }} */ (value).aborted) &&
-      doesMatchEventTargetContract(value)
+      doesImplementEventTargetContract(value)
     );
   } catch {
     return false;
