@@ -30,6 +30,7 @@ import { isCallable, isFunction, isNewableFunction } from '@/function';
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 
 /** @typedef {import('./index').TRUSTED_DATA_CONFIRMATION} TRUSTED_DATA_CONFIRMATION_FLAG */
+/** @typedef {import('./index').INSTANCE_LESS_CONSTRUCTOR} NEVER_INVOKED_CONSTRUCTOR */
 
 /** @typedef {import('./index').WeakKey} WeakKey */
 /** @typedef {import('./index').DefinedConstructorAccessorOptions} DefinedConstructorAccessorOptions */
@@ -53,6 +54,11 @@ import { isCallable, isFunction, isNewableFunction } from '@/function';
 
 export const TRUSTED_DATA_CONFIRMATION = /** @type {TRUSTED_DATA_CONFIRMATION_FLAG} */ (
   true
+);
+export const INSTANCE_LESS_CONSTRUCTOR = /** @type {NEVER_INVOKED_CONSTRUCTOR} */ (
+  function () {
+    return void 0;
+  }
 );
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----

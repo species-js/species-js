@@ -139,6 +139,10 @@ export type WeakKey = symbol | object | Callable;
 
 export const TRUSTED_DATA_CONFIRMATION = true;
 
+export const INSTANCE_LESS_CONSTRUCTOR: NewableFunction = function () {
+  return void 0;
+};
+
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 //
 //  Function Types
