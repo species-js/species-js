@@ -20,76 +20,106 @@
  * structural-then-identity layering as their EventTarget counterparts.
  */
 
-import { getPrototypeOf } from '@/config';
+import { getOwnPropertyDescriptors, objectCreate } from '@/config';
 import {
   TRUSTED_DATA_CONFIRMATION,
+  INSTANCE_LESS_CONSTRUCTOR,
+  getInertPrototypeOf,
+  getInertDescriptor,
+  getVerifiedOwnName,
   hasInertMethod,
   getTypeSignature,
-  getDefinedConstructorName,
+  getDefinedConstructor,
 } from '@/utility';
 
-import { isCallable } from '@/function';
+import { isCallable, isClass } from '@/function';
 import { isBooleanValue } from '@/primitive';
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
+
+/** @typedef {import('@/function').Callable} Callable */
+/** @typedef {import('@/function').NewableFunction} NewableFunction */
 
 /** @typedef {import('@/evented').EventTargetLike} EventTargetLike */
 /** @typedef {import('@/evented').AbortSignalLike} AbortSignalLike */
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 
-const EventTargetConstructor = /** @type {typeof EventTarget | null} */ (
-  isCallable(EventTarget) ? EventTarget : null
+const EventTargetConstructor = /** @type {typeof EventTarget | Callable} */ (
+  isCallable(EventTarget) ? EventTarget : INSTANCE_LESS_CONSTRUCTOR
 );
-const AbortSignalConstructor = /** @type {typeof AbortSignal | null} */ (
-  isCallable(AbortSignal) ? AbortSignal : null
+const AbortSignalConstructor = /** @type {typeof AbortSignal | Callable} */ (
+  isCallable(AbortSignal) ? AbortSignal : INSTANCE_LESS_CONSTRUCTOR
 );
-const eventTargetPrototype = EventTargetConstructor && EventTargetConstructor.prototype;
-const abortSignalPrototype = AbortSignalConstructor && AbortSignalConstructor.prototype;
+
+const eventTargetPrototype =
+  EventTargetConstructor === INSTANCE_LESS_CONSTRUCTOR
+    ? objectCreate(null)
+    : /** @type {object} */ (EventTargetConstructor.prototype);
+
+const abortSignalPrototype =
+  AbortSignalConstructor === INSTANCE_LESS_CONSTRUCTOR
+    ? objectCreate(null)
+    : /** @type {object} */ (AbortSignalConstructor.prototype);
+
 /**
  * Whether `value` is an instance of the realm-fixed `EventTarget`
  * capture (or any subclass — `Element`, `Document`, `Window`,
- * `XMLHttpRequest`, …). The leading `!!EventTargetConstructor` guard
- * returns `false` when the runtime lacks a global `EventTarget`
- * (pre-Node-15 environments, special embeddings) without exercising
- * `instanceof`.
+ * `XMLHttpRequest`, …).
  *
  * The subclass-admitting realm-membership building block shared by the
  * EventTarget predicates — it carries no proto-identity narrowing, so the
  * strict {@link isEventTarget} layers that check on top while the lenient
- * {@link isEventTargetLike} uses it as its fast-path arm. Invoked
- * exclusively after the caller's `!!value` truthiness guard, so the helper
- * carries the constructor-presence guard only.
+ * {@link isEventTargetLike} uses it as its fast-path arm.
+ *
+ * When the runtime lacks a global `EventTarget` (pre-Node-15 environments,
+ * special embeddings), `EventTargetConstructor` is the realm-fixed
+ * `INSTANCE_LESS_CONSTRUCTOR` sentinel — a never-instantiated function whose
+ * `prototype` makes `value instanceof` return `false` for every input without
+ * throwing. The `try`/`catch` additionally absorbs a hostile `getPrototypeOf`
+ * Proxy-trap that throws during the `instanceof` prototype-walk, yielding
+ * `false` rather than propagating (the package-wide throw-safety invariant).
  *
  * @param {unknown} value - the value to test; assumed truthy by the caller
- * @returns {boolean} `true` when `EventTargetConstructor` is captured and
- *  `value instanceof EventTargetConstructor` holds; `false` otherwise
+ * @returns {boolean} `true` when `value instanceof EventTargetConstructor`
+ *  holds; `false` otherwise (including on a throwing trap)
  * @internal
  */
 export function isCurrentRealmEventTargetInstance(value) {
-  return !!EventTargetConstructor && value instanceof EventTargetConstructor;
+  try {
+    return value instanceof EventTargetConstructor;
+  } catch {
+    return false;
+  }
 }
 /**
  * Whether `value` is an instance of the realm-fixed `AbortSignal`
- * capture (or any subclass). The leading `!!AbortSignalConstructor`
- * guard returns `false` when the runtime lacks a global `AbortSignal`
- * (pre-Node-15 environments, special embeddings) without exercising
- * `instanceof`.
+ * capture (or any subclass).
  *
  * The subclass-admitting realm-membership building block shared by the
  * AbortSignal predicates — it carries no proto-identity narrowing, so the
  * strict {@link isAbortSignal} layers that check on top while the lenient
- * {@link isAbortSignalLike} uses it as its fast-path arm. Invoked
- * exclusively after the caller's `!!value` truthiness guard, so the helper
- * carries the constructor-presence guard only.
+ * {@link isAbortSignalLike} uses it as its fast-path arm.
+ *
+ * When the runtime lacks a global `AbortSignal` (pre-Node-15 environments,
+ * special embeddings), `AbortSignalConstructor` is the realm-fixed
+ * `INSTANCE_LESS_CONSTRUCTOR` sentinel — a never-instantiated function whose
+ * `prototype` makes `value instanceof` return `false` for every input without
+ * throwing. The `try`/`catch` additionally absorbs a hostile `getPrototypeOf`
+ * Proxy-trap that throws during the `instanceof` prototype-walk, yielding
+ * `false` rather than propagating (the package-wide throw-safety invariant).
  *
  * @param {unknown} value - the value to test; assumed truthy by the caller
- * @returns {boolean} `true` when `AbortSignalConstructor` is captured and
- *  `value instanceof AbortSignalConstructor` holds; `false` otherwise
+ * @returns {boolean} `true` when `value instanceof AbortSignalConstructor`
+ *  holds; `false` otherwise (including on a throwing trap)
  * @internal
  */
 export function isCurrentRealmAbortSignalInstance(value) {
-  return !!AbortSignalConstructor && value instanceof AbortSignalConstructor;
+  try {
+    return value instanceof AbortSignalConstructor;
+  } catch {
+    return false;
+  }
 }
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
@@ -97,6 +127,25 @@ export function isCurrentRealmAbortSignalInstance(value) {
 //  EventTarget Predicates
 //
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
+
+/**
+ * The two cheap string-shape markers of a direct `EventTarget` — the
+ * caller-threaded constructor `name` equal to `'EventTarget'` and the
+ * `[[Class]]` tag `'[object EventTarget]'`. The inexpensive front-gate of
+ * the cross-realm {@link isEventTarget} arm: if either marker fails, the
+ * costlier prototype-contract walk is skipped.
+ *
+ * @param {object} value - the value whose `[[Class]]` tag to read; assumed
+ *  to be an object provided by the caller
+ * @param {string | undefined} name - the value's already-resolved
+ *  constructor name, threaded in by the caller
+ * @returns {boolean} `true` when both string-shape markers match
+ *  `EventTarget`'s signature; `false` otherwise
+ * @internal
+ */
+export function hasEventTargetIdentitySignal(value, name) {
+  return name === 'EventTarget' && getTypeSignature(value) === '[object EventTarget]';
+}
 
 /**
  * Verifies that the value matches the `EventTarget` method contract —
@@ -112,7 +161,9 @@ export function isCurrentRealmAbortSignalInstance(value) {
  * realm-fixed `instanceof EventTargetConstructor` fast-path fails — for
  * example, on cross-realm `EventTarget` instances or userland
  * event-emitter implementations that mirror the EventTarget method
- * surface.
+ * surface. This is the duck-typed (proto-chain-walking) Like-tier contract;
+ * the strict {@link isEventTarget} uses the own-descriptor
+ * {@link doesImplementEventTargetPrototypeContract} instead.
  *
  * Does not require `Symbol.toStringTag === 'EventTarget'` or a
  * particular constructor-name. That level of identity narrowing belongs
@@ -139,6 +190,95 @@ export function doesMatchEventTargetContract(value) {
 }
 
 /**
+ * Whether `prototype` carries `EventTarget.prototype`'s own member surface —
+ * the three DOM WHATWG methods `dispatchEvent`, `addEventListener`, and
+ * `removeEventListener` as own callable data properties. The strict-tier
+ * counterpart of the duck-typed {@link doesMatchEventTargetContract}: it
+ * reads the already-resolved `[[Prototype]]`'s OWN descriptors (decision
+ * #059) rather than walking the value's prototype-chain, because the strict
+ * {@link isEventTarget} admits only direct instances whose `[[Prototype]]`
+ * IS the realm's `EventTarget.prototype`.
+ *
+ * Throw-safe: a hostile `getOwnPropertyDescriptors` trap that throws is
+ * caught and yields `false` rather than propagating.
+ *
+ * Unlike its AbortSignal sibling, the EventTarget prototype carries no
+ * spec-defined state accessor, so no receiver is threaded — the three
+ * markers are pure callable-descriptor reads.
+ *
+ * @param {object} prototype - the value's already-resolved `[[Prototype]]`,
+ *  threaded in by the caller that read it first (decision #059)
+ * @returns {boolean} `true` when all three methods are own callable data
+ *  properties of `prototype`; `false` otherwise
+ * @internal
+ */
+export function doesImplementEventTargetPrototypeContract(prototype) {
+  try {
+    const descriptors = getOwnPropertyDescriptors(prototype);
+
+    return (
+      isCallable(descriptors.dispatchEvent?.value) &&
+      isCallable(descriptors.addEventListener?.value) &&
+      isCallable(descriptors.removeEventListener?.value)
+    );
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Whether `prototype` is structurally equivalent to the realm's
+ * `EventTarget.prototype` — a four-marker chain: `constructor` is a class,
+ * the prototype's `[[Class]]` tag is `'[object EventTarget]'`, the
+ * constructor's own `prototype` round-trips back to `prototype`, and
+ * `prototype` carries the EventTarget method surface
+ * ({@link doesImplementEventTargetPrototypeContract}). The cross-realm
+ * identity core of {@link isEventTarget}, run on the already-resolved
+ * `[[Prototype]]` / `[[Constructor]]` pair (decision #059).
+ *
+ * @param {object} prototype - the value's already-resolved `[[Prototype]]`,
+ *  threaded in by the caller that read it first (decision #059)
+ * @param {NewableFunction | undefined} constructor - the value's
+ *  already-resolved `[[Constructor]]`, threaded in by the caller
+ * @returns {boolean} `true` when all four markers hold; `false` otherwise
+ * @internal
+ */
+export function isEventTargetPrototypeEquivalent(prototype, constructor) {
+  return (
+    isClass(constructor) &&
+    getTypeSignature(prototype) === '[object EventTarget]' &&
+    getInertDescriptor(constructor, 'prototype', TRUSTED_DATA_CONFIRMATION)?.value ===
+      prototype &&
+    doesImplementEventTargetPrototypeContract(prototype)
+  );
+}
+
+/**
+ * The cross-realm `EventTarget` identity arm, composed: the inexpensive
+ * {@link hasEventTargetIdentitySignal} front-gate (tag + constructor-name)
+ * AND the load-bearing {@link isEventTargetPrototypeEquivalent} structural
+ * contract. Resolves the constructor from the threaded `[[Prototype]]` once
+ * (`assumePrototype: true`, decision #059) and feeds its verified own `name`
+ * into the signal gate.
+ *
+ * @param {object} value - the value to test; assumed to be an object
+ *  provided by the caller
+ * @param {object} prototype - the value's already-resolved `[[Prototype]]`,
+ *  threaded in by the caller that read it first (decision #059)
+ * @returns {boolean} `true` when the signal gate and the structural
+ *  contract both hold; `false` otherwise
+ * @internal
+ */
+export function isAlienRealmEventTarget(value, prototype) {
+  const constructor = getDefinedConstructor(prototype, { assumePrototype: true });
+
+  return (
+    hasEventTargetIdentitySignal(value, getVerifiedOwnName(constructor)) &&
+    isEventTargetPrototypeEquivalent(prototype, constructor)
+  );
+}
+
+/**
  * Narrows a value to `EventTargetLike` via either local-realm
  * `EventTarget` identity or the structural `EventTarget` method
  * contract.
@@ -154,10 +294,10 @@ export function doesMatchEventTargetContract(value) {
  *
  * Cross-realm safe by construction. The `instanceof` branch admits
  * local-realm instances on identity. The structural fallback admits
- * foreign-realm instances on contract. The captured `EventTarget`
- * reference is `null` when the runtime lacks a global `EventTarget`
- * (pre-Node-15 environments, special embeddings). The `instanceof`
- * branch is then skipped, and only the structural check fires.
+ * foreign-realm instances on contract. When the runtime lacks a global
+ * `EventTarget` (pre-Node-15 environments, special embeddings), the
+ * realm-fixed capture is the `INSTANCE_LESS_CONSTRUCTOR` sentinel, against
+ * which `instanceof` is always `false`, so only the structural check fires.
  *
  * Generic in `T` per the family-pattern. The narrow returns
  * `T & EventTargetLike`; `T = unknown` collapses to `EventTargetLike`.
@@ -188,51 +328,32 @@ export function isEventTargetLike(value) {
 }
 
 /**
- * Narrows a value to `EventTarget` via a two-branch identity-check.
+ * Narrows a value to `EventTarget` via a two-axis identity dispatch.
+ *
+ * The prototype is resolved ONCE via `getInertPrototypeOf` and threaded into
+ * the cross-realm arm (decision #059). The leading `!!prototype` short-circuit
+ * rejects nullish and other falsy values, and absorbs a hostile
+ * `getPrototypeOf`-trap (which `getInertPrototypeOf` collapses to `undefined`)
+ * before any further read.
  *
  * The local-realm fast-path pairs `isCurrentRealmEventTargetInstance(value)`
- * (the captured `value instanceof EventTargetConstructor`) with
- * `getPrototypeOf(value) === eventTargetPrototype`. The pair admits only
- * direct `EventTarget` instances. Subclasses (`Element`, `Document`,
- * `Window`, `XMLHttpRequest`, …) pass `instanceof` but fail the
- * `prototype` identity-check, preserving subclass rejection in two O(1)
- * operations. Both captures are realm-fixed at module-load.
+ * with `prototype === eventTargetPrototype`. The pair admits only direct
+ * `EventTarget` instances; subclasses (`Element`, `Document`, `Window`,
+ * `XMLHttpRequest`, …) pass `instanceof` but fail the prototype identity-check
+ * in O(1). On miss, the cross-realm arm runs {@link isAlienRealmEventTarget} —
+ * the tag + constructor-name signal gate plus the prototype-contract walk —
+ * but only when the realm actually has a global `EventTarget` (the
+ * `INSTANCE_LESS_CONSTRUCTOR` sentinel guard).
  *
- * On miss, falls back to a three-marker structural chain in cost-order:
- * the `[[Class]]` tag `'EventTarget'`, the constructor-name `'EventTarget'`
- * resolved through the package's constructor-walk, and
- * `doesMatchEventTargetContract` for the EventTarget method contract from
- * the DOM WHATWG specification. The cross-realm arm calls
- * `doesMatchEventTargetContract` directly rather than cascading through
- * {@link isEventTargetLike}, because the `instanceof` check, which it had
- * to re-run again, has already been disproved by the local-realm arm.
+ * `EventTarget` subclasses are rejected on both arms — by prototype identity
+ * locally, by constructor-name equality cross-realm. This is a deliberate
+ * strictness; consumers needing subclass admission compose with
+ * {@link isEventTargetLike}.
  *
- * Cross-realm safe. The local-realm pair admits only direct local-realm
- * `EventTarget` instances. The structural fallback admits foreign-realm
- * `EventTarget` instances on contract (the tag-read and constructor-walk
- * both work realm-independently). No legitimate `EventTarget` is
- * rejected on realm membership alone.
- *
- * `EventTarget` subclasses are rejected on both branches — by the
- * `prototype` identity-check on the local-realm path, by the
- * constructor-name equality on the cross-realm path. `Element`,
- * `Document`, `Window`, `XMLHttpRequest`, and other DOM types that
- * extend `EventTarget` resolve their constructor-name to their own
- * class (`'Element'`, `'Document'`, etc.), which fails the cross-realm
- * constructor-name equality. This is a deliberate strictness. Consumers
- * needing subclass admission should compose with
- * {@link isEventTargetLike}, which accepts subclasses via the
- * `instanceof` fast-path.
- *
- * Generic in `T` per the family-pattern. The narrow returns
- * `T & EventTarget`; `T = unknown` collapses to `EventTarget`.
- *
- * @template [T=unknown]
- * @param {T} [value] - the value to test; omitted is treated as
+ * @param {unknown} [value] - the value to test; omitted is treated as
  *  `undefined`, which is not an `EventTarget`
- * @returns {value is T & EventTarget} `true` when either the local-realm
- *  identity pair or the cross-realm structural chain holds, narrowing
- *  `value` to `T & EventTarget`; `false` otherwise
+ * @returns {value is EventTarget} `true` when either the local-realm identity
+ *  pair or the cross-realm structural chain holds; `false` otherwise
  * @example
  * isEventTarget(new EventTarget());                       // true (instanceof + proto)
  * isEventTarget(document);                                // false (subclass)
@@ -240,13 +361,21 @@ export function isEventTargetLike(value) {
  * isEventTarget(null);                                    // false
  */
 export function isEventTarget(value) {
+  // Resolve the prototype ONCE and thread it into the contract walk (decision
+  // #059), instead of letting the helper re-read it. `getInertPrototypeOf` is
+  // capable of handling _nullish_ values.
+  const prototype = getInertPrototypeOf(value);
+
   return (
-    !!value &&
+    // nullish / falsy / hostile-trap values are all excluded by this first
+    // short-circuit before any further read.
+    !!prototype &&
     (isCurrentRealmEventTargetInstance(value)
-      ? getPrototypeOf(value) === eventTargetPrototype
-      : getTypeSignature(value) === '[object EventTarget]' &&
-        getDefinedConstructorName(value) === 'EventTarget' &&
-        doesMatchEventTargetContract(value))
+      ? // local-realm fast-path
+        prototype === eventTargetPrototype
+      : // cross-realm fallback; thread the already-read prototype (#059)
+        EventTargetConstructor !== INSTANCE_LESS_CONSTRUCTOR &&
+        isAlienRealmEventTarget(/** @type {object} */ (value), prototype))
   );
 }
 
@@ -255,6 +384,25 @@ export function isEventTarget(value) {
 //  AbortSignal Predicates
 //
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
+
+/**
+ * The two cheap string-shape markers of a direct `AbortSignal` — the
+ * caller-threaded constructor `name` equal to `'AbortSignal'` and the
+ * `[[Class]]` tag `'[object AbortSignal]'`. The inexpensive front-gate of
+ * the cross-realm {@link isAbortSignal} arm: if either marker fails, the
+ * costlier prototype-contract walk is skipped.
+ *
+ * @param {object} value - the value whose `[[Class]]` tag to read; assumed
+ *  to be an object provided by the caller
+ * @param {string | undefined} name - the value's already-resolved
+ *  constructor name, threaded in by the caller
+ * @returns {boolean} `true` when both string-shape markers match
+ *  `AbortSignal`'s signature; `false` otherwise
+ * @internal
+ */
+export function hasAbortSignalIdentitySignal(value, name) {
+  return name === 'AbortSignal' && getTypeSignature(value) === '[object AbortSignal]';
+}
 
 /**
  * Verifies that the value matches the `AbortSignal` method contract —
@@ -279,6 +427,13 @@ export function isEventTarget(value) {
  * The predicate's boolean-return contract is preserved. This is the
  * same exception-handling shape as the boxed-primitive equality helpers.
  *
+ * This is the duck-typed Like-tier contract: it reads the `aborted` VALUE
+ * (any descriptor shape — a plain data boolean is admitted), deliberately
+ * NOT requiring the native readonly-accessor shape. That stricter,
+ * spec-faithful prototype check belongs to the identity tier
+ * ({@link doesImplementAbortSignalPrototypeContract}). See decision #030 —
+ * `AbortSignalLike` is the lenient, subclass- and userland-admitting tier.
+ *
  * The `throwIfAborted` check uses `hasInertMethod` for the standard
  * inspect-without-invoke contract — `throwIfAborted` is a data-property
  * method on `AbortSignal.prototype`, so the descriptor-walk pattern
@@ -296,13 +451,13 @@ export function isEventTarget(value) {
  *  `throwIfAborted`; `false` otherwise (including when the `aborted`
  *  getter throws)
  * @example
- * doesMatchAbortSignalContract(new AbortController().signal); // true
- * doesMatchAbortSignalContract(AbortSignal.timeout(1000));    // true
- * doesMatchAbortSignalContract(new EventTarget());            // false (no abort surface)
- * doesMatchAbortSignalContract({});                           // false
+ * doesImplementAbortSignalContract(new AbortController().signal); // true
+ * doesImplementAbortSignalContract(AbortSignal.timeout(1000));    // true
+ * doesImplementAbortSignalContract(new EventTarget());            // false (no abort surface)
+ * doesImplementAbortSignalContract({});                           // false
  * @internal
  */
-export function doesMatchAbortSignalContract(value) {
+export function doesImplementAbortSignalContract(value) {
   try {
     return (
       hasInertMethod(value, 'throwIfAborted', TRUSTED_DATA_CONFIRMATION) &&
@@ -315,6 +470,102 @@ export function doesMatchAbortSignalContract(value) {
 }
 
 /**
+ * Whether `prototype` carries `AbortSignal.prototype`'s own member surface —
+ * the spec-defined accessors and method of DOM WHATWG `AbortSignal`:
+ * `aborted` (a boolean getter with no setter), `reason` (a getter, no
+ * setter), `onabort` (a getter/setter accessor pair), and `throwIfAborted`
+ * (a callable). The strict-tier counterpart of the duck-typed
+ * {@link doesImplementAbortSignalContract}: it reads the already-resolved
+ * `[[Prototype]]`'s OWN descriptors (decision #059) and invokes the `aborted`
+ * getter with the real receiver `value` to confirm a boolean result — the
+ * spec-defined direct read (decision #029).
+ *
+ * Throw-safe: a hostile descriptor trap or a throwing `aborted` getter is
+ * caught and yields `false` rather than propagating.
+ *
+ * @param {object} prototype - the value's already-resolved `[[Prototype]]`,
+ *  threaded in by the caller that read it first (decision #059)
+ * @param {object} value - the root value, threaded as the receiver for the
+ *  spec-defined `aborted` getter invocation
+ * @returns {boolean} `true` when the full accessor/method surface is present
+ *  in the spec-defined shape; `false` otherwise
+ * @internal
+ */
+export function doesImplementAbortSignalPrototypeContract(prototype, value) {
+  try {
+    const descriptors = getOwnPropertyDescriptors(prototype);
+    const { aborted, reason, onabort } = descriptors;
+
+    return (
+      isCallable(aborted?.get) &&
+      !isCallable(aborted.set) &&
+      isBooleanValue(aborted.get.call(value)) &&
+      isCallable(reason?.get) &&
+      !isCallable(reason.set) &&
+      isCallable(onabort?.get) &&
+      isCallable(onabort.set) &&
+      isCallable(descriptors.throwIfAborted?.value)
+    );
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Whether `prototype` is structurally equivalent to the realm's
+ * `AbortSignal.prototype` — a four-marker chain: `constructor` is a class,
+ * the prototype's `[[Class]]` tag is `'[object AbortSignal]'`, the
+ * constructor's own `prototype` round-trips back to `prototype`, and
+ * `prototype` carries the AbortSignal accessor/method surface
+ * ({@link doesImplementAbortSignalPrototypeContract}). The cross-realm
+ * identity core of {@link isAbortSignal}, run on the already-resolved
+ * `[[Prototype]]` / `[[Constructor]]` pair (decision #059).
+ *
+ * @param {object} prototype - the value's already-resolved `[[Prototype]]`,
+ *  threaded in by the caller that read it first (decision #059)
+ * @param {NewableFunction | undefined} constructor - the value's
+ *  already-resolved `[[Constructor]]`, threaded in by the caller
+ * @param {object} value - the root value, threaded as the receiver for the
+ *  spec-defined `aborted` getter invocation
+ * @returns {boolean} `true` when all four markers hold; `false` otherwise
+ * @internal
+ */
+export function isAbortSignalPrototypeEquivalent(prototype, constructor, value) {
+  return (
+    isClass(constructor) &&
+    getTypeSignature(prototype) === '[object AbortSignal]' &&
+    getInertDescriptor(constructor, 'prototype', TRUSTED_DATA_CONFIRMATION)?.value ===
+      prototype &&
+    doesImplementAbortSignalPrototypeContract(prototype, value)
+  );
+}
+
+/**
+ * The cross-realm `AbortSignal` identity arm, composed: the inexpensive
+ * {@link hasAbortSignalIdentitySignal} front-gate (tag + constructor-name)
+ * AND the load-bearing {@link isAbortSignalPrototypeEquivalent} structural
+ * contract. Resolves the constructor from the threaded `[[Prototype]]` once
+ * (`assumePrototype: true`, decision #059) and feeds its verified own `name`
+ * into the signal gate.
+ *
+ * @param {object} value - the value to test; assumed to be an object provided
+ *  by the caller
+ * @param {object} prototype - the value's already-resolved `[[Prototype]]`,
+ *  threaded in by the caller that read it first (decision #059)
+ * @returns {boolean} `true` when the signal gate and the structural
+ *  contract both hold; `false` otherwise
+ * @internal
+ */
+export function isAlienRealmAbortSignal(value, prototype) {
+  const constructor = getDefinedConstructor(prototype, { assumePrototype: true });
+
+  return (
+    hasAbortSignalIdentitySignal(value, getVerifiedOwnName(constructor)) &&
+    isAbortSignalPrototypeEquivalent(prototype, constructor, value)
+  );
+}
+
+/**
  * Narrows a value to `AbortSignalLike` via either local-realm
  * `AbortSignal` identity or the structural `AbortSignal` method
  * contract.
@@ -322,17 +573,17 @@ export function doesMatchAbortSignalContract(value) {
  * Tests in cost-order: the inexpensive `instanceof AbortSignalConstructor`
  * check against the realm-fixed `AbortSignal` capture catches
  * local-realm instances in a single prototype-walk. If that fails,
- * falls back to `doesMatchAbortSignalContract` for the structural
+ * falls back to `doesImplementAbortSignalContract` for the structural
  * check — which catches cross-realm `AbortSignal` instances and
  * userland abort-signal implementations that mirror the minimum
  * contract.
  *
  * Cross-realm safe by construction. The `instanceof` branch admits
  * local-realm instances on identity. The structural fallback admits
- * foreign-realm instances on contract. The captured `AbortSignal`
- * reference is `null` when the runtime lacks a global `AbortSignal`
- * (pre-Node-15 environments, special embeddings). The `instanceof`
- * branch is then skipped, and only the structural check fires.
+ * foreign-realm instances on contract. When the runtime lacks a global
+ * `AbortSignal` (pre-Node-15 environments, special embeddings), the
+ * realm-fixed capture is the `INSTANCE_LESS_CONSTRUCTOR` sentinel, against
+ * which `instanceof` is always `false`, so only the structural check fires.
  *
  * Generic in `T` per the family-pattern. The narrow returns
  * `T & AbortSignalLike`; `T = unknown` collapses to `AbortSignalLike`.
@@ -352,52 +603,36 @@ export function doesMatchAbortSignalContract(value) {
 export function isAbortSignalLike(value) {
   return (
     !!value &&
-    (isCurrentRealmAbortSignalInstance(value) || doesMatchAbortSignalContract(value))
+    (isCurrentRealmAbortSignalInstance(value) || doesImplementAbortSignalContract(value))
   );
 }
 
 /**
- * Narrows a value to `AbortSignal` via a two-branch identity-check.
+ * Narrows a value to `AbortSignal` via a two-axis identity dispatch.
+ *
+ * The prototype is resolved ONCE via `getInertPrototypeOf` and threaded into
+ * the cross-realm arm (decision #059). The leading `!!prototype` short-circuit
+ * rejects nullish and other falsy values, and absorbs a hostile
+ * `getPrototypeOf`-trap (which `getInertPrototypeOf` collapses to `undefined`)
+ * before any further read.
  *
  * The local-realm fast-path pairs `isCurrentRealmAbortSignalInstance(value)`
- * (the captured `value instanceof AbortSignalConstructor`) with
- * `getPrototypeOf(value) === abortSignalPrototype`. The pair admits only
- * direct `AbortSignal` instances. Subclasses pass `instanceof` but fail
- * the `prototype` identity-check, preserving subclass rejection in two O(1)
- * operations. Both captures are realm-fixed at module-load.
+ * with `prototype === abortSignalPrototype`. The pair admits only direct
+ * `AbortSignal` instances; subclasses pass `instanceof` but fail the prototype
+ * identity-check in O(1). On miss, the cross-realm arm runs
+ * {@link isAlienRealmAbortSignal} — the tag + constructor-name signal gate
+ * plus the prototype-contract walk — but only when the realm actually has a
+ * global `AbortSignal` (the `INSTANCE_LESS_CONSTRUCTOR` sentinel guard).
  *
- * On miss, falls back to a three-marker structural chain in cost-order:
- * the `[[Class]]` tag `'AbortSignal'`, the constructor-name `'AbortSignal'`
- * resolved through the package's constructor-walk, and
- * `doesMatchAbortSignalContract` for the AbortSignal method contract (the
- * EventTarget contract plus the `aborted` and `throwIfAborted` markers).
- * The cross-realm arm calls `doesMatchAbortSignalContract` directly rather
- * than cascading through {@link isAbortSignalLike}, because the
- * `instanceof` check, which it had to re-run again, has already been
- * disproved by the local-realm arm.
+ * `AbortSignal` subclasses are rejected on both arms — by prototype identity
+ * locally, by constructor-name equality cross-realm. Consistent with
+ * {@link isEventTarget} and `isPromise`. Consumers needing subclass admission
+ * compose with {@link isAbortSignalLike}.
  *
- * Cross-realm safe. The local-realm pair admits only direct local-realm
- * `AbortSignal` instances. The structural fallback admits foreign-realm
- * `AbortSignal` instances on contract (the tag-read and constructor-walk
- * both work realm-independently). No legitimate `AbortSignal` is
- * rejected on realm membership alone.
- *
- * `AbortSignal` subclasses are rejected on both branches — by the
- * `prototype` identity-check on the local-realm path, by the constructor-name
- * equality on the cross-realm path. Consistent with {@link isEventTarget}
- * and `isPromise`. Consumers needing subclass admission should compose
- * with {@link isAbortSignalLike}, which accepts subclasses via the
- * `instanceof` fast-path.
- *
- * Generic in `T` per the family-pattern. The narrow returns
- * `T & AbortSignal`; `T = unknown` collapses to `AbortSignal`.
- *
- * @template [T=unknown]
- * @param {T} [value] - the value to test; omitted is treated as
+ * @param {unknown} [value] - the value to test; omitted is treated as
  *  `undefined`, which is not an `AbortSignal`
- * @returns {value is T & AbortSignal} `true` when either the local-realm
- *  identity pair or the cross-realm structural chain holds, narrowing
- *  `value` to `T & AbortSignal`; `false` otherwise
+ * @returns {value is AbortSignal} `true` when either the local-realm
+ *  identity pair or the cross-realm structural chain holds; `false` otherwise
  * @example
  * isAbortSignal(new AbortController().signal);            // true (instanceof + proto)
  * isAbortSignal(AbortSignal.timeout(1000));               // true (instanceof + proto)
@@ -406,13 +641,21 @@ export function isAbortSignalLike(value) {
  * isAbortSignal(null);                                    // false
  */
 export function isAbortSignal(value) {
+  // Resolve the prototype ONCE and thread it into the contract walk (decision
+  // #059), instead of letting the helper re-read it. `getInertPrototypeOf` is
+  // capable of handling _nullish_ values.
+  const prototype = getInertPrototypeOf(value);
+
   return (
-    !!value &&
+    // nullish / falsy / hostile-trap values are all excluded by this first
+    // short-circuit before any further read.
+    !!prototype &&
     (isCurrentRealmAbortSignalInstance(value)
-      ? getPrototypeOf(value) === abortSignalPrototype
-      : getTypeSignature(value) === '[object AbortSignal]' &&
-        getDefinedConstructorName(value) === 'AbortSignal' &&
-        doesMatchAbortSignalContract(value))
+      ? // local-realm fast-path
+        prototype === abortSignalPrototype
+      : // cross-realm fallback; thread the already-read prototype (#059)
+        AbortSignalConstructor !== INSTANCE_LESS_CONSTRUCTOR &&
+        isAlienRealmAbortSignal(/** @type {object} */ (value), prototype))
   );
 }
 
