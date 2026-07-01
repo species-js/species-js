@@ -23,6 +23,7 @@ import {
   isEventTarget,
   isAbortSignalLike,
   isAbortSignal,
+  objectCreate,
 } from '@/index.js';
 
 import {
@@ -98,38 +99,36 @@ describe('evented — realm asymmetry + own-shadow rejection on a prototype graf
     expect(isEventTarget(localTagThrowingEventTargetGraft()), 'throwing-tag').toBe(true);
   });
 
-  it('isEventTarget/R5: a LOCAL graft shadowing a contract method at its own level → false', () => {
-    expect(
-      isEventTarget(
-        Object.create(EventTarget.prototype, { dispatchEvent: { value: noop } }),
-      ),
-    ).toBe(false);
+  it('isEventTarget/R5: a method-shadow graft narrows to Like-not-is (strict false, Like true)', () => {
+    // reaches the local instanceof arm (real prototype), so without the #063 gate
+    // it would be `isEventTarget` true; the gate demotes it exactly one tier.
+    const graft = objectCreate(EventTarget.prototype, {
+      dispatchEvent: { value: noop },
+    });
+    expect(isEventTarget(graft), 'isEventTarget').toBe(false);
+    expect(isEventTargetLike(graft), 'isEventTargetLike').toBe(true);
   });
 
-  it('isEventTarget/R6: a LOCAL graft with an own `constructor` → false', () => {
-    expect(
-      isEventTarget(
-        Object.create(EventTarget.prototype, { constructor: { value: noop } }),
-      ),
-    ).toBe(false);
+  it('isEventTarget/R6: a constructor-shadow graft narrows to Like-not-is (strict false, Like true)', () => {
+    const graft = objectCreate(EventTarget.prototype, { constructor: { value: noop } });
+    expect(isEventTarget(graft), 'isEventTarget').toBe(false);
+    expect(isEventTargetLike(graft), 'isEventTargetLike').toBe(true);
   });
 
   it('isAbortSignal behaves identically — a bare `Object.create(AbortSignal.prototype)` → true', () => {
     expect(isAbortSignal(Object.create(AbortSignal.prototype))).toBe(true);
   });
 
-  it('isAbortSignal/R5: a LOCAL graft shadowing an abort accessor at its own level → false', () => {
-    expect(
-      isAbortSignal(Object.create(AbortSignal.prototype, { aborted: { value: false } })),
-    ).toBe(false);
+  it('isAbortSignal/R5: an abort-accessor-shadow graft narrows to Like-not-is (strict false, Like true)', () => {
+    const graft = objectCreate(AbortSignal.prototype, { aborted: { value: false } });
+    expect(isAbortSignal(graft), 'isAbortSignal').toBe(false);
+    expect(isAbortSignalLike(graft), 'isAbortSignalLike').toBe(true);
   });
 
-  it('isAbortSignal/R6: a LOCAL graft with an own `constructor` → false', () => {
-    expect(
-      isAbortSignal(
-        Object.create(AbortSignal.prototype, { constructor: { value: noop } }),
-      ),
-    ).toBe(false);
+  it('isAbortSignal/R6: a constructor-shadow graft narrows to Like-not-is (strict false, Like true)', () => {
+    const graft = objectCreate(AbortSignal.prototype, { constructor: { value: noop } });
+    expect(isAbortSignal(graft), 'isAbortSignal').toBe(false);
+    expect(isAbortSignalLike(graft), 'isAbortSignalLike').toBe(true);
   });
 
   it('the FOREIGN-realm counterpart (same spoofed tag) → false (structural arm reads the tag and rejects)', () => {
