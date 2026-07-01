@@ -53,11 +53,12 @@ even when the value carries the full method contract. The pattern from thenable 
   short-circuit rejects nullish and other falsy values (and absorbs a hostile
   `getPrototypeOf`-trap, which the inert read collapses to `undefined`) before any further
   read. They then DISPATCH on the same realm-fixed `instanceof` helper — the local-realm
-  arm commits to `prototype === eventTargetPrototype` / `abortSignalPrototype` for
-  direct-instance discrimination in O(1); the cross-realm arm runs `isAlienRealmX` — the
-  tag + constructor-name signal gate plus the own-descriptor prototype-equivalence
-  contract (decision #061) — but only when the realm actually carries a global `X` (the
-  sentinel guard below).
+  arm commits to `prototype === eventTargetPrototype` / `abortSignalPrototype` ANDed with
+  the own-surface integrity gate `doesNotShadowXContract` (decision #063 — reject an
+  instance-level override of the inherited contract) for direct-instance discrimination in
+  O(1); the cross-realm arm runs `isAlienRealmX` — the tag + constructor-name signal gate
+  plus the own-descriptor prototype-equivalence contract (decision #061) — but only when
+  the realm actually carries a global `X` (the sentinel guard below).
 
 ### The instance-less-constructor sentinel (decision #060)
 
@@ -86,18 +87,43 @@ Two consequences of the sentinel:
   global. The module no longer crashes at module-load on a bareword access — the sentinel
   makes the absent-global path total.
 
+### Own-level contract-shadow rejection (decision #063)
+
+The local-realm fast-path is prototype-identity — O(1), but blind to what a value does at
+its OWN level. `Object.create(EventTarget.prototype, { dispatchEvent })` carries the real
+prototype yet overrides the inherited method; its own behavior is not `EventTarget`
+behavior. So the fast-path ANDs `doesNotShadowXContract(value)`: a value that owns any
+name in a reserved denylist (the `constructor` back-reference + the contract-methods;
+`AbortSignal` adds the abort-accessors — a superset) is an instance-level subclass-layer
+and is demoted from `is` to merely `Like`, exactly as decision #028 demotes a real
+subclass — own-level shadowing is structurally the same interposed behavior-layer, first
+in the lookup-chain. The mechanism is a throw-safe, fail-closed own-name enumeration
+(`!getOwnPropertyNames(value).some(isValueOfBoundSet, denylist)`); `Symbol.toStringTag` is
+excluded (a symbol key, cosmetic once identity holds), and orthogonal own state never
+disqualifies — only the reserved member-names do.
+
+This refines the object-round realm-asymmetry (a tampered graft reading `true` locally /
+`false` cross-realm) into a SPLIT: BEHAVIORAL tampering (own method / constructor) is now
+rejected in both realms — reconciled with the structural cross-realm arm — while COSMETIC
+tag-tampering stays local-admit / cross-realm-reject, retained by design. The predicate
+guarantees identity + own-surface non-tampering, NOT functional viability (a bare graft,
+which interposes nothing, is still admitted). Applies only to spec-pinned architectures
+whose instances own none of their contract (`EventTarget` / `AbortSignal` / `Promise`),
+not to user types that own their surface by design. Complementary to #052's slot-seal
+(which needs an inert accessor these types lack, but catches even the bare graft).
+
 ## Predicate composition
 
-Sixteen functions — four public predicates, twelve `@internal` helpers — distributed
+Eighteen functions — four public predicates, fourteen `@internal` helpers — distributed
 across two two-tier lattices. The public composition shapes
 (`proto = getInertPrototypeOf(v)`, resolved once and threaded, decision #059):
 
-| Predicate           | Composition                                                                                                                                                                      |
-| ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `isEventTargetLike` | `!!v && (isCurrentRealmEventTargetInstance(v) \|\| doesImplementEventTargetContract(v))`                                                                                         |
-| `isEventTarget`     | `!!proto && (isCurrentRealmEventTargetInstance(v) ? proto === eventTargetPrototype : EventTargetConstructor !== INSTANCE_LESS_CONSTRUCTOR && isAlienRealmEventTarget(v, proto))` |
-| `isAbortSignalLike` | `!!v && (isCurrentRealmAbortSignalInstance(v) \|\| doesImplementAbortSignalContract(v))`                                                                                         |
-| `isAbortSignal`     | `!!proto && (isCurrentRealmAbortSignalInstance(v) ? proto === abortSignalPrototype : AbortSignalConstructor !== INSTANCE_LESS_CONSTRUCTOR && isAlienRealmAbortSignal(v, proto))` |
+| Predicate           | Composition                                                                                                                                                                                                               |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `isEventTargetLike` | `!!v && (isCurrentRealmEventTargetInstance(v) \|\| doesImplementEventTargetContract(v))`                                                                                                                                  |
+| `isEventTarget`     | `!!proto && (isCurrentRealmEventTargetInstance(v) ? (proto === eventTargetPrototype && doesNotShadowEventTargetContract(v)) : EventTargetConstructor !== INSTANCE_LESS_CONSTRUCTOR && isAlienRealmEventTarget(v, proto))` |
+| `isAbortSignalLike` | `!!v && (isCurrentRealmAbortSignalInstance(v) \|\| doesImplementAbortSignalContract(v))`                                                                                                                                  |
+| `isAbortSignal`     | `!!proto && (isCurrentRealmAbortSignalInstance(v) ? (proto === abortSignalPrototype && doesNotShadowAbortSignalContract(v)) : AbortSignalConstructor !== INSTANCE_LESS_CONSTRUCTOR && isAlienRealmAbortSignal(v, proto))` |
 
 The `@internal` helper compositions (EventTarget side; AbortSignal mirrors it):
 

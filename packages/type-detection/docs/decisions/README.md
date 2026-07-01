@@ -68,6 +68,7 @@ Open architectural questions live in [open-questions.md](./open-questions.md).
 | [060](./0060-instance-less-constructor-sentinel-throw-safe-instanceof.md)            | INSTANCE_LESS_CONSTRUCTOR sentinel; throw-safe `instanceof` realm guard                        | 2026-07-01 |
 | [061](./0061-evented-cross-realm-prototype-equivalence-strict-like-decomposition.md) | Evented strict identity lifted to cross-realm prototype-equivalence; strict/Like decomposition | 2026-07-01 |
 | [062](./0062-strict-identity-predicates-excluded-from-generic-family.md)             | Strict identity predicates excluded from the generic `<T = unknown>` family                    | 2026-07-01 |
+| [063](./0063-own-level-contract-shadow-rejection-strict-predicates.md)               | Own-level contract-shadow rejection in the strict identity predicates                          | 2026-07-01 |
 
 ### type-detection / error
 
@@ -184,3 +185,4 @@ order with one-line summaries:
 | 2026-07-01 | [060](./0060-instance-less-constructor-sentinel-throw-safe-instanceof.md)             | INSTANCE_LESS_CONSTRUCTOR sentinel; throw-safe `instanceof` realm guard                        |
 | 2026-07-01 | [061](./0061-evented-cross-realm-prototype-equivalence-strict-like-decomposition.md)  | Evented strict identity lifted to cross-realm prototype-equivalence; strict/Like decomposition |
 | 2026-07-01 | [062](./0062-strict-identity-predicates-excluded-from-generic-family.md)              | Strict identity predicates excluded from the generic `<T = unknown>` family                    |
+| 2026-07-01 | [063](./0063-own-level-contract-shadow-rejection-strict-predicates.md)                | Own-level contract-shadow rejection in the strict identity predicates                          |
