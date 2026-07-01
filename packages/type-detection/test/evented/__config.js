@@ -226,7 +226,9 @@ export const valueOverThrowingProtoDescTrap = () =>
 // `doesImplementAbortSignalContract` reads `value.aborted` directly (its
 // try/catch absorbs the throw → false). The EventTarget contract never reads
 // `aborted`, so `isEventTargetLike` still admits it (true) — the honest
-// asymmetric verdict this row pins.
+// asymmetric verdict this row pins. Discharges the public rejection vector
+// `isAbortSignalLike/R4` (throwing `aborted` getter → false) at the public tier;
+// the helper-tier `dIASC/R4` is the same input against the helper directly.
 export const abortedGetterThrowUserland = () => ({
   dispatchEvent: noop,
   addEventListener: noop,
@@ -240,7 +242,7 @@ export const abortedGetterThrowUserland = () => ({
 // (4) a hostile `[[Prototype]]` whose `ownKeys` trap throws — drives the
 // strict-tier member-surface read (`getOwnPropertyDescriptors` in
 // `doesImplement{EventTarget,AbortSignal}PrototypeContract`) into its try/catch.
-// HELPER-level boundary (dIETPC/B1 / dIASPC/B1, in `_internal/helpers.test.js`),
+// HELPER-level boundary (dIETPC/R2 / dIASPC/R4, in `_internal/helpers.test.js`),
 // NOT a public-predicate row: the public path fails the tag+constructor-name
 // signal gate before the prototype-contract walk runs.
 export const throwingOwnKeysProto = () =>
@@ -443,7 +445,7 @@ export const crossCuttingRejections = {
 // a throw. `throw-safety.test.js` asserts BOTH not-thrown AND the honest
 // by-contract verdict for every cell; the invariant is met ⟺ every cell is filled.
 //
-// The `ownKeys`-trap is a HELPER-level boundary (dIETPC/B1 / dIASPC/B1, in
+// The `ownKeys`-trap is a HELPER-level boundary (dIETPC/R2 / dIASPC/R4, in
 // `_internal/helpers.test.js`) — the public path fails the signal gate before the
 // prototype-contract walk runs — so it is NOT a row here.
 
