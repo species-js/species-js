@@ -177,6 +177,11 @@ prototype-equivalence (#054 / #061), subclass rejection (#028).
   proto-identity).
 - `isEventTarget/A2` — a cross-realm _direct_ `EventTarget` (fixture) → true (cross-realm
   arm: tag `'[object EventTarget]'` + ctor-name `'EventTarget'` + contract).
+- `isEventTarget/A3` — a LOCAL object grafted onto the real prototype,
+  `Object.create(EventTarget.prototype)` (bare, or carrying a tampered
+  `Symbol.toStringTag`) → true (the local arm is prototype-identity: the value
+  genuinely has `eventTargetPrototype`, so provenance and surface markers are not
+  read). See "Realm asymmetry on tampered inputs".
 
 **Rejects**
 
@@ -206,6 +211,36 @@ method-names but not the real prototype shape (decision #061). **Composition not
 ternary over `isCurrentRealmEventTargetInstance`; local arm
 `prototype === eventTargetPrototype`; cross-realm arm `isAlienRealmEventTarget` guarded by
 `EventTargetConstructor !== INSTANCE_LESS_CONSTRUCTOR`.
+
+### Realm asymmetry on tampered inputs (deliberate)
+
+`isEventTarget` answers via two arms that weigh evidence differently, and for a
+**tampered** input they can disagree _by realm_:
+
+- **Local-realm arm** — `prototype === eventTargetPrototype`, pure identity. It is **blind
+  to surface tampering and to provenance**: a LOCAL object grafted onto the real
+  `EventTarget.prototype` — `Object.create(EventTarget.prototype)`, even carrying a spoofed
+  or throwing `Symbol.toStringTag` — is admitted (`true`, `isEventTarget/A3`), because
+  identity is decisive: the value genuinely has the real `eventTargetPrototype`. (It never
+  ran the `EventTarget` constructor, so it has no internal slots and its inherited
+  `dispatchEvent` throws when actually called — but that is a functional concern, not a
+  type-identity one; provenance / brand detection is deliberately out of scope, #050.)
+- **Cross-realm arm** — `hasEventTargetIdentitySignal` + `isEventTargetPrototypeEquivalent`,
+  structural. Lacking a local `eventTargetPrototype` to match on, it has **only** surface
+  markers to go on, so the same tag tampering (spoofed tag → tag mismatch; throwing tag →
+  throw-safe `getTypeSignature` yields a non-matching signature) makes it **reject**
+  (`false`).
+
+So the _same_ tag-tampered graft can read `true` locally and `false` cross-realm. This is
+**inherent to having a fast identity path at all**, and the local answer is the
+more-correct one (identity outranks a cosmetic marker). It is **not** a defect and is
+**not** reconciled: forcing the local fast-path to also read the tag would cost its
+O(1)-identity nature and would wrongly reject a genuine local instance. **Every
+_legitimate_ (untampered, genuinely-constructed) instance agrees across realms** (`true`);
+the divergence appears _only_ under tampering. `isAbortSignal` behaves identically (a graft
+onto `abortSignalPrototype`). Pinned in `adversarial.test.js` (local bare / spoofed-tag /
+throwing-tag grafts → `true`; the foreign spoofed-tag counterpart → `false`), consistent
+with the `isPlainObject` ruling from the object round.
 
 ---
 
@@ -468,6 +503,11 @@ Resolves the constructor once and threads it (#059).
    while a foreign-realm look-alike carrying only tag + name + method-names is rejected by
    `isEventTargetPrototypeEquivalent` (see `iARET/R1`). Accepted and documented, not
    reconciled — local identity outranks surface markers, consistent with the
-   `isPlainObject` ruling from the object round.
+   `isPlainObject` ruling from the object round. **Formalized for object-parity
+   (2026-07-01):** promoted from prose to the numbered `isEventTarget/A3` admit vector +
+   the `isEventTarget` "Realm asymmetry on tampered inputs" subsection, and pinned by the
+   `adversarial.test.js` asymmetry block (local bare / spoofed-tag / throwing-tag grafts →
+   `true`; the foreign spoofed-tag counterpart → `false`) — matching the object module's
+   dedicated subsection + vector + test treatment of the identical phenomenon.
 
 No open items.

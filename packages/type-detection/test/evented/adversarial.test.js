@@ -29,6 +29,9 @@ import {
   tagSpoofedEventTarget,
   tagSpoofedAbortSignal,
   whenBearingUserlandEventTarget,
+  localTagSpoofedEventTargetGraft,
+  localTagThrowingEventTargetGraft,
+  foreignTagSpoofedEventTargetGraft,
 } from './__config.js';
 
 const noop = () => undefined;
@@ -77,5 +80,28 @@ describe('evented — adversarial / spoof (axis 3)', () => {
     expect(isEventTargetLike(value), 'isEventTargetLike').toBe(true);
     // still not a real EventTarget (userland; tag `[object Object]`).
     expect(isEventTarget(value), 'isEventTarget').toBe(false);
+  });
+});
+
+describe('evented — realm asymmetry on a prototype-grafted EventTarget (deliberate)', () => {
+  // DELIBERATE, documented property (spec → isEventTarget "Realm asymmetry on
+  // tampered inputs"): a value grafted onto the real `EventTarget.prototype`
+  // genuinely HAS `eventTargetPrototype`, so the local identity fast-path admits it
+  // — tag-blind and provenance-blind. The SAME tag tampering yields `true` locally /
+  // `false` cross-realm, because the local arm is identity-based (tag-blind) while
+  // the cross-realm arm is structural (tag-sensitive). Consistent with the
+  // `isPlainObject` ruling from the object round; pinned here against regression.
+  it('isEventTarget/A3: LOCAL grafts — bare, spoofed-tag, throwing-tag → all true (identity fast-path, tag never read)', () => {
+    expect(isEventTarget(Object.create(EventTarget.prototype)), 'bare').toBe(true);
+    expect(isEventTarget(localTagSpoofedEventTargetGraft()), 'spoofed-tag').toBe(true);
+    expect(isEventTarget(localTagThrowingEventTargetGraft()), 'throwing-tag').toBe(true);
+  });
+
+  it('isAbortSignal behaves identically — a bare `Object.create(AbortSignal.prototype)` → true', () => {
+    expect(isAbortSignal(Object.create(AbortSignal.prototype))).toBe(true);
+  });
+
+  it('the FOREIGN-realm counterpart (same spoofed tag) → false (structural arm reads the tag and rejects)', () => {
+    expect(isEventTarget(foreignTagSpoofedEventTargetGraft())).toBe(false);
   });
 });

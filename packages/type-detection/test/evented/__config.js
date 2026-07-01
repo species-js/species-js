@@ -182,6 +182,44 @@ export const whenBearingUserlandEventTarget = () => ({
   when: noop,
 });
 
+// ----- prototype-graft shapes (realm-asymmetry, targeted by adversarial.test.js) -----
+// A bare `Object.create(EventTarget.prototype)` genuinely HAS `eventTargetPrototype`
+// as its `[[Prototype]]`, so `isEventTarget`'s local identity fast-path admits it
+// (`isEventTarget/A3`) even though it never ran the constructor. The fast-path is
+// tag-blind, so an OWN spoofed/throwing `Symbol.toStringTag` does not change the local
+// verdict — but the FOREIGN counterpart falls to the structural cross-realm arm, which
+// reads that tag and rejects. See `isEventTarget` → "Realm asymmetry on tampered inputs".
+
+// a LOCAL graft with an own tag `'Nope'` shadowing the inherited `'EventTarget'` —
+// `isEventTarget` still true (local arm never reads the tag).
+export const localTagSpoofedEventTargetGraft = () =>
+  Object.create(EventTarget.prototype, {
+    [Symbol.toStringTag]: { value: 'Nope' },
+  });
+
+// a LOCAL graft whose own `Symbol.toStringTag` getter throws — `isEventTarget` still
+// true (local arm never reads the tag; the throw is never triggered).
+export const localTagThrowingEventTargetGraft = () =>
+  Object.create(EventTarget.prototype, {
+    [Symbol.toStringTag]: {
+      get() {
+        throw new Error('tag-trap');
+      },
+    },
+  });
+
+// the FOREIGN counterpart of `localTagSpoofedEventTargetGraft`: a graft onto a foreign
+// `EventTarget.prototype` with the same own tag `'Nope'`. Local `instanceof` misses, so
+// the cross-realm arm runs; its signal gate reads the own tag via `getTypeSignature` →
+// `'[object Nope]'` ≠ `'[object EventTarget]'` → rejects (`false`).
+export const foreignTagSpoofedEventTargetGraft = () =>
+  foreignRealmEval(`(() => {
+    ${FOREIGN_EVENT_TARGET_CLASS}
+    return Object.create(EventTarget.prototype, {
+      [Symbol.toStringTag]: { value: 'Nope' },
+    });
+  })()`);
+
 // ----- throw-safety probes (evented's re-derived hostile set) -----
 // The public predicates must answer a boolean on EVERY hostile input and never
 // propagate a throw. evented's read surface differs from object's — it reaches
