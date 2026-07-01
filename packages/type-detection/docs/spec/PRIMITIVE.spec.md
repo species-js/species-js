@@ -8,6 +8,13 @@
 > implementations through the `@/index.js` barrel). The run corrected the equality-helper
 > behavior (they admit the same-family primitive too, not only the boxed form). Base for
 > the axis-1 suite; axes 2–4 derive alongside.
+>
+> **Post-freeze amendment 2026-07-01:** two symbol-registry exports omitted at freeze are
+> now covered — the public `isRegisteredSymbol` and its `@internal` helper
+> `unguardedIsUnregisteredSymbol` (the decidability run tested 19 public predicates and
+> read the gate as 29 = 29; the true surface is 20 public predicates, gate 31 = 31).
+> Purely additive — new sections + inventory + corrected gate; no existing vector changes.
+> See the Open / resolved items.
 
 ## Module contract
 
@@ -62,6 +69,9 @@ why `Promise` lacks one) is decision #052.
 **Public predicates — floor (axis 1):** `isNullishPrimitive`, `isBoxablePrimitive`,
 `isPrimitiveValue`, `isBoxedPrimitive`.
 
+**Public predicate — symbol-registry (axis 1):** `isRegisteredSymbol` (whether a primitive
+symbol was obtained from the global registry via `Symbol.for`).
+
 **Exported `@internal` helpers (axis 4) — equality (slot) probes:**
 `doesHaveStrictUnboxedStringValueEquality`, `doesHaveStrictUnboxedNumberValueEquality`,
 `doesHaveStrictUnboxedBooleanValueEquality`, `doesHaveStrictUnboxedSymbolValueEquality`,
@@ -76,6 +86,10 @@ single-realm testability, decision #053):** `isCurrentRealmNativeString` /
 path — testable with local-realm boxed values, so the cross-realm logic needs no foreign
 realm).
 
+**Exported `@internal` helper (axis 4) — symbol-registry:**
+`unguardedIsUnregisteredSymbol` (the unguarded `Symbol.keyFor`-based unregistered-symbol
+check that `isRegisteredSymbol` gates and negates).
+
 **Module-local data (unexported — internal tables, covered transitively):** the
 `unboxedPrimitiveValueEvaluations` dispatch `Map` (exercised through
 `resolvedViaAlienRealmPrimitiveTypesEvaluation`) and the `nonBoxableTypeSignatures` `Set`
@@ -85,8 +99,9 @@ realm).
 floor types (`NullishPrimitive`, `BoxablePrimitive`, `PrimitiveValue`, `BoxedPrimitive`) —
 type-only, verified by `tsc`, no runtime vector.
 
-Re-confirmation gate: 29 `.js` exports = 29 `.d.ts` declarations, no surface gap (19
-public predicates + 5 equality helpers + 5 realm-resolution helpers).
+Re-confirmation gate: 31 `.js` exports = 31 `.d.ts` declarations, no surface gap (20
+public predicates + 5 equality helpers + 5 realm-resolution helpers + 1 symbol-registry
+helper).
 
 ## Cross-cutting vectors
 
@@ -287,6 +302,34 @@ per-family boxed predicates, dispatched by tag through `unboxedPrimitiveValueEva
 
 ---
 
+## Registered-symbol predicate — `isRegisteredSymbol`
+
+`isRegisteredSymbol(value?: unknown): boolean` — composition
+`isSymbolValue(value) && !unguardedIsUnregisteredSymbol(value)`: gate to a primitive
+symbol first (so the unguarded helper is never handed a non-symbol), then confirm
+`Symbol.keyFor` resolves a registry key. A _registered_ symbol is one obtained from the
+global registry via `Symbol.for`; _unregistered_ = created by `Symbol()` or a well-known
+symbol. Registered symbols are notable for being rejected as `WeakMap` / `WeakSet` keys by
+the engine. Not generic and not a type-guard — registered-ness is not a distinct TS type
+(the narrow target would still be `symbol`).
+
+- `isRegisteredSymbol/A1` — `Symbol.for('x')` → true (`Symbol.keyFor` resolves `'x'`).
+- `isRegisteredSymbol/R1` — `Symbol('x')` → false (unregistered — no registry key).
+- `isRegisteredSymbol/R2` — a well-known symbol (`Symbol.iterator`,
+  `Symbol.asyncIterator`) → false (well-known symbols are not in the global registry).
+- `isRegisteredSymbol/R3` — `Object(Symbol.for('x'))` (a boxed registered symbol) → false
+  (the `isSymbolValue` gate admits only the primitive form, not the boxed wrapper).
+- `isRegisteredSymbol/R4` — a non-symbol (`'x'`, `42`, `{}`, `null`, `undefined`, omitted)
+  → false (`isSymbolValue` gate rejects first; the unguarded helper never runs).
+
+**Cross-realm / spoof (axes 2–3):** realm-safe and spoof-proof. A symbol from a foreign
+realm is still `typeof 'symbol'`, and `Symbol.keyFor` consults the per-agent global
+registry (shared across same-agent realms), so registered-ness is a registry property, not
+a realm-identity one — no foreign-realm fixture is required and there is no forgeable
+surface on a primitive symbol.
+
+---
+
 ## Helper specification (axis 4) — the five equality helpers
 
 Each `doesHaveStrictUnboxedXValueEquality(value: unknown): boolean` is the marker-4 slot
@@ -369,6 +412,27 @@ the marquee benefit of exporting it (no foreign realm needed).
 
 ---
 
+## Helper specification (axis 4) — the symbol-registry helper
+
+### `unguardedIsUnregisteredSymbol`
+
+`unguardedIsUnregisteredSymbol(value: symbol): boolean` —
+`symbolKeyFor(value) === undefined` (the realm-fixed `Symbol.keyFor` capture).
+"Unguarded": the caller must pass a symbol; on a non-symbol `Symbol.keyFor` throws, which
+is why the public `isRegisteredSymbol` gates with `isSymbolValue` first.
+`keyFor(value) === undefined` is the spec tell for an unregistered symbol. Exported
+`@internal` for direct axis-4 testing.
+
+- `uIUS/A1` — `Symbol('x')` → true (unregistered — `keyFor` returns `undefined`).
+- `uIUS/A2` — a well-known symbol (`Symbol.iterator`) → true (unregistered).
+- `uIUS/R1` — `Symbol.for('x')` → false (registered — `keyFor` returns `'x'`).
+- `uIUS/B1` — precondition, not a runtime vector: a non-symbol receiver makes
+  `Symbol.keyFor` throw. The helper is unguarded by contract, so the caller must gate —
+  the public `isRegisteredSymbol` does via `isSymbolValue`. Documents the caller's
+  obligation.
+
+---
+
 ## Open / resolved items
 
 1. **Architecture-doc naming drift (doc↔impl) — RESOLVED.** `architecture/primitive.md`
@@ -391,3 +455,14 @@ the marquee benefit of exporting it (no foreign realm needed).
    (`isCurrentRealmPromiseInstance`). The two internal data tables
    (`unboxedPrimitiveValueEvaluations`, `nonBoxableTypeSignatures`) stay module-local,
    tested transitively. See decision #053.
+3. **Symbol-registry predicate + helper omitted at freeze — RESOLVED (post-freeze
+   amendment 2026-07-01).** `isRegisteredSymbol` (public) and
+   `unguardedIsUnregisteredSymbol` (`@internal`) were present in `primitive.{js,d.ts}` but
+   absent from the 2026-06-18 decidability run and this spec — the re-confirmation gate
+   read 29 = 29 instead of the true 31 = 31. Both are now covered: the "Registered-symbol
+   predicate" and "symbol-registry helper" sections, the surface inventory, and the
+   corrected gate. `isRegisteredSymbol` is confirmed public (user ruling; wired via the
+   barrel `export *` + the `./primitive` subpath). Surfaced while diagnosing Dependabot
+   #14, whose newer `eslint-plugin-jsdoc` flagged the two helpers' then-stub `.js` JSDoc
+   (fixed in `4bdfa77` by mirroring the canonical `.d.ts` docs down). Purely additive; no
+   existing behavioral vector changed.
