@@ -1083,11 +1083,7 @@ export type NullishPrimitive = null | undefined;
  * the unboxed level.
  */
 export type BoxablePrimitive =
-  | StringValue
-  | NumberValue
-  | BooleanValue
-  | SymbolValue
-  | BigIntValue;
+  StringValue | NumberValue | BooleanValue | SymbolValue | BigIntValue;
 
 /**
  * The full primitive union — all seven ECMA-262 primitive types. Equals
@@ -1108,11 +1104,7 @@ export type PrimitiveValue = NullishPrimitive | BoxablePrimitive;
  * the boxable-primitive lattice.
  */
 export type BoxedPrimitive =
-  | BoxedString
-  | BoxedNumber
-  | BoxedBoolean
-  | BoxedSymbol
-  | BoxedBigInt;
+  BoxedString | BoxedNumber | BoxedBoolean | BoxedSymbol | BoxedBigInt;
 
 /**
  * Narrows a value to the nullish-primitive union
