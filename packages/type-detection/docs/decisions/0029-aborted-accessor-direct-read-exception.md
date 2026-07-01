@@ -70,3 +70,20 @@ JSDoc in both `.js` and `.d.ts` updated to name the try/catch and the precedent.
 spec-defined accessor predicates (the foreseen `Iterator.done`, `ReadableStream.locked`
 cases) should adopt the same shape: direct-read for spec conformance + try/catch for
 predicate-contract safety.
+
+**Addendum (2026-07-01, decisions #061 / #062).** The function documented above was
+renamed `doesMatchAbortSignalContract` → `doesImplementAbortSignalContract` when the
+evented Like / strict tiers were decomposed (its EventTarget sibling likewise became
+`doesImplementEventTargetContract`). The direct-read exception recorded here now applies
+at BOTH tiers:
+
+- the Like-tier `doesImplementAbortSignalContract` (this decision's original subject)
+  reads the `aborted` VALUE via `isBooleanValue(value.aborted)`, admitting any descriptor
+  shape including a plain data boolean — the lenient reading (decision #030);
+- the new strict-tier `doesImplementAbortSignalPrototypeContract` reads the `aborted`
+  accessor off the prototype's OWN descriptor and INVOKES its getter with the real
+  receiver (`aborted.get.call(value)`), requiring the readonly-accessor shape (getter, no
+  setter) — the spec-faithful identity-tier reading.
+
+Both remain `try`/`catch`-wrapped per the 2026-06-08 addendum. The original body above is
+preserved as the historical record; its example code names the pre-rename function.

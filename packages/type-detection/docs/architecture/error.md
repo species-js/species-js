@@ -82,9 +82,9 @@ supporting types and one interface declaration round out the surface:
 | `isError`                   | `public`    | `const isError = isFunction(nativeIsError) ? nativeIsError : isGenericError` (captured at module-load)  |
 | `isAbortError`              | `public`    | `isError(v) && v.name.endsWith('AbortError')`                                                           |
 
-The composition mirrors the established `doesMatch<X>Contract` pattern from thenable
-(`doesImplementPromiseContract`) and evented (`doesMatchEventTargetContract`,
-`doesMatchAbortSignalContract`) — same "structural fallback dispatcher" role at the
+The composition mirrors the established `doesImplement<X>Contract` pattern from thenable
+(`doesImplementPromiseContract`) and evented (`doesImplementEventTargetContract`,
+`doesImplementAbortSignalContract`) — same "structural fallback dispatcher" role at the
 internal layer. The realm-fast-path inlining inside `isGenericError` matches the
 `isPromiseLike` / `isEventTargetLike` shape, where the `instanceof <Constructor>` fast
 path composes with the structural fallback inside one umbrella predicate without exposing

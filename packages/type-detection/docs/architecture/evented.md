@@ -21,103 +21,152 @@ AbortSignalLike     (isAbortSignalLike)   — EventTargetLike + aborted + throwI
 `AbortSignalLike` extends `EventTargetLike`, mirroring the spec relationship: every
 abort-signal is an event-target. The two lattices are structurally parallel: each tier
 follows the same compositional shape — a Like-tier structural predicate composed of
-multiple `hasInertMethod` checks (with an `@internal` `doesMatchXContract` helper),
+multiple `hasInertMethod` checks (the `@internal` `doesImplementXContract` helper),
 Like-tier predicates that combine the realm-fixed `instanceof` fast path (through the
-`isCurrentRealm{X}Instance` named helper) with the structural fallback, identity-tier
-predicates that dispatch via a two-axis ternary — local-realm
-`instanceof + proto-identity` arm, cross-realm `tag + constructor-name + contract` arm.
+`isCurrentRealm{X}Instance` named helper) with that structural fallback, and identity-tier
+predicates that dispatch via a two-axis ternary — a local-realm
+`instanceof + proto-identity` arm, and a cross-realm arm that proves structural
+prototype-equivalence (a tag + constructor-name signal gate followed by an own-descriptor
+prototype contract).
 
 The patterns mirror [`./thenable.md`](./thenable.md)'s lattice. The Promise-method
 contract from the thenable round was one instance of a general rule: _spec-defined method
 sets admit duck-typing alongside instance discrimination_. `EventTarget` and `AbortSignal`
 are two more instances, applied here. The two-axis dispatch on the strict-identity tier is
-the lift-from-`Like`-cascade pattern from decision #050, applied uniformly to `isPromise`,
-`isEventTarget`, and `isAbortSignal`.
+the lift-from-`Like`-cascade pattern from decision #050; its cross-realm arm was lifted to
+full structural prototype-equivalence (decision #061), mirroring `isPromise` (decision
+#054), and applied uniformly to `isEventTarget` and `isAbortSignal`.
 
 ## Cross-realm safety
 
 `EventTarget` and `AbortSignal` produced in one realm (iframe, worker, vm context) have
 the same structural shapes as their local-realm counterparts but a _different intrinsic
 identity_. `instanceof EventTarget` against a foreign-realm `EventTarget` returns `false`
-even when the value carries the full method contract. The pattern from thenable applies
-unchanged:
+even when the value carries the full method contract. The pattern from thenable applies:
 
 - `isEventTargetLike` tests `isCurrentRealmEventTargetInstance(v)` first (the realm-fixed
-  `!!EventTargetConstructor && v instanceof EventTargetConstructor` capture); if that
-  fails, falls back to `doesMatchEventTargetContract` for the structural check. The same
-  pattern in `isAbortSignalLike` through `isCurrentRealmAbortSignalInstance`.
-- `isEventTarget` and `isAbortSignal` each DISPATCH on the same realm-fixed `instanceof`
-  helper — local-realm arm commits to `getPrototypeOf(v) === eventTargetPrototype` /
-  `abortSignalPrototype` for direct-instance discrimination in O(1); cross-realm arm runs
-  three realm-independent markers — the `[[Class]]` tag, the constructor-name walk, and
-  the structural `doesMatchXContract` check called directly (not via the `Like` sibling).
+  `v instanceof EventTargetConstructor` capture); if that fails, falls back to
+  `doesImplementEventTargetContract` for the structural check. The same pattern in
+  `isAbortSignalLike` through `isCurrentRealmAbortSignalInstance`.
+- `isEventTarget` and `isAbortSignal` each resolve the value's `[[Prototype]]` ONCE via
+  `getInertPrototypeOf` and thread it onward (decision #059). A leading `!!prototype`
+  short-circuit rejects nullish and other falsy values (and absorbs a hostile
+  `getPrototypeOf`-trap, which the inert read collapses to `undefined`) before any further
+  read. They then DISPATCH on the same realm-fixed `instanceof` helper — the local-realm
+  arm commits to `prototype === eventTargetPrototype` / `abortSignalPrototype` for
+  direct-instance discrimination in O(1); the cross-realm arm runs `isAlienRealmX` — the
+  tag + constructor-name signal gate plus the own-descriptor prototype-equivalence
+  contract (decision #061) — but only when the realm actually carries a global `X` (the
+  sentinel guard below).
+
+### The instance-less-constructor sentinel (decision #060)
 
 The `EventTargetConstructor` and `AbortSignalConstructor` captures use the
-`isCallable(X) ? X : null` pattern with type-system narrowing through the
-`typeof X | null` cast. The paired `eventTargetPrototype` / `abortSignalPrototype`
-captures use the `&&` form (`XConstructor && XConstructor.prototype`) to propagate `null`
-as the absence sentinel uniformly across the paired bindings — the
-`@typescript-eslint/prefer-optional-chain` disable preserves this idiom against
-optional-chain rewrites that would split the absence vocabulary across captures. Each
-helper carries the `!!XConstructor` guard internally so the structural fallback still
-fires when the capture is `null`. Runtime environments lacking the DOM globals would crash
-at module-load on the bareword access — the type-system structure documents the defensive
-shape even though the runtime requires the globals.
+`isCallable(X) ? X : INSTANCE_LESS_CONSTRUCTOR` pattern: when the runtime lacks the global
+(pre-Node-15 environments, special embeddings), the capture is the realm-fixed
+`INSTANCE_LESS_CONSTRUCTOR` sentinel from `@/utility` — a never-instantiated function. No
+value ever carries it on its prototype chain, so
+`value instanceof INSTANCE_LESS_CONSTRUCTOR` is always `false` without a presence guard.
+The paired `eventTargetPrototype` / `abortSignalPrototype` captures resolve to
+`objectCreate(null)` in that same absent-global case (the boundary-retyping pattern,
+decision #034), so the local-realm `prototype === Xprototype` identity-compare can never
+match a real value.
+
+Two consequences of the sentinel:
+
+- The realm-instance helpers reduce to a bare
+  `try { value instanceof XConstructor } catch { false }`. The `try`/`catch` absorbs a
+  hostile right-hand side — a patched `Symbol.hasInstance` or a throwing prototype-walk —
+  yielding `false` rather than propagating, the package-wide throw-safety invariant
+  applied to the `instanceof` operator itself. The old `!!XConstructor &&` presence guard
+  is gone: the sentinel makes it unnecessary.
+- The strict predicates' cross-realm arm carries an explicit
+  `XConstructor !== INSTANCE_LESS_CONSTRUCTOR` guard, so the structural
+  prototype-equivalence walk is skipped entirely when the realm genuinely lacks the
+  global. The module no longer crashes at module-load on a bareword access — the sentinel
+  makes the absent-global path total.
 
 ## Predicate composition
 
-Eight predicates — four public, four `@internal` — distributed across two two-tier
-lattices. The composition shapes:
+Sixteen functions — four public predicates, twelve `@internal` helpers — distributed
+across two two-tier lattices. The public composition shapes
+(`proto = getInertPrototypeOf(v)`, resolved once and threaded, decision #059):
 
-| Predicate                      | Composition                                                                                                                                                         |
-| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `doesMatchEventTargetContract` | `hasInertMethod(v, 'dispatchEvent') && hasInertMethod(v, 'addEventListener') && hasInertMethod(v, 'removeEventListener')`                                           |
-| `isEventTargetLike`            | `!!v && (isCurrentRealmEventTargetInstance(v) \|\| doesMatchEventTargetContract(v))`                                                                                |
-| `isEventTarget`                | `!!v && (isCurrentRealmEventTargetInstance(v) ? getPrototypeOf(v) === eventTargetPrototype : tag === '[object EventTarget]' && ctor === 'EventTarget' && contract)` |
-| `doesMatchAbortSignalContract` | `hasInertMethod(v, 'throwIfAborted') && isBooleanValue(v.aborted) && doesMatchEventTargetContract(v)`                                                               |
-| `isAbortSignalLike`            | `!!v && (isCurrentRealmAbortSignalInstance(v) \|\| doesMatchAbortSignalContract(v))`                                                                                |
-| `isAbortSignal`                | `!!v && (isCurrentRealmAbortSignalInstance(v) ? getPrototypeOf(v) === abortSignalPrototype : tag === '[object AbortSignal]' && ctor === 'AbortSignal' && contract)` |
+| Predicate           | Composition                                                                                                                                                                      |
+| ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `isEventTargetLike` | `!!v && (isCurrentRealmEventTargetInstance(v) \|\| doesImplementEventTargetContract(v))`                                                                                         |
+| `isEventTarget`     | `!!proto && (isCurrentRealmEventTargetInstance(v) ? proto === eventTargetPrototype : EventTargetConstructor !== INSTANCE_LESS_CONSTRUCTOR && isAlienRealmEventTarget(v, proto))` |
+| `isAbortSignalLike` | `!!v && (isCurrentRealmAbortSignalInstance(v) \|\| doesImplementAbortSignalContract(v))`                                                                                         |
+| `isAbortSignal`     | `!!proto && (isCurrentRealmAbortSignalInstance(v) ? proto === abortSignalPrototype : AbortSignalConstructor !== INSTANCE_LESS_CONSTRUCTOR && isAlienRealmAbortSignal(v, proto))` |
 
-Each Like-tier predicate composes the corresponding `@internal` helper as the structural
-fallback. The strict-tier predicates DISPATCH via a two-axis ternary — local-realm arm
-commits to `proto-identity`; cross-realm arm runs `tag + constructor-name + contract`
-directly. Same shape as `isPromise` from [`./thenable.md`](./thenable.md), and same
-rationale: no shared engine-attested bottom seal exists, so the arms have different bottom
-semantics and the ternary committing to the right arm is the structurally honest
-combination. See decision #050.
+The `@internal` helper compositions (EventTarget side; AbortSignal mirrors it):
+
+| Helper                                      | Composition                                                                                                                                                                          |
+| ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `isCurrentRealm{X}Instance`                 | `try { v instanceof XConstructor } catch { false }`                                                                                                                                  |
+| `doesImplementEventTargetContract`          | `hasInertMethod(v, 'dispatchEvent') && hasInertMethod(v, 'addEventListener') && hasInertMethod(v, 'removeEventListener')`                                                            |
+| `hasEventTargetIdentitySignal`              | `name === 'EventTarget' && getTypeSignature(v) === '[object EventTarget]'`                                                                                                           |
+| `doesImplementEventTargetPrototypeContract` | `try { the three methods are own callable data props of proto } catch { false }`                                                                                                     |
+| `isEventTargetPrototypeEquivalent`          | `isClass(ctor) && getTypeSignature(proto) === '[object EventTarget]' && ctor.prototype === proto && doesImplementEventTargetPrototypeContract(proto)`                                |
+| `isAlienRealmEventTarget`                   | `hasEventTargetIdentitySignal(v, getVerifiedOwnName(ctor)) && isEventTargetPrototypeEquivalent(proto, ctor)`, where `ctor = getDefinedConstructor(proto, { assumePrototype: true })` |
+
+The AbortSignal Like-tier `doesImplementAbortSignalContract` adds the two abort markers to
+the EventTarget contract:
+`try { hasInertMethod(v, 'throwIfAborted') && isBooleanValue(v.aborted) && doesImplementEventTargetContract(v) } catch { false }`.
+Its strict-tier `doesImplementAbortSignalPrototypeContract` reads the spec accessor
+surface off the prototype's own descriptors — `aborted` (boolean getter, no setter,
+invoked with the real receiver `value`), `reason` (getter, no setter), `onabort` (get/set
+pair), `throwIfAborted` (callable) — and `isAbortSignalPrototypeEquivalent` threads
+`value` through as that getter's receiver (decision #029).
+
+Each Like-tier predicate composes the corresponding `doesImplementXContract` helper as the
+structural fallback. The strict-tier predicates DISPATCH via a two-axis ternary — the
+local-realm arm commits to `proto-identity`; the cross-realm arm runs `isAlienRealmX` (the
+signal gate + prototype-equivalence contract) directly, not via the `Like` sibling. Same
+shape as `isPromise` from [`./thenable.md`](./thenable.md), and same rationale: no shared
+engine-attested bottom seal exists, so the arms have different bottom semantics and the
+ternary committing to the right arm is the structurally honest combination. See decisions
+#050, #054, and #061.
 
 Two ordering choices worth naming:
 
-- **`doesMatchAbortSignalContract` runs `hasInertMethod(throwIfAborted)` first**, not the
-  EventTarget contract. The reason is nullish-safety: `hasInertMethod` uses
+- **`doesImplementAbortSignalContract` runs `hasInertMethod(throwIfAborted)` first**, not
+  the EventTarget contract. The reason is nullish-safety: `hasInertMethod` uses
   parameter-default-to-`null` (decision #025) as its leading gate, which rejects
   null/undefined inputs without touching the property surface. The direct `aborted` read
   fires only after that gate passes, guaranteeing `value` is non-nullish. The heavier
   EventTarget contract runs last as the heaviest discriminator and the structural
   baseline. See decision #029 for why `aborted` is read directly rather than via
   `hasInertMethod`.
-- **`isEventTarget` and `isAbortSignal` reject subclasses** via strict constructor-name
-  equality, consistent with `isPromise` (decision #023). DOM types extending `EventTarget`
-  (`Element`, `Document`, etc.) resolve their constructor name to their own class, which
-  fails the equality. Consumers needing subclass admission should compose with the
-  Like-tier predicates, which accept subclasses via the `instanceof` fast path.
+- **`isEventTarget` and `isAbortSignal` reject subclasses** on both arms — by prototype
+  identity locally, and cross-realm by the constructor-name signal gate plus the
+  `constructor.prototype === prototype` round-trip in `isXPrototypeEquivalent`. DOM types
+  extending `EventTarget` (`Element`, `Document`, etc.) resolve their constructor name to
+  their own class, which fails the gate; a grafted prototype fails the round-trip.
+  Consistent with `isPromise` (decision #023). Consumers needing subclass admission should
+  compose with the Like-tier predicates, which accept subclasses via the `instanceof` fast
+  path.
 
 ## Conservative-narrowing in the EventTarget / AbortSignal domain
 
 The conservative-narrowing posture from
 [`./function.md`](./function.md#two-postures-minimal-floor-vs-conservative-narrowing) §
 "Two postures: minimal-floor vs. conservative-narrowing" lands a third time here, after
-the thenable round. `isEventTarget` and `isAbortSignal` each run three cross-validating
-markers on their **cross-realm arm** — the structural method-contract helper, the
-`[[Class]]` tag, the constructor-name walk — even though any one is usually enough for
-typical-case discrimination. The local-realm arm uses `proto-identity` as its self-sealing
-single marker (the realm-fixed `EventTarget.prototype` / `AbortSignal.prototype` cannot be
+the thenable round. `isEventTarget` and `isAbortSignal` each run a multi-marker
+prototype-equivalence chain on their **cross-realm arm** — the `[[Class]]` tag and the
+constructor-name signal gate, then `constructor` is-a-class, the prototype's own tag, the
+`constructor.prototype === prototype` round-trip, and the own-descriptor method/accessor
+contract — even though the signal gate alone is usually enough for typical-case
+discrimination. The local-realm arm uses `proto-identity` as its self-sealing single
+marker (the realm-fixed `EventTarget.prototype` / `AbortSignal.prototype` cannot be
 spoofed at the prototype-identity level from userland). The reasoning matches
 [`./function.md`](./function.md) and [`./thenable.md`](./thenable.md): foundation-tier
 predicates that downstream packages depend on benefit from multiple cross-validating
 markers as bounded-cost insurance against single-marker spoofing on the surface where
-spoofing is possible. The marker independence on the cross-realm arm makes the layered
-check trustworthy.
+spoofing is possible. Proving structural prototype-equivalence rather than mere
+method-name presence (decision #061) is what closes the foreign-realm spoof where a plain
+object carries the right tag, name, and method names without the real prototype shape. The
+marker independence on the cross-realm arm makes the layered check trustworthy.
 
 Subclass rejection benefits from the same two-axis split. A local-realm DOM subclass
 (`Element`, `Document`, `Window`, `XMLHttpRequest`, …) rejects at `proto-identity` in O(1)
@@ -128,22 +177,33 @@ fallback on every subclass-rejection path. See decisions #028 and #050.
 
 ## The `aborted` accessor exception
 
-`doesMatchAbortSignalContract` deviates from decision #021's third pattern (predicate over
-inherited → descriptor-walk for safety) for the `aborted` check. The reason is
-spec-grounded: `AbortSignal.aborted` is defined as
+Both AbortSignal contracts read `aborted` directly rather than through `hasInertMethod`,
+deviating from decision #021's third pattern (predicate over inherited → descriptor-walk
+for safety). The reason is spec-grounded: `AbortSignal.aborted` is defined as
 `[GetterAttribute] readonly attribute boolean`. Native `AbortSignal` returns an accessor
 descriptor for `aborted`. Using `hasInertMethod` would reject every native `AbortSignal`.
 The third pattern's contract is "no getter fires that shouldn't fire by spec" — for
-spec-defined accessor properties, the direct read IS the spec-required path. The `&&`
-chain ordering becomes load-bearing: the direct read only fires after the nullish-safe
-`hasInertMethod(throwIfAborted)` gate.
+spec-defined accessor properties, the direct read IS the spec-required path.
 
-The rule generalizes: descriptor-walk when invocation is unsafe per the predicate's
-contract; direct-read when the spec defines the property as an accessor and invocation IS
-the spec-required path. See decision #029 for the chronological capture and the
-forward-applicable framing. The same exception will likely apply to other contracts with
-spec-defined accessor attributes (`Iterator`'s `done`, `ReadableStream`'s `locked`, etc.)
-when they enter the migration pipeline.
+The two tiers read it differently, by design:
+
+- The Like-tier `doesImplementAbortSignalContract` reads the `aborted` VALUE in any
+  descriptor shape — a plain data boolean is admitted — via
+  `isBooleanValue(value.aborted)`. The `&&` chain ordering is load-bearing: the direct
+  read only fires after the nullish-safe `hasInertMethod(throwIfAborted)` gate. This is
+  the lenient, userland-admitting reading (decision #030).
+- The strict-tier `doesImplementAbortSignalPrototypeContract` reads the `aborted` accessor
+  off the prototype's own descriptor and INVOKES its getter with the real receiver
+  (`aborted.get.call(value)`), requiring a boolean result and rejecting a setter — the
+  spec-faithful shape. This is the identity-tier reading.
+
+Both are wrapped in `try`/`catch` so a throwing getter reduces to `false` rather than
+propagating. The rule generalizes: descriptor-walk when invocation is unsafe per the
+predicate's contract; direct-read when the spec defines the property as an accessor and
+invocation IS the spec-required path. See decision #029 for the chronological capture and
+the forward-applicable framing. The same exception will likely apply to other contracts
+with spec-defined accessor attributes (`Iterator`'s `done`, `ReadableStream`'s `locked`,
+etc.) when they enter the migration pipeline.
 
 ## The `AbortSignalLike` minimum-surface choice
 

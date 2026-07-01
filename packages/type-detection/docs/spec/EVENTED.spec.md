@@ -7,6 +7,14 @@
 > exported helpers, run against the real implementations through the `@/index.js` barrel,
 > single realm; no spec corrections needed). Base for the axis-1 suite; axes 2–4 derive
 > alongside.
+>
+> **Post-freeze amendment 2026-07-01 (decisions #060–#062):** the strict tiers were lifted
+> to cross-realm prototype-equivalence and the two tiers decomposed. The behavioral
+> public-vector tables below stay frozen — the genuine-instance admits still hold, and the
+> strict tiers only got stricter on un-enumerated spoofs — while the composition strings,
+> helper mechanics, and axis-4 helper inventory are amended in place, and the new
+> strict-arm helpers + stricter-reject vectors are appended. See the "Post-freeze
+> amendment" Resolved item.
 
 ## Module contract
 
@@ -25,29 +33,41 @@ AbortSignalLike   (isAbortSignalLike)   — EventTargetLike + `aborted` + `throw
 `AbortSignalLike extends EventTargetLike` (every abort-signal is an event-target). The
 shape mirrors the thenable lattice exactly: the Like tier admits any value matching the
 spec method set (duck-typing); the identity tier admits only the realm-fixed intrinsic via
-a two-axis ternary (local-realm `instanceof` + proto-identity, OR cross-realm `[[Class]]`
-tag + constructor-name + structural contract). Decisions #050 (two-axis dispatch), #028
-(subclass rejection), #029 (the `aborted` accessor exception), #030 (`AbortSignalLike`
-minimum surface).
+a two-axis ternary (local-realm `instanceof` + proto-identity, OR a cross-realm arm
+proving structural prototype-equivalence — a `[[Class]]` tag + constructor-name signal
+gate followed by an own-descriptor prototype contract). Decisions #050 (two-axis
+dispatch), #054 / #061 (cross-realm prototype-equivalence lift + strict/Like
+decomposition), #060 (`INSTANCE_LESS_CONSTRUCTOR` sentinel), #062 (strict predicates drop
+the generic), #028 (subclass rejection), #029 (the `aborted` accessor exception), #030
+(`AbortSignalLike` minimum surface).
 
 ## Surface inventory
 
 **Public predicates (axis 1):** `isEventTargetLike`, `isEventTarget`, `isAbortSignalLike`,
 `isAbortSignal`.
 
-**Exported `@internal` helpers (axis 4):**
+**Exported `@internal` helpers (axis 4):** twelve, six per family.
 
-- contract helpers — `doesMatchEventTargetContract`, `doesMatchAbortSignalContract`
-  (declared in both `.js` and `.d.ts`).
-- realm-membership helpers — `isCurrentRealmEventTargetInstance`,
+- realm-membership — `isCurrentRealmEventTargetInstance`,
   `isCurrentRealmAbortSignalInstance` (exported for single-realm testability per decision
   #053; see Resolved items).
+- Like-tier contracts — `doesImplementEventTargetContract`,
+  `doesImplementAbortSignalContract` (duck-typed, prototype-chain-walking).
+- strict-tier signal gates — `hasEventTargetIdentitySignal`,
+  `hasAbortSignalIdentitySignal` (tag + threaded constructor-name).
+- strict-tier prototype contracts — `doesImplementEventTargetPrototypeContract`,
+  `doesImplementAbortSignalPrototypeContract` (own-descriptor surface of the realm
+  prototype).
+- strict-tier prototype-equivalence — `isEventTargetPrototypeEquivalent`,
+  `isAbortSignalPrototypeEquivalent` (the four-marker identity chain).
+- strict-tier cross-realm arms — `isAlienRealmEventTarget`, `isAlienRealmAbortSignal`
+  (signal gate + prototype-equivalence, constructor resolved once and threaded, #059).
 
 **Exported types without a predicate:** `EventTargetLike`, `AbortSignalLike` (locally
 defined, decision #027). The narrow targets `EventTarget` / `AbortSignal` are the
 `lib.dom.d.ts` globals, not defined here.
 
-Re-confirmation gate: 8 `.js` exports = 8 `.d.ts` declarations, no surface gap.
+Re-confirmation gate: 16 `.js` exports = 16 `.d.ts` declarations, no surface gap.
 
 **Test-environment note:** the decidability run executes in Node (vitest). `EventTarget`,
 `AbortController`, `AbortSignal`, `AbortSignal.timeout()`, `AbortSignal.any()` are all
@@ -60,8 +80,10 @@ readily constructible — its subclass-rejection is theoretical, noted where rel
 ## Cross-cutting vectors
 
 - **CC/nullish** — `null`, `undefined`, omitted → rejected by all four public predicates
-  (leading `!!value`); the `doesMatchXContract` helpers also reject nullish (via
-  `hasInertMethod`'s parameter-default-to-`null` gate).
+  (leading `!!value` / `!!prototype`). The `doesImplementXContract` helpers document a
+  "truthy assumed by the caller" contract, but their impl still rejects nullish (via
+  `hasInertMethod`'s parameter-default-to-`null` gate) — pinned below as defense-in-depth
+  beyond the documented contract.
 - **CC/empty** — `{}` → rejected everywhere (no method contract).
 
 ---
@@ -69,7 +91,7 @@ readily constructible — its subclass-rejection is theoretical, noted where rel
 ## `isEventTargetLike`
 
 `isEventTargetLike<T = unknown>(value?: T): value is T & EventTargetLike` Composition:
-`!!value && (isCurrentRealmEventTargetInstance(value) || doesMatchEventTargetContract(value))`
+`!!value && (isCurrentRealmEventTargetInstance(value) || doesImplementEventTargetContract(value))`
 Spec basis: DOM WHATWG `EventTarget` — `dispatchEvent` + `addEventListener` +
 `removeEventListener`.
 
@@ -104,16 +126,17 @@ Spec basis: DOM WHATWG `EventTarget` — `dispatchEvent` + `addEventListener` +
 **Cross-realm (axis 2):** admit foreign-realm `EventTarget` + subclasses (structural arm).
 **Spoof (axis 3):** accessor traps on any of the three methods rejected; no identity to
 spoof — contract admits a userland 3-method object. **Composition note (axis 4):** drives
-`isCurrentRealmEventTargetInstance` + `doesMatchEventTargetContract`. Subclass-admitting
-(bare `instanceof`, no proto-identity).
+`isCurrentRealmEventTargetInstance` + `doesImplementEventTargetContract`.
+Subclass-admitting (bare `instanceof`, no proto-identity).
 
 ---
 
 ## `isEventTarget`
 
-`isEventTarget<T = unknown>(value?: T): value is T & EventTarget` Composition:
-`!!value && (isCurrentRealmEventTargetInstance(value) ? getPrototypeOf(value) === eventTargetPrototype : getTypeSignature(value) === '[object EventTarget]' && getDefinedConstructorName(value) === 'EventTarget' && doesMatchEventTargetContract(value))`
-Spec basis: `EventTarget` identity — two-axis dispatch (#050, #028).
+`isEventTarget(value?: unknown): value is EventTarget` (non-generic, #062) Composition:
+`const proto = getInertPrototypeOf(value); !!proto && (isCurrentRealmEventTargetInstance(value) ? proto === eventTargetPrototype : EventTargetConstructor !== INSTANCE_LESS_CONSTRUCTOR && isAlienRealmEventTarget(value, proto))`
+Spec basis: `EventTarget` identity — two-axis dispatch (#050) lifted to cross-realm
+prototype-equivalence (#054 / #061), subclass rejection (#028).
 
 **Admits**
 
@@ -127,7 +150,8 @@ Spec basis: `EventTarget` identity — two-axis dispatch (#050, #028).
 - `isEventTarget/R1` — a subclass instance `new (class extends EventTarget {})()` → false
   (passes instanceof, fails proto-identity; real-world: `document`/`Element`/`Window`).
 - `isEventTarget/R2` — tag-spoof `{ [Symbol.toStringTag]: 'EventTarget' }` → false (not
-  instanceof; tag passes but ctor-name walk reaches `Object` and the contract is absent).
+  instanceof; the cross-realm signal gate fails — the resolved constructor-name is
+  `Object`, not `EventTarget`).
 - `isEventTarget/R3` — a userland 3-method object (`isEventTargetLike/A3`) → false (not
   instanceof; `[[Class]]` tag is `'[object Object]'`).
 - `isEventTarget/R4` — `new AbortController().signal` → false (an `AbortSignal`, not a
@@ -139,20 +163,23 @@ Spec basis: `EventTarget` identity — two-axis dispatch (#050, #028).
   subclasses (consumers needing subclasses use `isEventTargetLike`).
 
 **Cross-realm (axis 2):** admit foreign-realm direct `EventTarget`; reject foreign
-subclasses (ctor-name). **Spoof (axis 3):** three cross-realm markers each close a class —
-contract rejects tag/ctor-name claimants lacking the methods; tag rejects
-contract-satisfiers tagged otherwise; ctor-name closes the `Symbol.toStringTag` spoof
-hole. **Composition note (axis 4):** two-axis ternary over
-`isCurrentRealmEventTargetInstance`; local arm `getPrototypeOf` + `eventTargetPrototype`;
-cross-realm arm `getTypeSignature` + `getDefinedConstructorName` +
-`doesMatchEventTargetContract`.
+subclasses (constructor-name signal gate + prototype round-trip). **Spoof (axis 3):** the
+cross-realm arm proves structural prototype-equivalence — the tag + constructor-name
+signal gate rejects tag/name claimants, and `isEventTargetPrototypeEquivalent`
+(constructor is-a-class, prototype tag, `constructor.prototype === prototype` round-trip,
+own-descriptor method contract) rejects a plain object carrying the right tag + name +
+method-names but not the real prototype shape (decision #061). **Composition note (axis
+4):** prototype resolved once via `getInertPrototypeOf` and threaded (#059); two-axis
+ternary over `isCurrentRealmEventTargetInstance`; local arm
+`prototype === eventTargetPrototype`; cross-realm arm `isAlienRealmEventTarget` guarded by
+`EventTargetConstructor !== INSTANCE_LESS_CONSTRUCTOR`.
 
 ---
 
 ## `isAbortSignalLike`
 
 `isAbortSignalLike<T = unknown>(value?: T): value is T & AbortSignalLike` Composition:
-`!!value && (isCurrentRealmAbortSignalInstance(value) || doesMatchAbortSignalContract(value))`
+`!!value && (isCurrentRealmAbortSignalInstance(value) || doesImplementAbortSignalContract(value))`
 Spec basis: DOM WHATWG `AbortSignal` minimum surface — `EventTargetLike` + boolean
 `aborted` + callable `throwIfAborted` (#030).
 
@@ -189,15 +216,17 @@ Spec basis: DOM WHATWG `AbortSignal` minimum surface — `EventTargetLike` + boo
 3):** the `aborted` getter is read directly (spec-defined accessor, #029) but wrapped in
 `try/catch` (throwing getter → false); accessor trap on `throwIfAborted` rejected via
 `hasInertMethod`. **Composition note (axis 4):** drives
-`isCurrentRealmAbortSignalInstance` + `doesMatchAbortSignalContract`. Subclass-admitting.
+`isCurrentRealmAbortSignalInstance` + `doesImplementAbortSignalContract`.
+Subclass-admitting.
 
 ---
 
 ## `isAbortSignal`
 
-`isAbortSignal<T = unknown>(value?: T): value is T & AbortSignal` Composition:
-`!!value && (isCurrentRealmAbortSignalInstance(value) ? getPrototypeOf(value) === abortSignalPrototype : getTypeSignature(value) === '[object AbortSignal]' && getDefinedConstructorName(value) === 'AbortSignal' && doesMatchAbortSignalContract(value))`
-Spec basis: `AbortSignal` identity — two-axis dispatch (#050, #028).
+`isAbortSignal(value?: unknown): value is AbortSignal` (non-generic, #062) Composition:
+`const proto = getInertPrototypeOf(value); !!proto && (isCurrentRealmAbortSignalInstance(value) ? proto === abortSignalPrototype : AbortSignalConstructor !== INSTANCE_LESS_CONSTRUCTOR && isAlienRealmAbortSignal(value, proto))`
+Spec basis: `AbortSignal` identity — two-axis dispatch (#050) lifted to cross-realm
+prototype-equivalence (#054 / #061), subclass rejection (#028).
 
 **Admits**
 
@@ -213,7 +242,8 @@ Spec basis: `AbortSignal` identity — two-axis dispatch (#050, #028).
 - `isAbortSignal/R1` — `new EventTarget()` → false (not an `AbortSignal`; no abort
   surface).
 - `isAbortSignal/R2` — tag-spoof `{ [Symbol.toStringTag]: 'AbortSignal' }` → false (not
-  instanceof; no contract; ctor-name walk reaches `Object`).
+  instanceof; the cross-realm signal gate fails — the resolved constructor-name is
+  `Object`, not `AbortSignal`).
 - `isAbortSignal/R3` — an `AbortSignalLike` userland object (`isAbortSignalLike/A3`) →
   false (not instanceof; tag is `'[object Object]'`).
 - `isAbortSignal/R4` — `new AbortController()` (the controller, not its `.signal`) →
@@ -226,46 +256,55 @@ Spec basis: `AbortSignal` identity — two-axis dispatch (#050, #028).
   proto-identity / ctor-name gates would reject one).
 
 **Cross-realm (axis 2):** admit foreign-realm direct `AbortSignal`. **Spoof (axis 3):** as
-`isEventTarget`, three independent cross-realm markers; the contract's `aborted`
-direct-read is `try/catch`-guarded. **Composition note (axis 4):** two-axis ternary over
-`isCurrentRealmAbortSignalInstance`; cross-realm arm uses `doesMatchAbortSignalContract`
-directly.
+`isEventTarget`, the cross-realm arm proves structural prototype-equivalence via
+`isAbortSignalPrototypeEquivalent` — additionally invoking the prototype's `aborted`
+getter with the real receiver (`try/catch`-guarded, #029) and requiring the
+readonly-accessor shape (getter, no setter) the Like tier does not. **Composition note
+(axis 4):** prototype resolved once via `getInertPrototypeOf` and threaded (#059);
+two-axis ternary over `isCurrentRealmAbortSignalInstance`; cross-realm arm
+`isAlienRealmAbortSignal` guarded by
+`AbortSignalConstructor !== INSTANCE_LESS_CONSTRUCTOR`.
 
 ---
 
 ## Helper specification (axis 4)
 
-### `doesMatchEventTargetContract(value?)` — `@internal`
+### `doesImplementEventTargetContract(value)` — `@internal`
 
 `hasInertMethod(v, 'dispatchEvent') && hasInertMethod(v, 'addEventListener') && hasInertMethod(v, 'removeEventListener')`.
-Purely structural; no `instanceof`.
+Purely structural (prototype-chain-walking); no `instanceof`. Documents "truthy assumed by
+the caller"; still nullish-safe in impl (see `dIETC/R3`).
 
-- `dMETC/A1` — `new EventTarget()` → true (methods inherited from prototype).
-- `dMETC/A2` — a subclass instance / `new AbortController().signal` → true (inherited).
-- `dMETC/A3` — `{ dispatchEvent(){}, addEventListener(){}, removeEventListener(){} }` →
+- `dIETC/A1` — `new EventTarget()` → true (methods inherited from prototype).
+- `dIETC/A2` — a subclass instance / `new AbortController().signal` → true (inherited).
+- `dIETC/A3` — `{ dispatchEvent(){}, addEventListener(){}, removeEventListener(){} }` →
   true (own).
-- `dMETC/R1` — missing any of the three (`isEventTargetLike/R1`) → false (short-circuits).
-- `dMETC/R2` — accessor on any of the three → false.
-- `dMETC/R3` — `{}`, `null`, `undefined`, `42` → false (`hasInertMethod` nullish-safe).
+- `dIETC/R1` — missing any of the three (`isEventTargetLike/R1`) → false (short-circuits).
+- `dIETC/R2` — accessor on any of the three → false.
+- `dIETC/R3` — `{}`, `null`, `undefined`, `42` → false (`hasInertMethod` nullish-safe).
 
-### `doesMatchAbortSignalContract(value?)` — `@internal`
+### `doesImplementAbortSignalContract(value)` — `@internal`
 
-`try { hasInertMethod(v, 'throwIfAborted') && isBooleanValue(v.aborted) && doesMatchEventTargetContract(v) } catch { false }`.
+`try { hasInertMethod(v, 'throwIfAborted') && isBooleanValue(v.aborted) && doesImplementEventTargetContract(v) } catch { false }`.
 Order is load-bearing: the nullish-safe `throwIfAborted` gate first, then the direct
-`aborted` read (accessor exception #029), then the EventTarget contract.
+`aborted` read (accessor exception #029), then the EventTarget contract. Like-tier: reads
+the `aborted` VALUE in any descriptor shape (a plain data boolean is admitted) — the
+strict `doesImplementAbortSignalPrototypeContract` is the one that requires the accessor
+shape.
 
-- `dMASC/A1` — `new AbortController().signal`, `AbortSignal.timeout(1000)` → true.
-- `dMASC/R1` — `new EventTarget()` → false (no `throwIfAborted` / `aborted`).
-- `dMASC/R2` — `{ aborted: false, throwIfAborted(){} }` (no EventTarget methods) → false.
-- `dMASC/R3` — `aborted` present but non-boolean → false.
-- `dMASC/R4` — throwing `aborted` getter → false (`try/catch`).
-- `dMASC/R5` — `{}`, `null` → false.
+- `dIASC/A1` — `new AbortController().signal`, `AbortSignal.timeout(1000)` → true.
+- `dIASC/R1` — `new EventTarget()` → false (no `throwIfAborted` / `aborted`).
+- `dIASC/R2` — `{ aborted: false, throwIfAborted(){} }` (no EventTarget methods) → false.
+- `dIASC/R3` — `aborted` present but non-boolean → false.
+- `dIASC/R4` — throwing `aborted` getter → false (`try/catch`).
+- `dIASC/R5` — `{}`, `null` → false.
 
 ### `isCurrentRealmEventTargetInstance(value)` / `isCurrentRealmAbortSignalInstance(value)` — `@internal`
 
-`!!XConstructor && value instanceof XConstructor`. Assumes a truthy receiver (callers
-guard `!!value`). Subclass-admitting — no proto-identity (layered on by the strict
-predicate's ternary).
+`try { value instanceof XConstructor } catch { false }`. Assumes a truthy receiver
+(callers guard `!!value`). Subclass-admitting — no proto-identity (layered on by the
+strict predicate's ternary). Throw-safe: a hostile right-hand side (patched
+`Symbol.hasInstance`, a throwing prototype-walk) yields `false`, not a throw (#060).
 
 - `iCRETI/A1` — `new EventTarget()` → true; a subclass instance → true
   (subclass-admitting).
@@ -277,8 +316,80 @@ predicate's ternary).
 - `iCRASI/A1` — `new AbortController().signal`, `AbortSignal.timeout(1000)` → true.
 - `iCRASI/R1` — `new EventTarget()` → false (not an `AbortSignal`); a cross-realm
   `AbortSignal` → false.
-- `iCRXI/B1` — when the runtime lacks the global `X`, returns `false` for every input via
-  the `!!XConstructor` guard (embedding-safety branch; a coverage-axis concern).
+- `iCRXI/B1` — when the runtime lacks the global `X`, `XConstructor` is the
+  `INSTANCE_LESS_CONSTRUCTOR` sentinel, so `value instanceof XConstructor` is `false` for
+  every input without throwing (#060; embedding-safety branch, a coverage-axis concern).
+
+### `hasEventTargetIdentitySignal(value, name)` / `hasAbortSignalIdentitySignal(value, name)` — `@internal`
+
+The inexpensive two-marker signal gate of the cross-realm arm:
+`name === '<X>' && getTypeSignature(value) === '[object <X>]'`. `name` is the
+caller-threaded, already-resolved constructor name; `value` is assumed an object. Pure, no
+throw surface of its own.
+
+- `hETIS/A1` — `(new EventTarget(), 'EventTarget')` → true.
+- `hETIS/R1` — `(new EventTarget(), 'Object')` → false (name mismatch — the marker that
+  rejects a tag-only spoof once the constructor-name resolves to `Object`).
+- `hETIS/R2` — `({ [Symbol.toStringTag]: 'Nope' }, 'EventTarget')` → false (tag mismatch).
+- `hASIS/A1` — `(new AbortController().signal, 'AbortSignal')` → true.
+- `hASIS/R1` — `(new AbortController().signal, 'EventTarget')` → false (name mismatch).
+
+### `doesImplementEventTargetPrototypeContract(prototype)` — `@internal`
+
+`try { the three EventTarget methods are OWN callable data descriptors of prototype } catch { false }`.
+Reads the prototype's OWN descriptors (not a chain-walk), because the strict tier admits
+only direct instances whose `[[Prototype]]` IS the realm `EventTarget.prototype`.
+
+- `dIETPC/A1` — `EventTarget.prototype` → true (the three methods are own callable data
+  props).
+- `dIETPC/R1` — `Object.prototype` → false (no such methods).
+- `dIETPC/R2` — a `Proxy` prototype whose `getOwnPropertyDescriptors` trap throws → false
+  (throw-safe).
+
+### `doesImplementAbortSignalPrototypeContract(prototype, value)` — `@internal`
+
+`try { aborted is a getter (no setter, invoked as aborted.get.call(value) → boolean) && reason is a getter (no setter) && onabort is a get/set pair && throwIfAborted is a callable own data prop } catch { false }`.
+The spec-faithful readonly-accessor shape (#029), with `value` threaded as the `aborted`
+getter's receiver.
+
+- `dIASPC/A1` — `(AbortSignal.prototype, new AbortController().signal)` → true.
+- `dIASPC/R1` — `(EventTarget.prototype, new EventTarget())` → false (no
+  `aborted`/`reason`/`onabort`).
+- `dIASPC/R2` — a prototype whose `aborted` is a plain DATA boolean (no getter) → false —
+  the strict-tier marker that rejects exactly what the Like tier admits.
+- `dIASPC/R3` — `aborted` getter present but returns a non-boolean → false.
+- `dIASPC/R4` — a throwing `aborted` getter or a hostile descriptor trap → false
+  (throw-safe).
+
+### `isEventTargetPrototypeEquivalent(prototype, constructor)` / `isAbortSignalPrototypeEquivalent(prototype, constructor, value)` — `@internal`
+
+The four-marker identity chain:
+`isClass(constructor) && getTypeSignature(prototype) === '[object <X>]' && getInertDescriptor(constructor, 'prototype')?.value === prototype && doesImplement<X>PrototypeContract(prototype[, value])`.
+AbortSignal threads `value` as the `aborted`-getter receiver.
+
+- `iETPE/A1` — `(EventTarget.prototype, EventTarget)` → true.
+- `iETPE/R1` — `(EventTarget.prototype, function EventTarget() {})` → false (`constructor`
+  is not a class — `isClass` fails).
+- `iETPE/R2` — a grafted prototype whose `constructor.prototype !== prototype` → false
+  (the round-trip anti-graft marker).
+- `iASPE/A1` — `(AbortSignal.prototype, AbortSignal, new AbortController().signal)` →
+  true.
+- `iASPE/R1` — the AbortSignal analogue of `iETPE/R2` (graft) → false.
+
+### `isAlienRealmEventTarget(value, prototype)` / `isAlienRealmAbortSignal(value, prototype)` — `@internal`
+
+The composed cross-realm arm:
+`ctor = getDefinedConstructor(prototype, { assumePrototype: true }); has<X>IdentitySignal(value, getVerifiedOwnName(ctor)) && is<X>PrototypeEquivalent(prototype, ctor[, value])`.
+Resolves the constructor once and threads it (#059).
+
+- `iARET/A1` — a cross-realm _direct_ `EventTarget` and its prototype (fixture) → true.
+- `iARET/R1` — a plain object carrying tag `'[object EventTarget]'`, constructor-name
+  `'EventTarget'`, and the three method-NAMES but not the real prototype shape → false
+  (prototype-equivalence fails — the #061 spoof closure; cf. the realm-asymmetry ruling in
+  Resolved items).
+- `iARET/R2` — a cross-realm subclass → false (constructor-name signal gate).
+- `iARAS/A1` — a cross-realm _direct_ `AbortSignal` and its prototype (fixture) → true.
+- `iARAS/R1` — a cross-realm `EventTarget` (not an `AbortSignal`) → false (tag/name gate).
 
 ---
 
@@ -290,5 +401,32 @@ predicate's ternary).
    and primitive when the evented spec was written. Done — both now carry parallel `.d.ts`
    declarations under a "Realm-Membership Helpers" section; the re-confirmation gate is 8
    = 8. This closes ADR #053's forward-consistency note for evented.
+
+2. **Post-freeze amendment 2026-07-01 — strict/Like decomposition + cross-realm
+   prototype-equivalence lift (decisions #060–#062).** After the 2026-06-18 freeze, the
+   evented refactor: (a) replaced the `null` constructor-capture with the
+   `INSTANCE_LESS_CONSTRUCTOR` sentinel + throw-safe `instanceof` (#060); (b) lifted
+   `isEventTarget` / `isAbortSignal` from the old three-marker structural chain (tag +
+   constructor-name + `doesMatchXContract`) to full cross-realm structural
+   prototype-equivalence, mirroring `isPromise` (#054), via four new strict-arm helpers
+   per family — `hasXIdentitySignal`, `doesImplementXPrototypeContract`,
+   `isXPrototypeEquivalent`, `isAlienRealmX` (#061); (c) reverted an interim-stricter
+   `isAbortSignalLike` to lenient duck-typing and renamed `doesMatch*Contract` →
+   `doesImplementXContract` (both Like contracts now `doesImplement*`); and (d) dropped
+   the `<T = unknown>` generic from the strict predicates (#062). The behavioral
+   public-vector tables stayed frozen (genuine-instance admits unchanged); the composition
+   strings, helper mechanics, and the axis-4 inventory (4 → 12 `@internal` helpers, gate 8
+   = 8 → 16 = 16) were amended in place; the eight strict-arm helper specs were appended;
+   and the `dMETC` / `dMASC` helper-vector IDs were renamed `dIETC` / `dIASC` to track the
+   function rename.
+
+3. **Realm-asymmetry ruling (carried from the object round).** The strict predicates'
+   local identity-fast-path and cross-realm structural arm can disagree for a tampered
+   value: a plain object grafted onto the real `EventTarget.prototype` is admitted by
+   `isEventTarget` locally (its `[[Prototype]]` genuinely IS `eventTargetPrototype`),
+   while a foreign-realm look-alike carrying only tag + name + method-names is rejected by
+   `isEventTargetPrototypeEquivalent` (see `iARET/R1`). Accepted and documented, not
+   reconciled — local identity outranks surface markers, consistent with the
+   `isPlainObject` ruling from the object round.
 
 No open items.
