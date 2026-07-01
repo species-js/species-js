@@ -111,13 +111,55 @@ export const abortedNonBoolean = () => ({
 });
 
 // ----- foreign-realm shapes (targeted by cross-realm.test.js) -----
-// NOTE: assumes the vm realm exposes `EventTarget` / `AbortController` (Node
-// globals). cross-realm.test.js verifies availability and skips if absent.
+// `EventTarget` / `AbortController` are Node globals, NOT ECMAScript intrinsics,
+// so the vm realm (bare `createContext({})`) does NOT expose them — a REAL
+// foreign EventTarget/AbortSignal is not constructible here. These are foreign
+// SYNTHETICS: a foreign-realm class named `EventTarget` / `AbortSignal` carrying
+// the structural contract (tag + method/accessor surface). They are genuinely
+// foreign (their class/prototype are the vm realm's, so local `instanceof`
+// fails), which is exactly what the cross-realm structural-equivalence arm must
+// carry.
 
-export const foreignEventTarget = () => foreignRealmEval('new EventTarget()');
+const FOREIGN_EVENT_TARGET_CLASS = `class EventTarget {
+  get [Symbol.toStringTag]() { return 'EventTarget'; }
+  dispatchEvent() { return true; }
+  addEventListener() {}
+  removeEventListener() {}
+}`;
+
+export const foreignEventTarget = () =>
+  foreignRealmEval(
+    `(() => { ${FOREIGN_EVENT_TARGET_CLASS} return new EventTarget(); })()`,
+  );
+
+// a foreign subclass — inherits the three methods (EventTargetLike true) but its
+// constructor-name is the subclass name, so the strict signal gate rejects it.
 export const foreignEventTargetSubclass = () =>
-  foreignRealmEval('new (class extends EventTarget {})()');
-export const foreignAbortSignal = () => foreignRealmEval('new AbortController().signal');
+  foreignRealmEval(
+    `(() => { ${FOREIGN_EVENT_TARGET_CLASS} class Widget extends EventTarget {} return new Widget(); })()`,
+  );
+
+// a foreign synthetic AbortSignal — the full spec accessor surface: `aborted`
+// (boolean getter, no setter), `reason` (getter, no setter), `onabort`
+// (getter+setter), `throwIfAborted` (callable), atop the EventTarget methods.
+export const foreignAbortSignal = () =>
+  foreignRealmEval(`(() => {
+    class AbortSignal {
+      get [Symbol.toStringTag]() { return 'AbortSignal'; }
+      get aborted() { return false; }
+      get reason() { return undefined; }
+      get onabort() { return null; }
+      set onabort(v) {}
+      throwIfAborted() {}
+      dispatchEvent() { return true; }
+      addEventListener() {}
+      removeEventListener() {}
+    }
+    return new AbortSignal();
+  })()`);
+
+// a genuine foreign plain object — a foreign non-EventTarget: all four → false.
+export const foreignPlainObject = () => foreignRealmEval('({})');
 
 // ----- spoof / boundary shapes (targeted by adversarial.test.js) -----
 
