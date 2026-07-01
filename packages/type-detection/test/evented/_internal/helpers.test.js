@@ -3,8 +3,8 @@
 /**
  * @module test/evented/_internal/helpers
  *
- * Axis 4 — helper-unit (white-box). The twelve exported `@internal` helpers
- * (six per family) that compose the two `evented` lattices, tested in isolation
+ * Axis 4 — helper-unit (white-box). The fourteen exported `@internal` helpers
+ * (seven per family) that compose the two `evented` lattices, tested in isolation
  * on LOCAL values: the realm-membership and structural helpers carry no
  * local-realm proto-identity narrowing, so they run the realm-independent logic
  * directly — a genuine local `EventTarget` / `AbortSignal` exercises the same
@@ -14,6 +14,7 @@
  *   realm-membership     — isCurrentRealm{EventTarget,AbortSignal}Instance
  *   signal gate          — has{EventTarget,AbortSignal}IdentitySignal
  *   Like-tier contract   — doesImplement{EventTarget,AbortSignal}Contract
+ *   own-surface guard    — doesNotShadow{EventTarget,AbortSignal}Contract (#063)
  *   strict-tier surface  — doesImplement{EventTarget,AbortSignal}PrototypeContract
  *   strict-tier identity — is{EventTarget,AbortSignal}PrototypeEquivalent
  *   composed alien arm   — isAlienRealm{EventTarget,AbortSignal}
@@ -39,6 +40,8 @@ import {
   doesImplementAbortSignalContract,
   doesImplementEventTargetPrototypeContract,
   doesImplementAbortSignalPrototypeContract,
+  doesNotShadowEventTargetContract,
+  doesNotShadowAbortSignalContract,
   isEventTargetPrototypeEquivalent,
   isAbortSignalPrototypeEquivalent,
   isAlienRealmEventTarget,
@@ -443,5 +446,64 @@ describe('[Internal] isAlienRealmAbortSignal (value, prototype)', () => {
     expect(
       isAlienRealmAbortSignal(value, /** @type {object} */ (getInertPrototypeOf(value))),
     ).toBe(false);
+  });
+});
+
+describe('[Internal] doesNotShadow{EventTarget,AbortSignal}Contract (own-surface gate, #063)', () => {
+  it('dNSET/A1: genuine instance / bare graft / orthogonal own state → true', () => {
+    expect(doesNotShadowEventTargetContract(directEventTarget()), 'genuine').toBe(true);
+    expect(
+      doesNotShadowEventTargetContract(objectCreate(EventTarget.prototype)),
+      'bare',
+    ).toBe(true);
+    expect(
+      doesNotShadowEventTargetContract(
+        objectCreate(EventTarget.prototype, { id: { value: 5 } }),
+      ),
+      'orthogonal own state',
+    ).toBe(true);
+  });
+
+  it('dNSET/A2: an own `Symbol.toStringTag` → true (symbol key, not enumerated by getOwnPropertyNames)', () => {
+    const tagged = objectCreate(EventTarget.prototype, {
+      [Symbol.toStringTag]: { value: 'Nope' },
+    });
+    expect(doesNotShadowEventTargetContract(tagged)).toBe(true);
+  });
+
+  it('dNSET/R1: an own contract method → false', () => {
+    const shadow = objectCreate(EventTarget.prototype, {
+      dispatchEvent: { value: noop },
+    });
+    expect(doesNotShadowEventTargetContract(shadow)).toBe(false);
+  });
+
+  it('dNSET/R2: an own `constructor` → false', () => {
+    const shadow = objectCreate(EventTarget.prototype, { constructor: { value: noop } });
+    expect(doesNotShadowEventTargetContract(shadow)).toBe(false);
+  });
+
+  it('dNSET/B1: a throwing `ownKeys` trap → false, not thrown (fail-closed)', () => {
+    expect(doesNotShadowEventTargetContract(throwingOwnKeysProto())).toBe(false);
+  });
+
+  it('dNSAS/A1: a genuine `AbortSignal` → true', () => {
+    expect(doesNotShadowAbortSignalContract(abortControllerSignal())).toBe(true);
+  });
+
+  it('dNSAS/R1: an own abort accessor → false', () => {
+    const shadow = objectCreate(AbortSignal.prototype, { aborted: { value: false } });
+    expect(doesNotShadowAbortSignalContract(shadow)).toBe(false);
+  });
+
+  it('dNSAS/R2: an own inherited EventTarget method → false (superset denylist)', () => {
+    const shadow = objectCreate(AbortSignal.prototype, {
+      dispatchEvent: { value: noop },
+    });
+    expect(doesNotShadowAbortSignalContract(shadow)).toBe(false);
+  });
+
+  it('dNSAS/B1: a throwing `ownKeys` trap → false, not thrown (fail-closed)', () => {
+    expect(doesNotShadowAbortSignalContract(throwingOwnKeysProto())).toBe(false);
   });
 });

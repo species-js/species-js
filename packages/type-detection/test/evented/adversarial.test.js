@@ -83,22 +83,53 @@ describe('evented — adversarial / spoof (axis 3)', () => {
   });
 });
 
-describe('evented — realm asymmetry on a prototype-grafted EventTarget (deliberate)', () => {
+describe('evented — realm asymmetry + own-shadow rejection on a prototype graft (#063)', () => {
   // DELIBERATE, documented property (spec → isEventTarget "Realm asymmetry on
-  // tampered inputs"): a value grafted onto the real `EventTarget.prototype`
-  // genuinely HAS `eventTargetPrototype`, so the local identity fast-path admits it
-  // — tag-blind and provenance-blind. The SAME tag tampering yields `true` locally /
-  // `false` cross-realm, because the local arm is identity-based (tag-blind) while
-  // the cross-realm arm is structural (tag-sensitive). Consistent with the
-  // `isPlainObject` ruling from the object round; pinned here against regression.
-  it('isEventTarget/A3: LOCAL grafts — bare, spoofed-tag, throwing-tag → all true (identity fast-path, tag never read)', () => {
+  // tampered inputs" + Resolved #4): a value grafted onto the real
+  // `EventTarget.prototype` genuinely HAS `eventTargetPrototype`, so the local
+  // fast-path admits it — UNLESS it shadows the inherited contract at its OWN
+  // level (#063). Cosmetic tag tampering is tolerated locally (tag-blind, symbol
+  // key) but rejected cross-realm — that asymmetry is RETAINED by design.
+  // Behavioral (method / constructor) tampering is rejected in BOTH realms — that
+  // half of the asymmetry is reconciled by the own-shadow gate.
+  it('isEventTarget/A3: LOCAL grafts — bare, spoofed-tag, throwing-tag → all true (tag tolerated)', () => {
     expect(isEventTarget(Object.create(EventTarget.prototype)), 'bare').toBe(true);
     expect(isEventTarget(localTagSpoofedEventTargetGraft()), 'spoofed-tag').toBe(true);
     expect(isEventTarget(localTagThrowingEventTargetGraft()), 'throwing-tag').toBe(true);
   });
 
+  it('isEventTarget/R5: a LOCAL graft shadowing a contract method at its own level → false', () => {
+    expect(
+      isEventTarget(
+        Object.create(EventTarget.prototype, { dispatchEvent: { value: noop } }),
+      ),
+    ).toBe(false);
+  });
+
+  it('isEventTarget/R6: a LOCAL graft with an own `constructor` → false', () => {
+    expect(
+      isEventTarget(
+        Object.create(EventTarget.prototype, { constructor: { value: noop } }),
+      ),
+    ).toBe(false);
+  });
+
   it('isAbortSignal behaves identically — a bare `Object.create(AbortSignal.prototype)` → true', () => {
     expect(isAbortSignal(Object.create(AbortSignal.prototype))).toBe(true);
+  });
+
+  it('isAbortSignal/R5: a LOCAL graft shadowing an abort accessor at its own level → false', () => {
+    expect(
+      isAbortSignal(Object.create(AbortSignal.prototype, { aborted: { value: false } })),
+    ).toBe(false);
+  });
+
+  it('isAbortSignal/R6: a LOCAL graft with an own `constructor` → false', () => {
+    expect(
+      isAbortSignal(
+        Object.create(AbortSignal.prototype, { constructor: { value: noop } }),
+      ),
+    ).toBe(false);
   });
 
   it('the FOREIGN-realm counterpart (same spoofed tag) → false (structural arm reads the tag and rejects)', () => {
