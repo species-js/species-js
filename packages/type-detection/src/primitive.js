@@ -820,16 +820,37 @@ export function isSymbol(value) {
 }
 
 /**
- * @param {symbol} value
- * @returns {boolean}
+ * Whether a symbol is _unregistered_ — created via `Symbol()` or a well-known
+ * symbol, i.e. not obtained from the global registry via `Symbol.for`.
+ *
+ * "Unguarded": the caller must ensure `value` is a symbol; this performs no
+ * `isSymbolValue` check. It reads the realm-fixed `Symbol.keyFor` capture —
+ * `keyFor(value) === undefined` is the spec tell for an unregistered symbol.
+ * The load-bearing use is weak-key validation: only unregistered symbols may
+ * serve as `WeakMap` / `WeakSet` keys.
+ *
+ * @param {symbol} value - a symbol (precondition; not re-checked)
+ * @returns {boolean} `true` when the symbol is unregistered; `false` for a
+ *  registered one
  * @internal
  */
 export function unguardedIsUnregisteredSymbol(value) {
   return symbolKeyFor(value) === void 0;
 }
+
 /**
- * @param {unknown} value
- * @returns {boolean}
+ * Whether `value` is a _registered_ symbol — a symbol obtained from the global
+ * symbol registry via `Symbol.for`.
+ *
+ * The guarded public counterpart of {@link unguardedIsUnregisteredSymbol}:
+ * confirms `value` is a primitive symbol, then that `Symbol.keyFor` resolves a
+ * registry key for it. Registered symbols are notable for being rejected as
+ * `WeakMap` / `WeakSet` keys by the engine.
+ *
+ * @param {unknown} [value] - the value to test; omitted is treated as
+ *  `undefined`, which is not a symbol
+ * @returns {boolean} `true` when the value is a registered symbol; `false`
+ *  otherwise
  */
 export function isRegisteredSymbol(value) {
   return isSymbolValue(value) && !unguardedIsUnregisteredSymbol(value);
