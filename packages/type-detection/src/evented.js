@@ -131,14 +131,14 @@ export function isCurrentRealmAbortSignalInstance(value) {
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 
 /**
- * The two cheap string-shape markers of a direct `EventTarget` — the
+ * The two inexpensive string-shape markers of a direct `EventTarget` — the
  * caller-threaded constructor `name` equal to `'EventTarget'` and the
  * `[[Class]]` tag `'[object EventTarget]'`. The inexpensive front-gate of
  * the cross-realm {@link isEventTarget} arm: if either marker fails, the
  * costlier prototype-contract walk is skipped.
  *
- * @param {object} value - the value whose `[[Class]]` tag to read; assumed
- *  to be an object provided by the caller
+ * @param {object} value - the value whose `[[Class]]` tag to read;
+ *  assumed to be an object provided by the caller
  * @param {string | undefined} name - the value's already-resolved
  *  constructor name, threaded in by the caller
  * @returns {boolean} `true` when both string-shape markers match
@@ -171,6 +171,12 @@ export function hasEventTargetIdentitySignal(value, name) {
  * particular constructor-name. That level of identity narrowing belongs
  * to `isEventTarget`. `doesImplementEventTargetContract` is purely
  * structural.
+ *
+ * Scoped to exactly these three canonical WHATWG methods — the
+ * Observable-proposal `EventTarget.prototype.when()` is deliberately NOT
+ * required. Requiring it would falsely reject `EventTarget`s from
+ * pre-Observable runtimes and foreign realms; and this presence-check already
+ * admits a `when`-bearing value, so nothing is lost by omitting it (#028).
  *
  * @param {unknown} value - the value to inspect; assumed to be at least
  *  truthy by the caller
@@ -207,6 +213,11 @@ export function doesImplementEventTargetContract(value) {
  * Unlike its AbortSignal sibling, the EventTarget prototype carries no
  * spec-defined state accessor, so no receiver is threaded — the three
  * markers are pure callable-descriptor reads.
+ *
+ * A presence-check of exactly these three, not an exact member set: a
+ * `when`-bearing `EventTarget.prototype` (the Observable proposal) still
+ * passes. `when()` is deliberately NOT required — requiring it would falsely
+ * reject prototypes from pre-Observable runtimes and realms (#028).
  *
  * @param {object} prototype - the value's already-resolved `[[Prototype]]`,
  *  threaded in by the caller that read it first (decision #059)
@@ -388,14 +399,14 @@ export function isEventTarget(value) {
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 
 /**
- * The two cheap string-shape markers of a direct `AbortSignal` — the
+ * The two inexpensive string-shape markers of a direct `AbortSignal` — the
  * caller-threaded constructor `name` equal to `'AbortSignal'` and the
  * `[[Class]]` tag `'[object AbortSignal]'`. The inexpensive front-gate of
  * the cross-realm {@link isAbortSignal} arm: if either marker fails, the
  * costlier prototype-contract walk is skipped.
  *
- * @param {object} value - the value whose `[[Class]]` tag to read; assumed
- *  to be an object provided by the caller
+ * @param {object} value - the value whose `[[Class]]` tag to read;
+ *  assumed to be an object provided by the caller
  * @param {string | undefined} name - the value's already-resolved
  *  constructor name, threaded in by the caller
  * @returns {boolean} `true` when both string-shape markers match

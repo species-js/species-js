@@ -28,3 +28,23 @@ pattern visible at the architectural layer
 "Conservative- narrowing in the Promise domain" subsection, and the analogous
 [`../architecture/evented.md`](../architecture/evented.md#conservative-narrowing-in-the-eventtarget--abortsignal-domain)
 section's subsection).
+
+**Addendum (2026-07-01) — the `EventTarget` method contract is scoped to the three
+canonical WHATWG methods; `when()` deliberately excluded.** The Observable proposal (WICG
+/ WHATWG DOM, ~2024) adds `EventTarget.prototype.when(type)`, returning an `Observable`
+event stream. Both EventTarget contract checks — the Like-tier
+`doesImplementEventTargetContract` (prototype-chain walk) and the strict-tier
+`doesImplementEventTargetPrototypeContract` (own-descriptor read) — are deliberately
+scoped to exactly `dispatchEvent`, `addEventListener`, and `removeEventListener`, and do
+NOT require `when`.
+
+Rationale: requiring `when` would falsely reject genuine `EventTarget`s from
+pre-Observable runtimes, and from foreign realms produced by such runtimes — the contract
+must track the stable WHATWG minimum, not the evolving frontier. And nothing is lost: both
+checks verify _presence_ of the three, not an exact member set, so a `when`-bearing
+`EventTarget.prototype` already passes (the modern-browser case). Same "minimum contract,
+not exhaustive match" posture that keeps the checks forward- and backward-compatible.
+
+Recorded in the JSDoc of both helpers (`.js` + `.d.ts`) and in `EVENTED.spec.md` (the
+`dIETC` / `dIETPC` sections + vectors `dIETC/A4`, `dIETPC/A2`). No code change — the
+checks already look at only the three.

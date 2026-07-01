@@ -273,12 +273,16 @@ two-axis ternary over `isCurrentRealmAbortSignalInstance`; cross-realm arm
 
 `hasInertMethod(v, 'dispatchEvent') && hasInertMethod(v, 'addEventListener') && hasInertMethod(v, 'removeEventListener')`.
 Purely structural (prototype-chain-walking); no `instanceof`. Documents "truthy assumed by
-the caller"; still nullish-safe in impl (see `dIETC/R3`).
+the caller"; still nullish-safe in impl (see `dIETC/R3`). Scoped to exactly these three
+canonical WHATWG methods — the Observable-proposal `when()` is deliberately not required
+(#028); a `when`-bearing value still passes (see `dIETC/A4`).
 
 - `dIETC/A1` — `new EventTarget()` → true (methods inherited from prototype).
 - `dIETC/A2` — a subclass instance / `new AbortController().signal` → true (inherited).
 - `dIETC/A3` — `{ dispatchEvent(){}, addEventListener(){}, removeEventListener(){} }` →
   true (own).
+- `dIETC/A4` — the three methods plus a `when()` method → true (`when` neither required
+  nor rejected; the Observable-proposal addition is out of contract, #028).
 - `dIETC/R1` — missing any of the three (`isEventTargetLike/R1`) → false (short-circuits).
 - `dIETC/R2` — accessor on any of the three → false.
 - `dIETC/R3` — `{}`, `null`, `undefined`, `42` → false (`hasInertMethod` nullish-safe).
@@ -338,10 +342,14 @@ throw surface of its own.
 
 `try { the three EventTarget methods are OWN callable data descriptors of prototype } catch { false }`.
 Reads the prototype's OWN descriptors (not a chain-walk), because the strict tier admits
-only direct instances whose `[[Prototype]]` IS the realm `EventTarget.prototype`.
+only direct instances whose `[[Prototype]]` IS the realm `EventTarget.prototype`. A
+presence-check of exactly these three, not an exact member set — the Observable-proposal
+`when()` is deliberately not required (#028), so a `when`-bearing prototype still passes.
 
 - `dIETPC/A1` — `EventTarget.prototype` → true (the three methods are own callable data
   props).
+- `dIETPC/A2` — a modern `EventTarget.prototype` that also carries `when()` → true (extra
+  own members allowed; `when` neither required nor rejected, #028).
 - `dIETPC/R1` — `Object.prototype` → false (no such methods).
 - `dIETPC/R2` — a `Proxy` prototype whose `getOwnPropertyDescriptors` trap throws → false
   (throw-safe).
