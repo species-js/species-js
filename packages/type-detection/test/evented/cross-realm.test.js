@@ -69,7 +69,7 @@ describe('evented — cross-realm (axis 2)', () => {
     const foreignET = foreignEventTarget();
     expect(
       isAlienRealmEventTarget(
-        foreignET,
+        /** @type {object} */ (foreignET),
         /** @type {object} */ (getInertPrototypeOf(foreignET)),
       ),
       'isAlienRealmEventTarget',
@@ -78,7 +78,7 @@ describe('evented — cross-realm (axis 2)', () => {
     const foreignAS = foreignAbortSignal();
     expect(
       isAlienRealmAbortSignal(
-        foreignAS,
+        /** @type {object} */ (foreignAS),
         /** @type {object} */ (getInertPrototypeOf(foreignAS)),
       ),
       'isAlienRealmAbortSignal',

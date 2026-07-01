@@ -44,6 +44,7 @@ import {
   isAlienRealmEventTarget,
   isAlienRealmAbortSignal,
   getInertPrototypeOf,
+  objectCreate,
 } from '@/index.js';
 
 import {
@@ -63,6 +64,8 @@ import {
   foreignAbortSignal,
 } from '../__config.js';
 
+/** @typedef {import('@/function').NewableFunction} NewableFunction */
+
 const noop = () => undefined;
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
@@ -74,9 +77,10 @@ const noop = () => undefined;
 describe('[Internal] isCurrentRealmEventTargetInstance', () => {
   it('iCRETI/A1: a local `new EventTarget()` and a subclass instance → true (subclass-admitting)', () => {
     expect(isCurrentRealmEventTargetInstance(directEventTarget()), 'direct').toBe(true);
-    expect(isCurrentRealmEventTargetInstance(eventTargetSubclassInstance()), 'subclass').toBe(
-      true,
-    );
+    expect(
+      isCurrentRealmEventTargetInstance(eventTargetSubclassInstance()),
+      'subclass',
+    ).toBe(true);
   });
 
   it('iCRETI/A2: `new AbortController().signal` → true (an `AbortSignal` IS an `EventTarget`)', () => {
@@ -89,7 +93,9 @@ describe('[Internal] isCurrentRealmEventTargetInstance', () => {
 
   it('iCRETI/R2: a plain object / userland 3-method object → false', () => {
     expect(isCurrentRealmEventTargetInstance(emptyObject()), 'empty').toBe(false);
-    expect(isCurrentRealmEventTargetInstance(userlandEventTarget()), 'userland').toBe(false);
+    expect(isCurrentRealmEventTargetInstance(userlandEventTarget()), 'userland').toBe(
+      false,
+    );
   });
 });
 
@@ -115,10 +121,13 @@ describe('[Internal] doesImplementEventTargetContract (Like-tier, chain-walking)
   });
 
   it('dIETC/A2: a subclass instance / `AbortController().signal` → true (inherited)', () => {
-    expect(doesImplementEventTargetContract(eventTargetSubclassInstance()), 'subclass').toBe(
+    expect(
+      doesImplementEventTargetContract(eventTargetSubclassInstance()),
+      'subclass',
+    ).toBe(true);
+    expect(doesImplementEventTargetContract(abortControllerSignal()), 'signal').toBe(
       true,
     );
-    expect(doesImplementEventTargetContract(abortControllerSignal()), 'signal').toBe(true);
   });
 
   it('dIETC/A3: a userland object with the three methods as own callables → true', () => {
@@ -180,29 +189,42 @@ describe('[Internal] doesImplementEventTargetPrototypeContract (strict-tier, own
 
 describe('[Internal] isEventTargetPrototypeEquivalent (prototype, constructor)', () => {
   it('iETPE/A1: `(EventTarget.prototype, EventTarget)` → true (all four markers hold)', () => {
-    expect(isEventTargetPrototypeEquivalent(EventTarget.prototype, EventTarget)).toBe(true);
-  });
-
-  it('iETPE/R1: `(EventTarget.prototype, function EventTarget(){})` → false (`isClass` fails)', () => {
     expect(
       isEventTargetPrototypeEquivalent(
         EventTarget.prototype,
-        /** @type {never} */ (function EventTarget() {}),
+        /** @type {NewableFunction} */ (EventTarget),
+      ),
+    ).toBe(true);
+  });
+
+  it('iETPE/R1: a plain (non-class) function → false (`isClass` fails at marker 1)', () => {
+    const plainFunction = () => undefined;
+    expect(
+      isEventTargetPrototypeEquivalent(
+        EventTarget.prototype,
+        /** @type {NewableFunction} */ (/** @type {unknown} */ (plainFunction)),
       ),
     ).toBe(false);
   });
 
   it('iETPE/R2: a grafted prototype whose `constructor.prototype !== prototype` → false (round-trip marker)', () => {
     // isClass + tag markers pass; only the constructor.prototype round-trip fails.
+    // The synthetic class is only the (is-a-class) constructor arg — the tag lives
+    // on `graftProto`; the class body carries a token member so it is a real class.
     class EventTarget {
-      get [Symbol.toStringTag]() {
-        return 'EventTarget';
+      dispatchEvent() {
+        return true;
       }
     }
-    const graftProto = Object.create(Object.prototype, {
+    const graftProto = objectCreate(Object.prototype, {
       [Symbol.toStringTag]: { get: () => 'EventTarget' },
     });
-    expect(isEventTargetPrototypeEquivalent(graftProto, EventTarget)).toBe(false);
+    expect(
+      isEventTargetPrototypeEquivalent(
+        graftProto,
+        /** @type {NewableFunction} */ (EventTarget),
+      ),
+    ).toBe(false);
   });
 });
 
@@ -211,36 +233,37 @@ describe('[Internal] isAlienRealmEventTarget (value, prototype)', () => {
     // fed a LOCAL instance to exercise the realm-independent composition; the
     // foreign-fixture path is asserted in `cross-realm.test.js`.
     const value = directEventTarget();
-    expect(isAlienRealmEventTarget(value, getInertPrototypeOf(value))).toBe(true);
+    expect(
+      isAlienRealmEventTarget(value, /** @type {object} */ (getInertPrototypeOf(value))),
+    ).toBe(true);
   });
 
   it('iARET/R1: a tag + name + method-names look-alike whose prototype does not round-trip → false (#061 spoof closure)', () => {
     // signal gate PASSES (tag `[object EventTarget]` + constructor-name `EventTarget`);
     // the round-trip marker (`constructor.prototype === prototype`) is what rejects it.
+    // The class is the (is-a-class) `constructor`; the tag + method surface live on
+    // the separate `proto` object the value inherits.
     class EventTarget {
       dispatchEvent() {
         return true;
       }
-      addEventListener() {}
-      removeEventListener() {}
-      get [Symbol.toStringTag]() {
-        return 'EventTarget';
-      }
     }
-    const proto = Object.create(Object.prototype, {
+    const proto = objectCreate(Object.prototype, {
       constructor: { value: EventTarget },
       [Symbol.toStringTag]: { get: () => 'EventTarget' },
       dispatchEvent: { value: noop },
       addEventListener: { value: noop },
       removeEventListener: { value: noop },
     });
-    const value = Object.create(proto);
+    const value = objectCreate(proto);
     expect(isAlienRealmEventTarget(value, proto)).toBe(false);
   });
 
   it('iARET/R2: an `EventTarget` subclass → false (constructor-name signal gate)', () => {
     const value = new (class Widget extends EventTarget {})();
-    expect(isAlienRealmEventTarget(value, getInertPrototypeOf(value))).toBe(false);
+    expect(
+      isAlienRealmEventTarget(value, /** @type {object} */ (getInertPrototypeOf(value))),
+    ).toBe(false);
   });
 });
 
@@ -262,17 +285,23 @@ describe('[Internal] isCurrentRealmAbortSignalInstance', () => {
     expect(isCurrentRealmAbortSignalInstance(directEventTarget()), 'event-target').toBe(
       false,
     );
-    expect(isCurrentRealmAbortSignalInstance(foreignAbortSignal()), 'foreign').toBe(false);
+    expect(isCurrentRealmAbortSignalInstance(foreignAbortSignal()), 'foreign').toBe(
+      false,
+    );
   });
 });
 
 describe('[Internal] hasAbortSignalIdentitySignal (value, name)', () => {
   it('hASIS/A1: `(AbortController().signal, "AbortSignal")` → true', () => {
-    expect(hasAbortSignalIdentitySignal(abortControllerSignal(), 'AbortSignal')).toBe(true);
+    expect(hasAbortSignalIdentitySignal(abortControllerSignal(), 'AbortSignal')).toBe(
+      true,
+    );
   });
 
   it('hASIS/R1: `(AbortController().signal, "EventTarget")` → false (name mismatch)', () => {
-    expect(hasAbortSignalIdentitySignal(abortControllerSignal(), 'EventTarget')).toBe(false);
+    expect(hasAbortSignalIdentitySignal(abortControllerSignal(), 'EventTarget')).toBe(
+      false,
+    );
   });
 });
 
@@ -318,7 +347,10 @@ describe('[Internal] doesImplementAbortSignalPrototypeContract (strict-tier acce
 
   it('dIASPC/R1: `(EventTarget.prototype, new EventTarget())` → false (no abort accessors)', () => {
     expect(
-      doesImplementAbortSignalPrototypeContract(EventTarget.prototype, directEventTarget()),
+      doesImplementAbortSignalPrototypeContract(
+        EventTarget.prototype,
+        directEventTarget(),
+      ),
     ).toBe(false);
   });
 
@@ -333,17 +365,19 @@ describe('[Internal] doesImplementAbortSignalPrototypeContract (strict-tier acce
   });
 
   it('dIASPC/R3: `aborted` getter returns a non-boolean → false', () => {
-    const nonBooleanAbortedProto = Object.create(Object.prototype, {
+    const nonBooleanAbortedProto = objectCreate(Object.prototype, {
       aborted: { get: () => 'yes' },
       reason: { get: () => undefined },
       onabort: { get: () => null, set: noop },
       throwIfAborted: { value: noop },
     });
-    expect(doesImplementAbortSignalPrototypeContract(nonBooleanAbortedProto, {})).toBe(false);
+    expect(doesImplementAbortSignalPrototypeContract(nonBooleanAbortedProto, {})).toBe(
+      false,
+    );
   });
 
   it('dIASPC/R4: a throwing `aborted` getter / hostile descriptor trap → false, not thrown', () => {
-    const throwingAbortedProto = Object.create(Object.prototype, {
+    const throwingAbortedProto = objectCreate(Object.prototype, {
       aborted: {
         get() {
           throw new Error('aborted-getter');
@@ -369,33 +403,45 @@ describe('[Internal] isAbortSignalPrototypeEquivalent (prototype, constructor, v
     expect(
       isAbortSignalPrototypeEquivalent(
         AbortSignal.prototype,
-        AbortSignal,
+        /** @type {NewableFunction} */ (/** @type {unknown} */ (AbortSignal)),
         abortControllerSignal(),
       ),
     ).toBe(true);
   });
 
   it('iASPE/R1: a grafted prototype whose `constructor.prototype !== prototype` → false (graft)', () => {
+    // the synthetic class is only the (is-a-class) constructor arg — the tag lives
+    // on `graftProto`; the class body carries a token member so it is a real class.
     class AbortSignal {
-      get [Symbol.toStringTag]() {
-        return 'AbortSignal';
+      throwIfAborted() {
+        return undefined;
       }
     }
-    const graftProto = Object.create(Object.prototype, {
+    const graftProto = objectCreate(Object.prototype, {
       [Symbol.toStringTag]: { get: () => 'AbortSignal' },
     });
-    expect(isAbortSignalPrototypeEquivalent(graftProto, AbortSignal, {})).toBe(false);
+    expect(
+      isAbortSignalPrototypeEquivalent(
+        graftProto,
+        /** @type {NewableFunction} */ (/** @type {unknown} */ (AbortSignal)),
+        {},
+      ),
+    ).toBe(false);
   });
 });
 
 describe('[Internal] isAlienRealmAbortSignal (value, prototype)', () => {
   it('iARAS/A1: a genuine `AbortSignal` and its prototype → true (realm-independent arm)', () => {
     const value = abortControllerSignal();
-    expect(isAlienRealmAbortSignal(value, getInertPrototypeOf(value))).toBe(true);
+    expect(
+      isAlienRealmAbortSignal(value, /** @type {object} */ (getInertPrototypeOf(value))),
+    ).toBe(true);
   });
 
   it('iARAS/R1: an `EventTarget` (not an `AbortSignal`) → false (tag/name gate)', () => {
     const value = directEventTarget();
-    expect(isAlienRealmAbortSignal(value, getInertPrototypeOf(value))).toBe(false);
+    expect(
+      isAlienRealmAbortSignal(value, /** @type {object} */ (getInertPrototypeOf(value))),
+    ).toBe(false);
   });
 });

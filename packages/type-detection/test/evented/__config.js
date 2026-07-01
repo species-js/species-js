@@ -193,14 +193,14 @@ export const whenBearingUserlandEventTarget = () => ({
 // a LOCAL graft with an own tag `'Nope'` shadowing the inherited `'EventTarget'` —
 // `isEventTarget` still true (local arm never reads the tag).
 export const localTagSpoofedEventTargetGraft = () =>
-  Object.create(EventTarget.prototype, {
+  objectCreate(EventTarget.prototype, {
     [Symbol.toStringTag]: { value: 'Nope' },
   });
 
 // a LOCAL graft whose own `Symbol.toStringTag` getter throws — `isEventTarget` still
 // true (local arm never reads the tag; the throw is never triggered).
 export const localTagThrowingEventTargetGraft = () =>
-  Object.create(EventTarget.prototype, {
+  objectCreate(EventTarget.prototype, {
     [Symbol.toStringTag]: {
       get() {
         throw new Error('tag-trap');
