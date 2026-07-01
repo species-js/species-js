@@ -261,6 +261,31 @@ export function hasEventTargetIdentitySignal(
 ): boolean;
 
 /**
+ * Whether `value` leaves the `EventTarget` method contract un-shadowed at its
+ * own level — no own property named `dispatchEvent`, `addEventListener`,
+ * `removeEventListener`, or the reserved Observable-proposal `when`. The
+ * own-surface integrity gate the strict local {@link isEventTarget} fast-path
+ * ANDs onto its `prototype === eventTargetPrototype` identity check: a genuine
+ * direct instance inherits its whole method contract and owns none of it, so an
+ * own-shadowed method is an instance-level override that demotes the value from
+ * `is` to merely `EventTargetLike` — symmetric with the #028 subclass rejection,
+ * applied to the own layer. `Symbol.toStringTag` is deliberately NOT guarded
+ * (cosmetic once prototype-identity holds); orthogonal own state never
+ * disqualifies — only the reserved method names do.
+ *
+ * Throw-safe and fail-closed: a throwing own-key enumeration collapses to
+ * `false` (a clean own surface cannot be confirmed → treat as shadowed).
+ *
+ * @param value - the direct-instance candidate whose OWN property names are
+ *  enumerated; assumed by the caller to carry `eventTargetPrototype` as its
+ *  `[[Prototype]]`
+ * @returns `true` when no own property name shadows a contract method; `false`
+ *  when one does, or when the own-key enumeration throws
+ * @internal
+ */
+export function doesNotShadowEventTargetContract(value: object): boolean;
+
+/**
  * Verifies that the value matches the `EventTarget` method contract —
  * callable `dispatchEvent`, `addEventListener`, and `removeEventListener`
  * data properties reachable through the value's prototype-chain.
@@ -421,9 +446,14 @@ export function isEventTargetLike<T = unknown>(value?: T): value is T & EventTar
  * with `prototype === eventTargetPrototype`. The pair admits only direct
  * `EventTarget` instances; subclasses (`Element`, `Document`, `Window`,
  * `XMLHttpRequest`, …) pass `instanceof` but fail the prototype identity-check
- * in O(1). On miss, the cross-realm arm runs {@link isAlienRealmEventTarget} —
- * the tag + constructor-name signal gate plus the prototype-contract walk —
- * but only when the realm actually has a global `EventTarget`.
+ * in O(1). The pair is further gated by {@link doesNotShadowEventTargetContract}:
+ * a value that overrides an inherited contract method at its OWN level
+ * (`Object.create(EventTarget.prototype, { dispatchEvent })`) is an
+ * instance-level subclass layer, demoted to merely `EventTargetLike` — the #028
+ * subclass rejection applied to the own layer. On miss, the cross-realm arm runs
+ * {@link isAlienRealmEventTarget} — the tag + constructor-name signal gate plus
+ * the prototype-contract walk — but only when the realm actually has a global
+ * `EventTarget`.
  *
  * `EventTarget` subclasses are rejected on both arms — by prototype identity
  * locally, by constructor-name equality cross-realm. `Element`, `Document`,
@@ -474,6 +504,33 @@ export function hasAbortSignalIdentitySignal(
   value: object,
   name: string | undefined,
 ): boolean;
+
+/**
+ * Whether `value` leaves the inherited `AbortSignal` surface un-shadowed at
+ * its own level — no own property named `aborted`, `reason`, `onabort`,
+ * `throwIfAborted`, a reserved `EventTarget` method, or `constructor`. The
+ * `AbortSignal` counterpart of {@link doesNotShadowEventTargetContract} (its
+ * denylist is a superset — an `AbortSignal` is-an `EventTarget`), gating the
+ * strict local {@link isAbortSignal} fast-path onto its
+ * `prototype === abortSignalPrototype` identity-check. A genuine direct instance
+ * inherits the abort-accessors, `throwIfAborted`, its `EventTarget` methods, and
+ * its `constructor`-link and owns none of them. So an own-shadowed member is
+ * an instance-level override that demotes the value from `is` to merely
+ * `AbortSignalLike` — symmetric with the #028 subclass-rejection, at the own
+ * layer. `Symbol.toStringTag` is deliberately NOT guarded (cosmetic once
+ * prototype-identity holds); orthogonal own state never disqualifies.
+ *
+ * Throw-safe and fail-closed: a throwing own-key enumeration collapses to
+ * `false` (a clean own surface cannot be confirmed → treat as shadowed).
+ *
+ * @param value - the direct-instance candidate whose OWN property-names are
+ *  enumerated; assumed by the caller to carry `abortSignalPrototype` as its
+ *  `[[Prototype]]`
+ * @returns `true` when no own property-name shadows a reserved member; `false`
+ *  when one does, or when the own-key enumeration throws
+ * @internal
+ */
+export function doesNotShadowAbortSignalContract(value: object): boolean;
 
 /**
  * Verifies that the value matches the `AbortSignal` method contract —
@@ -638,12 +695,16 @@ export function isAbortSignalLike<T = unknown>(value?: T): value is T & AbortSig
  * The local-realm fast-path pairs `isCurrentRealmAbortSignalInstance(value)`
  * with `prototype === abortSignalPrototype`. The pair admits only direct
  * `AbortSignal` instances; subclasses pass `instanceof` but fail the prototype
- * identity-check in O(1). On miss, the cross-realm arm runs
- * {@link isAlienRealmAbortSignal} — the tag + constructor-name signal gate
+ * identity-check in O(1). The pair is further gated by
+ * {@link doesNotShadowAbortSignalContract}: a value that overrides an inherited
+ * abort-accessor or contract-method at its OWN level is an instance-level
+ * subclass-layer, demoted to merely `AbortSignalLike` — the #028 subclass-rejection
+ * applied to the own layer. On miss, the cross-realm arm runs
+ * {@link isAlienRealmAbortSignal} — the tag + constructor-name signal-gate
  * plus the prototype-contract walk — but only when the realm actually has a
  * global `AbortSignal`.
  *
- * `AbortSignal` subclasses are rejected on both arms — by prototype identity
+ * `AbortSignal` subclasses are rejected on both arms — by prototype-identity
  * locally, by constructor-name equality cross-realm. Consistent with
  * {@link isEventTarget} and `isPromise`. Consumers needing subclass admission
  * compose with {@link isAbortSignalLike}.

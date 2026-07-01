@@ -144,6 +144,23 @@ export const INSTANCE_LESS_CONSTRUCTOR: NewableFunction = function () {
 };
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
+
+/**
+ * Whether `value` is a member of the `Set` bound as `this`. A `this`-bound
+ * membership predicate shaped for the array iteration callbacks
+ * (`Array.prototype.some` / `every` / `filter`), called with the `Set` supplied
+ * as the `thisArg`: `names.some(isValueOfBoundSet, someSet)`. Being a
+ * module-level function that reads its `Set` from `this`, it tests each element
+ * against a shared `Set` with NO per-call closure allocation — the allocation-free
+ * alternative to `names.some((name) => someSet.has(name))` on hot paths.
+ *
+ * @param value - the element to look up in the bound `Set`
+ * @returns `true` when the bound `Set` contains `value`; `false` otherwise
+ * @internal
+ */
+export function isValueOfBoundSet(this: ReadonlySet<unknown>, value: unknown): boolean;
+
+// ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 //
 //  Function Types
 //

@@ -62,6 +62,28 @@ export const INSTANCE_LESS_CONSTRUCTOR = /** @type {NEVER_INVOKED_CONSTRUCTOR} *
 );
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
+
+/**
+ * Whether `value` is a member of the `Set` bound as `this`. A `this`-bound
+ * membership predicate shaped for the array iteration callbacks
+ * (`Array.prototype.some` / `every` / `filter`), called with the `Set` supplied
+ * as the `thisArg`: `names.some(isValueOfBoundSet, someSet)`. Being a
+ * module-level function that reads its `Set` from `this`, it tests each element
+ * against a shared `Set` with NO per-call closure allocation — the allocation-free
+ * alternative to `names.some((name) => someSet.has(name))` on hot paths.
+ *
+ * @param {unknown} value - the element to look up in the bound `Set`
+ * @this {ReadonlySet<unknown>} the `Set` to test membership against,
+ *  supplied as the iteration callback's `thisArg`
+ * @returns {boolean} `true` when the bound `Set` contains `value`;
+ *  `false` otherwise
+ * @internal
+ */
+export function isValueOfBoundSet(value) {
+  return this.has(value);
+}
+
+// ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 //
 //  Weak-Key Validation
 //
