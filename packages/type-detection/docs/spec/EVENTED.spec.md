@@ -41,6 +41,39 @@ decomposition), #060 (`INSTANCE_LESS_CONSTRUCTOR` sentinel), #062 (strict predic
 the generic), #028 (subclass rejection), #029 (the `aborted` accessor exception), #030
 (`AbortSignalLike` minimum surface).
 
+### Throw-safety (the universal invariant)
+
+Every predicate answers a boolean on **every** input, including hostile ones, and never
+propagates a throw: `isEventTargetLike` / `isEventTarget` / `isAbortSignalLike` /
+`isAbortSignal` return their honest verdict on any throw on any path, and every
+`@internal` helper returns its sentinel (`false` for the boolean probes) so the composing
+predicate collapses to `false`. The hostile-input classes this module's reads are exposed
+to, and the throw-safe reader each routes through:
+
+- **prototype-trap** (a `Proxy` whose `getPrototypeOf` throws) → the `try/catch` in
+  `isCurrentRealm{EventTarget,AbortSignal}Instance` (the `instanceof` walk, #060) and the
+  strict-tier `getInertPrototypeOf`;
+- **descriptor-trap** (a `Proxy` whose `getOwnPropertyDescriptor` throws — on a pivoted
+  `[[Prototype]]` or a hostile `constructor`) → `getInertDescriptor`,
+  `getDefinedConstructor`, `getVerifiedOwnName`, and `isClass` (each throw-safe at its own
+  read), plus the `hasInertMethod` chain-walk of the Like-tier contract;
+- **ownKeys-trap** (a `Proxy` whose `ownKeys` throws) → the `try/catch`-wrapped
+  `getOwnPropertyDescriptors` inside `doesImplement{EventTarget,AbortSignal}PrototypeContract`;
+- **aborted-getter-throw** (a throwing `aborted` accessor) → the `try/catch` in
+  `doesImplementAbortSignalContract` and `doesImplementAbortSignalPrototypeContract` (the
+  spec-defined direct read, #029).
+
+One honest-by-contract asymmetry follows, not a leak. A **userland EventTarget whose
+`aborted` getter throws** is admitted by `isEventTargetLike` (`true` — the EventTarget
+contract never reads `aborted`) while the AbortSignal tier rejects it (`false` — its
+`try/catch` collapses the throwing read). The invariant is "never throw", not "always
+false"; the Like-tier verdict is honest.
+
+The exhaustive `hostile-class × predicate` proof lives in the test suite (axis 3), not
+here — see [`./README.md`](./README.md) → "Throw-safety — the universal invariant". The
+member-surface `ownKeys`-trap is a **helper-level** boundary (`dIETPC/R2`, `dIASPC/R4`),
+kept as axis-4 vectors.
+
 ## Surface inventory
 
 **Public predicates (axis 1):** `isEventTargetLike`, `isEventTarget`, `isAbortSignalLike`,
