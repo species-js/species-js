@@ -170,13 +170,13 @@ export default tseslint.config(
       'jsdoc/require-returns': 'off',
     },
   },
-  // --- Root config files: not in any tsconfig; disable type-aware rules + JSDoc ---
+  // --- Root config files + tooling scripts: not in any tsconfig; disable type-aware rules + JSDoc ---
   {
-    files: ['*.config.js', '*.config.cjs', '*.config.mjs'],
+    files: ['*.config.js', '*.config.cjs', '*.config.mjs', 'scripts/**/*.mjs'],
     ...tseslint.configs.disableTypeChecked,
   },
   {
-    files: ['*.config.js', '*.config.cjs', '*.config.mjs'],
+    files: ['*.config.js', '*.config.cjs', '*.config.mjs', 'scripts/**/*.mjs'],
     rules: {
       'jsdoc/require-jsdoc': 'off',
     },
