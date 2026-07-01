@@ -80,13 +80,16 @@ kept as axis-4 vectors.
 **Public predicates (axis 1):** `isEventTargetLike`, `isEventTarget`, `isAbortSignalLike`,
 `isAbortSignal`.
 
-**Exported `@internal` helpers (axis 4):** twelve, six per family.
+**Exported `@internal` helpers (axis 4):** fourteen, seven per family.
 
 - realm-membership — `isCurrentRealmEventTargetInstance`,
   `isCurrentRealmAbortSignalInstance` (exported for single-realm testability per decision
   #053; see Resolved items).
 - Like-tier contracts — `doesImplementEventTargetContract`,
   `doesImplementAbortSignalContract` (duck-typed, prototype-chain-walking).
+- strict-tier own-surface guards — `doesNotShadowEventTargetContract`,
+  `doesNotShadowAbortSignalContract` (own-name denylist membership; the local fast-path's
+  own-level anti-shadowing gate, decision #063).
 - strict-tier signal gates — `hasEventTargetIdentitySignal`,
   `hasAbortSignalIdentitySignal` (tag + threaded constructor-name).
 - strict-tier prototype contracts — `doesImplementEventTargetPrototypeContract`,
@@ -101,7 +104,7 @@ kept as axis-4 vectors.
 defined, decision #027). The narrow targets `EventTarget` / `AbortSignal` are the
 `lib.dom.d.ts` globals, not defined here.
 
-Re-confirmation gate: 16 `.js` exports = 16 `.d.ts` declarations, no surface gap.
+Re-confirmation gate: 18 `.js` exports = 18 `.d.ts` declarations, no surface gap.
 
 **Test-environment note:** the decidability run executes in Node (vitest). `EventTarget`,
 `AbortController`, `AbortSignal`, `AbortSignal.timeout()`, `AbortSignal.any()` are all
@@ -168,9 +171,10 @@ Subclass-admitting (bare `instanceof`, no proto-identity).
 ## `isEventTarget`
 
 `isEventTarget(value?: unknown): value is EventTarget` (non-generic, #062) Composition:
-`const proto = getInertPrototypeOf(value); !!proto && (isCurrentRealmEventTargetInstance(value) ? proto === eventTargetPrototype : EventTargetConstructor !== INSTANCE_LESS_CONSTRUCTOR && isAlienRealmEventTarget(value, proto))`
+`const proto = getInertPrototypeOf(value); !!proto && (isCurrentRealmEventTargetInstance(value) ? proto === eventTargetPrototype && doesNotShadowEventTargetContract(value) : EventTargetConstructor !== INSTANCE_LESS_CONSTRUCTOR && isAlienRealmEventTarget(value, proto))`
 Spec basis: `EventTarget` identity — two-axis dispatch (#050) lifted to cross-realm
-prototype-equivalence (#054 / #061), subclass rejection (#028).
+prototype-equivalence (#054 / #061), subclass rejection (#028), own-level contract-shadow
+rejection (#063).
 
 **Admits**
 
@@ -195,6 +199,13 @@ prototype-equivalence (#054 / #061), subclass rejection (#028).
   instanceof; `[[Class]]` tag is `'[object Object]'`).
 - `isEventTarget/R4` — `new AbortController().signal` → false (an `AbortSignal`, not a
   direct `EventTarget` — proto-identity is `AbortSignal.prototype`). (plus CC/nullish.)
+- `isEventTarget/R5` — a LOCAL graft that shadows a contract METHOD at its own level,
+  `Object.create(EventTarget.prototype, { dispatchEvent })` → false (own-surface integrity
+  gate `doesNotShadowEventTargetContract`: an instance-level override of an inherited
+  method demotes the value to merely `EventTargetLike`; #028 at the own layer, #063).
+- `isEventTarget/R6` — a LOCAL graft with an own `constructor`,
+  `Object.create(EventTarget.prototype, { constructor })` → false (same gate; the
+  `constructor` back-reference is a reserved inherited member, #063).
 
 **Refuses to claim**
 
@@ -210,7 +221,8 @@ own-descriptor method contract) rejects a plain object carrying the right tag + 
 method-names but not the real prototype shape (decision #061). **Composition note (axis
 4):** prototype resolved once via `getInertPrototypeOf` and threaded (#059); two-axis
 ternary over `isCurrentRealmEventTargetInstance`; local arm
-`prototype === eventTargetPrototype`; cross-realm arm `isAlienRealmEventTarget` guarded by
+`prototype === eventTargetPrototype && doesNotShadowEventTargetContract(value)` (the
+own-shadow gate, #063); cross-realm arm `isAlienRealmEventTarget` guarded by
 `EventTargetConstructor !== INSTANCE_LESS_CONSTRUCTOR`.
 
 ### Realm asymmetry on tampered inputs (deliberate)
@@ -218,31 +230,38 @@ ternary over `isCurrentRealmEventTargetInstance`; local arm
 `isEventTarget` answers via two arms that weigh evidence differently, and for a
 **tampered** input they can disagree _by realm_:
 
-- **Local-realm arm** — `prototype === eventTargetPrototype`, pure identity. It is **blind
-  to surface tampering and to provenance**: a LOCAL object grafted onto the real
-  `EventTarget.prototype` — `Object.create(EventTarget.prototype)`, even carrying a
-  spoofed or throwing `Symbol.toStringTag` — is admitted (`true`, `isEventTarget/A3`),
-  because identity is decisive: the value genuinely has the real `eventTargetPrototype`.
-  (It never ran the `EventTarget` constructor, so it has no internal slots and its
-  inherited `dispatchEvent` throws when actually called — but that is a functional
-  concern, not a type-identity one; provenance / brand detection is deliberately out of
-  scope, #050.)
+- **Local-realm arm** —
+  `prototype === eventTargetPrototype && doesNotShadowEventTargetContract(value)`:
+  identity PLUS an own-surface integrity gate (#063). It is **blind to the cosmetic tag
+  but NOT to behavioral tampering**. A LOCAL object grafted onto the real
+  `EventTarget.prototype` is admitted (`true`, `isEventTarget/A3`) — including one
+  carrying a spoofed or throwing own `Symbol.toStringTag` (a symbol key, invisible to the
+  string-keyed own-name enumeration, and cosmetic once identity holds). But a graft that
+  overrides an inherited contract method or the `constructor` at its OWN level is
+  **rejected** (`false`, `isEventTarget/R5` / `R6`) — an instance-level subclass layer. (A
+  bare graft never ran the `EventTarget` constructor, so it has no internal slots and its
+  inherited `dispatchEvent` throws when actually called — a functional concern the
+  own-shadow gate does NOT reach; provenance / liveness detection stays out of scope, #050
+  / #052.)
 - **Cross-realm arm** — `hasEventTargetIdentitySignal` +
   `isEventTargetPrototypeEquivalent`, structural. Lacking a local `eventTargetPrototype`
   to match on, it has **only** surface markers to go on, so the same tag tampering
   (spoofed tag → tag mismatch; throwing tag → throw-safe `getTypeSignature` yields a
   non-matching signature) makes it **reject** (`false`).
 
-So the _same_ tag-tampered graft can read `true` locally and `false` cross-realm. This is
-**inherent to having a fast identity path at all**, and the local answer is the
-more-correct one (identity outranks a cosmetic marker). It is **not** a defect and is
-**not** reconciled: forcing the local fast-path to also read the tag would cost its
-O(1)-identity nature and would wrongly reject a genuine local instance. **Every
-_legitimate_ (untampered, genuinely-constructed) instance agrees across realms** (`true`);
-the divergence appears _only_ under tampering. `isAbortSignal` behaves identically (a
-graft onto `abortSignalPrototype`). Pinned in `adversarial.test.js` (local bare /
-spoofed-tag / throwing-tag grafts → `true`; the foreign spoofed-tag counterpart →
-`false`), consistent with the `isPlainObject` ruling from the object round.
+So a **tag-tampered** graft still reads `true` locally and `false` cross-realm — that
+asymmetry is **retained by design** (#063 guards behavior, not the cosmetic tag; forcing
+the local fast-path to read the tag would cost its O(1)-identity nature and wrongly reject
+a genuine local instance). But a **method/constructor-tampered** graft now reads `false`
+in BOTH realms — that half of the former asymmetry is **reconciled** by the own-shadow
+gate (#063): a behavioral own-override is rejected locally just as the cross-realm arm
+rejects it. **Every _legitimate_ (untampered, genuinely-constructed) instance agrees
+across realms** (`true`); divergence appears only under _cosmetic_ (tag) tampering.
+`isAbortSignal` behaves identically (a graft onto `abortSignalPrototype`, its own-shadow
+gate a superset). Pinned in `adversarial.test.js` (local bare / spoofed-tag / throwing-tag
+grafts → `true`; own-method / own-constructor shadow → `false`; the foreign spoofed-tag
+counterpart → `false`), refining the `isPlainObject` "accept-the-asymmetry" ruling from
+the object round.
 
 ---
 
@@ -294,9 +313,10 @@ Subclass-admitting.
 ## `isAbortSignal`
 
 `isAbortSignal(value?: unknown): value is AbortSignal` (non-generic, #062) Composition:
-`const proto = getInertPrototypeOf(value); !!proto && (isCurrentRealmAbortSignalInstance(value) ? proto === abortSignalPrototype : AbortSignalConstructor !== INSTANCE_LESS_CONSTRUCTOR && isAlienRealmAbortSignal(value, proto))`
+`const proto = getInertPrototypeOf(value); !!proto && (isCurrentRealmAbortSignalInstance(value) ? proto === abortSignalPrototype && doesNotShadowAbortSignalContract(value) : AbortSignalConstructor !== INSTANCE_LESS_CONSTRUCTOR && isAlienRealmAbortSignal(value, proto))`
 Spec basis: `AbortSignal` identity — two-axis dispatch (#050) lifted to cross-realm
-prototype-equivalence (#054 / #061), subclass rejection (#028).
+prototype-equivalence (#054 / #061), subclass rejection (#028), own-level contract-shadow
+rejection (#063; denylist a superset of EventTarget's).
 
 **Admits**
 
@@ -318,8 +338,13 @@ prototype-equivalence (#054 / #061), subclass rejection (#028).
   false (not instanceof; tag is `'[object Object]'`).
 - `isAbortSignal/R4` — `new AbortController()` (the controller, not its `.signal`) →
   false. (plus CC/nullish.)
-
-**Refuses to claim**
+- `isAbortSignal/R5` — a LOCAL graft shadowing an abort accessor or a contract method at
+  its own level, `Object.create(AbortSignal.prototype, { aborted })` (or
+  `{ dispatchEvent }` — the denylist is a superset of EventTarget's) → false (own-surface
+  integrity gate `doesNotShadowAbortSignalContract`; #063).
+- `isAbortSignal/R6` — a LOCAL graft with an own `constructor`,
+  `Object.create(AbortSignal.prototype, { constructor })` → false (same gate; reserved
+  inherited member, #063).
 
 - `isAbortSignal/B1` — _subclass admission_: rejects subclasses (theoretical —
   `AbortSignal` is not `new`-able, so a subclass is not readily constructible; the
@@ -331,8 +356,9 @@ prototype-equivalence (#054 / #061), subclass rejection (#028).
 getter with the real receiver (`try/catch`-guarded, #029) and requiring the
 readonly-accessor shape (getter, no setter) the Like tier does not. **Composition note
 (axis 4):** prototype resolved once via `getInertPrototypeOf` and threaded (#059);
-two-axis ternary over `isCurrentRealmAbortSignalInstance`; cross-realm arm
-`isAlienRealmAbortSignal` guarded by
+two-axis ternary over `isCurrentRealmAbortSignalInstance`; local arm
+`prototype === abortSignalPrototype && doesNotShadowAbortSignalContract(value)` (the
+own-shadow gate, #063); cross-realm arm `isAlienRealmAbortSignal` guarded by
 `AbortSignalConstructor !== INSTANCE_LESS_CONSTRUCTOR`.
 
 ---
@@ -372,6 +398,35 @@ shape.
 - `dIASC/R3` — `aborted` present but non-boolean → false.
 - `dIASC/R4` — throwing `aborted` getter → false (`try/catch`).
 - `dIASC/R5` — `{}`, `null` → false.
+
+### `doesNotShadowEventTargetContract(value)` / `doesNotShadowAbortSignalContract(value)` — `@internal`
+
+`try { !getOwnPropertyNames(value).some(isValueOfBoundSet, <denylist>) } catch { false }`.
+The strict local fast-path's own-surface integrity gate (#063): a genuine direct instance
+inherits its whole contract and owns none of it, so an own property whose name is in the
+reserved denylist is an instance-level override → reject. EventTarget denylist =
+`{ constructor, dispatchEvent, addEventListener, removeEventListener, when }`; AbortSignal
+denylist = that superset ∪ `{ aborted, reason, onabort, throwIfAborted }`.
+`Symbol.toStringTag` is a symbol key, absent from the string-keyed `getOwnPropertyNames`,
+so own-tag tampering is NOT caught here (deliberate — cosmetic, and identity already
+holds). Throw-safe and fail-closed: a hostile `ownKeys` trap → `false` (unconfirmable
+clean surface → treated as shadowed). `isValueOfBoundSet` (`@/utility`) is the
+allocation-free `this`-bound membership callback (denylist as the `some` `thisArg`).
+
+- `dNSET/A1` — `new EventTarget()`; a bare `Object.create(EventTarget.prototype)`; a value
+  with only ORTHOGONAL own state (`et.id = 5`) → true (owns no reserved name).
+- `dNSET/A2` — a value with an own `Symbol.toStringTag` (spoofed or throwing) → true
+  (symbol key not enumerated by `getOwnPropertyNames`).
+- `dNSET/R1` — an own `dispatchEvent` / `addEventListener` / `removeEventListener` /
+  `when` → false (contract-method shadow).
+- `dNSET/R2` — an own `constructor` → false (reserved back-reference shadow).
+- `dNSET/B1` — a `Proxy` whose `ownKeys` trap throws → false, not thrown (fail-closed).
+- `dNSAS/A1` — `new AbortController().signal`, `AbortSignal.timeout(1000)` → true.
+- `dNSAS/R1` — an own `aborted` / `reason` / `onabort` / `throwIfAborted` → false (abort
+  surface shadow).
+- `dNSAS/R2` — an own inherited EventTarget method or `constructor` → false (the denylist
+  is a superset).
+- `dNSAS/B1` — a throwing `ownKeys` trap → false, not thrown.
 
 ### `isCurrentRealmEventTargetInstance(value)` / `isCurrentRealmAbortSignalInstance(value)` — `@internal`
 
@@ -511,5 +566,25 @@ Resolves the constructor once and threads it (#059).
    `adversarial.test.js` asymmetry block (local bare / spoofed-tag / throwing-tag grafts →
    `true`; the foreign spoofed-tag counterpart → `false`) — matching the object module's
    dedicated subsection + vector + test treatment of the identical phenomenon.
+
+4. **Own-level contract-shadow rejection (decision #063, 2026-07-01) — refines item 3.**
+   The strict local fast-path now ANDs an own-surface integrity gate
+   (`doesNotShadow{EventTarget,AbortSignal}Contract`) onto `prototype === Xprototype`: a
+   value carrying the real base prototype but shadowing a reserved inherited member at its
+   OWN level — a contract-method, the `constructor` back-reference, or (AbortSignal) an
+   abort-accessor — is an instance-level subclass-layer, demoted to merely `*Like`
+   (symmetric with the #028 subclass-rejection, applied to the own layer). This PARTIALLY
+   reconciles the item-3 realm-asymmetry: behavioral (method / constructor) tampering is
+   now rejected in BOTH realms, while cosmetic tag-tampering stays local-admit /
+   cross-realm-reject (retained by design — the gate reads string-keyed own names only,
+   and the symbol-keyed tag is cosmetic once identity holds). Surface amended in place (12
+   → 14 `@internal` helpers, gate 16 = 16 → 18 = 18; both composition strings +
+   Composition notes
+   - the "Realm asymmetry" subsection); new reject vectors `isEventTarget/R5`,`R6` /
+     `isAbortSignal/R5`,`R6` and helper specs `dNSET/*`, `dNSAS/*` appended. **Scope
+     constraint:** applicable ONLY to spec-pinned architectures whose instances own none
+     of their contract (EventTarget / AbortSignal / Promise), NOT to user types that own
+     their surface by design. Uses the new `@/utility` `isValueOfBoundSet`
+     (allocation-free `this`-bound `Set` membership callback).
 
 No open items.
