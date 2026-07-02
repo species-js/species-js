@@ -426,6 +426,29 @@ export function isObjectPrototypeEquivalent(
 ): boolean;
 
 /**
+ * The cross-realm Plain Object fallback: the inexpensive
+ * {@link hasPlainObjectIdentitySignal} front-gate AND the load-bearing
+ * {@link isObjectPrototypeEquivalent} structural contract. A foreign
+ * `Object.prototype` fails the local-realm `=== Object.prototype`
+ * fast-path but matches this structural contract in every realm.
+ *
+ * The single seam shared by {@link isPlainObject} and
+ * {@link isPlainOrDictionaryObject} on their cross-realm branch. Exported
+ * `@internal` for direct unit-testability (decision #053): decision #059
+ * threaded the constructor/name resolution into this seam, so it carries
+ * resolve-once-and-thread logic neither composed helper exercises alone.
+ *
+ * @param value - the candidate whose Plain Object structure and contract is
+ *  to be verified; assumed to be an object provided by the caller
+ * @param prototype - the value's already-resolved `[[Prototype]]`, threaded
+ *  in by the caller that read it first (decision #059)
+ * @returns `true` when the signal gate and the structural contract both
+ *  hold; `false` otherwise
+ * @internal
+ */
+export function isAlienRealmPlainObject(value: object, prototype: object): boolean;
+
+/**
  * Narrows a value to {@link PlainObject} — an AnyObject whose direct
  * constructor is the built-in `Object`.
  *
@@ -499,6 +522,16 @@ export function isObjectPrototypeEquivalent(
  * cross-realm — inherent to having a fast identity path, accepted and not
  * reconciled. Every untampered plain object agrees across realms; the
  * divergence appears only under tampering.
+ *
+ * Decision #063 later generalized this asymmetry across the strict identity
+ * predicates and reconciled its behavioral half in both realms: own-level
+ * shadowing of a contract method or the `constructor` back-reference, via
+ * an own-surface shadow gate scoped to spec-pinned architectures, whose
+ * instances own none of their contract (`EventTarget`, `AbortSignal`,
+ * `Promise`).
+ * `isPlainObject` is deliberately out of that gate's scope: a plain object
+ * owns its data by design, so its only tamper-able surface is the cosmetic
+ * tag — which stays local-admit / cross-realm-reject as above.
  *
  * ## Strictness vs. lodash `_.isPlainObject`
  *

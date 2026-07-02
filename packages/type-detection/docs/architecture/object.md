@@ -162,8 +162,9 @@ descriptor and prototype read routes through a throw-safe reader. The shape:
 
 ```js
 // the anchor resolves the prototype's constructor + name ONCE and threads both
-// down (#059); the prototype itself is threaded in by the caller that read it:
-function isAlienRealmPlainObject(value, prototype) {
+// down (#059); the prototype itself is threaded in by the caller that read it.
+// Exported `@internal` for direct testability (#053) now that it carries logic:
+export function isAlienRealmPlainObject(value, prototype) {
   const constructor = getDefinedConstructor(prototype, { assumePrototype: true });
   const name = getVerifiedOwnName(constructor);
 
@@ -195,11 +196,15 @@ export function isObjectPrototypeEquivalent(prototype, constructor, name) {
 }
 ```
 
-Both helpers are `@internal`-tagged and ship with parallel `.d.ts` declarations carrying
-the same walkthrough — applying decision #015's "All sub-helpers exported with parallel
-`.d.ts` declarations" uniformly across the family. The function module's
-`hasAsyncFunctionIdentitySignal` + `hasAsyncFunctionPrototypeSurface` pairing is the
-established precedent.
+All three helpers here — `isAlienRealmPlainObject`, `hasPlainObjectIdentitySignal`,
+`isObjectPrototypeEquivalent` — are `@internal`-tagged and ship with parallel `.d.ts`
+declarations carrying the same walkthrough, applying decision #015's "All sub-helpers
+exported with parallel `.d.ts` declarations" uniformly across the family. The seam
+`isAlienRealmPlainObject` earns its export under #053 specifically because #059 threaded
+resolve-once logic into it — it now carries behavior neither composed helper exercises
+alone, so it takes its own `iARPO/*` coverage rather than riding on theirs. The function
+module's `hasAsyncFunctionIdentitySignal` + `hasAsyncFunctionPrototypeSurface` pairing is
+the established precedent.
 
 The `{ assumePrototype: true }` option on `getDefinedConstructor` is load-bearing here.
 The `prototype` argument is the result of `getPrototypeOf(value)` — by construction, a

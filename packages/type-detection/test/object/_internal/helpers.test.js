@@ -18,10 +18,14 @@
  *     wrapper re-derives that trio from each input the way the predicates do.
  *   - `doesImplementObjectPrototypeContract` — marker 6 in isolation: the
  *     prototype's own member surface against the host-calibrated canonical set.
+ *   - `isAlienRealmPlainObject` — the exported cross-realm seam itself
+ *     (decision #053): it resolves the prototype's constructor + name once and
+ *     threads them into `hasPlainObjectIdentitySignal(value, name) &&
+ *     isObjectPrototypeEquivalent(prototype, constructor, name)`.
  *
- * Together these cover the unexported `isAlienRealmPlainObject` seam, which is
- * exactly `hasPlainObjectIdentitySignal(value, name) &&
- * isObjectPrototypeEquivalent(proto, constructor, name)`.
+ * The seam carries its own resolve-once-and-thread logic (decision #059), so it
+ * is exercised directly here rather than only transitively through the two
+ * helpers it composes.
  *
  * Mirrors the "Helper specification (axis 4)" section in `docs/spec/OBJECT.spec.md`.
  */
@@ -33,6 +37,7 @@ import {
   hasDictionaryObjectIdentitySignal,
   isObjectPrototypeEquivalent,
   doesImplementObjectPrototypeContract,
+  isAlienRealmPlainObject,
   getInertPrototypeOf,
   getDefinedConstructor,
   getVerifiedOwnName,
@@ -229,5 +234,36 @@ describe('[Internal] doesImplementObjectPrototypeContract (marker 6 in isolation
     // the only path that exercises marker 6`s try/catch: the predicate path fails
     // marker 1 before reaching marker 6, so the throw-safety is reachable only here.
     expect(doesImplementObjectPrototypeContract(throwingOwnKeysProto())).toBe(false);
+  });
+});
+
+describe('[Internal] isAlienRealmPlainObject (the exported cross-realm seam)', () => {
+  // `iARPO` feeds the seam a value + its already-resolved `[[Prototype]]`, exactly
+  // as `isPlainObject` / `isPlainOrDictionaryObject` hand it on the cross-realm
+  // branch; the seam resolves the constructor + name ONCE (#059) and threads them
+  // into both composed helpers.
+  /**
+   * @param {unknown} value - the candidate whose cross-realm plain-object verdict to carry
+   */
+  const iARPO = (value) => {
+    const object = /** @type {object} */ (value);
+    return isAlienRealmPlainObject(object, protoOf(object));
+  };
+
+  it('iARPO/A1: a real local plain object → true (signal AND contract both hold)', () => {
+    expect(iARPO(emptyObject())).toBe(true);
+    expect(iARPO(newObject())).toBe(true);
+  });
+
+  it('iARPO/R1: an array → false (signal gate short-circuits before the contract)', () => {
+    expect(iARPO(array())).toBe(false);
+  });
+
+  it('iARPO/R2: hollow `class extends null` renamed `Object` → false (signal passes, contract rejects)', () => {
+    // the composition vector: the signal gate admits the value (tag
+    // `[object Object]`, threaded ctor-name `Object`), so the verdict is carried
+    // by the contract arm — proving the once-resolved constructor/name reach
+    // `isObjectPrototypeEquivalent`, which rejects at the member-surface marker.
+    expect(iARPO(classExtendsNullRenamedObject())).toBe(false);
   });
 });

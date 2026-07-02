@@ -23,6 +23,7 @@ import {
   isPlainOrDictionaryObject,
   hasPlainObjectIdentitySignal,
   isObjectPrototypeEquivalent,
+  isAlienRealmPlainObject,
   getInertPrototypeOf,
   getDefinedConstructor,
   getVerifiedOwnName,
@@ -61,6 +62,9 @@ describe('object — cross-realm (axis 2)', () => {
     expect(isObjectPrototypeEquivalent(prototype, constructor, name), 'contract').toBe(
       true,
     );
+    // the exported seam itself, fed the foreign value + its [[Prototype]] as the
+    // predicates hand it: resolves the trio once and carries the foreign verdict.
+    expect(isAlienRealmPlainObject(foreign, prototype), 'seam').toBe(true);
   });
 
   it('foreign plain objects are still objects but never dictionaries', () => {

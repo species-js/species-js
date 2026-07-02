@@ -32,7 +32,13 @@
 > `getDefinedConstructorName` self-read) and is reused for both the value and — as markers
 > 2+3 — the prototype; `isObjectPrototypeEquivalent` became three-arg
 > (`prototype, constructor, name`); `getDefinedConstructorName` dropped from `object.js`.
-> No admit/reject verdict changed — see Resolved items #5.
+> No admit/reject verdict changed — see Resolved items #5. Amended 2026-07-02
+> (evented-round parity follow-on) — `isAlienRealmPlainObject` promoted to an exported
+> `@internal` helper (surface 8 → 9) with its own `iARPO/*` vectors (decision #053, now
+> that #059 gave the seam its own resolve-once logic); and object's realm-asymmetry ruling
+> gained a forward cross-reference to #063 (which reconciled the behavioral half of the
+> asymmetry for the spec-pinned strict predicates and left `isPlainObject` deliberately
+> out of scope). No admit/reject verdict changed — see Resolved items #6.
 
 ## Module contract
 
@@ -111,20 +117,24 @@ are **helper-level** boundaries (`dIOPC/B1`, `iOPE/B1`), kept as axis-4 vectors.
   #059).
 - `doesImplementObjectPrototypeContract` — marker 6 in isolation: the prototype's own
   member surface against the host-calibrated canonical `Object.prototype` member set.
+- `isAlienRealmPlainObject` — the cross-realm fallback seam: resolves the prototype's
+  `constructor`/`name` once from the threaded `[[Prototype]]` and returns
+  `hasPlainObjectIdentitySignal(value, name) && isObjectPrototypeEquivalent(prototype, constructor, name)`.
+  Exported `@internal` (decision #053) — since #059 threaded the resolve-once logic INTO
+  it, the seam carries behavior neither composed helper exercises alone, so it earns its
+  own unit coverage.
 
 Exporting these is what makes the cross-realm structural arm of `isPlainObject`
 unit-testable on **local** values (the helpers carry no local-realm fast-path, so they run
-the realm-independent logic directly — no `vm` realm needed). The unexported seam
-`isAlienRealmPlainObject` resolves `constructor`/`name` once from the threaded prototype,
-then returns
-`hasPlainObjectIdentitySignal(value, name) && isObjectPrototypeEquivalent(prototype, constructor, name)`;
-it is covered transitively through the two helpers it composes (each unit test re-derives
-the same threaded arguments the seam would hand it).
+the realm-independent logic directly — no `vm` realm needed). The seam
+`isAlienRealmPlainObject` is exercised directly (`iARPO/*`) as well as through the two
+helpers it composes (each helper unit test re-derives the same threaded arguments the seam
+hands it).
 
 **Exported types without a predicate:** `AnyObject`, `PlainObject`, `DictionaryObject`,
 `PlainOrDictionaryObject`.
 
-Re-confirmation gate: 8 `.js` exports = 8 `.d.ts` declarations, no surface gap;
+Re-confirmation gate: 9 `.js` exports = 9 `.d.ts` declarations, no surface gap;
 `architecture/object.md` matches the code (no drift).
 
 ## Cross-cutting vectors
@@ -248,6 +258,16 @@ cost its O(1)-identity nature and would wrongly reject a genuine local plain obj
 divergence appears _only_ under tampering. The throwing-tag instance is pinned by the
 axis-3 throw-safety matrix (local `true` / alien `false`); the non-throwing spoofed-tag
 instance is pinned in `adversarial.test.js`.
+
+Decision #063 later generalized this asymmetry across the strict identity predicates and
+reconciled its **behavioral** half — own-level shadowing of a contract method or the
+`constructor` back-reference — in both realms, via an own-surface shadow gate scoped to
+spec-pinned architectures whose instances own none of their contract (`EventTarget`,
+`AbortSignal`, `Promise`). `isPlainObject` is **deliberately out of that gate's scope**: a
+plain object owns its data by design, so its only tamperable surface is the cosmetic tag —
+which stays local-admit / cross-realm-reject exactly as above. The asymmetry described
+here is the residual, by-design case #063 left standing for this module (#063
+Consequences; EVENTED Resolved #3).
 
 ---
 
@@ -451,6 +471,27 @@ callable-valued **own** data property. Reads own descriptors only — never inhe
   thrown** — the `getOwnPropertyDescriptors` read is wrapped in a `try/catch`. Reachable
   only standalone (the predicate path fails marker 1 before marker 6 runs).
 
+### `isAlienRealmPlainObject(value, prototype)` — `@internal` (the exported cross-realm seam)
+
+`{ const constructor = getDefinedConstructor(prototype, { assumePrototype: true }); const name = getVerifiedOwnName(constructor); return hasPlainObjectIdentitySignal(value, name) && isObjectPrototypeEquivalent(prototype, constructor, name); }`.
+Resolves the threaded `constructor`/`name` ONCE (#059) and composes the signal gate with
+the structural contract. Fed a value + its already-resolved `[[Prototype]]`, the way the
+predicates hand it on the cross-realm branch (the unit wrapper `iARPO` re-derives the
+prototype from the value). Exported `@internal` per #053 because #059 moved the
+resolve-once logic into it.
+
+- `iARPO/A1` — a real local plain object (`{}`, `new Object()`) → true (signal AND
+  contract both hold; the local values run the realm-independent logic — the seam has no
+  fast-path).
+- `iARPO/R1` — `[]` → false (the signal gate short-circuits on tag mismatch, before the
+  contract arm is consulted).
+- `iARPO/R2` — a hollow `class extends null` renamed `'Object'` → false. The composition
+  vector: the signal gate admits the value (tag `'[object Object]'`, threaded ctor-name
+  `'Object'`), so the verdict is carried by the contract arm — proving the once-resolved
+  `constructor`/`name` reach `isObjectPrototypeEquivalent`, which rejects at marker 6. Its
+  cross-realm true-verdict counterpart is pinned in `cross-realm.test.js` (foreign plain
+  object → true).
+
 ---
 
 ## Resolved items
@@ -595,5 +636,34 @@ callable-valued **own** data property. Reads own descriptors only — never inhe
    still fails at the marker the vector names. Decision-aligned with #059 (no new ADR —
    same "thread, don't re-read" posture, now applied to the constructor and name as well
    as the prototype).
+
+6. **Evented-round parity follow-on (2026-07-02) — RESOLVED.** A conformance audit of
+   `object` against the standards the `evented` refactoring round aggregated (ADRs
+   #059–#063, #053) found `object` conforming on every general convention (throw-safety
+   invariant + matrix, six-file config-driven suite, frozen-spec amendment discipline,
+   realm-asymmetry formalization — of which object is the origin form —, the #062
+   generic-signature policy, and, after Resolved #5, #059 threading), with #063 own-shadow
+   and the Like/`is` both-halves rule genuinely N/A (object has no `*Like` predicate; ADR
+   #063 §Scope + line 91 rule `isPlainObject` out — objects own data by design). Two
+   residuals closed, no public admit/reject verdict changed (object suite 127 → 130 tests,
+   still green):
+   - **`isAlienRealmPlainObject` exported `@internal` (decision #053).** #059 moved the
+     resolve-once-and-thread logic into the seam, so it no longer "rides on" the coverage
+     of the two helpers it composes — it earns its own. Now exported with a parallel
+     `.d.ts` declaration and its own `iARPO/*` helper-spec vectors (`A1` both-arms-hold,
+     `R1` signal-short-circuit, `R2` signal-pass/contract-reject as the composition
+     vector), plus a direct cross-realm assertion on the foreign object. Surface gate 8
+     → 9. Aligns `object` with evented's already-exported `isAlienRealm*` resolvers.
+   - **#063 forward cross-reference (doc honesty).** ADR #063 reached back and refined
+     object's realm-asymmetry ruling (its own "EVENTED Resolved #3" origin) from "accept,
+     don't reconcile" to a **split** — behavioral tampering reconciled in both realms for
+     the spec-pinned strict predicates, cosmetic-tag tampering left as the residual
+     local-admit / cross-realm-reject case. Object's docs carried no mention of #063; a
+     forward cross-reference was added to the realm-asymmetry section in `object.js`,
+     `object.d.ts`, and this spec, stating `isPlainObject`'s deliberate out-of-scope
+     status (owns data by design; only the tag is shadowable).
+
+   Decision-aligned with #053 + #063 (no new ADR — applies existing decisions; the export
+   completes #053's uniform application, prompted by #059).
 
 No open items.
