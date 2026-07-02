@@ -28,6 +28,11 @@ import {
   tagSpoofedPromise,
   nullProtoTagSpoofedPromise,
   promisePrototypeGraft,
+  promiseMethodShadowGraft,
+  promiseConstructorShadowGraft,
+  promiseGraftWithOrthogonalState,
+  taggedPromiseGraftLocal,
+  taggedPromiseGraftForeign,
   ownConstructorNamedPromise,
 } from './__config.js';
 
@@ -66,21 +71,58 @@ describe('isPromise — spoof-resistance', () => {
   });
 });
 
-describe('isPromise — structurally-unsealable graft (decision #052)', () => {
-  it('isPromise/B2: Object.create(Promise.prototype) → true (KNOWN admission — shape, not liveness)', () => {
-    // Documented hole: passes instanceof + proto-identity; carries no
+describe('isPromise — prototype graft: #052 bare admit + #063 own-shadow demotion', () => {
+  it('isPromise/B2: Object.create(Promise.prototype) → true (KNOWN admission — shape, not liveness, #052)', () => {
+    // Documented boundary: passes instanceof + proto-identity; carries no
     // [[PromiseState]]. Promise exposes no inert internal-slot accessor, so
-    // structural detection cannot reject it. Asserted to pin the boundary.
+    // structural detection cannot reject the BARE graft — and the #063
+    // own-shadow gate leaves it standing (it owns nothing to shadow).
     expect(isPromise(promisePrototypeGraft())).toBe(true);
   });
 
-  it('isThenable/B3: the same graft is admitted (inherits `then`)', () => {
+  it('isThenable/B3: the same bare graft is admitted (inherits `then`)', () => {
     expect(isThenable(promisePrototypeGraft())).toBe(true);
   });
 
-  it('the graft satisfies the full contract too (isPromiseLike admits)', () => {
+  it('the bare graft satisfies the full contract too (isPromiseLike admits)', () => {
     expect(isPromiseLike(promisePrototypeGraft())).toBe(true);
     // Sanity: the contract methods are the inherited Promise.prototype ones.
     expect(isPromiseLike(fullContract())).toBe(true);
+  });
+
+  it('isPromise/R8: an own-`then`-shadow graft → Like-not-is (strict false, Like + Thenable true)', () => {
+    // #063 own-shadow: the OWN `then` overrides the inherited contract — an
+    // instance-level subclass layer, so isPromise demotes it. Asserted on the
+    // SAME instance so the demotion's LANDING (still Like/Thenable) is pinned.
+    const graft = promiseMethodShadowGraft();
+    expect(isPromise(graft), 'isPromise').toBe(false);
+    expect(isPromiseLike(graft), 'isPromiseLike').toBe(true);
+    expect(isThenable(graft), 'isThenable').toBe(true);
+  });
+
+  it('isPromise/R9: an own-`constructor`-shadow graft → Like-not-is (strict false, Like + Thenable true)', () => {
+    const graft = promiseConstructorShadowGraft();
+    expect(isPromise(graft), 'isPromise').toBe(false);
+    expect(isPromiseLike(graft), 'isPromiseLike').toBe(true);
+    expect(isThenable(graft), 'isThenable').toBe(true);
+  });
+
+  it('orthogonal own state does NOT demote (the gate is a scalpel over reserved names, not a blanket)', () => {
+    // an own `id` is not a reserved contract member → isPromise stays true.
+    expect(isPromise(promiseGraftWithOrthogonalState())).toBe(true);
+  });
+});
+
+describe('isPromise — realm asymmetry on tampered inputs (deliberate; the #063 residual)', () => {
+  // #063 reconciled the BEHAVIORAL half of the asymmetry (own-level method /
+  // constructor shadowing, rejected in both realms — R8/R9 above). The COSMETIC
+  // half stays: a spoofed `Symbol.toStringTag` is symbol-keyed (invisible to the
+  // string-keyed own-shadow gate) and never read by the local identity arm.
+  it('isPromise/A4: a LOCAL graft with a spoofed tag → true (identity arm is tag-blind)', () => {
+    expect(isPromise(taggedPromiseGraftLocal())).toBe(true);
+  });
+
+  it('the FOREIGN-realm counterpart (same spoofed tag) → false (structural arm reads the tag)', () => {
+    expect(isPromise(taggedPromiseGraftForeign())).toBe(false);
   });
 });

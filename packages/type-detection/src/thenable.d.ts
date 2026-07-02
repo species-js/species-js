@@ -333,6 +333,38 @@ export interface AbortableThenable<out T> extends Thenable<T> {
 export function doesImplementPromiseContract(value?: unknown): boolean;
 
 /**
+ * Whether `value` leaves the inherited `Promise` surface UN-shadowed at its own
+ * level — no own property whose name is in the reserved denylist (the
+ * `constructor` back-reference plus the `then`/`catch`/`finally` method
+ * contract). The own-surface integrity-gate the strict local {@link isPromise}
+ * fast-path ANDs onto its `prototype === Promise.prototype` identity-check
+ * (decision #063).
+ *
+ * A genuine direct `Promise` instance inherits its whole method-contract and its
+ * `constructor` link from `Promise.prototype` and owns none of it (its state
+ * lives in internal slots). An own-shadowed contract member is an instance-level
+ * override that demotes the value from `is` to merely `PromiseLike` — symmetric
+ * with the #028 subclass rejection, applied to the own layer. `Symbol.toStringTag`
+ * is deliberately NOT guarded (cosmetic once prototype-identity holds); orthogonal
+ * own state never disqualifies — only the reserved member names do.
+ *
+ * Weaker than a structural seal by design (decision #052): `Promise` exposes no
+ * inert slot-reader, so the bare graft `Object.create(Promise.prototype)` cannot
+ * be caught and stays admitted; this gate closes the own-level override only.
+ *
+ * Throw-safe and fail-closed: a throwing own-key enumeration collapses to `false`
+ * (a clean own surface cannot be confirmed → treat as shadowed).
+ *
+ * @param value - the direct-instance candidate whose OWN property names are
+ *  enumerated; assumed by the caller to carry `Promise.prototype` as its
+ *  `[[Prototype]]`
+ * @returns `true` when no own property name shadows a reserved member; `false`
+ *  when one does, or when the own-key enumeration throws
+ * @internal
+ */
+export function doesNotShadowPromiseContract(value: object): boolean;
+
+/**
  * Whether the value carries both of `Promise`'s string-shape identity
  * markers — the `[[Class]]` tag `'Promise'` and the resolved constructor-name
  * `'Promise'`. The name is threaded in by the caller (which resolves the
@@ -490,22 +522,31 @@ export function isPromiseLike<T = unknown>(value?: T): value is T & PromiseLike<
  * Consumers needing subclass admission should compose with a
  * constructor-chain walk on top of this predicate.
  *
- * Generic in `T` per the family-pattern. The narrow returns
- * `T & Promise<unknown>`; `T = unknown` collapses to `Promise<unknown>`.
+ * The local-realm pair is further gated by {@link doesNotShadowPromiseContract}:
+ * a value that overrides an inherited contract method (or the `constructor`) at
+ * its OWN level — `Object.create(Promise.prototype, { then })` — is an
+ * instance-level subclass layer, demoted to merely `PromiseLike` (decision #063).
+ * The bare graft `Object.create(Promise.prototype)` stays admitted: `Promise`
+ * exposes no inert slot-reader, so a hollow direct-prototype value cannot be
+ * caught (decision #052).
  *
- * @typeParam T - the caller-side type of `value`; defaults to `unknown`
+ * Strict identity narrows to the concrete `Promise` intrinsic, so — unlike the
+ * subclass-admitting `isPromiseLike` / `isThenable` predicates — it is
+ * intentionally non-generic (decision #062): every admitted value IS exactly a
+ * `Promise`, with no caller-side type to preserve.
+ *
  * @param value - the value to test; omitted is treated as `undefined`,
  *  which is not a `Promise`
- * @returns `true` when either the local-realm identity pair or
- *  the cross-realm structural chain holds, narrowing `value`
- *  to `T & Promise<unknown>`; `false` otherwise
+ * @returns `true` when the local-realm identity pair (with own-surface
+ *  integrity) or the cross-realm structural chain holds; `false` otherwise
  * @example
  * isPromise(Promise.resolve());                                   // true (instanceof + proto)
- * isPromise({ then: () => {} });                                  // false
+ * isPromise(Object.create(Promise.prototype));                    // true (bare graft, #052)
+ * isPromise(Object.assign(Object.create(Promise.prototype), { then() {} })); // false (own-shadow, #063)
  * isPromise({ [Symbol.toStringTag]: 'Promise', then: () => {} }); // false (spoof)
  * isPromise(42);                                                  // false
  */
-export function isPromise<T = unknown>(value?: T): value is T & Promise<unknown>;
+export function isPromise(value?: unknown): value is Promise<unknown>;
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 //

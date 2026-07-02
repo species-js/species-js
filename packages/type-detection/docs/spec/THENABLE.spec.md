@@ -12,7 +12,16 @@
 > the package-wide clean throw-safety model (universal invariant + axis-3
 > `hostile × predicate` matrix; refuses-to-claim demoted to prose), fixed the
 > `getInertPrototypeOf` rename drift, and closed the `isPromise/A2` + throw-safety-cell
-> coverage gaps; no admit/reject verdict changed — see Resolved items #6.
+> coverage gaps; no admit/reject verdict changed — see Resolved items #6. Amended
+> 2026-07-02 (evented/object-round parity back-port) — three coupled changes to
+> `isPromise`: (a) a new `@internal` `doesNotShadowPromiseContract` gate ANDed onto the
+> local fast-path, so an own-level contract/`constructor` shadow on a `Promise.prototype`
+> graft is now demoted `is`→`Like` (decision #063; new reject vectors `isPromise/R8`,`R9`)
+> while the BARE graft stays admitted (`isPromise/B2`, unsealable, #052); (b) `isPromise`
+> dropped its `<T=unknown>` generic (decision #062 — strict identity to one intrinsic);
+> (c) the realm-asymmetry on a tag-tampered graft was formalized (`isPromise/A4` + a
+> subsection). Surface 5→6 helpers. **The one prior public verdict change:** a tampered
+> graft that WAS admitted is now rejected — see Resolved items #7.
 
 ## Module contract
 
@@ -72,6 +81,9 @@ see [`./README.md`](./README.md) → "Throw-safety — the universal invariant".
   (decision #054).
 - `isCurrentRealmPromiseInstance(value)` — exported from both `thenable.js` and
   `thenable.d.ts` (the `.d.ts` declaration was added when item #1 below was resolved).
+- `doesNotShadowPromiseContract(value)` — the `#063` own-surface integrity gate: `true`
+  when the value owns no name in the reserved denylist (`constructor`, `then`, `catch`,
+  `finally`); throw-safe, fail-closed. ANDed onto `isPromise`'s local fast-path.
 
 **Exported types without a predicate:** `Thenable<T>`, `PromiseLike<T>`,
 `AbortableThenable<T>`. `AbortableThenable` is type-only by design — a delivered interface
@@ -211,17 +223,19 @@ proto-identity narrowing.
 
 ## `isPromise`
 
-`isPromise<T = unknown>(value?: T): value is T & Promise<unknown>` Composition: after the
-`!!value` guard the prototype is resolved ONCE via the throw-safe
-`getInertPrototypeOf(value)` (decision #059 threading) and that single read is threaded
-into both dispatch arms —
-`isCurrentRealmPromiseInstance(value) ? prototype === promisePrototype : isStructuralPromiseEquivalent(value, prototype)`
-— where the cross-realm arm `isStructuralPromiseEquivalent` expands to the value-side
-identity signal (`hasPromiseIdentitySignal`) + the method contract
-(`doesImplementPromiseContract`) + prototype-equivalence
-(`isStructuralPromisePrototypeEquivalent` — the fourth marker, prototype/constructor
-reciprocal identity). Spec basis: `Promise` identity — two-axis dispatch (decisions #023,
-#050, #054).
+`isPromise(value?: unknown): value is Promise<unknown>` — strict identity to the concrete
+`Promise` intrinsic, so intentionally **non-generic** (decision #062), unlike the
+subclass-admitting `isThenable` / `isPromiseLike`. Composition: after the `!!value` guard
+the prototype is resolved ONCE via the throw-safe `getInertPrototypeOf(value)` (decision
+#059 threading) and that single read is threaded into both dispatch arms —
+`isCurrentRealmPromiseInstance(value) ? prototype === promisePrototype && doesNotShadowPromiseContract(value) : isStructuralPromiseEquivalent(value, prototype)`
+— where the local-realm arm now ANDs the `#063` own-surface integrity gate onto its
+proto-identity check (reject an own-level contract override), and the cross-realm arm
+`isStructuralPromiseEquivalent` expands to the value-side identity signal
+(`hasPromiseIdentitySignal`) + the method contract (`doesImplementPromiseContract`) +
+prototype-equivalence (`isStructuralPromisePrototypeEquivalent` — the fourth marker,
+prototype/constructor reciprocal identity). Spec basis: `Promise` identity — two-axis
+dispatch (decisions #023, #050, #054).
 
 **Admits**
 
@@ -230,6 +244,11 @@ reciprocal identity). Spec basis: `Promise` identity — two-axis dispatch (deci
 - `isPromise/A2` — `new Promise(() => {})` → true — same.
 - `isPromise/A3` — a cross-realm _direct_ `Promise` (fixture) → true — cross-realm arm:
   tag `'[object Promise]'` + constructor-name `'Promise'` + contract.
+- `isPromise/A4` — a LOCAL `Object.create(Promise.prototype)` graft carrying only a
+  spoofed own `Symbol.toStringTag` → true — the local identity arm is tag-blind
+  (`instanceof` + proto-identity), and the cosmetic tag is symbol-keyed so the `#063`
+  own-shadow gate does not see it. The realm-asymmetry admit (see the subsection below);
+  its foreign counterpart rejects.
 
 **Rejects**
 
@@ -255,6 +274,17 @@ reciprocal identity). Spec basis: `Promise` identity — two-axis dispatch (deci
   (here `null`), so `getNextAvailablePropertyDescriptor` finds no `constructor` and the
   resolved name is `undefined`, not `'Promise'`. Companion to `R3`/`R6`, exercising the
   null-`[[Prototype]]` branch of the cross-realm arm's constructor resolution.
+- `isPromise/R8` — an own-`then`-shadow graft
+  (`Object.assign(Object.create(Promise.prototype), { then() {} })`) → false, **demoted**.
+  Passes `instanceof` + proto-identity, but the OWN `then` overrides the inherited
+  contract — an instance-level subclass layer, rejected by `doesNotShadowPromiseContract`
+  (#063). The demotion LANDS: `isPromiseLike` and `isThenable` still admit the same
+  instance (asserted together in `adversarial.test.js`). The #028 subclass rejection
+  applied to the own layer.
+- `isPromise/R9` — an own-`constructor`-shadow graft
+  (`Object.assign(Object.create(Promise.prototype), { constructor })`) → false,
+  **demoted** — same gate, the `constructor` back-reference is in the denylist.
+  `isPromiseLike` / `isThenable` still admit the same instance.
 - (plus all cross-cutting vectors)
 
 **Refuses to claim** (prose — semantic scope, asserts nothing)
@@ -270,14 +300,17 @@ the cross-realm arm. A fully committed proxy/rename cannot be beaten structurall
 
 **Boundary (axis 3):**
 
-- `isPromise/B2` — `Object.create(Promise.prototype)` → **true**. Known admission
+- `isPromise/B2` — the BARE `Object.create(Promise.prototype)` → **true**. Known admission
   (decision #052): passes the local-realm arm (`instanceof` + proto-identity) despite
   carrying no Promise internal state. `Promise` is **structurally unsealable** — it
   exposes no inert internal-slot accessor (its only `[[PromiseState]]` readers, `then` /
   `catch` / `finally`, invoke `SpeciesConstructor` and allocate, so they cannot serve as
   an inspect-without-invoke probe the way boxed primitives use `valueOf`). Structural
   detection verifies _shape, not liveness_; the graft throws on first real use. A
-  host-backed tier is deferred to Q.005.
+  host-backed tier is deferred to Q.005. The `#063` own-shadow gate leaves B2 standing —
+  the bare graft owns nothing to shadow (`dNSP/A2` → true); it closes only the own-level
+  override (`R8`/`R9`), not the hollow graft. Orthogonal own state (`{ id }`, not a
+  reserved name) likewise stays admitted — the gate is a scalpel, not a blanket.
 
 Throw-safety against a throwing `Symbol.toStringTag` getter and a descriptor-trap on the
 value's (or its pivoted `[[Prototype]]`'s) reads is the universal invariant: the
@@ -294,8 +327,22 @@ contract-satisfiers tagged otherwise; the constructor-name closes the `Symbol.to
 spoof hole the tag alone leaves open (`isPromise/R3`); and the prototype/constructor
 reciprocal-identity marker (`isStructuralPromisePrototypeEquivalent`, decision #054)
 rejects a value whose own markers are forged but whose prototype's own constructor
-disagrees with the value's resolved constructor. The one _unclosed_ surface is the
-prototype-graft (`isPromise/B2`).
+disagrees with the value's resolved constructor. The one _unclosed_ surface is the BARE
+prototype-graft (`isPromise/B2`, #052); an own-level contract/`constructor` override on
+that graft is now closed by the `#063` own-shadow gate (`isPromise/R8`,`R9`).
+
+**Realm asymmetry on tampered inputs (deliberate):** the two arms weigh evidence
+differently, so for a TAMPERED input they can disagree by realm. The local-realm arm is
+identity-based (`instanceof` + proto-identity + the string-keyed own-shadow gate) and
+blind to a cosmetic `Symbol.toStringTag`: a LOCAL graft carrying only a spoofed tag is
+admitted (`isPromise/A4` → true), because it genuinely carries `Promise.prototype` and the
+tag is a symbol key the gate does not read. The cross-realm arm, lacking a local prototype
+to match, reads the tag via `getTypeSignature`, so the SAME shape from a foreign realm
+rejects (`false`). Decision #063 reconciled the **behavioral** half of this asymmetry —
+own-level method / `constructor` shadowing is now rejected in BOTH realms (locally by the
+gate, cross-realm by the structural contract) — while the **cosmetic** tag half stays
+local-admit / cross-realm-reject by design, the residual #063 leaves standing (parallel to
+`OBJECT.spec.md` and `EVENTED.spec.md`).
 
 **Composition note (axis 4):** two-axis ternary over `isCurrentRealmPromiseInstance`; the
 local-realm arm compares the once-resolved `getInertPrototypeOf` (`@/utility`) read
@@ -418,6 +465,30 @@ narrowing (that is layered on by `isPromise`'s ternary).
   via the `!!PromiseConstructor` guard (hard to exercise in a normal test environment;
   documents the embedding-safety branch — a coverage-axis concern).
 
+### `doesNotShadowPromiseContract(value)` — `@internal` (the #063 own-surface integrity gate)
+
+`!getOwnPropertyNames(value).some(isValueOfBoundSet, disallowedPromiseContractShadowKeys)`,
+wrapped `try/catch → false`. The denylist is the string-keyed set
+`{ constructor, then, catch, finally }` — the `constructor` back-reference plus the
+`Promise.prototype` method contract (ECMA-262 §27.2); a genuine direct `Promise` inherits
+all four and owns none. `Symbol.toStringTag` is deliberately excluded (symbol key,
+invisible to `getOwnPropertyNames`; cosmetic once proto-identity holds). ANDed onto
+`isPromise`'s local fast-path so an own-level override demotes `is`→`Like` (decision
+#063); it does NOT seal the bare graft (decision #052).
+
+- `dNSP/A1` — a genuine `Promise` (`Promise.resolve()`, a subclass instance) → true (owns
+  none of its contract — state in internal slots; the no-false-negative guarantee).
+- `dNSP/A2` — the bare `Object.create(Promise.prototype)` graft → true (owns nothing to
+  shadow — this is why `isPromise/B2` stays admitted).
+- `dNSP/A3` — a graft carrying orthogonal own state (`{ id }`) → true (scalpel over
+  reserved names, not a blanket own-property ban).
+- `dNSP/R1` — an own `then` shadowing the inherited method → false.
+- `dNSP/R2` — an own `constructor` shadowing the back-reference → false.
+- `dNSP/B1` — a hostile `ownKeys` trap that throws → false, **not thrown** (fail-closed: a
+  clean own surface cannot be confirmed → treat as shadowed). The helper-level
+  throw-safety boundary; also pinned through the public `isPromise` by the axis-3
+  `ownKeysTrapAtOwnShadowGate` matrix row.
+
 ---
 
 ## Resolved items
@@ -494,3 +565,38 @@ post-freeze amendment is recorded below (item 4).
    - **Coverage gap closed.** `isPromise/A2` (`new Promise(() => {})`) gained its missing
      matrix row; the axis-3 throw-safety matrix filled the previously-empty
      `isPromiseLike`/`isPromise` × accessor-throw and `isPromise` × descriptor-trap cells.
+
+7. **Evented/object-round parity back-port (impl change, 2026-07-02) — RESOLVED.** A
+   conformance audit of `thenable` (the oldest test-covered module) against the standards
+   the `evented` and `object` rounds aggregated (ADRs #052–#063) found it conforming on
+   the mechanical conventions (#059 threading, #053 seam-export — thenable is the
+   precedent, throw-safety invariant + matrix, six-file suite, frozen-spec discipline) but
+   with three real gaps, now closed. **Unlike the object round, this one DOES change a
+   public verdict** (a hardening): a tampered `Promise.prototype` graft that was admitted
+   is now rejected.
+   - **#063 own-shadow gate on `isPromise`.** A new `@internal`
+     `doesNotShadowPromiseContract` (denylist `{ constructor, then, catch, finally }`,
+     string-keyed own-name membership via `isValueOfBoundSet`, `try/catch → false`) is
+     ANDed onto the local fast-path:
+     `prototype === promisePrototype && doesNotShadowPromiseContract(value)`. An own-level
+     override of a contract method or the `constructor` demotes `is`→`Like`
+     (`isPromise/R8`, `R9`) — the #028 subclass rejection applied to the own layer,
+     exactly parallel to evented's `isEventTarget/R5,R6`. The BARE graft (`isPromise/B2`)
+     stays admitted: `Promise` is unsealable (#052), and the gate is strictly weaker than
+     a slot-seal (it catches the override, not the hollow graft). Verified: a genuine
+     `Promise` owns ZERO denylist keys (`dNSP/A1`) — no false-negatives. Surface 5→6
+     helpers (parallel `.d.ts`).
+   - **#062 non-generic strict predicate.** `isPromise` dropped its `<T=unknown>` generic
+     (it narrows to one intrinsic, `Promise`); `isThenable` / `isPromiseLike` keep theirs
+     (subtype-spectrum). Signature is now
+     `isPromise(value?: unknown): value is Promise<unknown>`.
+   - **Realm-asymmetry formalized + doc cross-references.** A tag-tampered local graft is
+     admitted (`isPromise/A4`) while its foreign counterpart rejects — formalized in a new
+     subsection tying the split to #063 (behavioral half reconciled, cosmetic-tag half the
+     residual), parallel to object/evented. The `isPromise` docs, previously silent on the
+     decisions they were subject to, now cite #052 (bare graft), #062 (non-generic), and
+     #063 (own-shadow).
+
+   Decision-aligned with #063 (which line 89 explicitly forecasts the `isPromise`
+   generalization) + #052 + #062 — no new ADR. Verified: 121 tests / 5 files green,
+   typecheck clean.

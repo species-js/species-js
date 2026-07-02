@@ -23,6 +23,7 @@ import { describe, it, expect } from 'vitest';
 
 import {
   doesImplementPromiseContract,
+  doesNotShadowPromiseContract,
   hasPromiseIdentitySignal,
   isStructuralPromisePrototypeEquivalent,
   isStructuralPromiseEquivalent,
@@ -43,6 +44,11 @@ import {
   localPromisePrototype,
   foreignPromisePrototype,
   foreignPromiseConstructor,
+  promisePrototypeGraft,
+  promiseMethodShadowGraft,
+  promiseConstructorShadowGraft,
+  promiseGraftWithOrthogonalState,
+  ownKeysTrapOverPromiseProto,
 } from '../__config.js';
 
 describe('[Internal] doesImplementPromiseContract', () => {
@@ -176,5 +182,37 @@ describe('[Internal] isCurrentRealmPromiseInstance', () => {
 
   it('iCRPI/R2: { then() {} } → false (not a Promise instance)', () => {
     expect(isCurrentRealmPromiseInstance(ownThenable())).toBe(false);
+  });
+});
+
+describe('[Internal] doesNotShadowPromiseContract (#063 own-surface integrity gate)', () => {
+  it('dNSP/A1: a genuine Promise → true (owns NONE of its contract — state in internal slots)', () => {
+    expect(doesNotShadowPromiseContract(Promise.resolve())).toBe(true);
+    expect(doesNotShadowPromiseContract(promiseSubclassInstance())).toBe(true);
+  });
+
+  it('dNSP/A2: the bare `Object.create(Promise.prototype)` graft → true (owns nothing to shadow)', () => {
+    // why isPromise/B2 stays admitted under #063: the gate finds no own reserved
+    // key. Liveness is a separate, unsealable concern (#052).
+    expect(doesNotShadowPromiseContract(promisePrototypeGraft())).toBe(true);
+  });
+
+  it('dNSP/A3: a graft carrying orthogonal own state (`id`) → true (scalpel, not blanket)', () => {
+    expect(doesNotShadowPromiseContract(promiseGraftWithOrthogonalState())).toBe(true);
+  });
+
+  it('dNSP/R1: an own `then` shadowing the inherited contract method → false', () => {
+    expect(doesNotShadowPromiseContract(promiseMethodShadowGraft())).toBe(false);
+  });
+
+  it('dNSP/R2: an own `constructor` shadowing the back-reference → false', () => {
+    expect(doesNotShadowPromiseContract(promiseConstructorShadowGraft())).toBe(false);
+  });
+
+  it('dNSP/B1: a hostile `ownKeys` trap that throws → false, not thrown (fail-closed)', () => {
+    // helper-level throw-safety boundary: the own-key enumeration is wrapped in
+    // try/catch, so a throwing trap collapses to `false` (cannot confirm a clean
+    // surface → treat as shadowed) rather than propagating.
+    expect(doesNotShadowPromiseContract(ownKeysTrapOverPromiseProto())).toBe(false);
   });
 });

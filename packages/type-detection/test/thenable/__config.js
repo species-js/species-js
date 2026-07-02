@@ -66,6 +66,45 @@ export const tagSpoofedPromise = () => ({
   finally: noop,
 });
 export const promisePrototypeGraft = () => objectCreate(Promise.prototype);
+// own-level contract-shadow grafts onto the real `Promise.prototype` (#063): a
+// direct-prototype value whose OWN property overrides an inherited contract
+// member (`then`) or the `constructor` back-reference — an instance-level
+// subclass layer, demoted from `is` to merely `Like`.
+export const promiseMethodShadowGraft = () =>
+  Object.assign(objectCreate(Promise.prototype), { then: noop });
+export const promiseConstructorShadowGraft = () =>
+  Object.assign(objectCreate(Promise.prototype), { constructor: noop });
+// orthogonal own state (a non-reserved name) does NOT disqualify — the gate is a
+// scalpel over the reserved denylist, not a blanket own-property ban.
+export const promiseGraftWithOrthogonalState = () =>
+  Object.assign(objectCreate(Promise.prototype), { id: 5 });
+// realm-asymmetry pair (#063 residual): a Promise-prototype graft carrying a
+// COSMETIC spoofed tag. Locally the identity arm is tag-blind (instanceof +
+// proto-identity), so it is admitted; the same shape from a foreign realm falls
+// to the structural arm, which reads the tag and rejects — same value, opposite
+// verdict by realm (the cosmetic half #063 leaves standing, unreconciled).
+// `Symbol.toStringTag` must be installed via `defineProperty`, not assignment:
+// `Promise.prototype`'s own tag is a non-writable data property, so `[[Set]]`
+// (what `Object.assign` uses) is blocked by the inherited descriptor.
+export const taggedPromiseGraftLocal = () =>
+  Object.defineProperty(objectCreate(Promise.prototype), Symbol.toStringTag, {
+    value: 'NotPromise',
+    configurable: true,
+  });
+export const taggedPromiseGraftForeign = () =>
+  foreignRealmEval(
+    "Object.defineProperty(Object.create(Promise.prototype), Symbol.toStringTag, { value: 'NotPromise', configurable: true })",
+  );
+// a `Promise.prototype` graft wrapped in a Proxy whose `ownKeys` trap throws:
+// the own-shadow gate's throw-safe boundary reached through the public
+// `isPromise` (instanceof + proto-identity hold, then the gate's own-key read
+// throws and is absorbed to `false`).
+export const ownKeysTrapOverPromiseProto = () =>
+  new Proxy(objectCreate(Promise.prototype), {
+    ownKeys() {
+      throw new Error('own-keys');
+    },
+  });
 
 // foreign-realm shapes (targeted by cross-realm.test.js)
 export const foreignPromise = () => foreignRealmEval('Promise.resolve(1)');
@@ -342,6 +381,12 @@ export const throwSafetyMatrix = {
   pivotedProtoDescriptorTrap: {
     surface: 'descriptor-trap on pivoted `[[Prototype]]` + own tag/contract',
     make: taggedPromiseOverThrowingProtoTrap,
+    expected: { isThenable: true, isPromiseLike: true, isPromise: false },
+  },
+  ownKeysTrapAtOwnShadowGate: {
+    surface:
+      'ownKeys-trap reaching the #063 own-shadow gate: Proxy over `Promise.prototype`',
+    make: ownKeysTrapOverPromiseProto,
     expected: { isThenable: true, isPromiseLike: true, isPromise: false },
   },
 };

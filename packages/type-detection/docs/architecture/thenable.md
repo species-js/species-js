@@ -84,10 +84,11 @@ composing identity and structure rather than choosing one:
   `doesImplementPromiseContract` for the structural check. Cross-realm Promises pass via
   the fallback; userland Promise-likes pass via the fallback too.
 - `isPromise` runs the same realm-fixed `instanceof` check, then DISPATCHES — local-realm
-  arm commits to `prototype === promisePrototype` (the once-resolved, throw-safe
-  `getInertPrototypeOf(value)` read threaded into both arms, decision #059) for
-  direct-instance discrimination in O(1); cross-realm arm runs
-  `isStructuralPromiseEquivalent`, four realm-independent markers — the `Promise`
+  arm commits to `prototype === promisePrototype && doesNotShadowPromiseContract(value)`
+  (the once-resolved, throw-safe `getInertPrototypeOf(value)` read threaded into both
+  arms, decision #059, plus the #063 own-surface integrity gate that demotes an own-level
+  contract override `is`→`Like`) for direct-instance discrimination in O(1); cross-realm
+  arm runs `isStructuralPromiseEquivalent`, four realm-independent markers — the `Promise`
   `[[Class]]`-tag (read through the realm-fixed `Object.prototype.toString.call` capture),
   the `Promise` constructor-name (resolved through the package's pivot-and-walk
   constructor resolution), the structural `doesImplementPromiseContract` check, and a
@@ -142,17 +143,21 @@ future method-contract predicate compose cleanly. See decision #024.
 the `Like`-cascade pattern in decision #050. Two arms, mutually exclusive:
 
 - **Local-realm arm** (`isCurrentRealmPromiseInstance(v) === true`) — settles on
-  `prototype === promisePrototype` (the once-resolved throw-safe
-  `getInertPrototypeOf(v)`). Two O(1) operations. Admits only direct `Promise` instances;
-  subclasses pass `instanceof` but fail the proto-identity check.
+  `prototype === promisePrototype && doesNotShadowPromiseContract(v)` (the once-resolved
+  throw-safe `getInertPrototypeOf(v)`, then the own-surface integrity gate). Admits only
+  direct `Promise` instances; subclasses pass `instanceof` but fail the proto-identity
+  check, and a value that overrides an inherited contract member (or the `constructor`) at
+  its OWN level is demoted `is`→`Like` by the gate — the #028 subclass rejection applied
+  to the own layer (decision #063). The bare graft, owning nothing, stays admitted (#052).
 - **Cross-realm arm** (`isCurrentRealmPromiseInstance(v) === false`) — runs
   `isStructuralPromiseEquivalent`, four realm-independent markers: the `[[Class]]` tag
-  `'[object Promise]'`, the constructor-name `'Promise'` (via
-  `getDefinedConstructorName`'s pivot-and-walk resolution), `doesImplementPromiseContract`
-  for the structural method-contract check, and the prototype/constructor
-  reciprocal-identity marker (`isStructuralPromisePrototypeEquivalent`, decision #054).
-  Cheap-first order; cross-realm subclasses reject at constructor-name before paying for
-  the contract or the prototype-equivalence check.
+  `'[object Promise]'`, the constructor-name `'Promise'` (resolved once via
+  `getDefinedConstructor` + `getVerifiedOwnName`, the pivot-and-walk under
+  `{ assumePrototype: true }` for the prototype leg), `doesImplementPromiseContract` for
+  the structural method-contract check, and the prototype/constructor reciprocal-identity
+  marker (`isStructuralPromisePrototypeEquivalent`, decision #054). Cheap-first order;
+  cross-realm subclasses reject at constructor-name before paying for the contract or the
+  prototype-equivalence check.
 
 The ternary shape is decided by **bottom-seal availability**. Boxed primitives have an
 engine-attested bottom seal (the `[[XData]]` slot probe via `X.prototype.valueOf`); both

@@ -15,8 +15,11 @@
  * while staying cross-realm safe.
  */
 
+import { getOwnPropertyNames } from '@/config';
+
 import {
   TRUSTED_DATA_CONFIRMATION,
+  isValueOfBoundSet,
   getInertPrototypeOf,
   hasInertMethod,
   getTypeSignature,
@@ -86,6 +89,67 @@ export function doesImplementPromiseContract(value) {
     hasInertMethod(value, 'catch', TRUSTED_DATA_CONFIRMATION) &&
     hasInertMethod(value, 'finally', TRUSTED_DATA_CONFIRMATION)
   );
+}
+
+/**
+ * The reserved own-name denylist for {@link doesNotShadowPromiseContract} — the
+ * `constructor` back-reference plus the three `Promise.prototype` contract
+ * methods (ECMA-262 §27.2). A genuine direct `Promise` instance inherits every
+ * one of these and owns none of them (its state lives in internal slots).
+ * `Symbol.toStringTag` is absent — a symbol key (invisible to the string-keyed
+ * `getOwnPropertyNames`) and cosmetic once prototype-identity is proven locally.
+ * @internal
+ */
+const disallowedPromiseContractShadowKeys = new Set([
+  'constructor',
+  'then',
+  'catch',
+  'finally',
+]);
+
+/**
+ * Whether `value` leaves the inherited `Promise` surface UN-shadowed at its own
+ * level — no own property whose name is in the reserved denylist
+ * (`disallowedPromiseContractShadowKeys`: the `constructor` back-reference plus
+ * the `then`/`catch`/`finally` method contract). The own-surface integrity-gate
+ * the strict local {@link isPromise} fast-path ANDs onto its
+ * `prototype === promisePrototype` identity-check (decision #063).
+ *
+ * A genuine direct `Promise` instance inherits its whole method-contract and its
+ * `constructor` link from `Promise.prototype` and owns none of it. So an own
+ * property shadowing a reserved member is an instance-level override —
+ * structurally an anonymous subclass-layer — and demotes the value from `is` to
+ * merely `PromiseLike`, symmetric with the #028 subclass-rejection applied to the
+ * own layer. Orthogonal own state (a value's own `id`, say) is untouched: only
+ * the reserved member-names disqualify, never mere own-property presence.
+ *
+ * Weaker than a structural seal by design (decision #052): `Promise` exposes no
+ * inert slot-reader, so the bare graft `Object.create(Promise.prototype)` — which
+ * owns nothing — cannot be caught here and stays admitted (`isPromise/B2`). This
+ * gate closes the own-level override, not the hollow bare graft.
+ *
+ * Throw-safe and fail-closed: a hostile `ownKeys` trap that throws collapses to
+ * `false` (a clean own surface cannot be confirmed → treat as shadowed → reject),
+ * never propagating. Membership is tested via the `this`-bound `isValueOfBoundSet`
+ * with the denylist passed as the `some` `thisArg`, so no per-call closure is
+ * allocated.
+ *
+ * @param {object} value - the direct-instance candidate whose OWN property names
+ *  are enumerated; assumed by the caller to carry `promisePrototype` as its
+ *  `[[Prototype]]`
+ * @returns {boolean} `true` when no own property name shadows a reserved member;
+ *  `false` when one does, or when the own-key enumeration throws
+ * @internal
+ */
+export function doesNotShadowPromiseContract(value) {
+  try {
+    return !getOwnPropertyNames(value).some(
+      isValueOfBoundSet,
+      disallowedPromiseContractShadowKeys,
+    );
+  } catch {
+    return false;
+  }
 }
 
 /**
@@ -256,7 +320,12 @@ export function isPromiseLike(value) {
  * (decision #059). The pair admits only direct `Promise` instances;
  * subclasses pass `instanceof` but fail the prototype identity-check,
  * preserving subclass rejection in two O(1) operations. Both captures are
- * realm-fixed at module-load.
+ * realm-fixed at module-load. The pair is further gated by
+ * {@link doesNotShadowPromiseContract}: a value that overrides an inherited
+ * contract method (or the `constructor`) at its OWN level —
+ * `Object.create(Promise.prototype, { then })` — is an instance-level subclass
+ * layer, demoted to merely `PromiseLike` (decision #063, the #028 subclass
+ * rejection applied to the own layer).
  *
  * On miss, falls back to a three-marker structural chain-run in cost-order:
  * the `[[Class]]` tag `'Promise'` (single `Object.prototype.toString.call`),
@@ -281,18 +350,25 @@ export function isPromiseLike(value) {
  * Consumers needing subclass admission should compose with a
  * constructor-chain walk on top of this predicate.
  *
- * Generic in `T` per the family-pattern. The narrow returns
- * `T & Promise<unknown>`; `T = unknown` collapses to `Promise<unknown>`.
+ * The bare graft `Object.create(Promise.prototype)` stays admitted: `Promise`
+ * exposes no inert slot-reader, so a hollow direct-prototype value cannot be
+ * caught (decision #052, `isPromise/B2`). The own-shadow gate closes the
+ * own-level override, not the hollow graft.
  *
- * @template [T=unknown]
- * @param {T} [value] - the value to test; omitted is treated as
+ * Strict identity narrows to the concrete `Promise` intrinsic, so — unlike the
+ * subclass-admitting `isPromiseLike` / `isThenable` predicates — it is
+ * intentionally non-generic (decision #062): every admitted value IS exactly a
+ * `Promise`, with no caller-side type to preserve.
+ *
+ * @param {unknown} [value] - the value to test; omitted is treated as
  *  `undefined`, which is not a `Promise`
- * @returns {value is T & Promise<unknown>} `true` when either the
- *  local-realm identity pair or the cross-realm structural chain holds,
- *  narrowing `value` to `T & Promise<unknown>`; `false` otherwise
+ * @returns {value is Promise<unknown>} `true` when the local-realm identity pair
+ *  (with own-surface integrity) or the cross-realm structural chain holds;
+ *  `false` otherwise
  * @example
  * isPromise(Promise.resolve());                                   // true (instanceof + proto)
- * isPromise({ then: () => {} });                                  // false
+ * isPromise(Object.create(Promise.prototype));                    // true (bare graft, #052)
+ * isPromise(Object.assign(Object.create(Promise.prototype), { then() {} })); // false (own-shadow, #063)
  * isPromise({ [Symbol.toStringTag]: 'Promise', then: () => {} }); // false (spoof)
  * isPromise(42);                                                  // false
  */
@@ -303,7 +379,10 @@ export function isPromise(value) {
   const prototype = getInertPrototypeOf(value);
 
   return isCurrentRealmPromiseInstance(value)
-    ? prototype === promisePrototype
+    ? // local-realm fast-path: prototype-identity AND own-surface integrity —
+      // reject an instance-level override of the inherited contract (#063).
+      prototype === promisePrototype &&
+        doesNotShadowPromiseContract(/** @type {object} */ (value))
     : isStructuralPromiseEquivalent(value, prototype);
 }
 
