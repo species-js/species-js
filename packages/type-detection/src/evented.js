@@ -20,7 +20,12 @@
  * structural-then-identity layering as their EventTarget counterparts.
  */
 
-import { getOwnPropertyDescriptors, getOwnPropertyNames, objectCreate } from '@/config';
+import {
+  BLANK_DICTIONARY,
+  getOwnPropertyDescriptors,
+  getOwnPropertyNames,
+} from '@/config';
+
 import {
   TRUSTED_DATA_CONFIRMATION,
   INSTANCE_LESS_CONSTRUCTOR,
@@ -55,12 +60,12 @@ const AbortSignalConstructor = /** @type {typeof AbortSignal | Callable} */ (
 
 const eventTargetPrototype =
   EventTargetConstructor === INSTANCE_LESS_CONSTRUCTOR
-    ? objectCreate(null)
+    ? BLANK_DICTIONARY
     : /** @type {object} */ (EventTargetConstructor.prototype);
 
 const abortSignalPrototype =
   AbortSignalConstructor === INSTANCE_LESS_CONSTRUCTOR
-    ? objectCreate(null)
+    ? BLANK_DICTIONARY
     : /** @type {object} */ (AbortSignalConstructor.prototype);
 
 /**

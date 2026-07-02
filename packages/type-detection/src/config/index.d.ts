@@ -206,6 +206,14 @@ export declare const objectCreate: {
 };
 
 /**
+ * A single realm-fixed blank dictionary — `Object.create(null)`: no prototype,
+ * no members, captured once at module-load. The shared sentinel for an
+ * absent-global prototype capture, compared by identity and never mutated.
+ * @internal
+ */
+export declare const BLANK_DICTIONARY: Record<PropertyKey, never>;
+
+/**
  * `Object.freeze`, realm-fixed at module-load.
  * @internal
  */

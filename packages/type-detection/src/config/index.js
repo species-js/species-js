@@ -199,14 +199,33 @@ export const objectIs = o.is;
 /**
  * `Object.create`, realm-fixed at module-load.
  *
- * The `.d.ts` retypes the lib's `any` return on both overloads to
- * overload-precise return types: `Record<PropertyKey, never>` on the
- * `null`-prototype variant, `object` otherwise. This closes the
- * `any`-assignment cascade at consumer sites. The runtime export is
- * the unwrapped native method.
+ * Retyped at capture — via the same overload set the `.d.ts` declares —
+ * from the lib's `any` return to overload-precise return types:
+ * `Record<PropertyKey, never>` on the `null`-prototype variant, `object`
+ * otherwise. The inline `@type` cast (rather than `@param`/`@returns`
+ * JSDoc, which TS does not apply to a function alias) is what lets in-file
+ * callers — e.g. `BLANK_DICTIONARY` below — inherit the precise return
+ * instead of `any`, closing the `@typescript-eslint/no-unsafe-assignment`
+ * cascade here as well as at external consumer sites. The runtime export
+ * is the unwrapped native method.
  * @internal
  */
-export const objectCreate = o.create;
+export const objectCreate =
+  /** @type {{ (o: null): Record<PropertyKey, never>; (o: object): object; (o: object | null, properties: PropertyDescriptorMap & ThisType<unknown>): object }} */ (
+    o.create
+  );
+
+/**
+ * A single realm-fixed blank dictionary — `Object.create(null)`: no prototype,
+ * no members, captured once at module-load. The shared sentinel for an
+ * absent-global prototype capture (a runtime without `EventTarget` /
+ * `AbortSignal`, decision #060) — compared by identity, never mutated. Defined
+ * here (after `objectCreate`, one layer below `@/utility`) so its eval-time
+ * `objectCreate(null)` runs only once `objectCreate` is initialized, not
+ * mid-cycle.
+ * @internal
+ */
+export const BLANK_DICTIONARY = objectCreate(null);
 
 /**
  * `Object.freeze`, realm-fixed at module-load.
