@@ -24,6 +24,8 @@ import {
   hasPlainObjectIdentitySignal,
   isObjectPrototypeEquivalent,
   getInertPrototypeOf,
+  getDefinedConstructor,
+  getVerifiedOwnName,
 } from '@/index.js';
 
 import {
@@ -45,11 +47,18 @@ describe('object — cross-realm (axis 2)', () => {
   });
 
   it('the structural helpers carry the foreign verdict (local fast-path missed)', () => {
-    const foreign = foreignPlainObject();
-    expect(hasPlainObjectIdentitySignal(foreign), 'signal').toBe(true);
-    // the contract helper takes the already-resolved [[Prototype]] (#059): the
-    // foreign Object.prototype satisfies the six-marker contract in every realm.
-    expect(isObjectPrototypeEquivalent(getInertPrototypeOf(foreign)), 'contract').toBe(
+    const foreign = /** @type {object} */ (foreignPlainObject());
+    // Resolve the threaded constructor/name ONCE from the [[Prototype]], exactly
+    // as `isAlienRealmPlainObject` does (#059) — the foreign `Object` resolves to
+    // name `'Object'` in every realm.
+    const prototype = /** @type {object} */ (getInertPrototypeOf(foreign));
+    const constructor = getDefinedConstructor(prototype, { assumePrototype: true });
+    const name = getVerifiedOwnName(constructor);
+    expect(hasPlainObjectIdentitySignal(foreign, name), 'signal').toBe(true);
+    // the contract helper takes the already-resolved [[Prototype]] plus the
+    // threaded constructor/name: the foreign Object.prototype satisfies the
+    // six-marker contract in every realm.
+    expect(isObjectPrototypeEquivalent(prototype, constructor, name), 'contract').toBe(
       true,
     );
   });

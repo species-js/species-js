@@ -21,8 +21,9 @@
  * Throw-safety (hostile Proxies: prototype-trap, descriptor-trap, surgical /
  * blanket constructor-trap, throwing tag getter) is the universal invariant and
  * lives in its own matrix — see `throw-safety.test.js`. The member-surface
- * `ownKeys`-trap and the standalone `isObjectPrototypeEquivalent` throw-safety
- * are HELPER-level boundaries (`dIOPC/B1`, `iOPE/B1`) — see
+ * `ownKeys`-trap and the `isObjectPrototypeEquivalent` throw-safety (fed the
+ * threaded prototype/constructor/name, as `isAlienRealmPlainObject` resolves
+ * them) are HELPER-level boundaries (`dIOPC/B1`, `iOPE/B1`) — see
  * `_internal/helpers.test.js`.
  *
  * Mirrors the "Spoof (axis 3)" expectations in `docs/spec/OBJECT.spec.md`.

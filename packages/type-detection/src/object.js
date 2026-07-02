@@ -13,8 +13,8 @@
  * predicates use cross-realm-safe machinery (`getOwnPropertyDescriptors`
  * and the realm-fixed `objectPrototype` reference from `@/config`; the
  * throw-safe `getInertPrototypeOf`, `getInertDescriptor`,
- * `getVerifiedOwnName`, plus `getTypeSignature`, `getDefinedConstructor`,
- * `getDefinedConstructorName` from `@/utility`; `isCallable` and
+ * `getVerifiedOwnName`, plus `getTypeSignature` and
+ * `getDefinedConstructor` from `@/utility`; `isCallable` and
  * `isClass` from `@/function`) — they discriminate the constructor
  * identity realm-independently rather than via local `instanceof Object`
  * which would miss cross-realm Plain Objects. Every prototype and
@@ -36,12 +36,13 @@ import {
   getVerifiedOwnName,
   getTypeSignature,
   getDefinedConstructor,
-  getDefinedConstructorName,
 } from '@/utility';
 
 import { isCallable, isClass } from '@/function.js';
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
+
+/** @typedef {import('@/function').NewableFunction} NewableFunction */
 
 /** @typedef {import('@/object').AnyObject} AnyObject */
 /** @typedef {import('@/object').PlainObject} PlainObject */
@@ -65,19 +66,19 @@ import { isCallable, isClass } from '@/function.js';
  * non-null non-function objects: plain objects, arrays, dates, maps,
  * class instances, prototype-less objects, and boxed primitives.
  *
- * Realm-independent — `typeof` reads identically in every realm, and
- * truthiness is spec-defined.
+ * Realm-independent — `typeof` reads identically in every realm,
+ * and truthiness is spec-defined.
  *
- * Generic in `T` per the family-pattern (decisions #031, #039). The
- * narrow returns `T & AnyObject`; `T = unknown` collapses to
- * `AnyObject`.
+ * Generic in `T` per the family-pattern (decisions #031, #039).
+ * The narrow returns `T & AnyObject`; `T = unknown` collapses
+ * to `AnyObject`.
  *
  * @template [T=unknown]
- * @param {T} [value] - the value to test; omitted is treated as
- *  `undefined`, which is not an object
- * @returns {value is T & AnyObject} `true` when the value is a
- *  non-null non-function object, narrowing `value` to `T & AnyObject`;
- *  `false` otherwise
+ * @param {T} [value] - the value to test; omitted is treated
+ *  as `undefined`, which is not an object
+ * @returns {value is T & AnyObject} `true` when the value
+ *  is a non-null non-function object, narrowing `value` to
+ *  `T & AnyObject`; `false` otherwise
  * @example
  * isObject({});                  // true
  * isObject([]);                  // true (arrays are objects)
@@ -137,17 +138,16 @@ export function hasDictionaryObjectIdentitySignal(value) {
  * Also reused by the fused {@link isPlainOrDictionaryObject} dispatch
  * on its cross-realm branch.
  *
- * @param {unknown} [value] - the value whose string-shape signal
- *  to probe
+ * @param {object} value - the value whose `[[Class]]` tag to read;
+ *  assumed to be an object provided by the caller
+ * @param {string | undefined} name - the initial value's already
+ *  resolved constructor name, threaded in by the caller
  * @returns {boolean} `true` when both string-shape markers match
  *  `Object`'s signature; `false` otherwise
  * @internal
  */
-export function hasPlainObjectIdentitySignal(value) {
-  return (
-    getTypeSignature(value) === '[object Object]' &&
-    getDefinedConstructorName(value) === 'Object'
-  );
+export function hasPlainObjectIdentitySignal(value, name) {
+  return name === 'Object' && getTypeSignature(value) === '[object Object]';
 }
 
 /**
@@ -261,12 +261,12 @@ function getObjectPrototypeDescriptorNames() {
  *
  * Augmentation-tolerant: extra own properties on the prototype (a
  * polyfill, a monkeypatched method) do not break the check, since it
- * verifies presence of the canonical set rather than set equality.
+ * verifies the presence of the canonical set rather than set equality.
  *
  * Residual: a spoof that installs the full canonical set as genuine
  * non-enumerable methods passes — accepted by design, as the structural
  * contract is a best-effort "looks like `Object.prototype`" check; this
- * marker closes the cheap spoof, not every conceivable one.
+ * marker closes the easy spoof, not every conceivable one.
  *
  * Throw-safe: a hostile `Proxy` `ownKeys` / `getOwnPropertyDescriptor`
  * trap that throws is caught and yields `false` rather than propagating.
@@ -340,23 +340,16 @@ export function doesImplementObjectPrototypeContract(prototype) {
  * its own descriptor read.
  *
  *
- * @param {unknown} prototype - the value's already-resolved `[[Prototype]]`,
+ * @param {object} prototype - the value's already-resolved `[[Prototype]]`,
  *  threaded in by the caller that read it first (decision #059)
+ * @param {NewableFunction | undefined} constructor - the value's
+ *  already-resolved `[[Constructor]]`, threaded in by the caller
+ * @param {string | undefined} name - the initial value's already
+ *  resolved constructor name, threaded in by the caller
  * @returns {boolean} `true` when all six markers hold; `false` otherwise
  * @internal
  */
-export function isObjectPrototypeEquivalent(prototype) {
-  // `assumePrototype: true` — the threaded `prototype` IS a real
-  // prototype object; its own `constructor` descriptor is the
-  // spec-mandated source (ECMA-262 §10.2.6). Without this hint,
-  // `getDefinedConstructor` would walk one level further up and read
-  // `Object.prototype`'s own constructor (i.e. `Object`) for EVERY
-  // plain object's prototype, including `Object.prototype` itself
-  // — which would overshoot, yielding `undefined` for the canonical
-  // local-realm case. `prototype` is threaded in by the predicates that
-  // already read it (decision #059); the helper never re-reads it.
-  const constructor = getDefinedConstructor(prototype, { assumePrototype: true });
-
+export function isObjectPrototypeEquivalent(prototype, constructor, name) {
   // Markers 3/4 read the constructor's own `name` / `prototype` through the
   // throw-safe `getVerifiedOwnName` and `getInertDescriptor` (decision #056):
   // a hostile `getOwnPropertyDescriptor` Proxy-trap on the constructor yields
@@ -364,8 +357,7 @@ export function isObjectPrototypeEquivalent(prototype) {
   // descriptor read for the same reason.)
   return (
     isClass(constructor) &&
-    getTypeSignature(prototype) === '[object Object]' &&
-    getVerifiedOwnName(constructor) === 'Object' &&
+    hasPlainObjectIdentitySignal(prototype, name) &&
     getInertDescriptor(constructor, 'prototype', TRUSTED_DATA_CONFIRMATION)?.value ===
       prototype &&
     getInertPrototypeOf(prototype) === null &&
@@ -385,8 +377,9 @@ export function isObjectPrototypeEquivalent(prototype) {
  * unexported; its behavior is covered through the two exported helpers
  * it composes.
  *
- * @param {unknown} value - the candidate whose Plain Object structure
- *  and contract is to be verified
+ * @param {object} value - the candidate whose Plain Object structure
+ *  and contract is to be verified; assumed to be an object provided
+ *  by the caller
  * @param {object} prototype - the value's already-resolved `[[Prototype]]`,
  *  threaded in by the caller that read it first (decision #059)
  * @returns {boolean} `true` when the signal gate and the structural
@@ -394,8 +387,22 @@ export function isObjectPrototypeEquivalent(prototype) {
  * @internal
  */
 function isAlienRealmPlainObject(value, prototype) {
-  // PlainObject — cross-realm fallback; thread the already-read prototype (#059)
-  return hasPlainObjectIdentitySignal(value) && isObjectPrototypeEquivalent(prototype);
+  // `assumePrototype: true` — the threaded `prototype` IS a real
+  // prototype object; its own `constructor` descriptor is the
+  // spec-mandated source (ECMA-262 §10.2.6). Without this hint,
+  // `getDefinedConstructor` would walk one level further up and read
+  // `Object.prototype`'s own constructor (i.e. `Object`) for EVERY
+  // plain object's prototype, including `Object.prototype` itself
+  // — which would overshoot, yielding `undefined` for the canonical
+  // local-realm case. `prototype` is threaded in by the predicates that
+  // already read it (decision #059); the helper never re-reads it.
+  const constructor = getDefinedConstructor(prototype, { assumePrototype: true });
+  const name = getVerifiedOwnName(constructor);
+
+  return (
+    hasPlainObjectIdentitySignal(value, name) &&
+    isObjectPrototypeEquivalent(prototype, constructor, name)
+  );
 }
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
@@ -452,8 +459,8 @@ function isAlienRealmPlainObject(value, prototype) {
  * (`toObjectString.call` via `getTypeSignature`, the throw-safe
  * `getInertPrototypeOf`, `getVerifiedOwnName` and `getInertDescriptor`,
  * and a guarded `getOwnPropertyDescriptors` for the member surface) and
- * the four-source constructor walk (via `getDefinedConstructor` /
- * `getDefinedConstructorName`). Cross-realm Plain Objects (from
+ * the four-source constructor walk (via `getDefinedConstructor`, its
+ * name read via `getVerifiedOwnName`). Cross-realm Plain Objects (from
  * iframes, workers, vm contexts) pass via the fallback: the local
  * `Object.prototype` reference does not match their prototype, but
  * their structural contract matches in every realm.
@@ -522,7 +529,7 @@ export function isPlainObject(value) {
     // - excluding cross-realm fast-path short-circuit for a
     //   possible dictionary (like) or a "tampered-with" object
     !!prototype &&
-    // PlainObject — local-realm fast-path
+    // PlainObject — local-realm fast-path: prototype-identity
     (prototype === objectPrototype ||
       // PlainObject — cross-realm fallback; thread the already-read prototype (#059)
       isAlienRealmPlainObject(value, prototype))
@@ -562,7 +569,7 @@ export function isPlainObject(value) {
  *
  * Realm-independent. The prototype-less state is realm-orthogonal
  * (no constructor identity is involved), and both the
- * `getDefinedConstructor` walk and the `getTypeSignature` capture
+ * `getDefinedConstructor` walk, and the `getTypeSignature` capture
  * are cross-realm safe.
  *
  * Throw-safe: the prototype read routes through `getInertPrototypeOf`,
@@ -656,7 +663,7 @@ export function isPlainOrDictionaryObject(value) {
   }
   const prototype = getInertPrototypeOf(value);
 
-  // PlainObject — local-realm fast-path
+  // PlainObject — local-realm fast-path: prototype-identity
   if (prototype === objectPrototype) {
     return true;
   }

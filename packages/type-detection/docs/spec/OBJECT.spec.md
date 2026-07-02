@@ -24,7 +24,15 @@
 > withdrew the per-input public throw-safety vectors into the matrix, kept the
 > helper-level boundaries (`dIOPC/B1`, new `iOPE/B1`), and fixed the
 > `hasDictionaryObjectIdentitySignal` operand order in the `isDictionaryObject` prose; no
-> admit/reject verdict changed — see Resolved items #4.
+> admit/reject verdict changed — see Resolved items #4. Amended 2026-07-02 — completed the
+> #059 threading learning across the cross-realm anchor: `isAlienRealmPlainObject` now
+> resolves the prototype's `constructor` and `name` ONCE (`getDefinedConstructor` +
+> `getVerifiedOwnName`) and threads all three into its two halves;
+> `hasPlainObjectIdentitySignal` gained a `name` parameter (folds the old
+> `getDefinedConstructorName` self-read) and is reused for both the value and — as markers
+> 2+3 — the prototype; `isObjectPrototypeEquivalent` became three-arg
+> (`prototype, constructor, name`); `getDefinedConstructorName` dropped from `object.js`.
+> No admit/reject verdict changed — see Resolved items #5.
 
 ## Module contract
 
@@ -61,8 +69,8 @@ are exposed to, and the throw-safe reader each routes through:
 - **prototype-trap** (a `Proxy` whose `getPrototypeOf` throws) → `getInertPrototypeOf`;
 - **descriptor-trap** (a `Proxy` whose `getOwnPropertyDescriptor` throws — on the value,
   on a pivoted `[[Prototype]]`, or on a hostile `constructor`) → `getInertDescriptor`,
-  `getDefinedConstructor` / `getDefinedConstructorName`, `getVerifiedOwnName`, and
-  `isClass` (each throw-safe at its own read; `isClass` root-fixed in `@/function`);
+  `getDefinedConstructor`, `getVerifiedOwnName`, and `isClass` (each throw-safe at its own
+  read; `isClass` root-fixed in `@/function`);
 - **ownKeys-trap** (a `Proxy` whose `ownKeys` throws) → the `try/catch`-wrapped
   `getOwnPropertyDescriptors` inside `doesImplementObjectPrototypeContract` (marker 6);
 - **tag-getter-throw** (a throwing `Symbol.toStringTag`) → `getTypeSignature`.
@@ -82,9 +90,9 @@ cross-realm structural arm; see
 
 The exhaustive `hostile-class × predicate` proof lives in the test suite (axis 3), not
 here — see [`./README.md`](./README.md) → "Throw-safety — the universal invariant". The
-member-surface `ownKeys`-trap and the standalone `isObjectPrototypeEquivalent`
-throw-safety are **helper-level** boundaries (`dIOPC/B1`, `iOPE/B1`), kept as axis-4
-vectors.
+member-surface `ownKeys`-trap and the `isObjectPrototypeEquivalent` throw-safety (fed the
+threaded prototype/constructor/name, exactly as `isAlienRealmPlainObject` resolves them)
+are **helper-level** boundaries (`dIOPC/B1`, `iOPE/B1`), kept as axis-4 vectors.
 
 ## Surface inventory
 
@@ -93,20 +101,25 @@ vectors.
 
 **Exported `@internal` helpers (axis 4):**
 
-- `hasPlainObjectIdentitySignal` — two inexpensive plain-object string-shape markers (tag
-  `'[object Object]'` + constructor-name `'Object'`).
+- `hasPlainObjectIdentitySignal` — two inexpensive plain-object string-shape markers (the
+  threaded constructor `name` `'Object'` + tag `'[object Object]'`); the `name` is
+  resolved once by the caller and threaded in (#059).
 - `hasDictionaryObjectIdentitySignal` — the dictionary counterpart (tag
   `'[object Object]'` and NO reachable constructor).
-- `isObjectPrototypeEquivalent` — the six-marker prototype contract over an
-  already-resolved `[[Prototype]]` (one arg, threaded by the caller per #059).
+- `isObjectPrototypeEquivalent` — the six-marker prototype contract, fed the
+  already-resolved `[[Prototype]]`, constructor, and name (all threaded by the caller per
+  #059).
 - `doesImplementObjectPrototypeContract` — marker 6 in isolation: the prototype's own
   member surface against the host-calibrated canonical `Object.prototype` member set.
 
 Exporting these is what makes the cross-realm structural arm of `isPlainObject`
 unit-testable on **local** values (the helpers carry no local-realm fast-path, so they run
 the realm-independent logic directly — no `vm` realm needed). The unexported seam
-`isAlienRealmPlainObject(value, prototype) = hasPlainObjectIdentitySignal(value) && isObjectPrototypeEquivalent(prototype)`
-is covered transitively through the two helpers it composes.
+`isAlienRealmPlainObject` resolves `constructor`/`name` once from the threaded prototype,
+then returns
+`hasPlainObjectIdentitySignal(value, name) && isObjectPrototypeEquivalent(prototype, constructor, name)`;
+it is covered transitively through the two helpers it composes (each unit test re-derives
+the same threaded arguments the seam would hand it).
 
 **Exported types without a predicate:** `AnyObject`, `PlainObject`, `DictionaryObject`,
 `PlainOrDictionaryObject`.
@@ -336,16 +349,21 @@ changed.
 
 ## Helper specification (axis 4)
 
-### `hasPlainObjectIdentitySignal(value?)` — `@internal`
+### `hasPlainObjectIdentitySignal(value, name)` — `@internal`
 
-`getTypeSignature(value) === '[object Object]' && getDefinedConstructorName(value) === 'Object'`.
+`name === 'Object' && getTypeSignature(value) === '[object Object]'`. The `name` is the
+constructor name the caller already resolved (via `getVerifiedOwnName`, #059) and threads
+in — the helper no longer self-reads it. Reused for both the value and — inside
+`isObjectPrototypeEquivalent`, as markers 2+3 — the prototype, each fed the same threaded
+`name`. The vectors below feed the `name` derived from the input exactly as the predicate
+does (the unit test's `hPOIS` wrapper re-derives it).
 
 - `hPOIS/A1` — `{}`, `new Object()`, `Object.create(Object.prototype)` → true.
 - `hPOIS/R1` — `[]` (tag `'[object Array]'`), `new Date()` (tag `'[object Date]'`) →
   false.
-- `hPOIS/R2` — `Object.create(null)` → false (constructor-name resolves to `undefined`,
+- `hPOIS/R2` — `Object.create(null)` → false (the threaded `name` resolves to `undefined`,
   not `'Object'`).
-- `hPOIS/R3` — `new (class Foo {})()` → false (constructor-name `'Foo'`).
+- `hPOIS/R3` — `new (class Foo {})()` → false (threaded `name` `'Foo'`).
 
 ### `hasDictionaryObjectIdentitySignal(value?)` — `@internal`
 
@@ -363,42 +381,48 @@ expects NO reachable constructor instead of constructor-name `'Object'`. Reused 
 - `hDOIS/R2` — a prototype-less object with a spoofed own `Symbol.toStringTag` → false
   (the tag cross-validator rejects the lie).
 
-### `isObjectPrototypeEquivalent(prototype?)` — `@internal` (the six-marker cross-realm anchor; takes the already-resolved `[[Prototype]]`, #059; runs the realm-independent logic on local values)
+### `isObjectPrototypeEquivalent(prototype, constructor, name)` — `@internal` (the six-marker cross-realm anchor; fed the already-resolved `[[Prototype]]`, constructor, and name, #059; runs the realm-independent logic on local values)
 
 Markers, short-circuited in cost-order:
 
-1. `isClass(constructor)` — the constructor reached via
-   `getDefinedConstructor(prototype, { assumePrototype: true })` is a built-in or
+1. `isClass(constructor)` — the threaded `constructor` (resolved by the caller via
+   `getDefinedConstructor(prototype, { assumePrototype: true })`) is a built-in or
    `class`-syntax newable.
-2. `getTypeSignature(prototype) === '[object Object]'` — the prototype's own `[[Class]]`
-   tag matches.
-3. `getVerifiedOwnName(constructor) === 'Object'` — the constructor's own `name` reads
-   `'Object'` (throw-safe; accessor-form `name` yields `undefined`).
-4. `getInertDescriptor(constructor, 'prototype').value === prototype` — round-trip
+2. - 3. `hasPlainObjectIdentitySignal(prototype, name)` — the two identity-signal markers
+        applied to the prototype: the threaded `name` is `'Object'` (marker 3, checked
+        first) AND the prototype's own `[[Class]]` tag is `'[object Object]'` (marker 2).
+        The `name` was resolved once via `getVerifiedOwnName` (throw-safe; accessor-form
+        `name` yields `undefined`).
+3. `getInertDescriptor(constructor, 'prototype').value === prototype` — round-trip
    identity (throw-safe; accessor-form yields `undefined`).
-5. `getInertPrototypeOf(prototype) === null` — chain-depth check (top-level prototype).
-6. `doesImplementObjectPrototypeContract(prototype)` — member-surface check: the prototype
+4. `getInertPrototypeOf(prototype) === null` — chain-depth check (top-level prototype).
+5. `doesImplementObjectPrototypeContract(prototype)` — member-surface check: the prototype
    carries every canonical `Object.prototype` member as its own non-enumerable callable.
 
 - `iOPE/A1` — the `[[Prototype]]` of `{}` / `new Object()` → true (all six markers hold
   for a real `Object.prototype`).
 - `iOPE/R1` — the `[[Prototype]]` of `[]` → false (marker 2:
   `getTypeSignature(Array.prototype)` is `'[object Array]'`).
-- `iOPE/R2` — the `[[Prototype]]` of `new (class Foo {})()` → false (marker 3: constructor
-  `name` is `'Foo'`, not `'Object'`).
-- `iOPE/R3` — a `null` prototype (`Object.create(null)`'s) → false (`isObject(prototype)`
-  is false → no constructor → `isClass` fails).
+- `iOPE/R2` — the `[[Prototype]]` of `new (class Foo {})()` → false (marker 3: threaded
+  constructor `name` is `'Foo'`, not `'Object'`).
+- `iOPE/R3` — a `null` prototype (`Object.create(null)`'s) → false (no constructor is
+  reachable from a `null` prototype → the threaded `constructor` is `undefined` →
+  `isClass` fails at marker 1).
 - `iOPE/R4` — a hand-crafted prototype carrying a `constructor` tampered to point at the
   global `Object` → false (round-trip marker 4:
   `Object.prototype !== the hand-crafted prototype`).
 - `iOPE/R5` — the `[[Prototype]]` of a hollow `class extends null` renamed `'Object'` →
   false. Satisfies markers 1–5; only the member-surface marker 6 rejects it.
 - `iOPE/B1` — a prototype carrying a hostile `constructor` whose
-  `getOwnPropertyDescriptor` trap throws (surgical: only on `'prototype'`, reaching
-  markers 3/4; blanket: every key, caught at marker 1 `isClass`) → false, **not thrown**.
-  The helper-level throw-safety boundary (parallel to `dIOPC/B1`): invoked standalone with
-  no signal gate in front, it must itself be throw-safe at `isClass` +
-  `getVerifiedOwnName` + `getInertDescriptor`.
+  `getOwnPropertyDescriptor` trap throws (surgical: only on `'prototype'`, reaching marker
+  4; blanket: every key) → false, **not thrown**. The helper-level throw-safety boundary
+  (parallel to `dIOPC/B1`): fed through the full threaded path — constructor and name
+  resolved from the prototype exactly as `isAlienRealmPlainObject` does, then the helper
+  called. Both hostile constructors are absorbed at marker 1 (`isClass`, itself throw-safe
+  at its own `prototype` descriptor read); the blanket trap additionally makes the
+  threaded `name` resolve to `undefined` via the throw-safe `getVerifiedOwnName`, so that
+  resolution path is exercised too. A propagated throw would surface as a test error, not
+  a `false`.
 
 ### `doesImplementObjectPrototypeContract(value?)` — `@internal` (marker 6 in isolation)
 
@@ -541,5 +565,35 @@ callable-valued **own** data property. Reads own descriptors only — never inhe
      JSDoc, and pinned by both the throw-safety matrix (throwing tag) and an
      `adversarial.test.js` pair (non-throwing spoofed tag). Every legitimate plain object
      still agrees across realms; the divergence appears only under tampering.
+
+5. **#059 threading completed across the anchor (impl change, 2026-07-02) — RESOLVED.**
+   Applying the yesterday's `evented` learnings back to `object`, the constructor/name
+   resolution was lifted out of `isObjectPrototypeEquivalent` and up into the caller,
+   completing the #059 "resolve once, thread down" posture the prototype already followed.
+   No public admit/reject verdict changed (verified: the full object suite — 127 tests
+   over 5 files — stays green); the change is structural:
+   - **`isAlienRealmPlainObject` resolves once, threads down.** It now reads the
+     prototype's `constructor`
+     (`getDefinedConstructor(prototype, { assumePrototype: true })`) and its `name`
+     (`getVerifiedOwnName`) ONCE, then passes both into
+     `hasPlainObjectIdentitySignal(value, name)` and
+     `isObjectPrototypeEquivalent(prototype, constructor, name)`. The
+     `{ assumePrototype: true }` rationale (ECMA-262 §10.2.6, #047) moved with the read.
+   - **`hasPlainObjectIdentitySignal` gained a `name` parameter.** Its body is now
+     `name === 'Object' && getTypeSignature(value) === '[object Object]'` — the old
+     `getDefinedConstructorName(value)` self-read is gone (that utility is dropped from
+     `object.js`; it remains in use by `function.js` / `primitive.js`). The helper is now
+     reused for markers 2+3 inside `isObjectPrototypeEquivalent` (fed the prototype and
+     the same threaded `name`), eliminating a duplicated tag/name pair.
+   - **`isObjectPrototypeEquivalent` became three-arg** (`prototype, constructor, name`);
+     it no longer resolves the constructor itself. Marker 3 now runs before marker 2 (the
+     signal helper checks `name` first), both cheap — a cost-order refinement, not a
+     behavior change.
+
+   The unit tests (`_internal/helpers.test.js`, `cross-realm.test.js`) re-derive the same
+   threaded `constructor`/`name` each helper's call site would hand it, so a rejection
+   still fails at the marker the vector names. Decision-aligned with #059 (no new ADR —
+   same "thread, don't re-read" posture, now applied to the constructor and name as well
+   as the prototype).
 
 No open items.

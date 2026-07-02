@@ -83,8 +83,7 @@ anchor:
 const prototype = getPrototypeOf(value); // conceptual; impl uses getInertPrototypeOf
 isObject(value) &&
   !!prototype &&
-  (prototype === objectPrototype ||
-    (hasPlainObjectIdentitySignal(value) && isObjectPrototypeEquivalent(prototype)));
+  (prototype === objectPrototype || isAlienRealmPlainObject(value, prototype));
 ```
 
 The fast path (`prototype === objectPrototype`) catches the common case in a single
@@ -92,11 +91,13 @@ reference comparison. `objectPrototype` is the realm-fixed `Object.prototype` ca
 `@/config` — taken once at module-load so the comparison is immune to a post-load
 reassignment of `globalThis.Object`. The `!!prototype` guard is a dictionary fast-reject
 (a plain object always has _some_ realm's `Object.prototype`, never `null`/`undefined`).
-The structural anchor catches cross-realm Plain Objects whose prototype is the _other_
-realm's `Object.prototype` (different reference, same structural shape). The signal half
-is two cheap string-shape markers; the contract half is the six-marker
-spec-mechanic-anchored chain detailed below — `isObjectPrototypeEquivalent`, fed the
-already-resolved `[[Prototype]]`.
+The structural anchor (`isAlienRealmPlainObject`) catches cross-realm Plain Objects whose
+prototype is the _other_ realm's `Object.prototype` (different reference, same structural
+shape). It resolves the prototype's `constructor` and its `name` ONCE
+(`getDefinedConstructor` + `getVerifiedOwnName`, #059) and threads both into its two
+halves: the signal half is two cheap string-shape markers; the contract half is the
+six-marker spec-mechanic-anchored chain detailed below — `isObjectPrototypeEquivalent`,
+fed the already-resolved `[[Prototype]]`, constructor, and name.
 
 `isDictionaryObject` is realm-orthogonal because prototype-less is prototype-less
 regardless of realm:
@@ -146,10 +147,11 @@ round, decision-aligned with #056/#057/#029):
   surface and exposed it; a blanket-throwing Proxy is caught earlier by the throw-safe
   signal gate.
 
-The prototype is also resolved ONCE per call and threaded into
-`isObjectPrototypeEquivalent(prototype)` — a one-arg helper fed the already-resolved
-`[[Prototype]]` (the #059 threading learning), eliminating the redundant re-read the
-helper would otherwise perform on the cross-realm path.
+The prototype is also resolved ONCE per call and threaded into the anchor, which in turn
+resolves the prototype's `constructor` and `name` ONCE and threads all three into
+`isObjectPrototypeEquivalent(prototype, constructor, name)` (the #059 threading learning),
+eliminating the redundant constructor walk and name read the helper would otherwise
+perform on the cross-realm path.
 
 ## Structural anchor for `isPlainObject`
 
@@ -159,24 +161,32 @@ snippets above, the contract body below is faithful to the implementation — ev
 descriptor and prototype read routes through a throw-safe reader. The shape:
 
 ```js
-export function hasPlainObjectIdentitySignal(value) {
+// the anchor resolves the prototype's constructor + name ONCE and threads both
+// down (#059); the prototype itself is threaded in by the caller that read it:
+function isAlienRealmPlainObject(value, prototype) {
+  const constructor = getDefinedConstructor(prototype, { assumePrototype: true });
+  const name = getVerifiedOwnName(constructor);
+
   return (
-    getTypeSignature(value) === '[object Object]' &&
-    getDefinedConstructorName(value) === 'Object'
+    hasPlainObjectIdentitySignal(value, name) &&
+    isObjectPrototypeEquivalent(prototype, constructor, name)
   );
 }
 
-// fed the already-resolved `[[Prototype]]` (#059); never re-reads it. Faithful to
-// code — every read is throw-safe (the `getInert*` readers, `getVerifiedOwnName`,
-// the guarded `getOwnPropertyDescriptors` inside marker 6).
-export function isObjectPrototypeEquivalent(prototype) {
-  const constructor =
-    isObject(prototype) && getDefinedConstructor(prototype, { assumePrototype: true });
+// tag marker + the threaded ctor `name`; reused for the value AND — as markers
+// 2+3 — the prototype (fed the same threaded name):
+export function hasPlainObjectIdentitySignal(value, name) {
+  return name === 'Object' && getTypeSignature(value) === '[object Object]';
+}
 
+// fed the already-resolved `[[Prototype]]`, its constructor, and its name (#059);
+// never re-reads them. Faithful to code — every read is throw-safe (the `getInert*`
+// readers, the `getVerifiedOwnName` behind the threaded name, the guarded
+// `getOwnPropertyDescriptors` inside marker 6).
+export function isObjectPrototypeEquivalent(prototype, constructor, name) {
   return (
     isClass(constructor) && // 1 — newable class shape
-    getTypeSignature(prototype) === '[object Object]' && // 2 — prototype's [[Class]] tag
-    getVerifiedOwnName(constructor) === 'Object' && // 3 — ctor own `name` (accessor → undefined)
+    hasPlainObjectIdentitySignal(prototype, name) && // 2+3 — prototype [[Class]] tag + ctor `name`
     getInertDescriptor(constructor, 'prototype', TRUSTED_DATA_CONFIRMATION)?.value ===
       prototype && // 4 — round-trip identity
     getInertPrototypeOf(prototype) === null && // 5 — chain-depth (top-level prototype)

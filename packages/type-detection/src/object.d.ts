@@ -72,6 +72,8 @@
  * (since `never` is a subtype of `unknown`).
  */
 
+import type { NewableFunction } from '@/function';
+
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 //
 //  Object Types
@@ -293,12 +295,18 @@ export function isObject<T = unknown>(value?: T): value is T & AnyObject;
  * Also reused by the fused {@link isPlainOrDictionaryObject} dispatch
  * on its cross-realm branch.
  *
- * @param value - the value whose string-shape signal to probe
+ * @param value - the value whose `[[Class]]` tag to read; assumed to be
+ *  an object provided by the caller
+ * @param name - the initial value's already resolved constructor name,
+ *  threaded in by the caller
  * @returns `true` when both string-shape markers match `Object`'s
  *  signature; `false` otherwise
  * @internal
  */
-export function hasPlainObjectIdentitySignal(value?: unknown): boolean;
+export function hasPlainObjectIdentitySignal(
+  value: object,
+  name: string | undefined,
+): boolean;
 
 /**
  * Probes the two markers that suggest a value is a prototype-less
@@ -404,10 +412,18 @@ export function doesImplementObjectPrototypeContract(prototype?: unknown): boole
  *
  * @param prototype - the value's already-resolved `[[Prototype]]`,
  *  threaded in by the caller that read it first (decision #059)
+ * @param constructor - the value's already-resolved `[[Constructor]]`,
+ *  threaded in by the caller
+ * @param name - the initial value's already resolved constructor name,
+ *  threaded in by the caller
  * @returns `true` when all six markers hold; `false` otherwise
  * @internal
  */
-export function isObjectPrototypeEquivalent(prototype?: unknown): boolean;
+export function isObjectPrototypeEquivalent(
+  prototype: object,
+  constructor: NewableFunction | undefined,
+  name: string | undefined,
+): boolean;
 
 /**
  * Narrows a value to {@link PlainObject} — an AnyObject whose direct
@@ -461,8 +477,8 @@ export function isObjectPrototypeEquivalent(prototype?: unknown): boolean;
  * (`toObjectString.call` via `getTypeSignature`, the throw-safe
  * `getInertPrototypeOf`, `getVerifiedOwnName` and `getInertDescriptor`,
  * and a guarded `getOwnPropertyDescriptors` for the member surface) and
- * the four-source constructor walk (via `getDefinedConstructor` /
- * `getDefinedConstructorName`). Cross-realm Plain Objects (from
+ * the four-source constructor walk (via `getDefinedConstructor`, its
+ * name read via `getVerifiedOwnName`). Cross-realm Plain Objects (from
  * iframes, workers, vm contexts) pass via the fallback: the local
  * `Object.prototype` reference does not match their prototype, but
  * their structural contract matches in every realm.
