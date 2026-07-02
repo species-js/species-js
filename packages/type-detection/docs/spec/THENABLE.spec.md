@@ -331,19 +331,6 @@ disagrees with the value's resolved constructor. The one _unclosed_ surface is t
 prototype-graft (`isPromise/B2`, #052); an own-level contract/`constructor` override on
 that graft is now closed by the `#063` own-shadow gate (`isPromise/R8`,`R9`).
 
-**Realm asymmetry on tampered inputs (deliberate):** the two arms weigh evidence
-differently, so for a TAMPERED input they can disagree by realm. The local-realm arm is
-identity-based (`instanceof` + proto-identity + the string-keyed own-shadow gate) and
-blind to a cosmetic `Symbol.toStringTag`: a LOCAL graft carrying only a spoofed tag is
-admitted (`isPromise/A4` → true), because it genuinely carries `Promise.prototype` and the
-tag is a symbol key the gate does not read. The cross-realm arm, lacking a local prototype
-to match, reads the tag via `getTypeSignature`, so the SAME shape from a foreign realm
-rejects (`false`). Decision #063 reconciled the **behavioral** half of this asymmetry —
-own-level method / `constructor` shadowing is now rejected in BOTH realms (locally by the
-gate, cross-realm by the structural contract) — while the **cosmetic** tag half stays
-local-admit / cross-realm-reject by design, the residual #063 leaves standing (parallel to
-`OBJECT.spec.md` and `EVENTED.spec.md`).
-
 **Composition note (axis 4):** two-axis ternary over `isCurrentRealmPromiseInstance`; the
 local-realm arm compares the once-resolved `getInertPrototypeOf` (`@/utility`) read
 against the realm-fixed `promisePrototype` capture; the cross-realm arm is
@@ -357,6 +344,20 @@ constructor ONCE via `getDefinedConstructor` and reusing it for both the name (v
 
 **Policy flags:** `isPromise/R1`-`R2` encode the _current shipped_ subclass-rejection
 behavior; if a subclass-admission policy is ever adopted these vectors invert.
+
+### Realm asymmetry on tampered inputs (deliberate)
+
+The two arms weigh evidence differently, so for a TAMPERED input they can disagree by
+realm. The local-realm arm is identity-based (`instanceof` + proto-identity + the
+string-keyed own-shadow gate) and blind to a cosmetic `Symbol.toStringTag`: a LOCAL graft
+carrying only a spoofed tag is admitted (`isPromise/A4` → true), because it genuinely
+carries `Promise.prototype` and the tag is a symbol key the gate does not read. The
+cross-realm arm, lacking a local prototype to match, reads the tag via `getTypeSignature`,
+so the SAME shape from a foreign realm rejects (`false`). Decision #063 reconciled the
+**behavioral** half of this asymmetry — own-level method / `constructor` shadowing is now
+rejected in BOTH realms (locally by the gate, cross-realm by the structural contract) —
+while the **cosmetic** tag half stays local-admit / cross-realm-reject by design, the
+residual #063 leaves standing (parallel to `OBJECT.spec.md` and `EVENTED.spec.md`).
 
 ---
 

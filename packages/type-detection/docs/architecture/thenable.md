@@ -172,6 +172,24 @@ to pay for the entire cross-realm chain. The two arms have different bottom sema
 a ternary committing to the right arm is the structurally honest combination. See decision
 #050.
 
+### Realm asymmetry on tampered inputs (deliberate)
+
+The two arms weigh evidence differently, so for a TAMPERED input they can disagree by
+realm. The local-realm arm is identity-based (`instanceof` + proto-identity + the
+string-keyed own-shadow gate) and blind to a cosmetic `Symbol.toStringTag`: a LOCAL
+`Object.create(Promise.prototype)` graft carrying only a spoofed tag is still admitted,
+because it genuinely carries `Promise.prototype` and the tag is a symbol key the gate does
+not read. The cross-realm arm, lacking a local prototype to match, reads the tag via
+`getTypeSignature`, so the SAME shape from a foreign realm rejects. The same tampered
+value therefore reads `true` locally and `false` cross-realm.
+
+Decision #063 reconciled the BEHAVIORAL half of this asymmetry — own-level method or
+`constructor` shadowing is now rejected in both realms (locally by
+`doesNotShadowPromiseContract`, cross-realm by the structural contract) — while the
+COSMETIC tag half stays local-admit / cross-realm-reject by design, the residual it leaves
+standing. This is the same split `object.md` and `evented.md` document for their modules;
+the bare graft, interposing nothing, is admitted in both (#052).
+
 ## Conservative-narrowing in the Promise domain
 
 The conservative-narrowing posture from the function module (see

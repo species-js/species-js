@@ -510,29 +510,6 @@ export function isAlienRealmPlainObject(value: object, prototype: object): boole
  * so a hostile `getPrototypeOf` Proxy-trap yields `false` rather than
  * propagating the throw.
  *
- * ## Realm asymmetry on tampered inputs (deliberate)
- *
- * The local-realm fast-path (`prototype === objectPrototype`) is pure
- * identity and blind to surface tampering: a local plain object carrying
- * a spoofed or throwing `Symbol.toStringTag` is still admitted, because it
- * genuinely has the real `Object.prototype` — identity outranks a cosmetic
- * marker. The cross-realm arm, lacking a local prototype to match, has
- * only surface markers, so the same tampering makes it reject. The same
- * tampered object can therefore read `true` locally and `false`
- * cross-realm — inherent to having a fast identity path, accepted and not
- * reconciled. Every untampered plain object agrees across realms; the
- * divergence appears only under tampering.
- *
- * Decision #063 later generalized this asymmetry across the strict identity
- * predicates and reconciled its behavioral half in both realms: own-level
- * shadowing of a contract method or the `constructor` back-reference, via
- * an own-surface shadow gate scoped to spec-pinned architectures, whose
- * instances own none of their contract (`EventTarget`, `AbortSignal`,
- * `Promise`).
- * `isPlainObject` is deliberately out of that gate's scope: a plain object
- * owns its data by design, so its only tamper-able surface is the cosmetic
- * tag — which stays local-admit / cross-realm-reject as above.
- *
  * ## Strictness vs. lodash `_.isPlainObject`
  *
  * Lodash's permissive form admits prototype-less objects too. This

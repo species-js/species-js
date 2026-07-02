@@ -280,6 +280,16 @@ divergence appears only under tampering. The throwing-tag instance is pinned by 
 throw-safety matrix (local `true` / alien `false`); the non-throwing spoofed-tag instance
 by `adversarial.test.js`. See `docs/spec/OBJECT.spec.md` → `isPlainObject`.
 
+Decision #063 later generalized this asymmetry across the strict identity predicates and
+reconciled its behavioral half (own-level method or `constructor` shadowing) in both
+realms for spec-pinned architectures whose instances own none of their contract
+(`EventTarget`, `AbortSignal`, `Promise`). `isPlainObject` is deliberately OUT of that
+gate's scope: a plain object owns its data by design, so its only tamperable surface is
+the cosmetic tag — which stays local-admit / cross-realm-reject exactly as above. The
+asymmetry here is the residual, by-design case #063 leaves standing for this module
+(`evented.md` and `thenable.md` carry the parallel subsections for the modules the gate
+does reconcile).
+
 ## Cross-module: `BlankType` ↔ `DictionaryObject`
 
 `BlankType` in `@/utility` is `Record<PropertyKey, never>` — the _sentinel_ form of a

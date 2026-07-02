@@ -102,6 +102,8 @@ in the lookup-chain. The mechanism is a throw-safe, fail-closed own-name enumera
 excluded (a symbol key, cosmetic once identity holds), and orthogonal own state never
 disqualifies — only the reserved member-names do.
 
+### Realm asymmetry on tampered inputs (deliberate)
+
 This refines the object-round realm-asymmetry (a tampered graft reading `true` locally /
 `false` cross-realm) into a SPLIT: BEHAVIORAL tampering (own method / constructor) is now
 rejected in both realms — reconciled with the structural cross-realm arm — while COSMETIC
