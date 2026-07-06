@@ -144,7 +144,7 @@ export function doesNotShadowPromiseContract(value) {
  * constructor-name; that level of identity narrowing belongs to
  * `isPromise`. `doesImplementPromiseContract` is purely structural.
  *
- * @param {unknown} [value] - the value to inspect; omitted is treated
+ * @param {unknown} value - the value to inspect; omitted is treated
  *  as `undefined`, which does not match the Promise-method contract
  * @returns {boolean} `true` when all three methods are callable data
  *  properties in the value's prototype-chain; `false` otherwise
@@ -181,7 +181,7 @@ export function doesImplementPromiseContract(value) {
  * Throw-safe: a hostile `ownKeys` / `getOwnPropertyDescriptor` Proxy-trap that
  * throws is absorbed and yields `false` rather than propagating.
  *
- * @param {unknown} [prototype] - the prototype whose own member surface to
+ * @param {unknown} prototype - the prototype whose own member surface to
  *  verify (callers pass an already-resolved `[[Prototype]]`); a nullish or
  *  non-object value is absorbed by the guard and yields `false`
  * @returns {boolean} `true` when all three members are own callable data
@@ -190,7 +190,7 @@ export function doesImplementPromiseContract(value) {
  */
 export function doesImplementPromisePrototypeContract(prototype) {
   try {
-    const descriptors = getOwnPropertyDescriptors(/** @type {object} */ (prototype));
+    const descriptors = getOwnPropertyDescriptors(prototype);
 
     return (
       isCallable(descriptors.then?.value) &&
@@ -244,7 +244,7 @@ export function isPromisePrototypeEquivalent(prototype, constructor) {
     getTypeSignature(prototype) === '[object Promise]' &&
     getInertDescriptor(constructor, 'prototype', TRUSTED_DATA_CONFIRMATION)?.value ===
       prototype &&
-    doesImplementPromisePrototypeContract(prototype)
+    doesImplementPromisePrototypeContract(/** @type {object} */ (prototype))
   );
 }
 

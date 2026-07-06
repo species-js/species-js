@@ -217,7 +217,7 @@ function getObjectPrototypeDescriptorNames() {
  * Throw-safe: a hostile `Proxy` `ownKeys` / `getOwnPropertyDescriptor`
  * trap that throws is caught and yields `false` rather than propagating.
  *
- * @param {unknown} [prototype] - the prototype whose own member surface to
+ * @param {unknown} prototype - the prototype whose own member surface to
  *  verify (callers pass an already-resolved `[[Prototype]]`); a nullish or
  *  non-object value is absorbed by the guard and yields `false`
  * @returns {boolean} `true` when every canonical member is present as a
@@ -250,8 +250,7 @@ export function doesImplementObjectPrototypeContract(prototype) {
  * Also reused by the fused {@link isPlainOrDictionaryObject} dispatch
  * on its cross-realm branch.
  *
- * @param {object} value - the value whose `[[Class]]` tag to read;
- *  assumed to be an object provided by the caller
+ * @param {unknown} value - the value whose `[[Class]]` tag to read
  * @param {string | undefined} name - the initial value's already
  *  resolved constructor name, threaded in by the caller
  * @returns {boolean} `true` when both string-shape markers match
@@ -276,7 +275,7 @@ export function hasPlainObjectIdentitySignal(value, name) {
  * {@link isDictionaryObject} and by the `prototype === null` branch of
  * the fused {@link isPlainOrDictionaryObject} dispatch.
  *
- * @param {unknown} [value] - the value whose string-shape and
+ * @param {unknown} value - the value whose string-shape and
  *  constructor-absence signal to probe
  * @returns {boolean} `true` when the tag matches and no constructor
  *  is reachable; `false` otherwise

@@ -73,8 +73,7 @@ export const TRUSTED_DATA_CONFIRMATION = /** @type {TRUSTED_DATA_CONFIRMATION_FL
  * `names.some((name) => someSet.has(name))` on hot paths.
  *
  * @param {unknown} value - the element to look up in the bound `Set`
- * @this {ReadonlySet<unknown>} the `Set` to test membership against,
- *  supplied as the iteration callback's `thisArg`
+ * @this {ReadonlySet<unknown>}
  * @returns {boolean} `true` when the bound `Set` contains `value`;
  *  `false` otherwise
  * @internal

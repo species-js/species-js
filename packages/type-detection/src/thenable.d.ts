@@ -362,7 +362,7 @@ export function doesNotShadowPromiseContract(value: object): boolean;
  * doesImplementPromiseContract(42);                 // false
  * @internal
  */
-export function doesImplementPromiseContract(value?: unknown): boolean;
+export function doesImplementPromiseContract(value: unknown): boolean;
 
 /**
  * The member-surface marker of the cross-realm `Promise` contract: confirms
@@ -388,7 +388,7 @@ export function doesImplementPromiseContract(value?: unknown): boolean;
  *  `false` otherwise (including on a throwing trap)
  * @internal
  */
-export function doesImplementPromisePrototypeContract(prototype?: unknown): boolean;
+export function doesImplementPromisePrototypeContract(prototype: unknown): boolean;
 
 /**
  * Verifies the structural anchor for cross-realm `Promise` discrimination over a

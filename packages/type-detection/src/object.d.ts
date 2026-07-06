@@ -316,7 +316,7 @@ export function isObject<T = unknown>(value?: T): value is T & AnyObject;
  *  non-enumerable callable own property; `false` otherwise
  * @internal
  */
-export function doesImplementObjectPrototypeContract(prototype?: unknown): boolean;
+export function doesImplementObjectPrototypeContract(prototype: unknown): boolean;
 
 /**
  * Probes the two inexpensive string-shape markers that suggest a value
@@ -341,7 +341,7 @@ export function doesImplementObjectPrototypeContract(prototype?: unknown): boole
  * @internal
  */
 export function hasPlainObjectIdentitySignal(
-  value: object,
+  value: unknown,
   name: string | undefined,
 ): boolean;
 
@@ -365,7 +365,7 @@ export function hasPlainObjectIdentitySignal(
  *  `false` otherwise
  * @internal
  */
-export function hasDictionaryObjectIdentitySignal(value?: unknown): boolean;
+export function hasDictionaryObjectIdentitySignal(value: unknown): boolean;
 
 /**
  * Verifies the structural anchor for cross-realm Plain Object
