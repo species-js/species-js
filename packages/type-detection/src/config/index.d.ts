@@ -7,12 +7,13 @@
  * Capturing `Object` and `Function.prototype` members once at module-load,
  * rather than reaching for `Object.x` at each call site, fixes their
  * identity to this realm and shields the predicates from later tampering
- * with the global `Object`. Every export is an internal primitive that is
- * also surfaced for downstream packages needing the same cross-realm-safe
+ * with the global `Object`. Every export is an internal primitive that also
+ * gets surfaced for downstream packages which need the same cross-realm-safe
  * building blocks.
  */
 
-import type { Callable } from '@/function';
+import type { Callable, NewableFunction } from '@/function';
+import type { DictionaryObject } from '@/object';
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 //
@@ -123,6 +124,43 @@ export declare const toFunctionString: (this: Callable) => string;
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 //
+//  Object-Shape Types
+//
+// ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
+
+/**
+ * A real `Object` instance carrying no own property key — the empty ordinary
+ * object `{}` / `new Object()`. Modeled as `Record<PropertyKey, never>`, which
+ * makes every key statically unreachable. The realm-fixed carrier is
+ * {@link BLANK_TYPE}.
+ *
+ * Distinct from {@link DictionaryObject} and {@link BlankDictionary}: a
+ * `BlankType` value is a full-fledged `Object`, so it DOES have a
+ * prototype-chain (`Object.prototype`) and the `Object` constructor — it is
+ * merely empty. The `Record<PropertyKey, never>` surface expresses the
+ * empty-keys fact; the real prototype and constructor are runtime facts the
+ * empty-record idiom cannot carry (it types even `constructor` as `never`),
+ * documented here rather than modeled.
+ */
+export type BlankType = Record<PropertyKey, never>;
+
+/**
+ * A prototype-less (`[[Prototype]] === null`), constructor-less (`constructor`
+ * reads `undefined`) object that ALSO carries no own property key — the
+ * intersection of {@link DictionaryObject} (prototype-less) and
+ * {@link BlankType} (empty): the never-mutated `Object.create(null)`. The
+ * realm-fixed carrier is {@link BLANK_DICTIONARY}.
+ *
+ * `BlankType & { constructor?: never }` composes the empty own-key surface with
+ * the prototype-less discriminator. As with its siblings, the prototype-less-ness
+ * itself is a runtime characteristic TypeScript cannot express; the
+ * `constructor?: never` marker is the closest structural proxy, shared with
+ * {@link DictionaryObject}.
+ */
+export type BlankDictionary = BlankType & { constructor?: never };
+
+// ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
+//
 //  Object Static Methods
 //
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
@@ -178,10 +216,11 @@ export declare const objectIs: typeof Object.is;
  * Retyped from `typeof Object.create`, which returns `any` on both
  * overloads per `lib.es5.d.ts`, to a three-variant call signature:
  *
- * - `objectCreate(null)` returns `Record<PropertyKey, never>` — the
- *   prototype-less floor `BlankType` in `@/utility` carries. Static
- *   keys are unreachable, mirroring the runtime characteristic that no
- *   prototype-chain exists to inherit from.
+ * - `objectCreate(null)` returns {@link DictionaryObject} — a prototype-less,
+ *   constructor-less object whose own keys are open, mirroring the runtime
+ *   characteristic that no prototype-chain exists to inherit from. The
+ *   never-mutated singleton {@link BLANK_DICTIONARY} narrows this to
+ *   {@link BlankDictionary}.
  * - `objectCreate(prototype)` returns `object` — an instance whose
  *   `[[Prototype]]` is `prototype`.
  * - `objectCreate(prototype, properties)` returns `object` — same
@@ -200,18 +239,10 @@ export declare const objectIs: typeof Object.is;
  * @internal
  */
 export declare const objectCreate: {
-  (o: null): Record<PropertyKey, never>;
+  (o: null): DictionaryObject;
   (o: object): object;
   (o: object | null, properties: PropertyDescriptorMap & ThisType<unknown>): object;
 };
-
-/**
- * A single realm-fixed blank dictionary — `Object.create(null)`: no prototype,
- * no members, captured once at module-load. The shared sentinel for an
- * absent-global prototype capture, compared by identity and never mutated.
- * @internal
- */
-export declare const BLANK_DICTIONARY: Record<PropertyKey, never>;
 
 /**
  * `Object.freeze`, realm-fixed at module-load.
@@ -304,6 +335,47 @@ export declare const getOwnPropertyDescriptors: typeof Object.getOwnPropertyDesc
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 //
+//  Object- & Function-Shape Constants
+//
+// ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
+
+/**
+ * The realm-fixed blank dictionary — a never-mutated `Object.create(null)`
+ * captured once at module load, typed {@link BlankDictionary} (the narrowest of
+ * the three prototype-shape carriers): prototype-less, constructor-less, and
+ * empty. It is the shared sentinel for an absent-global prototype capture (a
+ * runtime without `EventTarget` / `AbortSignal`, decision #060) and for the
+ * failure surrogate of `getValidatedStandardConstructorAndPrototypeTuple`,
+ * compared by identity and never read for keys.
+ * @internal
+ */
+export declare const BLANK_DICTIONARY: BlankDictionary;
+
+/**
+ * The realm-fixed blank object — a never-mutated empty `Object` (`{}`) captured
+ * once at module load, typed {@link BlankType}: a real `Object` carrying
+ * `Object.prototype` and the `Object` constructor, but no own property key. It is
+ * surfaced as a downstream-facing primitive alongside {@link BLANK_DICTIONARY},
+ * from which it differs by having a prototype-chain.
+ * @internal
+ */
+export declare const BLANK_TYPE: BlankType;
+
+/**
+ * A never-invoked, never-newed function statement used as the inert stand-in for
+ * an absent standard constructor — the failure surrogate of
+ * `getValidatedStandardConstructorAndPrototypeTuple` and the module-load
+ * fallback when a realm lacks a global intrinsic (`Promise`, `EventTarget`,
+ * `AbortSignal`; decision #060). Its untouched `prototype` makes
+ * `value instanceof INSTANCE_LESS_CONSTRUCTOR` uniformly `false` without
+ * throwing, so callers run `instanceof` against the realm-fixed reference
+ * unguarded.
+ * @internal
+ */
+export declare const INSTANCE_LESS_CONSTRUCTOR: NewableFunction;
+
+// ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
+//
 //  Number Static Methods
 //
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
@@ -312,7 +384,7 @@ export declare const getOwnPropertyDescriptors: typeof Object.getOwnPropertyDesc
  * The explicit polyfill behind {@link isFiniteNumberValue}, exported so the
  * fallback path can be unit-tested in isolation. Composes the `isNumberValue`
  * typeof guard with the captured global `isFinite`, reproducing
- * `Number.isFinite` semantics — the leading typeof guard suppresses the
+ * `Number.isFinite` semantics — the leading typeof guard does suppress the
  * coercion the bare global `isFinite` applies.
  *
  * @param value - the value to inspect
@@ -386,3 +458,5 @@ export declare function isSafeInteger(value: unknown): value is number;
  * @internal
  */
 export declare const isSafeIntegerValue: (value: unknown) => value is number;
+
+// ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----

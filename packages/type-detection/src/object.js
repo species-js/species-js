@@ -10,14 +10,13 @@
  * {@link isDictionaryObject} (strict subtype: no prototype-chain),
  * and {@link isPlainOrDictionaryObject} (the union of the two strict
  * forms — the lodash-equivalent permissive semantic). The strict
- * predicates use cross-realm-safe machinery (`getOwnPropertyDescriptors`
- * and the realm-fixed `objectPrototype` reference from `@/config`; the
- * throw-safe `getInertPrototypeOf`, `getInertDescriptor`,
- * `getVerifiedOwnName`, plus `getTypeSignature` and
- * `getDefinedConstructor` from `@/utility`; `isCallable` and
- * `isClass` from `@/function`) — they discriminate the constructor
- * identity realm-independently rather than via local `instanceof Object`
- * which would miss cross-realm Plain Objects. Every prototype and
+ * predicates use cross-realm-safe machinery drawn from three modules:
+ * `getOwnPropertyDescriptors` and the realm-fixed `objectPrototype` from
+ * `@/config`; the throw-safe `getInertPrototypeOf`, `getInertDescriptor`, and
+ * `getVerifiedOwnName`, plus `getTypeSignature` and `getDefinedConstructor`,
+ * from `@/utility`; and `isCallable` and `isClass` from `@/function`. They
+ * discriminate the constructor identity realm-independently rather than via a
+ * local `instanceof Object`, which would miss cross-realm Plain Objects. Every prototype and
  * descriptor read is throw-safe (the `getInert*` readers, and a guarded
  * `getOwnPropertyDescriptors` for the member-surface contract), so a
  * hostile `getPrototypeOf` / `getOwnPropertyDescriptor` Proxy-trap
@@ -98,59 +97,6 @@ export function isObject(value) {
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 
 /**
- * Probes the two markers that suggest a value is a prototype-less
- * Dictionary Object — the `[[Class]]` tag (`'[object Object]'`) and the
- * absence of a reachable constructor (the four-source walk resolves
- * none). Both markers are cross-realm safe via the realm-fixed
- * `toObjectString.call` capture and the constructor-walk's
- * descriptor-discipline.
- *
- * The dictionary counterpart to {@link hasPlainObjectIdentitySignal}:
- * where the plain signal expects the constructor name to read
- * `'Object'`, this one expects no defined constructor at all. Reused by
- * {@link isDictionaryObject} and by the `prototype === null` branch of
- * the fused {@link isPlainOrDictionaryObject} dispatch.
- *
- * @param {unknown} [value] - the value whose string-shape and
- *  constructor-absence signal to probe
- * @returns {boolean} `true` when the tag matches and no constructor
- *  is reachable; `false` otherwise
- * @internal
- */
-export function hasDictionaryObjectIdentitySignal(value) {
-  return (
-    getTypeSignature(value) === '[object Object]' &&
-    getDefinedConstructor(value) === undefined
-  );
-}
-
-/**
- * Probes the two inexpensive string-shape markers that suggest a value
- * is a plain `Object` instance — the `[[Class]]` tag
- * (`'[object Object]'`) and the constructor name (`'Object'` via the
- * four-source walk). Both markers are cross-realm safe via the
- * realm-fixed `toObjectString.call` capture and the constructor-walk's
- * descriptor-discipline.
- *
- * Used as the inexpensive front-half of the cross-realm Plain Object
- * fallback in {@link isPlainObject}: if either marker fails, the more
- * expensive {@link isObjectPrototypeEquivalent} walk is skipped.
- * Also reused by the fused {@link isPlainOrDictionaryObject} dispatch
- * on its cross-realm branch.
- *
- * @param {object} value - the value whose `[[Class]]` tag to read;
- *  assumed to be an object provided by the caller
- * @param {string | undefined} name - the initial value's already
- *  resolved constructor name, threaded in by the caller
- * @returns {boolean} `true` when both string-shape markers match
- *  `Object`'s signature; `false` otherwise
- * @internal
- */
-export function hasPlainObjectIdentitySignal(value, name) {
-  return name === 'Object' && getTypeSignature(value) === '[object Object]';
-}
-
-/**
  * Tests one own descriptor against the shape every `Object.prototype`
  * member carries: it must exist, be non-enumerable, and hold a callable
  * value. Accessor-form (`get`/`set`) and enumerable definitions fail —
@@ -218,8 +164,8 @@ function getObjectPrototypeDescriptorNames() {
   if (calibratedObjectPrototypeDescriptorNames.length) {
     return calibratedObjectPrototypeDescriptorNames;
   }
-  // - dead execution branch, once after the initial, lazy
-  //   accumulation of `calibratedObjectPrototypeDescriptorNames`
+  // Runs only on the first call: once this populates the array, the
+  // length-guard above short-circuits every later call.
   calibratedObjectPrototypeDescriptorNames.push(
     .../** @type {string[]} */ (coreObjectPrototypeMemberNames),
   );
@@ -291,6 +237,59 @@ export function doesImplementObjectPrototypeContract(prototype) {
 }
 
 /**
+ * Probes the two inexpensive string-shape markers that suggest a value
+ * is a plain `Object` instance — the `[[Class]]` tag
+ * (`'[object Object]'`) and the constructor name (`'Object'` via the
+ * four-source walk). Both markers are cross-realm safe via the
+ * realm-fixed `toObjectString.call` capture and the constructor-walk's
+ * descriptor-discipline.
+ *
+ * Used as the front-half of the cross-realm Plain Object fallback in
+ * {@link isPlainObject}: if either marker fails, the more
+ * expensive {@link isObjectPrototypeEquivalent} walk is skipped.
+ * Also reused by the fused {@link isPlainOrDictionaryObject} dispatch
+ * on its cross-realm branch.
+ *
+ * @param {object} value - the value whose `[[Class]]` tag to read;
+ *  assumed to be an object provided by the caller
+ * @param {string | undefined} name - the initial value's already
+ *  resolved constructor name, threaded in by the caller
+ * @returns {boolean} `true` when both string-shape markers match
+ *  `Object`'s signature; `false` otherwise
+ * @internal
+ */
+export function hasPlainObjectIdentitySignal(value, name) {
+  return name === 'Object' && getTypeSignature(value) === '[object Object]';
+}
+
+/**
+ * Probes the two markers that suggest a value is a prototype-less
+ * Dictionary Object — the `[[Class]]` tag (`'[object Object]'`) and the
+ * absence of a reachable constructor (the four-source walk resolves
+ * none). Both markers are cross-realm safe via the realm-fixed
+ * `toObjectString.call` capture and the constructor-walk's
+ * descriptor-discipline.
+ *
+ * The dictionary counterpart to {@link hasPlainObjectIdentitySignal}:
+ * where the plain signal expects the constructor name to read
+ * `'Object'`, this one expects no defined constructor at all. Reused by
+ * {@link isDictionaryObject} and by the `prototype === null` branch of
+ * the fused {@link isPlainOrDictionaryObject} dispatch.
+ *
+ * @param {unknown} [value] - the value whose string-shape and
+ *  constructor-absence signal to probe
+ * @returns {boolean} `true` when the tag matches and no constructor
+ *  is reachable; `false` otherwise
+ * @internal
+ */
+export function hasDictionaryObjectIdentitySignal(value) {
+  return (
+    getTypeSignature(value) === '[object Object]' &&
+    getDefinedConstructor(value) === undefined
+  );
+}
+
+/**
  * Verifies the structural anchor for cross-realm Plain Object
  * discrimination: a six-marker chain over a value's already-resolved
  * `[[Prototype]]`. It walks from the threaded prototype to its
@@ -339,7 +338,6 @@ export function doesImplementObjectPrototypeContract(prototype) {
  * contract rather than propagating. `isClass` is likewise throw-safe at
  * its own descriptor read.
  *
- *
  * @param {object} prototype - the value's already-resolved `[[Prototype]]`,
  *  threaded in by the caller that read it first (decision #059)
  * @param {NewableFunction | undefined} constructor - the value's
@@ -372,13 +370,13 @@ export function isObjectPrototypeEquivalent(prototype, constructor, name) {
  * `Object.prototype` fails the local-realm `=== objectPrototype`
  * fast-path but matches this structural contract in every realm.
  *
- * The single internal seam shared by {@link isPlainObject} and
- * {@link isPlainOrDictionaryObject} on their cross-realm branch. Exported
- * `@internal` for direct unit-testability (decision #053): decision #059
- * threaded the constructor/name resolution INTO this seam, so it now
- * carries real logic — resolve-once-and-thread — that neither composed
- * helper exercises on its own, and it earns its own coverage rather than
- * riding on theirs.
+ * This is the single internal seam that {@link isPlainObject} and
+ * {@link isPlainOrDictionaryObject} share on their cross-realm branch. It is
+ * exported `@internal` for direct unit-testability (decision #053): decision
+ * #059 threaded the constructor/name resolution into this seam, so it now
+ * carries real logic (resolve-once-and-thread) that neither composed helper
+ * exercises on its own, and it earns its own coverage rather than riding on
+ * theirs.
  *
  * @param {object} value - the candidate whose Plain Object structure
  *  and contract is to be verified; assumed to be an object provided
@@ -436,9 +434,9 @@ export function isAlienRealmPlainObject(value, prototype) {
  *   confirms the prototype's own member surface (every canonical
  *   `Object.prototype` method present as a non-enumerable callable).
  *
- * The round-trip identity marker — verifying that the constructor's
- * own `prototype` data property points back to the prototype walked
- * from `value`. This closes the spoof surface where `value.constructor`
+ * The round-trip identity marker verifies that the constructor's own
+ * `prototype` data property points back to the prototype walked from
+ * `value`. This closes the spoof surface where `value.constructor`
  * (own or inherited) is tampered to point at the global `Object`
  * without the prototype actually owning `value`'s `[[Prototype]]`.
  *
@@ -512,8 +510,8 @@ export function isPlainObject(value) {
   const prototype = getInertPrototypeOf(value);
 
   return (
-    // - excluding cross-realm fast-path short-circuit for a
-    //   possible dictionary (like) or a "tampered-with" object
+    // `!!prototype` rejects a null prototype (a dictionary object) and a
+    // hostile-trap `undefined` before either identity check runs.
     !!prototype &&
     // PlainObject — local-realm fast-path: prototype-identity
     (prototype === objectPrototype ||
@@ -657,8 +655,9 @@ export function isPlainOrDictionaryObject(value) {
   if (prototype === null) {
     return hasDictionaryObjectIdentitySignal(value);
   }
-  // - latest possible local-realm short-circuit
-  //   handling most likely "tampered-with" objects
+  // `!prototype` here catches only an `undefined` from a hostile
+  // `getPrototypeOf` trap (null was handled above) — the last local
+  // short-circuit before the cross-realm fallback.
   if (!prototype) {
     return false;
   }

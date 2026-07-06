@@ -56,20 +56,34 @@
  * the distinction matters (lookup-table-vs-instance vs.
  * hashmap-vs-instance is the typical reason).
  *
- * ## Cross-module: `BlankType` in `@/utility`
+ * ## Cross-module: the three prototype-shape carriers
  *
- * `BlankType` (in `@/utility`) is `Record<PropertyKey, never>` —
- * the _sentinel_ form of a prototype-less object, with no keys
- * statically reachable. `DictionaryObject` is the _populated_ form,
- * `Record<PropertyKey, unknown>` extended with the structural
- * discriminator. The two types target the same runtime carrier
- * (prototype-less objects via `Object.create(null)`) but differ in
- * the type-system access pattern: `BlankType` for blank-descriptor
- * sentinels (used by `@/error`'s `hasErrorPrototypeContract` legacy
- * heuristic via the `objectCreate(null)` retyped return in `@/config`,
- * decisions #017, #034), `DictionaryObject` for hashmap use. Per
- * TypeScript variance, `BlankType` is a subtype of `DictionaryObject`
- * (since `never` is a subtype of `unknown`).
+ * `DictionaryObject` is the canonical member of a three-type family
+ * distinguished along two axes — whether a prototype-chain exists, and whether
+ * own keys may be present. `DictionaryObject` lives here in `@/object` (beside
+ * its predicate {@link isDictionaryObject}); `BlankType` and `BlankDictionary`
+ * live in `@/config`, beside the `BLANK_TYPE` / `BLANK_DICTIONARY` constants that
+ * carry them:
+ *
+ * - `DictionaryObject` (`@/object`) — prototype-less, constructor-less, own keys
+ *   OPEN; the narrow target of {@link isDictionaryObject} and the honest return
+ *   of `@/config`'s `objectCreate(null)`. `Record<PropertyKey, unknown>` extended
+ *   with the `constructor?: never` discriminator.
+ * - `BlankType` (`@/config`) — a real `Object` (carrying `Object.prototype` and
+ *   the `Object` constructor) with no own key; the empty ordinary object `{}`.
+ *   Modelled as `Record<PropertyKey, never>`. Its realm-fixed carrier is
+ *   `BLANK_TYPE`.
+ * - `BlankDictionary` (`@/config`) — prototype-less, constructor-less, AND empty;
+ *   the never-mutated `Object.create(null)`. The intersection of the other two,
+ *   and the type of `BLANK_DICTIONARY` — the sentinel behind `@/error`'s legacy
+ *   `hasErrorPrototypeContract` heuristic and the absent-global capture surrogate
+ *   (decisions #017, #034, #060).
+ *
+ * Per TypeScript variance, `BlankDictionary` is a structural subtype of
+ * `DictionaryObject` (its `never` own-key surface refines the latter's `unknown`
+ * index). The prototype-chain distinction between `BlankType` and the two
+ * dictionary forms is a runtime characteristic the type system cannot express;
+ * it is carried by the runtime predicates and the distinct constants.
  */
 
 import type { NewableFunction } from '@/function';
@@ -155,61 +169,50 @@ export interface PlainObject extends AnyObject {
 }
 
 /**
- * A prototype-less object — typically created via `Object.create(null)`
- * for use as a pure hashmap that avoids key collisions with
- * `Object.prototype` members.
- *
- * The narrow target of {@link isDictionaryObject}.
+ * A prototype-less object — `getPrototypeOf(v) === null` — whose own keys are
+ * open: the populated hashmap form, typically created via `Object.create(null)`
+ * to avoid key collisions with `Object.prototype` members. The narrow target of
+ * {@link isDictionaryObject} and the honest return of `@/config`'s
+ * `objectCreate(null)`.
  *
  * Runtime characteristic (verified by the predicate):
- * `getPrototypeOf(v) === null` AND `getDefinedConstructor(v) ===
- * undefined` AND `getTypeSignature(v) === '[object Object]'`. The
- * tag-signature cross-validator closes the rare case where a
- * prototype-less object has been hand-decorated with an own
- * `Symbol.toStringTag`.
+ * `getPrototypeOf(v) === null` AND `getDefinedConstructor(v) === undefined` AND
+ * `getTypeSignature(v) === '[object Object]'`. The tag-signature cross-validator
+ * closes the rare case where a prototype-less object has been hand-decorated with
+ * an own `Symbol.toStringTag`.
  *
- * Structurally enforced via `constructor?: never` — the absence of
- * `constructor` (or its presence as a `never`-typed value, equivalent
- * structurally) is the type-level discriminator from
- * {@link PlainObject} (which requires `constructor: ObjectConstructor`).
- * The two types are disjoint at the type level via this constraint;
- * TypeScript will reject assignments between them without an explicit
- * cast.
+ * The sole type-expressible discriminator is `constructor?: never` — a
+ * prototype-less object inherits no `Object.prototype.constructor`, so its
+ * `constructor` reads back `undefined`. This is what makes `DictionaryObject`
+ * disjoint from {@link PlainObject} (which requires `constructor:
+ * ObjectConstructor`); TypeScript rejects assignments between them without an
+ * explicit cast.
  *
- * TypeScript cannot express "no prototype-chain" directly — the
- * `[[Prototype]]` slot is a reflective runtime state, not a type-system
- * structure. The absence-of-constructor constraint is the closest
- * structural model that the predicate's runtime check verifies.
+ * TypeScript cannot express "no prototype-chain" directly — the `[[Prototype]]`
+ * slot is reflective runtime state, not a type-system structure — so the
+ * absent-constructor constraint is the closest structural model the predicate's
+ * runtime check verifies. There is deliberately no `prototype` member: a plain
+ * object carries no own `prototype` property (that is a function-only slot), so
+ * modeling one would misdescribe the runtime value.
  *
- * ## Relationship to `BlankType`
+ * ## Siblings: `BlankType` and `BlankDictionary` (in `@/config`)
  *
- * `BlankType` (from `@/utility`) is the _sentinel_ form of the
- * same runtime carrier — `Record<PropertyKey, never>`, no keys
- * statically reachable. `DictionaryObject` is the _populated_ form
- * extending the same `Record<PropertyKey, unknown>` shape with the
- * `constructor?: never` discriminator. The two types target the same
- * kind of runtime value (`Object.create(null)`) but differ in the
- * type-system access-pattern:
+ * The three prototype-shape carriers differ along two axes — whether a
+ * prototype-chain exists, and whether own keys may be present:
  *
- * - `BlankType` — used as a blank-descriptor sentinel (e.g.,
- *   `objectCreate(null)` in `@/config`'s retyped return type, decision
- *   #034). No keys statically reachable.
- * - `DictionaryObject` — used as a typed hashmap. Arbitrary keys via
- *   the index signature.
- *
- * Per TypeScript variance, `BlankType` is a structural subtype of
- * `DictionaryObject` (since `Record<PropertyKey, never>` is a subtype
- * of `Record<PropertyKey, unknown>` — `never` is the bottom type).
- * The two are not interchangeable in API contracts because the
- * intent differs (sentinel vs. hashmap), but they coexist in the type
- * system without a conflict.
+ * - `DictionaryObject` — prototype-less, constructor-less, own keys OPEN.
+ * - `BlankType` — a real `Object` (so it carries `Object.prototype` and the
+ *   `Object` constructor), own keys EMPTY.
+ * - `BlankDictionary` — prototype-less, constructor-less, own keys EMPTY: the
+ *   intersection of the other two, the never-mutated `Object.create(null)`.
  */
 export interface DictionaryObject extends AnyObject {
   /**
-   * Must not be present — the absence of `constructor` is the
-   * type-level reflection of the runtime "no prototype" characteristic.
-   * `?: never` admits both literal absence and structural-`never`
-   * presence; either form satisfies the constraint.
+   * Must be absent — a prototype-less object inherits no
+   * `Object.prototype.constructor`, so its `constructor` reads back
+   * `undefined`. `?: never` admits both literal absence and structural-`never`
+   * presence; either form satisfies the constraint and discriminates from
+   * {@link PlainObject}.
    */
   constructor?: never;
 }
@@ -281,6 +284,40 @@ export type PlainOrDictionaryObject = PlainObject | DictionaryObject;
  */
 export function isObject<T = unknown>(value?: T): value is T & AnyObject;
 
+// ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
+
+/**
+ * The member-surface marker of the cross-realm Plain Object contract:
+ * confirms that `value` carries, as its own non-enumerable callable
+ * properties, every canonical `Object.prototype` member (the seven core
+ * ES members plus whichever Annex-B accessor helpers the host realm
+ * carries, calibrated once at module load).
+ *
+ * This is the one marker of {@link isObjectPrototypeEquivalent} that
+ * inspects the prototype's actual members rather than its identity
+ * claims. The five identity markers are all satisfiable by a hollow
+ * `class extends null` whose `name` was redefined to `'Object'`; this
+ * check rejects it because the canonical members are absent.
+ *
+ * Own, not inherited — by design: it reads own descriptors only, since
+ * the contract is about what the prototype itself implements, never what
+ * it inherits. Augmentation-tolerant: extra own properties do not break
+ * it. Residual: a spoof that installs the full canonical member set
+ * passes — accepted, as this closes the cheap spoof, not every one.
+ *
+ * Throw-safe: a hostile `Proxy` `ownKeys` / `getOwnPropertyDescriptor`
+ * trap that throws is absorbed and yields `false` rather than
+ * propagating.
+ *
+ * @param prototype - the prototype whose own member surface to verify
+ *  (callers pass an already-resolved `[[Prototype]]`); a nullish or
+ *  non-object value is absorbed by the guard and yields `false`
+ * @returns `true` when every canonical member is present as a
+ *  non-enumerable callable own property; `false` otherwise
+ * @internal
+ */
+export function doesImplementObjectPrototypeContract(prototype?: unknown): boolean;
+
 /**
  * Probes the two inexpensive string-shape markers that suggest a value
  * is a plain `Object` instance — the `[[Class]]` tag
@@ -289,9 +326,9 @@ export function isObject<T = unknown>(value?: T): value is T & AnyObject;
  * realm-fixed `toObjectString.call` capture and the constructor-walk's
  * descriptor-discipline.
  *
- * Used as the inexpensive front-half of the cross-realm Plain Object
- * fallback in {@link isPlainObject}: if either marker fails, the more
- * expensive {@link isObjectPrototypeEquivalent} walk is skipped.
+ * Used as the front-half of the cross-realm Plain Object fallback in
+ * {@link isPlainObject}: if either marker fails, the more expensive
+ * {@link isObjectPrototypeEquivalent} walk is skipped.
  * Also reused by the fused {@link isPlainOrDictionaryObject} dispatch
  * on its cross-realm branch.
  *
@@ -329,38 +366,6 @@ export function hasPlainObjectIdentitySignal(
  * @internal
  */
 export function hasDictionaryObjectIdentitySignal(value?: unknown): boolean;
-
-/**
- * The member-surface marker of the cross-realm Plain Object contract:
- * confirms that `value` carries, as its own non-enumerable callable
- * properties, every canonical `Object.prototype` member (the seven core
- * ES members plus whichever Annex-B accessor helpers the host realm
- * carries, calibrated once at module load).
- *
- * This is the one marker of {@link isObjectPrototypeEquivalent} that
- * inspects the prototype's actual members rather than its identity
- * claims. The five identity markers are all satisfiable by a hollow
- * `class extends null` whose `name` was redefined to `'Object'`; this
- * check rejects it because the canonical members are absent.
- *
- * Own, not inherited — by design: it reads own descriptors only, since
- * the contract is about what the prototype itself implements, never what
- * it inherits. Augmentation-tolerant: extra own properties do not break
- * it. Residual: a spoof that installs the full canonical member set
- * passes — accepted, as this closes the cheap spoof, not every one.
- *
- * Throw-safe: a hostile `Proxy` `ownKeys` / `getOwnPropertyDescriptor`
- * trap that throws is absorbed and yields `false` rather than
- * propagating.
- *
- * @param prototype - the prototype whose own member surface to verify
- *  (callers pass an already-resolved `[[Prototype]]`); a nullish or
- *  non-object value is absorbed by the guard and yields `false`
- * @returns `true` when every canonical member is present as a
- *  non-enumerable callable own property; `false` otherwise
- * @internal
- */
-export function doesImplementObjectPrototypeContract(prototype?: unknown): boolean;
 
 /**
  * Verifies the structural anchor for cross-realm Plain Object
@@ -432,11 +437,11 @@ export function isObjectPrototypeEquivalent(
  * `Object.prototype` fails the local-realm `=== Object.prototype`
  * fast-path but matches this structural contract in every realm.
  *
- * The single seam shared by {@link isPlainObject} and
- * {@link isPlainOrDictionaryObject} on their cross-realm branch. Exported
- * `@internal` for direct unit-testability (decision #053): decision #059
- * threaded the constructor/name resolution into this seam, so it carries
- * resolve-once-and-thread logic neither composed helper exercises alone.
+ * This is the single seam that {@link isPlainObject} and
+ * {@link isPlainOrDictionaryObject} share on their cross-realm branch. It is
+ * exported `@internal` for direct unit-testability (decision #053): decision
+ * #059 threaded the constructor/name resolution into this seam, so it carries
+ * resolve-once-and-thread logic that neither composed helper exercises alone.
  *
  * @param value - the candidate whose Plain Object structure and contract is
  *  to be verified; assumed to be an object provided by the caller
@@ -474,9 +479,9 @@ export function isAlienRealmPlainObject(value: object, prototype: object): boole
  *   prototype's own member surface (every canonical `Object.prototype`
  *   method present as a non-enumerable callable).
  *
- * The round-trip identity marker — verifying that the constructor's
- * own `prototype` data property points back to the prototype walked
- * from `value`. This closes the spoof surface where `value.constructor`
+ * The round-trip identity marker verifies that the constructor's own
+ * `prototype` data property points back to the prototype walked from
+ * `value`. This closes the spoof surface where `value.constructor`
  * (own or inherited) is tampered to point at the global `Object`
  * without the prototype actually owning `value`'s `[[Prototype]]`.
  *

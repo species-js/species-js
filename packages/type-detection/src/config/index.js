@@ -22,6 +22,14 @@ import { isNumberValue } from '@/primitive';
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 
 /** @typedef {typeof import('./index').objectHasOwn} objectHasOwnProperty */
+/** @typedef {typeof import('./index').objectCreate} createCustomType */
+
+/** @typedef {import('@/object').DictionaryObject} DictionaryObject */
+
+/** @typedef {import('./index').BlankDictionary} BlankDictionary */
+/** @typedef {import('./index').BlankType} BlankType */
+
+/** @typedef {typeof import('./index').INSTANCE_LESS_CONSTRUCTOR} NEVER_INVOKED_CONSTRUCTOR */
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 //
@@ -151,9 +159,9 @@ const nativeHasOwn = /** @type {objectHasOwnProperty | undefined} */ (
 /**
  * The explicit `Object.prototype.hasOwnProperty`-based polyfill behind
  * {@link objectHasOwn}, exported so the fallback path can be unit-tested in
- * isolation even on runtimes where the native `Object.hasOwn` is present and
- * would otherwise be the branch {@link objectHasOwn} selects. Consuming code
- * should reach for {@link objectHasOwn}, which prefers native when available.
+ * isolation — even on runtimes where native `Object.hasOwn` is present and
+ * {@link objectHasOwn} would otherwise select it. Consuming code should reach
+ * for {@link objectHasOwn}, which prefers native when available.
  *
  * @param {object} target - the value whose own property is tested
  * @param {PropertyKey} key - the property key to probe
@@ -201,31 +209,16 @@ export const objectIs = o.is;
  *
  * Retyped at capture — via the same overload set the `.d.ts` declares —
  * from the lib's `any` return to overload-precise return types:
- * `Record<PropertyKey, never>` on the `null`-prototype variant, `object`
- * otherwise. The inline `@type` cast (rather than `@param`/`@returns`
- * JSDoc, which TS does not apply to a function alias) is what lets in-file
- * callers — e.g. `BLANK_DICTIONARY` below — inherit the precise return
- * instead of `any`, closing the `@typescript-eslint/no-unsafe-assignment`
- * cascade here as well as at external consumer sites. The runtime export
- * is the unwrapped native method.
+ * {@link DictionaryObject} on the `null`-prototype variant, `object`
+ * otherwise. The inline `@type` cast (rather than `@param`/`@returns` JSDoc,
+ * which TS does not apply to a function alias) lets in-file callers — e.g.
+ * `BLANK_DICTIONARY` below — inherit the precise return instead of `any`. That
+ * closes the `@typescript-eslint/no-unsafe-assignment` cascade here as well as
+ * at external consumer sites. The runtime export is the unwrapped native method.
+ * @type {createCustomType}
  * @internal
  */
-export const objectCreate =
-  /** @type {{ (o: null): Record<PropertyKey, never>; (o: object): object; (o: object | null, properties: PropertyDescriptorMap & ThisType<unknown>): object }} */ (
-    o.create
-  );
-
-/**
- * A single realm-fixed blank dictionary — `Object.create(null)`: no prototype,
- * no members, captured once at module-load. The shared sentinel for an
- * absent-global prototype capture (a runtime without `EventTarget` /
- * `AbortSignal`, decision #060) — compared by identity, never mutated. Defined
- * here (after `objectCreate`, one layer below `@/utility`) so its eval-time
- * `objectCreate(null)` runs only once `objectCreate` is initialized, not
- * mid-cycle.
- * @internal
- */
-export const BLANK_DICTIONARY = objectCreate(null);
+export const objectCreate = o.create;
 
 /**
  * `Object.freeze`, realm-fixed at module-load.
@@ -308,6 +301,55 @@ export const getOwnPropertyDescriptor = o.getOwnPropertyDescriptor;
  * @internal
  */
 export const getOwnPropertyDescriptors = o.getOwnPropertyDescriptors;
+
+// ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
+//
+//  Object- & Function-Shape Constants
+//
+// ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
+
+/**
+ * The realm-fixed blank dictionary — `objectCreate(null)` captured once at
+ * module load and never mutated: prototype-less, constructor-less, and empty.
+ * It is the shared sentinel for an absent-global prototype capture (a runtime
+ * without `EventTarget` / `AbortSignal`, decision #060) and for the failure
+ * surrogate of `getValidatedStandardConstructorAndPrototypeTuple`, compared by
+ * identity and never read for keys. The inline cast narrows the
+ * `objectCreate(null)` return (`DictionaryObject`) to `BlankDictionary`, since
+ * the never-mutated form has no own key.
+ * @internal
+ */
+export const BLANK_DICTIONARY = /** @type {BlankDictionary} */ (objectCreate(null));
+
+/**
+ * The realm-fixed blank object — an empty `Object` literal captured once at
+ * module load and never mutated: a real `Object` carrying `Object.prototype` and
+ * the `Object` constructor, but no own property key. It is surfaced as a
+ * downstream-facing primitive alongside `BLANK_DICTIONARY`, from which it differs
+ * by having a prototype-chain. The inline cast types it `BlankType` (the empty
+ * literal's own surface carries no reachable key).
+ * @internal
+ */
+export const BLANK_TYPE = /** @type {BlankType} */ ({});
+
+/**
+ * A never-invoked, never-newed function statement — the inert stand-in for an
+ * absent standard constructor. It backs the failure surrogate of
+ * `getValidatedStandardConstructorAndPrototypeTuple` and the module-load fallback
+ * when a realm lacks a global intrinsic (`Promise`, `EventTarget`, `AbortSignal`;
+ * decision #060). Because its `prototype` is never touched,
+ * `value instanceof INSTANCE_LESS_CONSTRUCTOR` is uniformly `false` without
+ * throwing, so callers run `instanceof` against the realm-fixed reference
+ * unguarded. It is cast to `NewableFunction` (the `@/config` `.d.ts` surface) so
+ * the plain function statement is accepted where a constructor reference is
+ * expected.
+ * @internal
+ */
+export const INSTANCE_LESS_CONSTRUCTOR = /** @type {NEVER_INVOKED_CONSTRUCTOR} */ (
+  function () {
+    return void 0;
+  }
+);
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 //

@@ -3,15 +3,20 @@
 /**
  * @module test/thenable/_internal/helpers
  *
- * Axis 4 — helper-unit (white-box). The five exported `@internal` helpers
- * tested in isolation:
- *   - `doesImplementPromiseContract` — the structural three-method contract.
+ * Axis 4 — helper-unit (white-box). The exported `@internal` helpers tested in
+ * isolation:
+ *   - `doesImplementPromiseContract` — the structural three-method contract read
+ *     over the value's prototype-chain (the lenient `isPromiseLike` fallback).
  *   - `hasPromiseIdentitySignal` — the two string-shape markers: the value's
  *     `[[Class]]` tag and the constructor name threaded in by the caller.
- *   - `isStructuralPromisePrototypeEquivalent` — prototype-side validation with
- *     reciprocal own-constructor identity.
- *   - `isStructuralPromiseEquivalent` — `isPromise`'s full cross-realm arm.
+ *   - `doesImplementPromisePrototypeContract` — the prototype-side member-surface
+ *     marker (own `then`/`catch`/`finally` callable data properties).
+ *   - `isPromisePrototypeEquivalent` — the four-marker cross-realm prototype
+ *     anchor (isClass + tag + round-trip identity + member surface).
+ *   - `isAlienRealmPromise` — the exported cross-realm seam itself: the identity
+ *     signal gate AND the prototype anchor, resolving the constructor once.
  *   - `isCurrentRealmPromiseInstance` — the local-realm instanceof arm.
+ *   - `doesNotShadowPromiseContract` — the #063 own-surface integrity gate.
  * Testing these directly catches contract violations the orchestrator-only
  * suites would mask, and exercises the cross-realm path on local values.
  *
@@ -25,9 +30,12 @@ import {
   doesImplementPromiseContract,
   doesNotShadowPromiseContract,
   hasPromiseIdentitySignal,
-  isStructuralPromisePrototypeEquivalent,
-  isStructuralPromiseEquivalent,
+  doesImplementPromisePrototypeContract,
+  isPromisePrototypeEquivalent,
+  isAlienRealmPromise,
   isCurrentRealmPromiseInstance,
+  getInertPrototypeOf,
+  getDefinedConstructor,
   objectCreate,
 } from '@/index.js';
 
@@ -36,6 +44,7 @@ import {
   ownThenable,
   thenCatchOnly,
   accessorFinally,
+  localPromise,
   promiseSubclassInstance,
   foreignPromise,
   foreignPromiseSubclassInstance,
@@ -43,7 +52,6 @@ import {
   throwingTagGetterWithContract,
   localPromisePrototype,
   foreignPromisePrototype,
-  foreignPromiseConstructor,
   promisePrototypeGraft,
   promiseMethodShadowGraft,
   promiseConstructorShadowGraft,
@@ -116,54 +124,118 @@ describe('[Internal] hasPromiseIdentitySignal', () => {
   });
 });
 
-describe('[Internal] isStructuralPromisePrototypeEquivalent', () => {
-  it('iSPPE/A1: (Promise.prototype, Promise) → true', () => {
-    expect(isStructuralPromisePrototypeEquivalent(localPromisePrototype(), Promise)).toBe(
-      true,
-    );
+describe('[Internal] doesImplementPromisePrototypeContract (prototype-side member surface)', () => {
+  it('dIPPC/A1: local Promise.prototype → true (own then/catch/finally callable)', () => {
+    expect(doesImplementPromisePrototypeContract(localPromisePrototype())).toBe(true);
   });
 
-  it('iSPPE/A2: (foreign Promise.prototype, foreign Promise ctor) → true (realm-independent)', () => {
-    expect(
-      isStructuralPromisePrototypeEquivalent(
-        foreignPromisePrototype(),
-        foreignPromiseConstructor(),
-      ),
-    ).toBe(true);
+  it('dIPPC/A2: foreign Promise.prototype → true (own descriptors read realm-independently)', () => {
+    expect(doesImplementPromisePrototypeContract(foreignPromisePrototype())).toBe(true);
   });
 
-  it('iSPPE/R1: (Promise.prototype, undefined) → false (falsy constructor short-circuits)', () => {
+  it('dIPPC/R1: Object.prototype → false (carries no own then/catch/finally)', () => {
+    expect(doesImplementPromisePrototypeContract(Object.prototype)).toBe(false);
+  });
+
+  it('dIPPC/R2: own then/catch but no finally → false (own, not inherited)', () => {
+    // fed a plain value as a "prototype": own then + catch callable, finally absent.
+    expect(doesImplementPromisePrototypeContract(thenCatchOnly())).toBe(false);
+  });
+
+  it('dIPPC/R3: an accessor `then` → false (reads `.value`, so a getter yields undefined)', () => {
     expect(
-      isStructuralPromisePrototypeEquivalent(localPromisePrototype(), undefined),
+      doesImplementPromisePrototypeContract({
+        get then() {
+          return () => undefined;
+        },
+        catch: () => undefined,
+        finally: () => undefined,
+      }),
     ).toBe(false);
   });
 
-  it('iSPPE/R2: (Object.prototype, Object) → false (tag is [object Object])', () => {
-    expect(isStructuralPromisePrototypeEquivalent(Object.prototype, Object)).toBe(false);
-  });
-
-  it('iSPPE/R3: (Promise.prototype, Array) → false (reciprocal own-constructor identity fails)', () => {
-    expect(isStructuralPromisePrototypeEquivalent(localPromisePrototype(), Array)).toBe(
+  it('dIPPC/B1: a hostile `ownKeys` trap that throws → false, not thrown (fail-closed)', () => {
+    // the try/catch boundary: `getOwnPropertyDescriptors` triggers the throwing
+    // `ownKeys` trap, which is absorbed to `false` rather than propagating.
+    expect(doesImplementPromisePrototypeContract(ownKeysTrapOverPromiseProto())).toBe(
       false,
     );
   });
 });
 
-describe('[Internal] isStructuralPromiseEquivalent', () => {
-  it('iSPE/A1: foreign direct Promise → true (cross-realm arm; mirrors isPromise/A3)', () => {
-    expect(isStructuralPromiseEquivalent(foreignPromise())).toBe(true);
+describe('[Internal] isPromisePrototypeEquivalent (fed the prototype + its resolved constructor)', () => {
+  // mirrors the production thread: resolve the constructor ONCE from the prototype
+  // (`assumePrototype`), exactly as `isAlienRealmPromise` hands it in.
+  /**
+   * @param {unknown} proto - the candidate `Promise.prototype` to validate
+   */
+  const iPPE = (proto) => {
+    const p = /** @type {object} */ (proto);
+    return isPromisePrototypeEquivalent(
+      p,
+      getDefinedConstructor(p, { assumePrototype: true }),
+    );
+  };
+
+  it('iPPE/A1: local Promise.prototype → true (all four markers hold)', () => {
+    expect(iPPE(localPromisePrototype())).toBe(true);
   });
 
-  it('iSPE/R1: foreign Promise subclass → false (instance ctor-name "MyPromise"; mirrors isPromise/R2)', () => {
-    expect(isStructuralPromiseEquivalent(foreignPromiseSubclassInstance())).toBe(false);
+  it('iPPE/A2: foreign Promise.prototype → true (realm-independent)', () => {
+    expect(iPPE(foreignPromisePrototype())).toBe(true);
   });
 
-  it('iSPE/R2: tag-spoof over a plain contract → false (instance ctor-walk reaches Object; mirrors isPromise/R3)', () => {
-    expect(isStructuralPromiseEquivalent(tagSpoofedPromise())).toBe(false);
+  it('iPPE/R1: (Promise.prototype, undefined) → false (marker 1: isClass(undefined) fails)', () => {
+    expect(isPromisePrototypeEquivalent(localPromisePrototype(), undefined)).toBe(false);
   });
 
-  it('iSPE/R3: PromiseLike non-Promise → false (tag [object Object]; mirrors isPromise/R4)', () => {
-    expect(isStructuralPromiseEquivalent(fullContract())).toBe(false);
+  it('iPPE/R2: Object.prototype → false (marker 2: tag is `[object Object]`)', () => {
+    expect(iPPE(Object.prototype)).toBe(false);
+  });
+
+  it('iPPE/R3: (Promise.prototype, Array) → false (marker 3: round-trip prototype mismatch)', () => {
+    // a MISMATCHED pair the production thread never produces, but which isolates
+    // the round-trip marker: `Array.prototype !== Promise.prototype`.
+    expect(
+      isPromisePrototypeEquivalent(
+        localPromisePrototype(),
+        getDefinedConstructor(Array.prototype, { assumePrototype: true }),
+      ),
+    ).toBe(false);
+  });
+});
+
+describe('[Internal] isAlienRealmPromise (the exported cross-realm seam)', () => {
+  // `iARP` feeds the seam a value + its already-resolved `[[Prototype]]`, exactly
+  // as `isPromise` hands it on the cross-realm branch; the seam resolves the
+  // constructor + name ONCE (#059) and threads them into both composed helpers.
+  /**
+   * @param {unknown} value - the candidate whose cross-realm Promise verdict to carry
+   */
+  const iARP = (value) =>
+    isAlienRealmPromise(
+      /** @type {object} */ (value),
+      /** @type {object} */ (getInertPrototypeOf(value)),
+    );
+
+  it('iARP/A1: a foreign direct Promise → true (the cross-realm arm; mirrors isPromise/A3)', () => {
+    expect(iARP(foreignPromise())).toBe(true);
+  });
+
+  it('iARP/A2: a local direct Promise → true (the seam admits it on structure; isPromise fast-paths it)', () => {
+    expect(iARP(localPromise())).toBe(true);
+  });
+
+  it('iARP/R1: a foreign Promise subclass → false (signal gate: ctor-name `MyPromise`; mirrors isPromise/R2)', () => {
+    expect(iARP(foreignPromiseSubclassInstance())).toBe(false);
+  });
+
+  it('iARP/R2: a tag-spoof over a plain contract → false (signal gate: resolved ctor-name `Object`; mirrors isPromise/R3)', () => {
+    expect(iARP(tagSpoofedPromise())).toBe(false);
+  });
+
+  it('iARP/R3: a PromiseLike non-Promise → false (signal gate: tag `[object Object]`; mirrors isPromise/R4)', () => {
+    expect(iARP(fullContract())).toBe(false);
   });
 });
 

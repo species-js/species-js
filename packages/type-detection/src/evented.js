@@ -21,27 +21,30 @@
  */
 
 import {
-  BLANK_DICTIONARY,
   getOwnPropertyDescriptors,
   getOwnPropertyNames,
+  INSTANCE_LESS_CONSTRUCTOR,
 } from '@/config';
 
 import {
   TRUSTED_DATA_CONFIRMATION,
-  INSTANCE_LESS_CONSTRUCTOR,
+  isValueOfBoundSet,
   getInertPrototypeOf,
   getInertDescriptor,
-  getVerifiedOwnName,
   hasInertMethod,
   getTypeSignature,
+  getVerifiedOwnName,
   getDefinedConstructor,
-  isValueOfBoundSet,
+  getValidatedStandardConstructorAndPrototypeTuple,
 } from '@/utility';
 
-import { isCallable, isClass } from '@/function';
+import { isCallable, isNewableFunction, isClass } from '@/function';
 import { isBooleanValue } from '@/primitive';
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
+
+/** @typedef {typeof import('@/config').INSTANCE_LESS_CONSTRUCTOR} NEVER_INVOKED_CONSTRUCTOR */
+/** @typedef {import('@/config').BlankDictionary} BlankDictionary */
 
 /** @typedef {import('@/function').Callable} Callable */
 /** @typedef {import('@/function').NewableFunction} NewableFunction */
@@ -51,32 +54,62 @@ import { isBooleanValue } from '@/primitive';
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 
-const EventTargetConstructor = /** @type {typeof EventTarget | Callable} */ (
-  isCallable(EventTarget) ? EventTarget : INSTANCE_LESS_CONSTRUCTOR
-);
-const AbortSignalConstructor = /** @type {typeof AbortSignal | Callable} */ (
-  isCallable(AbortSignal) ? AbortSignal : INSTANCE_LESS_CONSTRUCTOR
-);
+/**
+ * A freshly-manufactured real `AbortSignal` (via the realm's `AbortController`),
+ * used only as the receiver for the spec-defined `aborted` getter when the
+ * module-load capture validates `AbortSignal.prototype`. Falls back to a plain
+ * object when the runtime has no `AbortController`, so the getter-invocation
+ * fails closed and the capture collapses to the inert surrogate.
+ *
+ * @returns {AbortSignal | object} a live `AbortSignal`, or a plain object when
+ *  no `AbortController` is available
+ */
+function createInertAbortSignal() {
+  return (
+    /** @type {{ signal?: AbortSignal }} */ (new AbortControllerConstructor()).signal ??
+    {}
+  );
+}
+const AbortControllerConstructor = isNewableFunction(AbortController)
+  ? AbortController
+  : /** @type {NewableFunction} */ (
+      function () {
+        return void 0;
+      }
+    );
 
-const eventTargetPrototype =
-  EventTargetConstructor === INSTANCE_LESS_CONSTRUCTOR
-    ? BLANK_DICTIONARY
-    : /** @type {object} */ (EventTargetConstructor.prototype);
+const [AbortSignalConstructor, abortSignalPrototype] =
+  /** @type {[typeof AbortSignal, object | null] | [NEVER_INVOKED_CONSTRUCTOR, BlankDictionary]} */ (
+    getValidatedStandardConstructorAndPrototypeTuple(AbortSignal, (prototype) =>
+      doesImplementAbortSignalPrototypeContract(
+        /** @type {object} */ (prototype),
+        createInertAbortSignal(),
+      ),
+    )
+  );
+const [EventTargetConstructor, eventTargetPrototype] =
+  /** @type {[typeof EventTarget, object | null] | [NEVER_INVOKED_CONSTRUCTOR, BlankDictionary]} */ (
+    getValidatedStandardConstructorAndPrototypeTuple(
+      EventTarget,
+      doesImplementEventTargetContract,
+    )
+  );
 
-const abortSignalPrototype =
-  AbortSignalConstructor === INSTANCE_LESS_CONSTRUCTOR
-    ? BLANK_DICTIONARY
-    : /** @type {object} */ (AbortSignalConstructor.prototype);
+// ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
+//
+//  EventTarget Predicates
+//
+// ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 
 /**
  * Whether `value` is an instance of the realm-fixed `EventTarget`
  * capture (or any subclass — `Element`, `Document`, `Window`,
  * `XMLHttpRequest`, …).
  *
- * The subclass-admitting realm-membership building block shared by the
- * EventTarget predicates — it carries no proto-identity narrowing, so the
- * strict {@link isEventTarget} layers that check on top while the lenient
- * {@link isEventTargetLike} uses it as its fast-path arm.
+ * This is the realm-membership building block the EventTarget predicates share.
+ * It narrows nothing on prototype identity, so strict {@link isEventTarget} adds
+ * its own checks on top, while the lenient {@link isEventTargetLike} uses it
+ * directly as its fast-path arm.
  *
  * When the runtime lacks a global `EventTarget` (pre-Node-15 environments,
  * special embeddings), `EventTargetConstructor` is the realm-fixed
@@ -86,10 +119,15 @@ const abortSignalPrototype =
  * Proxy-trap that throws during the `instanceof` prototype-walk, yielding
  * `false` rather than propagating (the package-wide throw-safety invariant).
  *
- * @param {unknown} value - the value to test; assumed to be at least truthy
- *  by the caller
- * @returns {boolean} `true` when `value instanceof EventTargetConstructor`
- *  holds; `false` otherwise (including on a throwing trap)
+ * Generic in `T` per the family-pattern. The narrow returns
+ * `T & EventTargetLike`; `T = unknown` collapses to `EventTargetLike`.
+ *
+ * @template [T=unknown]
+ * @param {T} value - the value to test; assumed to be at least truthy by
+ *  the caller
+ * @returns {value is T & EventTargetLike} `true` when
+ *  `value instanceof EventTargetConstructor` holds; `false` otherwise (including
+ *  on a throwing trap)
  * @internal
  */
 export function isCurrentRealmEventTargetInstance(value) {
@@ -99,49 +137,13 @@ export function isCurrentRealmEventTargetInstance(value) {
     return false;
   }
 }
-/**
- * Whether `value` is an instance of the realm-fixed `AbortSignal`
- * capture (or any subclass).
- *
- * The subclass-admitting realm-membership building block shared by the
- * AbortSignal predicates — it carries no proto-identity narrowing, so the
- * strict {@link isAbortSignal} layers that check on top while the lenient
- * {@link isAbortSignalLike} uses it as its fast-path arm.
- *
- * When the runtime lacks a global `AbortSignal` (pre-Node-15 environments,
- * special embeddings), `AbortSignalConstructor` is the realm-fixed
- * `INSTANCE_LESS_CONSTRUCTOR` sentinel — a never-instantiated function whose
- * `prototype` makes `value instanceof` return `false` for every input without
- * throwing. The `try`/`catch` additionally absorbs a hostile `getPrototypeOf`
- * Proxy-trap that throws during the `instanceof` prototype-walk, yielding
- * `false` rather than propagating (the package-wide throw-safety invariant).
- *
- * @param {unknown} value - the value to test; assumed to be at least truthy
- *  by the caller
- * @returns {boolean} `true` when `value instanceof AbortSignalConstructor`
- *  holds; `false` otherwise (including on a throwing trap)
- * @internal
- */
-export function isCurrentRealmAbortSignalInstance(value) {
-  try {
-    return value instanceof AbortSignalConstructor;
-  } catch {
-    return false;
-  }
-}
-
-// ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
-//
-//  EventTarget Predicates
-//
-// ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 
 /**
- * The two inexpensive string-shape markers of a direct `EventTarget` — the
- * caller-threaded constructor `name` equal to `'EventTarget'` and the
- * `[[Class]]` tag `'[object EventTarget]'`. The inexpensive front-gate of
- * the cross-realm {@link isEventTarget} arm: if either marker fails, the
- * costlier prototype-contract walk is skipped.
+ * Whether `value` carries both of `EventTarget`'s string-shape identity markers
+ * — the `[[Class]]` tag `'[object EventTarget]'` and the caller-threaded
+ * constructor `name` `'EventTarget'`. This is the inexpensive front gate of the
+ * cross-realm {@link isEventTarget} arm: if either marker fails, the costlier
+ * prototype-contract walk is skipped.
  *
  * @param {object} value - the value whose `[[Class]]` tag to read;
  *  assumed to be an object provided by the caller
@@ -157,12 +159,12 @@ export function hasEventTargetIdentitySignal(value, name) {
 
 /**
  * The module-fixed denylist of own-property names whose presence on a candidate
- * shadows a member, a genuine direct `EventTarget` inherits and never owns: the
- * `constructor` back-reference, the three canonical WHATWG methods, and the
- * Observable-proposal `when`. `when` is reserved even though it is NOT required
- * by the presence-contract (#028) — the shadow-exclusion set is chosen by "what
- * an own-override intercepts", which deliberately diverges from the minimum
- * "must-be-present" set. `Symbol.toStringTag` is absent: a symbol key (invisible
+ * shadows a member that a genuine direct `EventTarget` inherits and never owns:
+ * the `constructor` back-reference, the three canonical WHATWG methods, and the
+ * Observable-proposal `when`. `when` is reserved even though it is not required
+ * by the presence-contract (#028): the shadow-exclusion set is chosen by "what an
+ * own-override intercepts", which deliberately diverges from the minimum
+ * "must-be-present" set. `Symbol.toStringTag` is absent — a symbol key (invisible
  * to the string-keyed `getOwnPropertyNames`) and cosmetic once prototype-identity
  * is proven locally.
  */
@@ -175,20 +177,20 @@ const disallowedEventTargetContractShadowKeys = new Set([
 ]);
 
 /**
- * Whether `value` leaves the inherited `EventTarget` surface UN-shadowed at its
- * own level — no own property whose name is in the reserved denylist
- * (`disallowedEventTargetContractShadowKeys`: the `constructor` back-reference
- * plus the method contract). The own-surface integrity-gate the strict local
- * {@link isEventTarget} fast-path ANDs onto its `prototype === eventTargetPrototype`
- * identity-check.
+ * Whether `value` leaves the inherited `EventTarget` surface unshadowed at its
+ * own level: it owns no property whose name is in the reserved denylist
+ * (`disallowedEventTargetContractShadowKeys` — the `constructor` back-reference
+ * plus the method contract). This is the own-surface integrity gate that the
+ * strict local {@link isEventTarget} fast path ANDs onto its
+ * `prototype === eventTargetPrototype` identity check.
  *
- * A genuine direct `EventTarget` instance inherits its whole method-contract and
- * its `constructor` link from `EventTarget.prototype` and owns none of it. So an
- * own property shadowing a reserved member is an instance-level override —
- * structurally an anonymous subclass-layer — and demotes the value from `is` to
- * merely `Like`, symmetric with the #028 subclass-rejection applied to the own
- * layer. Orthogonal own state (a value's own `id`, say) is untouched: only the
- * reserved member-names disqualify, never mere own-property presence.
+ * A genuine direct `EventTarget` instance inherits its whole method contract and
+ * its `constructor` link from `EventTarget.prototype`, owning none of it. An own
+ * property that shadows a reserved member is therefore an instance-level override
+ * — structurally an anonymous subclass layer — so it demotes the value from `is`
+ * to merely `Like`. This is the #028 subclass rejection applied to the own layer.
+ * Orthogonal own state (a value's own `id`, say) is untouched: only the reserved
+ * member names disqualify, never mere own-property presence.
  *
  * Throw-safe and fail-closed: a hostile `ownKeys` trap that throws, collapses to
  * `false` (a clean own surface cannot be confirmed → treat as shadowed → reject),
@@ -423,9 +425,9 @@ export function isEventTargetLike(value) {
  * (`Object.create(EventTarget.prototype, { dispatchEvent })`) is an
  * instance-level subclass layer, demoted to merely `EventTargetLike` — the #028
  * subclass rejection applied to the own layer. On miss, the cross-realm arm runs
- * {@link isAlienRealmEventTarget} — the tag + constructor-name signal gate plus
- * the prototype-contract walk — but only when the realm actually has a global
- * `EventTarget` (the `INSTANCE_LESS_CONSTRUCTOR` sentinel guard).
+ * {@link isAlienRealmEventTarget} (the tag + constructor-name signal gate plus
+ * the prototype-contract walk), but only when the realm actually has a global
+ * `EventTarget` — the `INSTANCE_LESS_CONSTRUCTOR` sentinel guard.
  *
  * `EventTarget` subclasses are rejected on both arms — by prototype identity
  * locally, by constructor-name equality cross-realm. This is a deliberate
@@ -470,11 +472,47 @@ export function isEventTarget(value) {
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 
 /**
- * The two inexpensive string-shape markers of a direct `AbortSignal` — the
- * caller-threaded constructor `name` equal to `'AbortSignal'` and the
- * `[[Class]]` tag `'[object AbortSignal]'`. The inexpensive front-gate of
- * the cross-realm {@link isAbortSignal} arm: if either marker fails, the
- * costlier prototype-contract walk is skipped.
+ * Whether `value` is an instance of the realm-fixed `AbortSignal`
+ * capture (or any subclass).
+ *
+ * This is the realm-membership building block the AbortSignal predicates share.
+ * It narrows nothing on prototype identity, so strict {@link isAbortSignal} adds
+ * its own checks on top, while the lenient {@link isAbortSignalLike} uses it
+ * directly as its fast-path arm.
+ *
+ * When the runtime lacks a global `AbortSignal` (pre-Node-15 environments,
+ * special embeddings), `AbortSignalConstructor` is the realm-fixed
+ * `INSTANCE_LESS_CONSTRUCTOR` sentinel — a never-instantiated function whose
+ * `prototype` makes `value instanceof` return `false` for every input without
+ * throwing. The `try`/`catch` additionally absorbs a hostile `getPrototypeOf`
+ * Proxy-trap that throws during the `instanceof` prototype-walk, yielding
+ * `false` rather than propagating (the package-wide throw-safety invariant).
+ *
+ * Generic in `T` per the family-pattern. The narrow returns
+ * `T & AbortSignalLike`; `T = unknown` collapses to `AbortSignalLike`.
+ *
+ * @template [T=unknown]
+ * @param {T} value - the value to test; assumed to be at least truthy by
+ *  the caller
+ * @returns {value is T & AbortSignalLike} `true` when
+ *  `value instanceof AbortSignalConstructor` holds; `false` otherwise (including
+ *  on a throwing trap)
+ * @internal
+ */
+export function isCurrentRealmAbortSignalInstance(value) {
+  try {
+    return value instanceof AbortSignalConstructor;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Whether `value` carries both of `AbortSignal`'s string-shape identity markers
+ * — the `[[Class]]` tag `'[object AbortSignal]'` and the caller-threaded
+ * constructor `name` `'AbortSignal'`. This is the inexpensive front gate of the
+ * cross-realm {@link isAbortSignal} arm: if either marker fails, the costlier
+ * prototype-contract walk is skipped.
  *
  * @param {object} value - the value whose `[[Class]]` tag to read;
  *  assumed to be an object provided by the caller
@@ -489,12 +527,12 @@ export function hasAbortSignalIdentitySignal(value, name) {
 }
 
 /**
- * The module-fixed denylist for `AbortSignal` — a SUPERSET of the `EventTarget`
+ * The module-fixed denylist for `AbortSignal` is a superset of the `EventTarget`
  * denylist (an `AbortSignal` is-an `EventTarget`, so shadowing an inherited
- * `EventTarget` member disqualifies it too), extended with the abort-surface:
- * the `aborted` / `reason` / `onabort` spec accessors and the `throwIfAborted`
- * method. The `constructor` back-reference, the three `EventTarget` methods,
- * and `when` arrive via the spread of `disallowedEventTargetContractShadowKeys`;
+ * `EventTarget` member disqualifies it too), extended with the abort surface: the
+ * `aborted` / `reason` / `onabort` spec accessors and the `throwIfAborted`
+ * method. The `constructor` back-reference, the three `EventTarget` methods, and
+ * `when` arrive via the spread of `disallowedEventTargetContractShadowKeys`;
  * `Symbol.toStringTag` stays out for the same reasons (symbol key, cosmetic).
  */
 const disallowedAbortSignalContractShadowKeys = new Set([
@@ -506,29 +544,29 @@ const disallowedAbortSignalContractShadowKeys = new Set([
 ]);
 
 /**
- * Whether `value` leaves the inherited `AbortSignal` surface UN-shadowed at its
- * own level — no own property whose name is in the reserved denylist
- * (`disallowedAbortSignalContractShadowKeys`: the `EventTarget` surface plus the
- * abort accessors/method). The `AbortSignal` counterpart of
- * {@link doesNotShadowEventTargetContract}, gating the strict local
- * {@link isAbortSignal} fast-path onto its `prototype === abortSignalPrototype`
- * identity-check.
+ * Whether `value` leaves the inherited `AbortSignal` surface unshadowed at its
+ * own level: it owns no property whose name is in the reserved denylist
+ * (`disallowedAbortSignalContractShadowKeys` — the `EventTarget` surface plus the
+ * abort accessors/method). This is the `AbortSignal` counterpart of
+ * {@link doesNotShadowEventTargetContract}; it gates the strict local
+ * {@link isAbortSignal} fast path onto its `prototype === abortSignalPrototype`
+ * identity check.
  *
  * A genuine direct `AbortSignal` inherits the abort accessors (`aborted`,
  * `reason`, `onabort`), `throwIfAborted`, its EventTarget methods, and its
- * `constructor`-link from `AbortSignal.prototype` and owns none of them. So an
- * own property, shadowing any reserved member is an instance-level override that
- * demotes the value from `is` to merely `Like` (#028-symmetric, own layer).
- * `Symbol.toStringTag` is not guarded (cosmetic once prototype-identity holds);
- * orthogonal own state never disqualifies.
+ * `constructor` link from `AbortSignal.prototype`, owning none of them. An own
+ * property that shadows any reserved member is therefore an instance-level
+ * override that demotes the value from `is` to merely `Like` — the #028 rejection
+ * applied to the own layer. `Symbol.toStringTag` is not guarded (cosmetic once
+ * prototype-identity holds), and orthogonal own state never disqualifies.
  *
  * Throw-safe and fail-closed: a throwing own-key enumeration collapses to
  * `false`. Membership is tested via the `this`-bound `isValueOfBoundSet` with
  * the denylist as the `some` `thisArg`, so no per-call closure is allocated.
  *
- * @param {object} value - the direct-instance candidate whose OWN property-names
- * are enumerated; assumed by the caller to carry `abortSignalPrototype` as its
- * `[[Prototype]]`
+ * @param {object} value - the direct-instance candidate whose OWN property names
+ *  are enumerated; assumed by the caller to carry `abortSignalPrototype` as its
+ *  `[[Prototype]]`
  * @returns {boolean} `true` when no own property-name shadows a reserved member;
  *  `false` when one does, or when the own-key enumeration throws
  * @internal
@@ -761,12 +799,12 @@ export function isAbortSignalLike(value) {
  * `AbortSignal` instances; subclasses pass `instanceof` but fail the prototype
  * identity-check in O(1). The pair is further gated by
  * {@link doesNotShadowAbortSignalContract}: a value that overrides an inherited
- * abort-accessor or contract-method at its OWN level is an instance-level subclass-layer,
- * demoted to merely `AbortSignalLike` — the #028 subclass-rejection applied to
- * the own layer. On miss, the cross-realm arm runs
- * {@link isAlienRealmAbortSignal} — the tag + constructor-name signal-gate
- * plus the prototype-contract walk — but only when the realm actually has a
- * global `AbortSignal` (the `INSTANCE_LESS_CONSTRUCTOR` sentinel guard).
+ * abort accessor or contract method at its OWN level is an instance-level
+ * subclass layer, demoted to merely `AbortSignalLike` — the #028 subclass
+ * rejection applied to the own layer. On miss, the cross-realm arm runs
+ * {@link isAlienRealmAbortSignal} (the tag + constructor-name signal gate plus
+ * the prototype-contract walk), but only when the realm actually has a global
+ * `AbortSignal` — the `INSTANCE_LESS_CONSTRUCTOR` sentinel guard.
  *
  * `AbortSignal` subclasses are rejected on both arms — by prototype-identity
  * locally, by constructor-name equality cross-realm. Consistent with
@@ -796,7 +834,7 @@ export function isAbortSignal(value) {
     !!prototype &&
     (isCurrentRealmAbortSignalInstance(value)
       ? // local-realm fast-path: prototype-identity AND own-surface integrity —
-        // reject an instance-level override of the inherited method contract.
+        // reject an instance-level override of the inherited contract (#063).
         prototype === abortSignalPrototype &&
         doesNotShadowAbortSignalContract(/** @type {object} */ (value))
       : // cross-realm fallback; thread the already-read prototype (#059)

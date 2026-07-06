@@ -302,6 +302,38 @@ export interface AbortableThenable<out T> extends Thenable<T> {
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 
 /**
+ * Whether `value` leaves the inherited `Promise` surface unshadowed at its own
+ * level: it owns no property whose name is in the reserved denylist (the
+ * `constructor` back-reference plus the `then`/`catch`/`finally` method
+ * contract). This is the own-surface integrity gate that the strict local
+ * {@link isPromise} fast path ANDs onto its `prototype === Promise.prototype`
+ * identity check (decision #063).
+ *
+ * A genuine direct `Promise` instance inherits its whole method contract and its
+ * `constructor` link from `Promise.prototype`, owning none of it (its state lives
+ * in internal slots). An own-shadowed contract member is an instance-level
+ * override that demotes the value from `is` to merely `PromiseLike` — the #028
+ * subclass rejection applied to the own layer. `Symbol.toStringTag` is
+ * deliberately not guarded (cosmetic once prototype-identity holds), and
+ * orthogonal own state never disqualifies: only the reserved member names do.
+ *
+ * Weaker than a structural seal by design (decision #052): `Promise` exposes no
+ * inert slot-reader, so the bare graft `Object.create(Promise.prototype)` cannot
+ * be caught and stays admitted; this gate closes the own-level override only.
+ *
+ * Throw-safe and fail-closed: a throwing own-key enumeration collapses to `false`
+ * (a clean own surface cannot be confirmed → treat as shadowed).
+ *
+ * @param value - the direct-instance candidate whose OWN property names are
+ *  enumerated; assumed by the caller to carry `Promise.prototype` as its
+ *  `[[Prototype]]`
+ * @returns `true` when no own property name shadows a reserved member; `false`
+ *  when one does, or when the own-key enumeration throws
+ * @internal
+ */
+export function doesNotShadowPromiseContract(value: object): boolean;
+
+/**
  * Verifies that the value matches the `Promise.prototype` method
  * contract — callable `then`, `catch`, and `finally` data properties
  * reachable through the value's prototype-chain.
@@ -333,36 +365,69 @@ export interface AbortableThenable<out T> extends Thenable<T> {
 export function doesImplementPromiseContract(value?: unknown): boolean;
 
 /**
- * Whether `value` leaves the inherited `Promise` surface UN-shadowed at its own
- * level — no own property whose name is in the reserved denylist (the
- * `constructor` back-reference plus the `then`/`catch`/`finally` method
- * contract). The own-surface integrity-gate the strict local {@link isPromise}
- * fast-path ANDs onto its `prototype === Promise.prototype` identity-check
- * (decision #063).
+ * The member-surface marker of the cross-realm `Promise` contract: confirms
+ * that `prototype` carries `then`, `catch`, and `finally` as its own callable
+ * data properties (ECMA-262 §27.2).
  *
- * A genuine direct `Promise` instance inherits its whole method-contract and its
- * `constructor` link from `Promise.prototype` and owns none of it (its state
- * lives in internal slots). An own-shadowed contract member is an instance-level
- * override that demotes the value from `is` to merely `PromiseLike` — symmetric
- * with the #028 subclass rejection, applied to the own layer. `Symbol.toStringTag`
- * is deliberately NOT guarded (cosmetic once prototype-identity holds); orthogonal
- * own state never disqualifies — only the reserved member names do.
+ * This is the prototype-side counterpart to {@link doesImplementPromiseContract}.
+ * That helper walks the value's chain for the lenient {@link isPromiseLike}; this
+ * one reads the prototype's own descriptors for the strict cross-realm anchor,
+ * inspecting what `Promise.prototype` itself implements, never what it inherits.
  *
- * Weaker than a structural seal by design (decision #052): `Promise` exposes no
- * inert slot-reader, so the bare graft `Object.create(Promise.prototype)` cannot
- * be caught and stays admitted; this gate closes the own-level override only.
+ * Tests each member's `.value` for callability, so an accessor-form member
+ * (`get then()`) yields `undefined` and fails — closing the lying-accessor
+ * surface.
  *
- * Throw-safe and fail-closed: a throwing own-key enumeration collapses to `false`
- * (a clean own surface cannot be confirmed → treat as shadowed).
+ * Throw-safe: a hostile `ownKeys` / `getOwnPropertyDescriptor` Proxy-trap that
+ * throws is absorbed and yields `false` rather than propagating.
  *
- * @param value - the direct-instance candidate whose OWN property names are
- *  enumerated; assumed by the caller to carry `Promise.prototype` as its
- *  `[[Prototype]]`
- * @returns `true` when no own property name shadows a reserved member; `false`
- *  when one does, or when the own-key enumeration throws
+ * @param prototype - the prototype whose own member surface to verify (callers
+ *  pass an already-resolved `[[Prototype]]`); a nullish or non-object value is
+ *  absorbed by the guard and yields `false`
+ * @returns `true` when all three members are own callable data properties;
+ *  `false` otherwise (including on a throwing trap)
  * @internal
  */
-export function doesNotShadowPromiseContract(value: object): boolean;
+export function doesImplementPromisePrototypeContract(prototype?: unknown): boolean;
+
+/**
+ * Verifies the structural anchor for cross-realm `Promise` discrimination over a
+ * value's already-resolved `[[Prototype]]` — a four-marker chain, short-circuited
+ * in cost-order:
+ *
+ * 1. `isClass(constructor)` — the constructor resolved from the prototype is a
+ *    built-in or `class`-syntax newable (rejects non-function pointers).
+ * 2. `getTypeSignature(prototype) === '[object Promise]'` — the prototype's own
+ *    `[[Class]]` tag matches.
+ * 3. The constructor's own `prototype` data property points back to the threaded
+ *    `prototype` — round-trip identity, read via a throw-safe descriptor read
+ *    (an accessor-form definition yields `undefined` and fails, closing the
+ *    lying-accessor spoof).
+ * 4. {@link doesImplementPromisePrototypeContract} — the prototype carries the
+ *    `then`/`catch`/`finally` contract as its own callable members.
+ *
+ * Unlike the object-module counterpart `isObjectPrototypeEquivalent`, there is no
+ * chain-depth marker: `Promise.prototype`'s `[[Prototype]]` is `Object.prototype`,
+ * not `null`, so a top-level check would wrongly reject every genuine
+ * `Promise.prototype`. The value's constructor-name identity is verified
+ * separately by the caller {@link isAlienRealmPromise} via
+ * {@link hasPromiseIdentitySignal}.
+ *
+ * Throw-safe end to end: each read absorbs a hostile Proxy-trap, failing the
+ * contract rather than propagating; `isClass` is likewise throw-safe at its own
+ * descriptor read.
+ *
+ * @param prototype - the value's already-resolved `[[Prototype]]`, threaded in by
+ *  the caller that read it first (decision #059)
+ * @param constructor - the constructor resolved from `prototype`, threaded in by
+ *  the caller; a falsy value fails `isClass`
+ * @returns `true` when all four markers hold; `false` otherwise
+ * @internal
+ */
+export function isPromisePrototypeEquivalent(
+  prototype: unknown,
+  constructor: unknown,
+): boolean;
 
 /**
  * Whether the value carries both of `Promise`'s string-shape identity
@@ -377,56 +442,50 @@ export function doesNotShadowPromiseContract(value: object): boolean;
  *  signature; `false` otherwise
  * @internal
  */
-export function hasPromiseIdentitySignal(value?: unknown, name?: string): boolean;
-
-/**
- * Whether `prototype` is structurally `Promise.prototype` — it carries
- * the Promise identity signal and method contract and reciprocally
- * back-references `constructor`.
- *
- * @param prototype - the candidate `Promise.prototype` to validate
- * @param constructor - the resolved constructor to reference back
- *  against; a falsy value short-circuits
- * @returns `true` when `prototype` carries the Promise identity signal
- *  and method contract and reciprocally back-references `constructor`;
- *  `false` otherwise
- * @internal
- */
-export function isStructuralPromisePrototypeEquivalent(
-  prototype: unknown,
-  constructor: unknown,
-): boolean;
-
-/**
- * Whether `value` is structurally a `Promise` — it carries the Promise
- * identity signal and method contract and resolves to a validated
- * prototype/constructor pair.
- *
- * @param value - the candidate to test for structural `Promise` equivalence
- * @param prototype - the value's already-read prototype, if the caller
- *  has it; otherwise resolved internally
- * @returns `true` when `value` is structurally a `Promise` — Promise identity
- *  signal, method contract, and a validated prototype/constructor pair;
- *  `false` otherwise
- * @internal
- */
-export function isStructuralPromiseEquivalent(
+export function hasPromiseIdentitySignal(
   value: unknown,
-  prototype?: unknown,
+  name: string | undefined,
 ): boolean;
 
 /**
- * Whether `value` is an instance of the realm-fixed `Promise` intrinsic
- * captured at module-load (or any subclass). Returns `false` when the
- * runtime has no global `Promise` (pre-Node-15 environments, special
- * embeddings), short-circuiting before the `instanceof` test ever runs.
+ * The cross-realm `Promise` fallback, composed: the inexpensive
+ * {@link hasPromiseIdentitySignal} front-gate (the value's `[[Class]]` tag and
+ * resolved constructor-name) AND the load-bearing
+ * {@link isPromisePrototypeEquivalent} structural contract. A foreign-realm
+ * `Promise` fails the local-realm `instanceof` + `=== Promise.prototype`
+ * fast-path but matches this structural contract in every realm.
  *
- * The subclass-admitting realm-membership building block shared by the
- * thenable predicates — it carries no proto-identity narrowing, so the
- * strict {@link isPromise} layers that check on top while the lenient
- * {@link isThenable} / {@link isPromiseLike} use it as their fast-path
- * arm. Assumes a truthy `value`. The public predicates apply the
- * `!!value` guard before delegating.
+ * This is the single seam {@link isPromise} takes on its cross-realm branch, the
+ * direct parallel to the object module's `isAlienRealmPlainObject`. It resolves
+ * the constructor once from the threaded prototype, then threads that
+ * constructor's name into the signal gate — exactly as the object seam does
+ * (decision #059). The `assumePrototype: true` hint reads the prototype's own
+ * `constructor` descriptor (the spec-mandated source, ECMA-262 §10.2.6). Exported
+ * `@internal` for direct unit-testability (decision #053).
+ *
+ * @param value - the candidate whose cross-realm `Promise` structure and identity
+ *  are to be verified; assumed to be an object provided by the caller
+ * @param prototype - the value's already-resolved `[[Prototype]]`, threaded in by
+ *  the caller that read it first (decision #059)
+ * @returns `true` when the signal gate and the structural contract both hold;
+ *  `false` otherwise
+ * @internal
+ */
+export function isAlienRealmPromise(value: object, prototype: object): boolean;
+
+/**
+ * Whether `value` is an instance of the realm-fixed `Promise` intrinsic captured
+ * at module load, or of any subclass.
+ *
+ * When the runtime has no global `Promise` (pre-Node-15, special embeddings), the
+ * captured constructor is a never-instantiated sentinel against which
+ * `instanceof` is always `false` without throwing, so the check runs unguarded.
+ *
+ * This is the realm-membership building block the thenable predicates share. It
+ * narrows nothing on prototype identity, so strict {@link isPromise} adds its own
+ * checks on top, while the lenient {@link isThenable} and {@link isPromiseLike}
+ * use it directly as their fast-path arm. It assumes a truthy `value`; each
+ * public predicate applies its nullish guard first.
  *
  * Throw-safe: `instanceof` walks the value's `[[Prototype]]` chain, so a Proxy
  * whose `getPrototypeOf` trap throws would otherwise propagate. The check is
@@ -445,7 +504,7 @@ export function isStructuralPromiseEquivalent(
  * @internal
  */
 export function isCurrentRealmPromiseInstance<T = unknown>(
-  value?: T,
+  value: T,
 ): value is T & PromiseLike<unknown>;
 
 /**
@@ -499,14 +558,18 @@ export function isPromiseLike<T = unknown>(value?: T): value is T & PromiseLike<
  * preserving subclass rejection in two O(1) operations. Both captures
  * are realm-fixed at module-load.
  *
- * On miss, falls back to a three-marker structural chain-run in cost-order:
- * the `[[Class]]` tag `'Promise'` (single `Object.prototype.toString.call`),
- * the constructor-name `'Promise'` resolved through the package's
- * constructor-walk, and `doesImplementPromiseContract` for the `Promise.prototype`
- * method contract from ECMA-262 §27.2. The structural arm calls
- * `doesImplementPromiseContract` directly rather than cascading through
- * {@link isPromiseLike}, which would re-run the `instanceof` check already
- * disproved by the local-realm arm.
+ * On miss, falls back to the cross-realm structural seam
+ * {@link isAlienRealmPromise}: the {@link hasPromiseIdentitySignal} front-gate
+ * (the `[[Class]]` tag `'Promise'` and the constructor-name `'Promise'` resolved
+ * once from the threaded prototype) AND the {@link isPromisePrototypeEquivalent}
+ * anchor (the constructor is a newable class, the prototype's own tag is
+ * `'Promise'`, its constructor round-trips back to it, and it carries the
+ * `then`/`catch`/`finally` contract as own members). Every marker reads
+ * realm-independently, so foreign-realm `Promise` instances are admitted, while
+ * the round-trip and member-surface markers close the tag / constructor-name
+ * spoof. This cross-realm branch runs only when the realm captured a real
+ * `Promise` at module-load; without a global `Promise` the branch is skipped
+ * and the value yields `false`.
  *
  * Cross-realm safe. The local-realm pair admits only direct local-realm
  * `Promise` instances; the structural fallback admits foreign-realm
@@ -530,10 +593,10 @@ export function isPromiseLike<T = unknown>(value?: T): value is T & PromiseLike<
  * exposes no inert slot-reader, so a hollow direct-prototype value cannot be
  * caught (decision #052).
  *
- * Strict identity narrows to the concrete `Promise` intrinsic, so — unlike the
- * subclass-admitting `isPromiseLike` / `isThenable` predicates — it is
- * intentionally non-generic (decision #062): every admitted value IS exactly a
- * `Promise`, with no caller-side type to preserve.
+ * Strict identity narrows to the concrete `Promise` intrinsic. Unlike the
+ * subclass-admitting `isPromiseLike` / `isThenable`, it is intentionally
+ * non-generic (decision #062): every admitted value IS exactly a `Promise`, with
+ * no caller-side type to preserve.
  *
  * @param value - the value to test; omitted is treated as `undefined`,
  *  which is not a `Promise`

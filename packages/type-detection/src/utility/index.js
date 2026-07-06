@@ -10,6 +10,8 @@
  */
 
 import {
+  BLANK_DICTIONARY,
+  INSTANCE_LESS_CONSTRUCTOR,
   getOwnPropertyDescriptor,
   getOwnPropertySymbols,
   getOwnPropertyNames,
@@ -30,7 +32,10 @@ import { isCallable, isFunction, isNewableFunction } from '@/function';
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 
 /** @typedef {import('./index').TRUSTED_DATA_CONFIRMATION} TRUSTED_DATA_CONFIRMATION_FLAG */
-/** @typedef {import('./index').INSTANCE_LESS_CONSTRUCTOR} NEVER_INVOKED_CONSTRUCTOR */
+
+/** @typedef {typeof import('@/config').INSTANCE_LESS_CONSTRUCTOR} NEVER_INVOKED_CONSTRUCTOR */
+
+/** @typedef {import('@/config').BlankDictionary} BlankDictionary */
 
 /** @typedef {import('./index').WeakKey} WeakKey */
 /** @typedef {import('./index').DefinedConstructorAccessorOptions} DefinedConstructorAccessorOptions */
@@ -55,22 +60,17 @@ import { isCallable, isFunction, isNewableFunction } from '@/function';
 export const TRUSTED_DATA_CONFIRMATION = /** @type {TRUSTED_DATA_CONFIRMATION_FLAG} */ (
   true
 );
-export const INSTANCE_LESS_CONSTRUCTOR = /** @type {NEVER_INVOKED_CONSTRUCTOR} */ (
-  function () {
-    return void 0;
-  }
-);
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 
 /**
- * Whether `value` is a member of the `Set` bound as `this`. A `this`-bound
- * membership predicate shaped for the array iteration callbacks
- * (`Array.prototype.some` / `every` / `filter`), called with the `Set` supplied
- * as the `thisArg`: `names.some(isValueOfBoundSet, someSet)`. Being a
- * module-level function that reads its `Set` from `this`, it tests each element
- * against a shared `Set` with NO per-call closure allocation — the allocation-free
- * alternative to `names.some((name) => someSet.has(name))` on hot paths.
+ * Whether `value` is a member of the `Set` bound as `this`. It is a `this`-bound
+ * membership predicate for the array iteration callbacks (`Array.prototype.some`
+ * / `every` / `filter`), called with the `Set` supplied as the `thisArg`:
+ * `names.some(isValueOfBoundSet, someSet)`. As a module-level function that reads
+ * its `Set` from `this`, it tests each element against a shared `Set` with no
+ * per-call closure allocation — the allocation-free alternative to
+ * `names.some((name) => someSet.has(name))` on hot paths.
  *
  * @param {unknown} value - the element to look up in the bound `Set`
  * @this {ReadonlySet<unknown>} the `Set` to test membership against,
@@ -244,10 +244,9 @@ export function hasOwnWritablePrototype(value) {
  * Narrows the value to a valid `PropertyKey`.
  *
  * Composes {@link isStringValue}, {@link isSymbolValue}, and
- * {@link isNumberValue}. The latter check is sufficient, since
- * every number value, including infinite number values and even
- * `NaN`, coerce to string primitives the very moment each gets
- * assigned as an object's property-key.
+ * {@link isNumberValue}. The number check is sufficient because every
+ * number — including `±Infinity` and even `NaN` — coerces to a string
+ * primitive the moment it is used as an object's property key.
  *
  * @param {unknown} [value] - the value to test; omitted is treated as
  *  `undefined`, which is not a property key
@@ -444,9 +443,9 @@ export function getInertDescriptor(type, key, trustedData) {
  * rejects accessor descriptors, so the inspection itself remains inert.
  *
  * Throw-safe: the descriptor walk runs through {@link getInertDescriptor}, so
- * a value whose `getOwnPropertyDescriptor` / `getPrototypeOf` Proxy-trap throws,
- * yields `false` rather than propagating. And a type-guard must answer.
- * The sibling probes share this guarantee.
+ * a value whose `getOwnPropertyDescriptor` / `getPrototypeOf` Proxy-trap throws
+ * yields `false` rather than propagating — a type-guard must answer. The sibling
+ * probes share this guarantee.
  *
  * Used by Promise-contract predicates to verify the spec-defined `then`,
  * `catch`, and `finally` methods of a _thenable_ or _promise-like_
@@ -551,9 +550,8 @@ export function hasInertValue(type = null, key, trustedData) {
 }
 
 /**
- * The verified own `name` of a value — reads the value's OWN `name` property
- * descriptor and returns its data `value` only when that value is a string
- * primitive; `undefined` otherwise.
+ * Reads the value's own `name` property descriptor and returns its data `value`
+ * only when that value is a string primitive; `undefined` otherwise.
  *
  * Generic and constructor-agnostic: it takes any `value` and reports the string
  * `name` it declares as own data. Own-descriptor read only (no chain walk); the
@@ -664,7 +662,7 @@ export function getTaggedType(...args) {
  * Walks the value to its constructor function via inert descriptor
  * traversal.
  *
- * Pivot — callable values are walked from themselves (finding their
+ * Pivot: callable values are walked from themselves (finding their
  * own constructor: `Function` for plain functions, `%GeneratorFunction%`
  * for generator functions, `%AsyncFunction%` for async functions, etc.);
  * non-callable values are walked from their `[[Prototype]]`. The
@@ -860,31 +858,47 @@ export function resolveType(...args) {
 
 /**
  * Validates a standard built-in constructor and returns its realm-fixed
- * `[constructor, prototype]` tuple, or `[]` when validation fails.
+ * `[constructor, prototype]` tuple, or an inert surrogate tuple when validation
+ * fails.
  *
  * The single, throw-safe capture helper behind the per-module realm-fixed
  * intrinsic pairs (e.g. `Promise` for `@/thenable`). It confirms `constructor`
- * is newable via {@link isNewableFunction}, reads its own `prototype` descriptor
- * inertly (the raw walk, wrapped here in `try/catch`), and accepts the pair only
- * when the prototype satisfies both the injected `doesImplementFeatureContract`
- * predicate and reciprocally back-references the constructor
- * (`prototype.constructor === constructor`) — the tamper-resistant identity
- * check. Any throw (hostile descriptor/accessor) collapses to `[]`.
+ * is newable via {@link isNewableFunction} and reads its own `prototype`
+ * descriptor inertly (the raw walk, wrapped here in `try/catch`).
+ *
+ * It accepts the pair only when the prototype satisfies the injected
+ * `doesPassAsConstructorPrototype` predicate and, for a non-`null` prototype,
+ * reciprocally back-references the constructor (`prototype.constructor ===
+ * constructor`) — the tamper-resistant identity check. A `null` prototype has no
+ * `constructor` to reciprocate, so it rests on the predicate alone (the `null`
+ * arm of the returned prototype slot). Any throw (a hostile descriptor/accessor)
+ * collapses to the same inert surrogate tuple
+ * `[INSTANCE_LESS_CONSTRUCTOR, BLANK_DICTIONARY]`, so every caller can
+ * destructure both slots without a presence guard.
  *
  * @param {unknown} constructor - the candidate standard constructor; validated
  *  internally via {@link isNewableFunction}, so an untrusted value is accepted
- *  (a non-newable yields `[]`)
- * @param {PredicateFunction} doesImplementFeatureContract - the feature-contract
- *  gate applied to the constructor's `prototype`
- * @returns {[NewableFunction, object] | []} the validated
- *  `[constructor, prototype]` tuple, or `[]` when validation fails
+ *  (a non-newable yields the inert surrogate)
+ * @param {PredicateFunction} doesPassAsConstructorPrototype - the prototype
+ *  predicate-gate applied to the constructor's `prototype`
+ * @returns {[NewableFunction, object | null] | [NEVER_INVOKED_CONSTRUCTOR, BlankDictionary]}
+ *  the validated `[constructor, prototype]` tuple, or — when validation fails —
+ *  an inert surrogate: a never-instantiated function statement paired with an
+ *  empty prototype-less dictionary object
+ * @internal
  */
 export function getValidatedStandardConstructorAndPrototypeTuple(
   constructor,
-  doesImplementFeatureContract,
+  doesPassAsConstructorPrototype,
 ) {
+  const inertFailCaseTuple =
+    /** @type {[NEVER_INVOKED_CONSTRUCTOR, BlankDictionary]} */ ([
+      INSTANCE_LESS_CONSTRUCTOR,
+      BLANK_DICTIONARY,
+    ]);
+
   if (!isNewableFunction(constructor)) {
-    return [];
+    return inertFailCaseTuple;
   }
   try {
     const prototype = getNextAvailablePropertyDescriptor(
@@ -893,13 +907,14 @@ export function getValidatedStandardConstructorAndPrototypeTuple(
       TRUSTED_DATA_CONFIRMATION,
     )?.value;
 
-    return doesImplementFeatureContract(prototype) &&
-      /** @type {{ constructor?: unknown } | undefined} */ (prototype)?.constructor ===
-        constructor
-      ? [constructor, /** @type {object} */ (prototype)]
-      : [];
+    return doesPassAsConstructorPrototype(prototype, constructor) &&
+      (prototype === null ||
+        /** @type {{ constructor?: unknown } | undefined} */ (prototype)?.constructor ===
+          constructor)
+      ? [constructor, /** @type {object | null} */ (prototype)]
+      : inertFailCaseTuple;
   } catch {
-    return [];
+    return inertFailCaseTuple;
   }
 }
 
