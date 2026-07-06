@@ -290,22 +290,32 @@ asymmetry here is the residual, by-design case #063 leaves standing for this mod
 (`evented.md` and `thenable.md` carry the parallel subsections for the modules the gate
 does reconcile).
 
-## Cross-module: `BlankType` ↔ `DictionaryObject`
+## Cross-module: the three object-shape carriers
 
-`BlankType` in `@/utility` is `Record<PropertyKey, never>` — the _sentinel_ form of a
-prototype-less object: no keys statically reachable. Used as a blank-descriptor sentinel
-in `@/error`'s `hasErrorPrototypeContract` heuristic via the `objectCreate(null)` retyped
-return in `@/config` (decisions #017, #034).
+`DictionaryObject` (this module) is one of three prototype-shape carriers, distinguished
+along two axes — whether a prototype-chain exists, and whether own keys may be present.
+`DictionaryObject` lives here (beside its predicate `isDictionaryObject` and its
+`extends AnyObject` base); `BlankType` and `BlankDictionary` live in `@/config`, beside
+the `BLANK_TYPE` / `BLANK_DICTIONARY` constants that carry them:
 
-`DictionaryObject` is the _populated_ form: `Record<PropertyKey, unknown>` extended with
-the `constructor?: never` discriminator. Used as a typed hashmap with arbitrary
-user-supplied keys.
+- **`DictionaryObject`** (`@/object`) — prototype-less, constructor-less, own keys OPEN.
+  `AnyObject` extended with the `constructor?: never` discriminator; the honest return of
+  `@/config`'s `objectCreate(null)` and the narrow target of `isDictionaryObject`.
+- **`BlankType`** (`@/config`) — a real `Object` (so it carries `Object.prototype` and the
+  `Object` constructor) with no own key: the empty ordinary object `{}`.
+  `Record<PropertyKey, never>`. Carrier: `BLANK_TYPE`.
+- **`BlankDictionary`** (`@/config`) — prototype-less, constructor-less, AND empty: the
+  never-mutated `Object.create(null)`, the intersection
+  `BlankType & { constructor?: never }`. Carrier: `BLANK_DICTIONARY` — the sentinel behind
+  `@/error`'s `hasErrorPrototypeContract` heuristic and the absent-global capture
+  surrogate (decisions #017, #034, #060).
 
-Per TypeScript variance, `BlankType` is a structural subtype of `DictionaryObject`
-(`Record<PropertyKey, never>` is a subtype of `Record<PropertyKey, unknown>` because
-`never` is the bottom type and a subtype of `unknown`). The two are not interchangeable in
-API contracts because the consumer intent differs (sentinel vs hashmap), but they coexist
-cleanly in the type system. Both are cross-referenced in their respective modules' JSDoc.
+Per TypeScript variance, `BlankDictionary` is a structural subtype of `DictionaryObject`
+(its `never` own-key surface refines the latter's `unknown` index). The prototype-chain
+distinction between `BlankType` and the two dictionary forms is a runtime characteristic
+the type system cannot express — the `[[Prototype]]` slot is reflective runtime state, not
+a type structure — so it is carried by the runtime predicates and the distinct constants,
+not the types. See ADR #064 for the taxonomy and the config-level homing.
 
 ## `isPlainObject` strictness vs lodash `_.isPlainObject`
 

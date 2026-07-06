@@ -60,32 +60,57 @@ even when the value carries the full method contract. The pattern from thenable 
   plus the own-descriptor prototype-equivalence contract (decision #061) — but only when
   the realm actually carries a global `X` (the sentinel guard below).
 
-### The instance-less-constructor sentinel (decision #060)
+### Realm-fixed capture via the shared validated-tuple helper (decision #060)
 
-The `EventTargetConstructor` and `AbortSignalConstructor` captures use the
-`isCallable(X) ? X : INSTANCE_LESS_CONSTRUCTOR` pattern: when the runtime lacks the global
-(pre-Node-15 environments, special embeddings), the capture is the realm-fixed
-`INSTANCE_LESS_CONSTRUCTOR` sentinel from `@/utility` — a never-instantiated function. No
-value ever carries it on its prototype chain, so
-`value instanceof INSTANCE_LESS_CONSTRUCTOR` is always `false` without a presence guard.
-The paired `eventTargetPrototype` / `abortSignalPrototype` captures resolve to
-`objectCreate(null)` in that same absent-global case (the boundary-retyping pattern,
-decision #034), so the local-realm `prototype === Xprototype` identity-compare can never
-match a real value.
+Both intrinsics are captured at module-load through the shared
+`getValidatedStandardConstructorAndPrototypeTuple(X, contract)` (`@/utility`) — the same
+capture helper `@/thenable` uses for `Promise`. It confirms `X` is newable, reads its own
+`prototype` descriptor inertly, and accepts the `[X, X.prototype]` pair only when the
+prototype satisfies the injected `contract` AND back-references the constructor
+(`X.prototype.constructor === X`) — the tamper-resistant identity check. On ANY failure —
+no global `X` (pre-Node-15 environments, special embeddings), a rejected contract, a
+broken back-reference, or a throwing descriptor — it returns the TOTAL inert surrogate
+`[INSTANCE_LESS_CONSTRUCTOR, BLANK_DICTIONARY]`: the realm-fixed never-instantiated
+`INSTANCE_LESS_CONSTRUCTOR` sentinel paired with an empty prototype-less dictionary. Both
+tuple slots are therefore always present — every caller destructures
+`[XConstructor, Xprototype]` and uses both directly, with no per-slot presence guard.
 
-Two consequences of the sentinel:
+The two captures inject DIFFERENT contracts, and the difference is forced by the shape of
+each surface:
+
+- **`EventTarget`** injects `doesImplementEventTargetContract` — the lenient
+  method-presence walk. Its three members are callable DATA properties, so reading them
+  off `EventTarget.prototype` is pure shape and never throws; the lenient contract doubles
+  as a prototype-safe capture gate.
+- **`AbortSignal`** cannot reuse its lenient contract: `doesImplementAbortSignalContract`
+  reads the `aborted` VALUE (§ "The `aborted` accessor exception"), and
+  `AbortSignal.prototype` carries no `[[AbortSignalState]]`, so that read throws on the
+  bare prototype (it would fail the capture for every real `AbortSignal`). Its capture
+  instead injects a closure over the STRICT
+  `doesImplementAbortSignalPrototypeContract(prototype, value)`, threading a manufactured
+  LIVE receiver as `value` — `createInertAbortSignal()` returns
+  `new AbortController().signal` (or a plain `{}` when the realm has no `AbortController`,
+  which fails the getter-invocation closed → the whole capture collapses to the
+  surrogate). So the module-load validation actually invokes the spec `aborted` getter
+  against a real signal, confirming the captured prototype end to end.
+  `createInertAbortSignal` is a module-local bootstrap helper (not exported — it carries
+  no discrimination logic, and the 135-test suite covers it indirectly: a bad receiver
+  would collapse every `AbortSignal` verdict).
+
+Two consequences of the sentinel constructor slot:
 
 - The realm-instance helpers reduce to a bare
   `try { value instanceof XConstructor } catch { false }`. The `try`/`catch` absorbs a
   hostile right-hand side — a patched `Symbol.hasInstance` or a throwing prototype-walk —
   yielding `false` rather than propagating, the package-wide throw-safety invariant
-  applied to the `instanceof` operator itself. The old `!!XConstructor &&` presence guard
-  is gone: the sentinel makes it unnecessary.
+  applied to the `instanceof` operator itself. No `!!XConstructor &&` presence guard: the
+  total tuple keeps the constructor slot always present, and the sentinel is never on any
+  value's prototype chain, so `instanceof` is uniformly `false` when the global is absent.
 - The strict predicates' cross-realm arm carries an explicit
   `XConstructor !== INSTANCE_LESS_CONSTRUCTOR` guard, so the structural
   prototype-equivalence walk is skipped entirely when the realm genuinely lacks the
-  global. The module no longer crashes at module-load on a bareword access — the sentinel
-  makes the absent-global path total.
+  global. The paired `Xprototype` slot is then `BLANK_DICTIONARY`, so the local-realm
+  `prototype === Xprototype` identity-compare can never match a real value either.
 
 ### Own-level contract-shadow rejection (decision #063)
 

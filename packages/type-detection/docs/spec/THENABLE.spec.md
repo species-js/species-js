@@ -74,11 +74,16 @@ see [`./README.md`](./README.md) → "Throw-safety — the universal invariant".
 - `hasPromiseIdentitySignal(value?, name?)` — the two string-shape identity markers: the
   value's `[[Class]]` tag and the constructor `name` threaded in by the caller; does no
   constructor resolution of its own (decision #059).
-- `isStructuralPromisePrototypeEquivalent(prototype, constructor)` — prototype-side
-  structural validation with reciprocal own-constructor identity (decision #054).
-- `isStructuralPromiseEquivalent(value, prototype?)` — `isPromise`'s cross-realm arm,
-  orchestrating the value-side signal, the method contract, and prototype-equivalence
-  (decision #054).
+- `doesImplementPromisePrototypeContract(prototype?)` — the prototype-side member-surface
+  marker: `then`/`catch`/`finally` present as the prototype's OWN callable data properties
+  (declared in both `.js` and `.d.ts`).
+- `isPromisePrototypeEquivalent(prototype, constructor)` — the four-marker cross-realm
+  prototype anchor: `isClass` + the `Promise` `[[Class]]` tag + round-trip
+  `constructor.prototype === prototype` identity + the prototype member-surface contract.
+- `isAlienRealmPromise(value, prototype)` — `isPromise`'s cross-realm arm (the direct
+  parallel to `@/object`'s `isAlienRealmPlainObject`): the value-side identity signal gate
+  AND the prototype anchor, resolving the constructor ONCE from the threaded prototype
+  (decision #059).
 - `isCurrentRealmPromiseInstance(value)` — exported from both `thenable.js` and
   `thenable.d.ts` (the `.d.ts` declaration was added when item #1 below was resolved).
 - `doesNotShadowPromiseContract(value)` — the `#063` own-surface integrity gate: `true`
@@ -225,16 +230,21 @@ proto-identity narrowing.
 
 `isPromise(value?: unknown): value is Promise<unknown>` — strict identity to the concrete
 `Promise` intrinsic, so intentionally **non-generic** (decision #062), unlike the
-subclass-admitting `isThenable` / `isPromiseLike`. Composition: after the `!!value` guard
-the prototype is resolved ONCE via the throw-safe `getInertPrototypeOf(value)` (decision
-#059 threading) and that single read is threaded into both dispatch arms —
-`isCurrentRealmPromiseInstance(value) ? prototype === promisePrototype && doesNotShadowPromiseContract(value) : isStructuralPromiseEquivalent(value, prototype)`
-— where the local-realm arm now ANDs the `#063` own-surface integrity gate onto its
+subclass-admitting `isThenable` / `isPromiseLike`. Composition: the prototype is resolved
+ONCE via the throw-safe `getInertPrototypeOf(value)` (which absorbs nullish input and a
+hostile `getPrototypeOf` trap, decision #059 threading), and the leading `!!prototype`
+short-circuit excludes nullish/falsy/hostile-trap values before any further read. That
+single prototype read is threaded into both dispatch arms —
+`!!prototype && (isCurrentRealmPromiseInstance(value) ? prototype === promisePrototype && doesNotShadowPromiseContract(value) : PromiseConstructorFunction !== INSTANCE_LESS_CONSTRUCTOR && isAlienRealmPromise(value, prototype))`
+— where the local-realm arm ANDs the `#063` own-surface integrity gate onto its
 proto-identity check (reject an own-level contract override), and the cross-realm arm
-`isStructuralPromiseEquivalent` expands to the value-side identity signal
-(`hasPromiseIdentitySignal`) + the method contract (`doesImplementPromiseContract`) +
-prototype-equivalence (`isStructuralPromisePrototypeEquivalent` — the fourth marker,
-prototype/constructor reciprocal identity). Spec basis: `Promise` identity — two-axis
+(guarded by `PromiseConstructorFunction !== INSTANCE_LESS_CONSTRUCTOR`, which skips it
+when the realm has no global `Promise`) runs `isAlienRealmPromise` — the direct parallel
+to `@/object`'s `isAlienRealmPlainObject`: the value-side identity signal
+(`hasPromiseIdentitySignal`) gate AND the prototype anchor (`isPromisePrototypeEquivalent`
+— `isClass` + the prototype `[[Class]]` tag + round-trip
+`constructor.prototype === prototype` identity + the prototype member-surface contract
+`doesImplementPromisePrototypeContract`). Spec basis: `Promise` identity — two-axis
 dispatch (decisions #023, #050, #054).
 
 **Admits**
@@ -320,26 +330,32 @@ through `getInertDescriptor` (decision #056), so the by-contract predicates (`is
 per-input vectors `isPromise/B3` and `isPromise/B5` are **withdrawn**, subsumed by the
 axis-3 `hostile × predicate` matrix — no behavior changed.
 
-**Spoof-resistance expectation (axis 3):** the four cross-realm markers are independent
-and each closes a distinct false-positive class — `doesImplementPromiseContract` rejects
-tag/ctor-name claimants lacking the methods; the `[[Class]]` tag rejects
-contract-satisfiers tagged otherwise; the constructor-name closes the `Symbol.toStringTag`
-spoof hole the tag alone leaves open (`isPromise/R3`); and the prototype/constructor
-reciprocal-identity marker (`isStructuralPromisePrototypeEquivalent`, decision #054)
-rejects a value whose own markers are forged but whose prototype's own constructor
-disagrees with the value's resolved constructor. The one _unclosed_ surface is the BARE
+**Spoof-resistance expectation (axis 3):** the cross-realm markers are independent and
+each closes a distinct false-positive class — the prototype member-surface contract
+(`doesImplementPromisePrototypeContract`) rejects tag/ctor-name claimants whose prototype
+lacks the methods; the `[[Class]]` tag (on both the value and its prototype) rejects
+contract-satisfiers tagged otherwise; the constructor-name (`'Promise'`, resolved from the
+prototype's OWN constructor) closes the `Symbol.toStringTag` spoof hole the tag alone
+leaves open (`isPromise/R3`); and the round-trip identity marker
+(`isPromisePrototypeEquivalent` — `constructor.prototype === prototype`, gated by
+`isClass`, decision #054) rejects a value whose own markers are forged but whose prototype
+does not round-trip to the resolved constructor. The one _unclosed_ surface is the BARE
 prototype-graft (`isPromise/B2`, #052); an own-level contract/`constructor` override on
 that graft is now closed by the `#063` own-shadow gate (`isPromise/R8`,`R9`).
 
-**Composition note (axis 4):** two-axis ternary over `isCurrentRealmPromiseInstance`; the
-local-realm arm compares the once-resolved `getInertPrototypeOf` (`@/utility`) read
-against the realm-fixed `promisePrototype` capture; the cross-realm arm is
-`isStructuralPromiseEquivalent`, composing `hasPromiseIdentitySignal` (tag via
-`getTypeSignature`, name threaded in by the caller), `doesImplementPromiseContract`, and
-`isStructuralPromisePrototypeEquivalent` — each structural helper resolving its object's
-constructor ONCE via `getDefinedConstructor` and reusing it for both the name (via
-`getVerifiedOwnName`) and the reciprocal-identity compare, the prototype leg under
-`{ assumePrototype: true }`, plus `getInertPrototypeOf` (all `@/utility`). Decisions #054,
+**Composition note (axis 4):** two-axis ternary over `isCurrentRealmPromiseInstance`,
+gated by a leading `!!prototype` short-circuit; the local-realm arm compares the
+once-resolved `getInertPrototypeOf` (`@/utility`) read against the realm-fixed
+`promisePrototype` capture (ANDed with the `#063` own-shadow gate); the cross-realm arm is
+`isAlienRealmPromise` (guarded by
+`PromiseConstructorFunction !== INSTANCE_LESS_CONSTRUCTOR`), composing
+`hasPromiseIdentitySignal` (value tag via `getTypeSignature`, name threaded in by the
+caller) with `isPromisePrototypeEquivalent` (`isClass` + prototype tag + round-trip
+`getInertDescriptor(constructor, 'prototype').value === prototype` +
+`doesImplementPromisePrototypeContract`). The seam resolves the prototype's OWN
+constructor ONCE via `getDefinedConstructor` under `{ assumePrototype: true }` (ECMA-262
+§10.2.6) and threads its name (via `getVerifiedOwnName`) into the signal gate — the same
+resolve-once-and-thread shape `@/object`'s `isAlienRealmPlainObject` uses. Decisions #054,
 #059.
 
 **Policy flags:** `isPromise/R1`-`R2` encode the _current shipped_ subclass-rejection
@@ -409,46 +425,66 @@ resolves the constructor).
 - `hPIS/B1` — `(throwing Symbol.toStringTag getter, 'Promise')` → false, **not thrown** —
   the tag read goes through the throw-safe `getTypeSignature`.
 
-### `isStructuralPromisePrototypeEquivalent(prototype, constructor)` — `@internal`
+### `doesImplementPromisePrototypeContract(prototype?)` — `@internal`
 
-Validates that `prototype` IS structurally `Promise.prototype`, anchored on a reciprocal
-own-constructor identity. Resolves the prototype's own constructor ONCE —
-`const definedConstructor = constructor && getDefinedConstructor(prototype, { assumePrototype: true })`
-— then
-`!!constructor && constructor === definedConstructor && hasPromiseIdentitySignal(prototype, getVerifiedOwnName(definedConstructor)) && doesImplementPromiseContract(prototype)`.
-The single resolution (`{ assumePrototype: true }`, ECMA-262 §10.2.6) feeds both the
-reciprocal-identity compare and the threaded name; the falsy-`constructor` guard
-short-circuits before any walk (decisions #054, #059).
+The prototype-side member-surface marker: confirms `prototype` carries `then`, `catch`,
+and `finally` as its OWN callable data properties (ECMA-262 §27.2). Reads own descriptors
+via `getOwnPropertyDescriptors` and tests each member's `.value` with `isCallable` — so an
+accessor-form member yields `undefined` and fails, closing the lying-accessor surface. The
+prototype-side counterpart to `doesImplementPromiseContract` (which walks the value's
+chain for the lenient `isPromiseLike`); this one inspects what `Promise.prototype` itself
+implements, never what it inherits. Throw-safe and fail-closed: a hostile `ownKeys` /
+`getOwnPropertyDescriptor` trap that throws collapses to `false`.
 
-- `iSPPE/A1` — `(Promise.prototype, Promise)` → true.
-- `iSPPE/A2` — `(foreign Promise.prototype, foreign Promise constructor)` → true —
-  realm-independent (markers and the reciprocal read are all structural).
-- `iSPPE/R1` — `(Promise.prototype, undefined)` → false — falsy `constructor`
-  short-circuits.
-- `iSPPE/R2` — `(Object.prototype, Object)` → false — tag is `'[object Object]'`.
-- `iSPPE/R3` — `(prototype, mismatchedConstructor)` → false — the reciprocal
-  `constructor === definedConstructor` identity fails.
+- `dIPPC/A1` — local `Promise.prototype` → true — own `then`/`catch`/`finally` callable.
+- `dIPPC/A2` — foreign `Promise.prototype` → true — own descriptors read
+  realm-independently.
+- `dIPPC/R1` — `Object.prototype` → false — carries no own `then`/`catch`/`finally`.
+- `dIPPC/R2` — own `then` + `catch` but no `finally` → false — own, not inherited.
+- `dIPPC/R3` — an accessor `then` → false — reads `.value`, so a getter yields
+  `undefined`.
+- `dIPPC/B1` — a hostile `ownKeys` trap that throws → false, **not thrown** — fail-closed.
 
-### `isStructuralPromiseEquivalent(value, prototype?)` — `@internal`
+### `isPromisePrototypeEquivalent(prototype, constructor)` — `@internal`
 
-`isPromise`'s full cross-realm arm: the value-side identity signal + method contract +
-prototype-equivalence. Resolves the value's constructor ONCE —
-`const definedConstructor = getDefinedConstructor(value)` — then
-`hasPromiseIdentitySignal(value, getVerifiedOwnName(definedConstructor)) && doesImplementPromiseContract(value) && isStructuralPromisePrototypeEquivalent(isObject(prototype) ? prototype : getInertPrototypeOf(value), definedConstructor)`.
-The single resolution is threaded both into the value's name marker (via
-`getVerifiedOwnName`) and down to the prototype helper as the reciprocal target (decision
-#059); the prototype leg does its own assume-path resolution. `prototype` may be supplied
-by the caller (`isPromise` passes its already-read `getInertPrototypeOf(value)`) or
-resolved internally via the same throw-safe reader. These vectors are the white-box
-counterparts of the public `isPromise` cross-realm vectors.
+Validates that `prototype` IS structurally `Promise.prototype` via a four-marker chain,
+short-circuited in cost-order:
+`isClass(constructor) && getTypeSignature(prototype) === '[object Promise]' && getInertDescriptor(constructor, 'prototype')?.value === prototype && doesImplementPromisePrototypeContract(prototype)`.
+Unlike `@/object`'s `isObjectPrototypeEquivalent` there is NO chain-depth marker —
+`Promise.prototype`'s `[[Prototype]]` is `Object.prototype`, not `null`. The constructor
+is threaded in by the caller (`isAlienRealmPromise`, resolved from the prototype under
+`{ assumePrototype: true }`, ECMA-262 §10.2.6); the value's constructor-name identity is
+verified separately by that caller. Decisions #054, #059.
 
-- `iSPE/A1` — a cross-realm _direct_ `Promise` (fixture) → true — mirrors `isPromise/A3`.
-- `iSPE/R1` — a cross-realm `Promise` subclass (fixture) → false — instance name
-  `'MyPromise'`; mirrors `isPromise/R2`.
-- `iSPE/R2` — tag-spoof
+- `iPPE/A1` — local `Promise.prototype` → true — all four markers hold.
+- `iPPE/A2` — foreign `Promise.prototype` → true — realm-independent (every marker is
+  structural).
+- `iPPE/R1` — `(Promise.prototype, undefined)` → false — marker 1: `isClass(undefined)`.
+- `iPPE/R2` — `Object.prototype` → false — marker 2: tag is `'[object Object]'`.
+- `iPPE/R3` — `(Promise.prototype, Array)` → false — marker 3: the round-trip
+  `Array.prototype !== Promise.prototype` (a mismatched pair the production thread never
+  produces, isolating the round-trip marker).
+
+### `isAlienRealmPromise(value, prototype)` — `@internal`
+
+`isPromise`'s full cross-realm arm — the direct parallel to `@/object`'s
+`isAlienRealmPlainObject`. Resolves the constructor ONCE from the threaded PROTOTYPE —
+`const constructor = getDefinedConstructor(prototype, { assumePrototype: true })` — then
+`hasPromiseIdentitySignal(value, getVerifiedOwnName(constructor)) && isPromisePrototypeEquivalent(prototype, constructor)`.
+The single resolution is threaded into both the value's name marker (via
+`getVerifiedOwnName`) and the prototype anchor. `isPromise` passes its already-read
+`getInertPrototypeOf(value)` as `prototype` (decision #059). These vectors are the
+white-box counterparts of the public `isPromise` cross-realm vectors.
+
+- `iARP/A1` — a cross-realm _direct_ `Promise` (fixture) → true — mirrors `isPromise/A3`.
+- `iARP/A2` — a local _direct_ `Promise` → true — the seam admits it on structure (the
+  fast-path shortcuts it inside `isPromise`; here the seam is exercised directly).
+- `iARP/R1` — a cross-realm `Promise` subclass (fixture) → false — the signal gate rejects
+  the resolved ctor-name `'MyPromise'`; mirrors `isPromise/R2`.
+- `iARP/R2` — tag-spoof
   `{ [Symbol.toStringTag]: 'Promise', then() {}, catch() {}, finally() {} }` → false — the
-  instance name walks to `'Object'`; mirrors `isPromise/R3`.
-- `iSPE/R3` — a `PromiseLike` non-Promise → false — tag `'[object Object]'`; mirrors
+  prototype's resolved ctor-name walks to `'Object'`; mirrors `isPromise/R3`.
+- `iARP/R3` — a `PromiseLike` non-Promise → false — value tag `'[object Object]'`; mirrors
   `isPromise/R4`.
 
 ### `isCurrentRealmPromiseInstance(value)` — `@internal` (declared in both `.js` and `.d.ts`)
@@ -601,3 +637,26 @@ post-freeze amendment is recorded below (item 4).
    Decision-aligned with #063 (which line 89 explicitly forecasts the `isPromise`
    generalization) + #052 + #062 — no new ADR. Verified: 121 tests / 5 files green,
    typecheck clean.
+
+8. **Cross-realm arm harmonized to the `isAlienRealm{X}` shape (impl change, 2026-07-03) —
+   RESOLVED.** The `e0987d0` doc-harmonization pass across `object`/`evented`/`thenable`
+   surfaced that the three modules' cross-realm SOURCE shapes had diverged even as their
+   docs converged; this amendment brings `thenable`'s arm structurally in line with
+   `@/object`'s `isAlienRealmPlainObject`. The `isStructuralPromiseEquivalent` /
+   `isStructuralPromisePrototypeEquivalent` pair was replaced by `isAlienRealmPromise` +
+   `isPromisePrototypeEquivalent` + `doesImplementPromisePrototypeContract`, and the
+   shared `getValidatedStandardConstructorAndPrototypeTuple` was upgraded to return a
+   TOTAL inert surrogate tuple (`[INSTANCE_LESS_CONSTRUCTOR, BLANK_DICTIONARY]`) on
+   failure, dropping the per-caller presence guard. **No behavioral vector changed** —
+   every `isPromise/A*`/`R*`/`B*` verdict is identical; the amendment touched only the
+   white-box composition annotations and the axis-4 helper inventory/specs above. The
+   structural shift: the constructor is now resolved from the PROTOTYPE (not the value),
+   the method contract is read on the prototype's OWN surface
+   (`doesImplementPromisePrototypeContract`), and prototype-equivalence is a round-trip
+   `constructor.prototype === prototype` identity gated by `isClass` (replacing the
+   value-side reciprocal compare). Axis-4 vectors renamed `iSPPE`/`iSPE` → `iPPE`/`iARP`,
+   with a new `dIPPC` set for the prototype member-surface marker. `evented` was brought
+   onto the same total-tuple capture in the same pass. No new ADR (a mechanical
+   harmonization to the object-round precedent); a future ADR may record the family-wide
+   `isAlienRealm{X}` convention. Verified: the axis-4 helper suite green (40 tests),
+   typecheck clean but for the `_bench` harness (tracked separately).

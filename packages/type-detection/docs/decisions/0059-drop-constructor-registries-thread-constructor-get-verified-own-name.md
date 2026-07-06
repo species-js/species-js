@@ -153,3 +153,22 @@ and #055 (the `(value, assumePrototype)` keying and the poisoning fix retire wit
 caches; their lessons stay as history). Founded on the 2026-06 benchmark sessions.
 
 Commit: _pending_.
+
+---
+
+## Amendment — benchmark harness retired (2026-07-03)
+
+The **"benchmark harness is kept"** consequence above (and the identical consequence in
+#057) is **superseded**. The harness measured `isStructuralPromiseEquivalent`, the
+value-side cross-realm structural helper. The 2026-07-03 cross-realm harmonization
+(thenable / object / evented brought onto the shared `isAlienRealm{X}` shape) removed that
+helper; its successor `isAlienRealmPromise` resolves the constructor from the PROTOTYPE
+and gates on `isClass`, so the harness's `registryStructural` / `threadedStructural`
+reconstructions and its `makeColdHit` fixture no longer model the shipped algorithm.
+
+The #059 property the harness guarded — intra-call threading with no cross-call registry —
+still HOLDS in `isAlienRealmPromise` (threaded, registry-free). Re-modelling the harness
+against the new algorithm would be busywork on a settled decision, so
+`test/_bench/memoization.bench.js` and the root `bench` npm script (`vitest bench`) were
+retired instead. The registry-drop decision and every other consequence above are
+unaffected — only the standing cost-instrument is gone.

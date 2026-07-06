@@ -587,4 +587,33 @@ Resolves the constructor once and threads it (#059).
      their surface by design. Uses the new `@/utility` `isValueOfBoundSet`
      (allocation-free `this`-bound `Set` membership callback).
 
+5. **Capture harmonized to the shared validated-tuple helper (2026-07-03) — refines
+   item 2.** Both intrinsic captures moved off the item-2
+   `isCallable(X) ? X : INSTANCE_LESS_CONSTRUCTOR` shape onto the shared
+   `getValidatedStandardConstructorAndPrototypeTuple(X, contract)` (`@/utility`, the same
+   helper `@/thenable` uses for `Promise`), which returns the TOTAL inert surrogate
+   `[INSTANCE_LESS_CONSTRUCTOR, BLANK_DICTIONARY]` on any failure — so the paired
+   `Xprototype` slot is now `BLANK_DICTIONARY` (not a per-caller `objectCreate(null)`) in
+   the absent-global case. `EventTarget` injects its lenient
+   `doesImplementEventTargetContract` (pure method-presence — callable data props, safe to
+   read off the bare prototype, so the lenient contract doubles as a prototype-safe
+   capture gate). `AbortSignal` CANNOT reuse its lenient contract:
+   `doesImplementAbortSignalContract` reads the `aborted` VALUE, which throws on
+   `AbortSignal.prototype` (no `[[AbortSignalState]]`) and would fail the capture for
+   every real `AbortSignal`. Its capture instead injects a closure over the strict
+   `doesImplementAbortSignalPrototypeContract(prototype, value)`, threading a manufactured
+   LIVE receiver — a new module-local (NOT exported — bootstrap plumbing, no
+   discrimination logic) `createInertAbortSignal()` returning
+   `new AbortController().signal` (or a plain `{}` when the realm has no
+   `AbortController`, failing the getter-invocation closed → the whole capture collapses
+   to the surrogate). So module-load validation actually invokes the spec `aborted` getter
+   against a real signal, confirming the captured prototype end to end. **No behavioral
+   vector changed** — every `isEventTarget`/`isAbortSignal` public verdict is identical
+   (135 tests green, typecheck clean); the amendment touched only the module-load capture
+   mechanism and the `architecture/evented.md` "Realm-fixed capture" subsection. No axis-4
+   inventory change (`createInertAbortSignal` is deliberately unexported, covered
+   indirectly — a bad receiver would collapse every `AbortSignal` verdict). No new ADR (a
+   mechanical harmonization to the `@/thenable` / object-round precedent, part of the same
+   2026-07-03 cross-realm pass; cf. THENABLE spec item 8).
+
 No open items.

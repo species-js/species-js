@@ -59,14 +59,16 @@ post-freeze 2026-06-25; see Resolved items #2). The inert _probe_ set
 (`hasInertGetter`/`hasInertSetter`/`hasInertValue`) is public — its former `@internal`
 tags were removed (Resolved items #1).
 
-**Exported types (8):** `PropertyDescriptor`, `PropertyDescriptorMap`,
-`DefinedConstructorAccessorOptions`, `BlankType`, `ConstructorName`, `TaggedType`,
-`ResolvedType`, `TypeSignature`.
+**Exported types (9):** `PropertyDescriptor`, `PropertyDescriptorMap`,
+`DefinedConstructorAccessorOptions`, `ConstructorName`, `TaggedType`, `ResolvedType`,
+`TypeSignature`, `WeakKey`, `PredicateFunction`. (`BlankType` is a `@/config` type — see
+ADR #064 — not a `@/utility` export; the earlier tally wrongly listed it and omitted
+`WeakKey` / `PredicateFunction`.)
 
 Re-confirmation gate (as amended 2026-06-25): 14 public `.js` value exports + 3
 `@internal` own-key readers, each with a matching `.d.ts` declaration; the retired
 `getOwnPropertyDescriptorsKeys` / `getOwnPropertyDescriptorsKeySet` pair was removed and
-the public `getOwnPropertyKeys` added (Resolved items #2); 8 type exports match;
+the public `getOwnPropertyKeys` added (Resolved items #2); 9 type exports match;
 `architecture/utility.md` matches the code. The exact surface tally is re-derived during
 the utility test round.
 

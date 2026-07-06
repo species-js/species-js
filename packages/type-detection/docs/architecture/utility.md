@@ -54,9 +54,11 @@ refinements layer on the #047 walk:
   a real prototype object (e.g. the result of `getPrototypeOf(instance)`),
   `{ assumePrototype: true }` reads the prototype's OWN `constructor` (ECMA-262 §10.2.6)
   instead of walking up. The option lives on `getDefinedConstructor` and threads through
-  `getDefinedConstructorName`; its `assumePrototype` call sites are
-  `hasPlainObjectPrototypeContract` (`@/object`) and the thenable cross-realm
-  prototype-equivalence check (`isStructuralPromisePrototypeEquivalent`).
+  `getDefinedConstructorName`; its `assumePrototype` call sites are the four
+  `isAlienRealm{X}` cross-realm seams — `isAlienRealmPlainObject` (`@/object`),
+  `isAlienRealmPromise` (`@/thenable`), and `isAlienRealmEventTarget` /
+  `isAlienRealmAbortSignal` (`@/evented`) — each resolving the constructor once from the
+  threaded `[[Prototype]]`.
 - **No cross-call memoization; intra-call threading (decision #059).**
   `getDefinedConstructorName` is
   `getVerifiedOwnName(getDefinedConstructor(value, options))` — the constructor is
@@ -80,6 +82,49 @@ refinements layer on the #047 walk:
   extends it to the name read, closing the former raw `getOwnPropertyDescriptor` name
   read. The earlier "honest throw" stance is retracted — `undefined` is the
   contract-consistent answer, and no consumer relied on the throw.
+
+## Raw/inert pairing and layered throw-safety
+
+The module's reads come in matched pairs — a raw form and a throw-safe inert twin over the
+same operation: `getNextAvailablePropertyDescriptor` ↔ `getInertDescriptor`, and
+`getOwnPropertyNames` / `getOwnPropertySymbols` / `getOwnPropertyKeys` ↔ their `getInert…`
+counterparts. The raw form is for call sites that supply their own guarding (e.g.
+`getValidatedStandardConstructorAndPrototypeTuple`, which wraps its own walk in
+`try/catch`); the inert form is the default the domain predicates compose. A reader learns
+the shape once and it recurs across the module.
+
+Throw-safety is deliberately layered, not doubled. `getNextAvailablePropertyDescriptor`
+steps the chain through the throw-safe `getInertPrototypeOf` (which absorbs a hostile
+`getPrototypeOf` trap), while `getInertDescriptor` wraps the whole walk (absorbing a
+hostile `getOwnPropertyDescriptor` trap). Two guards cover two distinct throw sources, so
+the constructor-walk nesting them is defense-in-depth, not redundancy (decisions #029,
+#056).
+
+## Base-layer watch-list
+
+Observations from the 2026-07-05 base-layer audit (`config` + `utility`) — each accepted
+as-is, recorded so they need not be re-derived. None is a work item.
+
+- **`doesNotShadow{X}Contract` allocates the value's full own-name array on the hot
+  local-realm path** — `getOwnPropertyNames(value).some(isValueOfBoundSet, denylist)` in
+  `@/thenable` / `@/evented`. Inverting to probe only the fixed denylist
+  (`denylist.some((name) => objectHasOwn(value, name))`) would be allocation-free and
+  O(denylist), but a genuine direct instance owns ZERO contract keys, so the array is
+  already tiny and #063 deliberately made the callback closure-free (`isValueOfBoundSet`).
+  Real but low-value; revisit only under a profiler.
+- **The `TRUSTED_DATA_CONFIRMATION` flag trades signature width for a hot-path skip** of
+  `isValidPropertyKey`. It threads a third positional argument through the descriptor-walk
+  and every inert probe; the win is real, the cost is call-site legibility. First
+  candidate if the machinery ever needs to simplify.
+- **`getValidatedStandardConstructorAndPrototypeTuple` reads `prototype.constructor`
+  directly** — the one property read that bypasses the inert-descriptor discipline.
+  Justified: it runs once at module-load against the real intrinsic, inside the surrogate
+  `try/catch`, so a hostile accessor collapses to the surrogate rather than propagating.
+
+Verdict: the machinery earns its complexity and the perf levers that mattered are already
+pulled (#057 no prototype-cache; #059 resolve-once threading). See also the "don't
+factory-generate `isAlienRealm{X}`" rationale — explicit duplication here is
+inline-cache-friendly and more readable than a factory over four near-identical seams.
 
 ## Open architectural questions
 

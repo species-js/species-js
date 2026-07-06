@@ -92,13 +92,14 @@ Open architectural questions live in [open-questions.md](./open-questions.md).
 
 ### type-detection / object
 
-| #                                                                | Title                                                       | Date       |
-| ---------------------------------------------------------------- | ----------------------------------------------------------- | ---------- |
-| [040](./0040-object-module-structural-subtype-hierarchy.md)      | Object module: structural subtype hierarchy over branding   | 2026-06-06 |
-| [041](./0041-strict-is-plain-object-vs-lodash.md)                | Strict `isPlainObject` vs lodash `_.isPlainObject`          | 2026-06-06 |
-| [044](./0044-structural-anchor-is-plain-object.md)               | Structural anchor for `isPlainObject` — five-marker chain   | 2026-06-08 |
-| [045](./0045-tag-signature-cross-validator-dictionary-object.md) | Tag-signature cross-validator added to `isDictionaryObject` | 2026-06-08 |
-| [046](./0046-plain-or-dictionary-object-fused-predicate.md)      | `PlainOrDictionaryObject` union type and fused predicate    | 2026-06-08 |
+| #                                                                 | Title                                                       | Date       |
+| ----------------------------------------------------------------- | ----------------------------------------------------------- | ---------- |
+| [040](./0040-object-module-structural-subtype-hierarchy.md)       | Object module: structural subtype hierarchy over branding   | 2026-06-06 |
+| [041](./0041-strict-is-plain-object-vs-lodash.md)                 | Strict `isPlainObject` vs lodash `_.isPlainObject`          | 2026-06-06 |
+| [044](./0044-structural-anchor-is-plain-object.md)                | Structural anchor for `isPlainObject` — five-marker chain   | 2026-06-08 |
+| [045](./0045-tag-signature-cross-validator-dictionary-object.md)  | Tag-signature cross-validator added to `isDictionaryObject` | 2026-06-08 |
+| [046](./0046-plain-or-dictionary-object-fused-predicate.md)       | `PlainOrDictionaryObject` union type and fused predicate    | 2026-06-08 |
+| [064](./0064-object-shape-carriers-and-config-primitive-homes.md) | Three object-shape carriers; config-level primitive homes   | 2026-07-05 |
 
 ### type-detection / utility
 
@@ -186,3 +187,4 @@ order with one-line summaries:
 | 2026-07-01 | [061](./0061-evented-cross-realm-prototype-equivalence-strict-like-decomposition.md)  | Evented strict identity lifted to cross-realm prototype-equivalence; strict/Like decomposition |
 | 2026-07-01 | [062](./0062-strict-identity-predicates-excluded-from-generic-family.md)              | Strict identity predicates excluded from the generic `<T = unknown>` family                    |
 | 2026-07-01 | [063](./0063-own-level-contract-shadow-rejection-strict-predicates.md)                | Own-level contract-shadow rejection in the strict identity predicates                          |
+| 2026-07-05 | [064](./0064-object-shape-carriers-and-config-primitive-homes.md)                     | Three object-shape carriers; config-level primitive homes                                      |
