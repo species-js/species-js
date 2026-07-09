@@ -21,6 +21,7 @@
  */
 
 import {
+  globalContext,
   getOwnPropertyDescriptors,
   getOwnPropertyNames,
   INSTANCE_LESS_CONSTRUCTOR,
@@ -46,7 +47,6 @@ import { isBooleanValue } from '@/primitive';
 /** @typedef {typeof import('@/config').INSTANCE_LESS_CONSTRUCTOR} NEVER_INVOKED_CONSTRUCTOR */
 /** @typedef {import('@/config').BlankDictionary} BlankDictionary */
 
-/** @typedef {import('@/function').Callable} Callable */
 /** @typedef {import('@/function').NewableFunction} NewableFunction */
 
 /** @typedef {import('@/evented').EventTargetLike} EventTargetLike */
@@ -55,42 +55,50 @@ import { isBooleanValue } from '@/primitive';
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 
 /**
- * A freshly-manufactured real `AbortSignal` (via the realm's `AbortController`),
- * used only as the receiver for the spec-defined `aborted` getter when the
- * module-load capture validates `AbortSignal.prototype`. Falls back to a plain
- * object when the runtime has no `AbortController`, so the getter-invocation
- * fails closed and the capture collapses to the inert surrogate.
- *
- * @returns {AbortSignal | object} a live `AbortSignal`, or a plain object when
- *  no `AbortController` is available
+ * The realm's `AbortSignal` constructor and its `AbortSignal.prototype`,
+ * captured once at module-load and validated by
+ * {@link isAbortSignalPrototypeEquivalent}. The validator manufactures a live
+ * receiver — `new AbortController().signal`, falling back to a plain object
+ * when the realm has no `AbortController` — because the spec-defined `aborted`
+ * getter throws on a bare `AbortSignal.prototype` and must be invoked on a real
+ * signal to confirm a boolean result (decision #029). The plain-object fallback
+ * fails that getter-invocation closed, so a realm without `AbortController`
+ * collapses the capture to the inert `[INSTANCE_LESS_CONSTRUCTOR,
+ * BlankDictionary]` sentinel. The pair is realm-fixed — the captured
+ * `abortSignalPrototype` backs the `isAbortSignal` local identity fast-path,
+ * and later reassignment of `globalThis.AbortSignal` does not reach these
+ * bindings.
  */
-function createInertAbortSignal() {
-  return (
-    /** @type {{ signal?: AbortSignal }} */ (new AbortControllerConstructor()).signal ??
-    {}
-  );
-}
-const AbortControllerConstructor = isNewableFunction(AbortController)
-  ? AbortController
-  : /** @type {NewableFunction} */ (
-      function () {
-        return void 0;
-      }
-    );
-
 const [AbortSignalConstructor, abortSignalPrototype] =
   /** @type {[typeof AbortSignal, object | null] | [NEVER_INVOKED_CONSTRUCTOR, BlankDictionary]} */ (
-    getValidatedStandardConstructorAndPrototypeTuple(AbortSignal, (prototype) =>
-      doesImplementAbortSignalPrototypeContract(
-        /** @type {object} */ (prototype),
-        createInertAbortSignal(),
-      ),
+    getValidatedStandardConstructorAndPrototypeTuple(
+      globalContext.AbortSignal,
+      (validatedPrototype, validatedConstructor) => {
+        const AbortControllerConstructor = isNewableFunction(
+          globalContext.AbortController,
+        )
+          ? globalContext.AbortController
+          : /** @type {NewableFunction} */ (
+              function () {
+                return void 0;
+              }
+            );
+        const candidateValue =
+          /** @type {{ signal?: AbortSignal }} */ (new AbortControllerConstructor())
+            .signal ?? {};
+
+        return isAbortSignalPrototypeEquivalent(
+          /** @type {object} */ (validatedPrototype),
+          /** @type {NewableFunction} */ (validatedConstructor),
+          candidateValue,
+        );
+      },
     )
   );
 const [EventTargetConstructor, eventTargetPrototype] =
   /** @type {[typeof EventTarget, object | null] | [NEVER_INVOKED_CONSTRUCTOR, BlankDictionary]} */ (
     getValidatedStandardConstructorAndPrototypeTuple(
-      EventTarget,
+      globalContext.EventTarget,
       doesImplementEventTargetContract,
     )
   );
