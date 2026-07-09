@@ -19,7 +19,7 @@
  *   `AsyncGeneratorFunction` species).
  * - `@species-js/type-detection/primitive` — `typeof` guards for the
  *   five JavaScript primitive types.
- * - `@species-js/type-detection/error` — `GenericError` and `AbortError`
+ * - `@species-js/type-detection/error` — `AnyError` and `AbortError`
  *   discrimination with the `Error.isError` polyfill.
  * - `@species-js/type-detection/object` — `AnyObject`, `PlainObject`,
  *   `DictionaryObject`, and `PlainOrDictionaryObject` discrimination.
