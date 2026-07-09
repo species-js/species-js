@@ -32,6 +32,26 @@ import { isNumberValue } from '@/primitive';
 /** @typedef {typeof import('./index').INSTANCE_LESS_CONSTRUCTOR} NEVER_INVOKED_CONSTRUCTOR */
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
+
+/**
+ * The realm's global object, captured once at module-load.
+ *
+ * `globalThis` (ES2020 — the package floor) is the single
+ * standardized handle to the global object across Node,
+ * browsers, workers, and UMD bundles, so a bare reference
+ * resolves on every target the package ships to. Consumers
+ * read members through this capture (`globalContext.DOMException`)
+ * rather than as bare intrinsic references — some module
+ * runners (vitest's among them) fail to resolve a bare
+ * `DOMException` within a project-module's scope even
+ * though `globalThis.DOMException` is present. Reading
+ * through the capture sidesteps that, and fixes the
+ * global's identity to this realm.
+ * @internal
+ */
+export const globalContext = globalThis;
+
+// ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 //
 //  Property Descriptor Options
 //
@@ -113,7 +133,7 @@ export const sealedDescriptorOptions = {
  * `hasOwnProperty` chain are extracted.
  * @internal
  */
-export const objectPrototype = Object.prototype;
+export const objectPrototype = globalContext.Object.prototype;
 
 const hasOwnProperty = objectPrototype.hasOwnProperty;
 
@@ -142,7 +162,7 @@ export const toObjectString = objectPrototype.toString;
  * for detecting class syntax.
  * @internal
  */
-export const toFunctionString = Function.prototype.toString;
+export const toFunctionString = globalContext.Function.prototype.toString;
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 //
@@ -150,7 +170,7 @@ export const toFunctionString = Function.prototype.toString;
 //
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 
-const o = Object;
+const o = globalContext.Object;
 
 const nativeHasOwn = /** @type {objectHasOwnProperty | undefined} */ (
   /** @type {{ hasOwn?: objectHasOwnProperty }} */ (o).hasOwn
@@ -291,6 +311,12 @@ export const setPrototypeOf = o.setPrototypeOf;
 export const defineProperty = o.defineProperty;
 
 /**
+ * `Object.defineProperties`, realm-fixed at module-load.
+ * @internal
+ */
+export const defineProperties = o.defineProperties;
+
+/**
  * `Object.getOwnPropertyDescriptor`, realm-fixed at module-load.
  * @internal
  */
@@ -357,15 +383,15 @@ export const INSTANCE_LESS_CONSTRUCTOR = /** @type {NEVER_INVOKED_CONSTRUCTOR} *
 //
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 
-const nativeIsFinite = isFinite;
+const nativeIsFinite = globalContext.isFinite;
 
-const n = Number;
-const m = Math;
+const n = globalContext.Number;
+const m = globalContext.Math;
 
 const mathAbs = m.abs;
 const mathFloor = m.floor;
 
-const MAX_SAFE_INTEGER = n.MAX_SAFE_INTEGER;
+const { MAX_SAFE_INTEGER } = n;
 
 /**
  * The explicit polyfill behind {@link isFiniteNumberValue}, exported so the

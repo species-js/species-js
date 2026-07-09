@@ -22,6 +22,24 @@ import type { DictionaryObject } from '@/object';
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 
 /**
+ * The realm's global object, captured once at module-load.
+ *
+ * `globalThis` (ES2020 — the package floor) is the single
+ * standardized handle to the global object across Node,
+ * browsers, workers, and UMD bundles, so a bare reference
+ * resolves on every target the package ships to. Consumers
+ * read members through this capture (`globalContext.DOMException`)
+ * rather than as bare intrinsic references — some module
+ * runners (vitest's among them) fail to resolve a bare
+ * `DOMException` within a project-module's scope even
+ * though `globalThis.DOMException` is present. Reading
+ * through the capture sidesteps that, and fixes the
+ * global's identity to this realm.
+ * @internal
+ */
+export declare const globalContext: typeof globalThis;
+
+/**
  * Descriptor preset for a hidden-but-mutable property.
  *
  * The default shape for defining internal properties that may still be
@@ -320,6 +338,12 @@ export declare const setPrototypeOf: typeof Object.setPrototypeOf;
  * @internal
  */
 export declare const defineProperty: typeof Object.defineProperty;
+
+/**
+ * `Object.defineProperties`, realm-fixed at module-load.
+ * @internal
+ */
+export declare const defineProperties: typeof Object.defineProperties;
 
 /**
  * `Object.getOwnPropertyDescriptor`, realm-fixed at module-load.
