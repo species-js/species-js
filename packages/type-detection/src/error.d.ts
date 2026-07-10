@@ -308,9 +308,12 @@ export function doesImplementMinimumErrorContract(value: {
  * The generic-error structural contract — the stack-graft filter
  * ({@link doesPassErrorGraftFilter}) AND the minimum duck-type
  * ({@link doesImplementMinimumErrorContract}). The graft filter runs first
- * by deliberate precedence: the cheaper, more discriminating gate, ordered
- * ahead of the `name` / `message` read so a grafted shell is rejected before
- * its coincidental string members are ever considered.
+ * by deliberate precedence: the more discriminating gate, ordered ahead of
+ * the `name` / `message` read so a grafted shell is rejected before its
+ * coincidental string members are ever considered. On a graft it
+ * short-circuits cheaply; on a genuine error it is the costlier half (reading
+ * a reachable `stack` can force stack materialization), but the ordering costs
+ * nothing there and buys the early-out on the graft path.
  *
  * @param value - the value to test
  * @returns `true` when the value satisfies the generic-error contract;
@@ -531,13 +534,17 @@ export function isCurrentRealmDOMExceptionInstance<T = unknown>(
 /**
  * Narrows a value to a generic `Error` — one that is not a `DOMException`.
  *
- * Realm-partitioned. A truthy current-realm `Error` instance that is not a
- * current-realm `DOMException` is confirmed structurally by the generic-error
- * contract (the fast, common path); anything else — foreign-realm values, and
- * the DOMException-shaped ones the fast arm drops — falls to the foreign-realm
- * walk, which re-establishes both the Error match and the DOMException
- * exclusion on contract. Either way the result excludes `DOMException` at
- * runtime.
+ * Realm-partitioned, with the `DOMException` exclusion applied first and by
+ * identity: a current-realm `DOMException` instance is rejected up front (an
+ * `instanceof` check) ahead of any structural test, so even a `DOMException`
+ * whose contract {@link isDOMException} rejects cannot leak into the
+ * generic-error result. A current-realm `Error` instance is then confirmed by
+ * the generic-error contract (the fast, common path); a foreign-realm value
+ * falls to the prototype walk, which re-applies the exclusion structurally.
+ * The exclusion is exact in the current realm and structural across realms —
+ * a foreign `DOMException` with a broken contract is classified as a generic
+ * `Error`, the one accepted cross-realm asymmetry — while a well-formed
+ * `DOMException` of either realm is excluded at runtime.
  *
  * That exclusion is a runtime guarantee. It is not carried in the narrow
  * type: TypeScript has no negation type, so `value is T & Error` cannot
@@ -597,9 +604,11 @@ export function isDOMException<T = unknown>(value?: T): value is T & DOMExceptio
  * Exported for tests and for callers that want the polyfill semantics
  * regardless of the runtime's native `Error.isError`. The polyfill is NOT a
  * widening superset of the native check: its stack-graft filter rejects
- * `Object.create(Error.prototype)` grafts in stack-capable environments,
- * converging on the native `[[ErrorData]]` verdict rather than widening past
- * it.
+ * `Object.create(Error.prototype)` grafts wherever the environment guarantees
+ * stacks ({@link ERROR_STACK_CAPABLE}), converging on the native
+ * `[[ErrorData]]` verdict rather than widening past it; only where no stacks
+ * are populated — the filter disabled — does it admit grafts native would
+ * reject.
  *
  * @typeParam T - the caller-side type of `value`; defaults to `unknown`
  * @param value - the value to test; omitted is treated as `undefined`, which
@@ -624,11 +633,12 @@ export function isAnyError<T = unknown>(value?: T): value is T & AnyError;
  * polyfill approximates it structurally because that slot is unobservable;
  * the two admit the same set in well-behaved code, and the polyfill's
  * stack-graft filter keeps them convergent on the legacy
- * `Object.create(Error.prototype)` graft (both reject it in stack-capable
- * environments) rather than widening. The generic `T` surface is applied
- * even though the captured native method is non-generic per its ES2025
- * declaration — runtime semantics are unchanged, only the type-surface
- * widens.
+ * `Object.create(Error.prototype)` graft — both reject it wherever the
+ * environment guarantees stacks ({@link ERROR_STACK_CAPABLE}) — rather than
+ * widening; only where no stacks are populated does the filter stand down and
+ * the polyfill admit grafts native would reject. The generic `T` surface is
+ * applied even though the captured native method is non-generic per its ES2025
+ * declaration — runtime semantics are unchanged, only the type-surface widens.
  *
  * @typeParam T - the caller-side type of `value`; defaults to `unknown`
  * @param value - the value to test; omitted is treated as `undefined`, which
