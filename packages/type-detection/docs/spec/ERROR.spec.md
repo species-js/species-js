@@ -22,6 +22,18 @@
 > realm asymmetry) — plus the surviving #035 (AbortError suffix) and #036 (generic
 > surface) — and in `architecture/error.md` (rewritten 2026-07-10). The full canon (ADRs +
 > architecture + this spec + the re-documented `.d.ts`/`.js`) is internally consistent.
+>
+> **Post-freeze amendment (2026-07-11 — test round).** The six-file config-driven suite
+> under `test/error/` was built and the spec↔test vector diff run both ways. Two vector-ID
+> refinements landed (no behavioral vector changed): `dIGEPC/R3` was split into `R3`
+> (`ownKeys`-trap) + `R4` (tag-getter-throw) to name the two distinct helper-level
+> throw-safe boundaries the tests pin, and the `isAnyError` helper IDs were standardized
+> to the `iAE/*` abbreviation. The diff is now EMPTY in-test-not-in-spec, and
+> in-spec-not-in-test is exactly six documented exclusions unreachable in the Node-22/V8
+> test env or asserting nothing: `dIGEC/B1`, `dPEGF/A2`, `dPEGF/B1` (the non-stack-capable
+> regime), `iCRDEI/B1` (the no-`DOMException`-realm sentinel), `isError/B2` (native
+> `Error.isError`, absent here), and `isAbortError/B1` (refuses-to-claim — abort-channel
+> mechanics).
 
 ## Module contract
 
@@ -282,7 +294,7 @@ predicate (no `*Like`, no `*Strict`); the getter-shape contract (descriptor-kind
   but NO reachable `stack`,
   `Object.create(DOMException.prototype, { name: { get }, message: { get } })` → true. The
   contract is getter-shape, NOT stack, so it is engine-independent — this is what keeps
-  `isError(new DOMException())` `true` in a browser (see `isAnyError/B1`).
+  `isError(new DOMException())` `true` in a browser (see `iAE/B1`).
 
 **Rejects**
 
@@ -332,7 +344,7 @@ keeps its getter-backed contract". An idiomatic subclass that names itself throu
 `super(message, name)` keeps the inherited getter and is admitted (`A2`); one that
 flattens `name` to a data field via a class field or `defineProperty` is the "dumb data
 name" case and is rejected (`R2`) — even though it is a genuine `DOMException` instance
-(that value lands as NEITHER arm; see `isAnyError/R1`).
+(that value lands as NEITHER arm; see `iAE/R1`).
 
 This is why the #063 own-shadow guard is **not** applied here: #063 rejects a contract
 member on OWN-KEY PRESENCE regardless of descriptor kind, which would over-reject the
@@ -533,8 +545,11 @@ error-named prototype.
 
 - `dIGEPC/A1` — `Error.prototype` → true. `dIGEPC/R1` — `TypeError.prototype` → false (own
   `name` is `'TypeError'`; `toString.call` → `'TypeError'`). `dIGEPC/R2` —
-  `Object.prototype` → false. `dIGEPC/R3` — a hostile / throwing prototype → false
-  (throw-safe).
+  `Object.prototype` → false. `dIGEPC/R3` — a `Proxy` prototype whose `ownKeys` trap
+  throws → false, not thrown (the `getOwnPropertyDescriptors` try/catch — a helper-level
+  boundary; the public path fails the graft filter first). `dIGEPC/R4` — a prototype whose
+  `Symbol.toStringTag` getter throws → false, not thrown (`getTypeSignature` throw-safe;
+  helper-level for the same reason).
 
 #### `doesImplementDOMExceptionPrototypeContract(prototype, value)` — `@internal`
 
@@ -652,7 +667,7 @@ more specific arm must win); admits both arms, so no cross-exclusion.
 2. **Flattened-name `DOMException` classified as NEITHER (current realm) — RESOLVED.** Via
    the identity-first exclusion in `isGenericError` (`R3`) plus the DOMException contract
    rejection (`isDOMException/R2`): the value is neither a generic error nor a
-   `DOMException` (`isError/R3`, `isAnyError/R1`), preserving
+   `DOMException` (`isError/R3`, `iAE/R1`), preserving
    `isError ≡ isGenericError ⊎ isDOMException`. The FOREIGN counterpart is classified as a
    generic `Error` (`isGenericError/B2`, `iARGE/B1`) — the accepted realm-asymmetry
    (identity current-realm / structural cross-realm), documented not reconciled.
