@@ -2,194 +2,343 @@
 
 ## Mental model
 
-`type-detection / error` exists because the ECMA-262 `Error.isError` check is _spec-
-precise but not polyfillable in pure JS_. The check returns `true` iff the value carries
-the internal `[[ErrorData]]` slot, set by the `Error` constructor and inherited by every
-built-in subclass (`TypeError`, `SyntaxError`, etc.) plus user-defined
-`class X extends Error` instances. WebIDL's `DOMException` defines the same slot via a
-separate path. The slot is _unobservable from userland code_: there is no operator,
-descriptor, or reflection method that exposes it. A polyfill therefore has to approximate
-`[[ErrorData]]` with a structural heuristic — admitting values whose `[[Class]]` tag
-matches or whose prototype walks like an Error prototype.
+`type-detection / error` exists because the ECMA-262 `Error.isError` check is
+_spec-precise but not polyfillable in pure JS_. The check returns `true` iff a value
+carries the internal `[[ErrorData]]` slot — set by the `Error` constructor, inherited by
+every built-in subclass (`TypeError`, `SyntaxError`, …) and every user-defined
+`class X extends Error`, and set by a separate WebIDL path for `DOMException`. The slot is
+_unobservable from userland_: no operator, descriptor, or reflection method exposes it. A
+polyfill therefore has to approximate `[[ErrorData]]` structurally.
 
-The module's job is to discriminate the spec-defined error set across two runtime
-conditions: a native `Error.isError` is present (ES2025+ runtimes — Node 23+, modern
-browsers), and a native `Error.isError` is absent (legacy runtimes, where the polyfill
-fires). Plus the abort-channel refinement layered on top — `AbortError` — for the
-DOM-conventional naming pattern that `AbortSignal.abort()` and downstream consumers use.
-
-The discrimination is organized as a five-tier composition stack:
+The module discriminates the error set across two runtime conditions — native
+`Error.isError` present (ES2025+ runtimes: Node 23+, modern browsers) or absent (the
+polyfill fires) — and splits it into an honest `Error` / `DOMException` distinction. It is
+organized not as a `Like`→identity lattice (as thenable / evented are) but as a
+**partition plus a refinement**:
 
 ```
-hasErrorPrototypeContract         (@internal) — descriptor-walk sub-helper
-  └── doesMatchErrorContract      (@internal) — structural fallback dispatcher
-       └── isGenericError         (@internal) — polyfill body (instanceof + structural)
-            └── isError           (public)    — native-or-polyfill, captured at module-load
-                 └── isAbortError (public)    — refined predicate (name-suffix match)
+                    isError  (public — native Error.isError, else the isAnyError polyfill)
+                       │      narrows to AnyError = Error | DOMException
+          ┌────────────┴────────────┐
+   isGenericError              isDOMException          (public; DISJOINT arms)
+   (an Error, NOT a            (any DOMException;
+    DOMException)               sole generic predicate)
+          │
+   isAbortError  (public — refines isError by a name suffix match)
 ```
 
-Unlike the thenable / evented lattices — which are _type-narrowing_ ladders (`Thenable` →
-`PromiseLike` → `Promise`; `EventTargetLike` → `EventTarget`) — the error module's stack
-is a _composition_ ladder. Each tier composes the one above; the public narrowing happens
-at `isError` (to `GenericError`) and at `isAbortError` (to `AbortError`). The lower tiers
-exist to factor reusable structural sub-checks, mirror the contract vocabulary established
-in thenable / evented, and provide an `@internal` polyfill body exported for testing.
+The load-bearing invariant is that the two arms form a **disjoint, engine-independent
+cover**: `isError` ≡ `isGenericError` ⊎ `isDOMException`. Every error is exactly one of
+the arms, never both, never (for a well-formed value) neither. This is a full redesign
+(decision #065) of an earlier `[[Class]]`-tag classifier, which had one public predicate
+and folded `DOMException` into the union; the redesign brings the module onto the same
+identity-capture + realm-partition model the thenable / evented / object rounds converged
+on, and makes the `Error` / `DOMException` split first-class. The name `isGenericError` is
+deliberately repurposed in the process — it once named an `@internal` polyfill body that
+_admitted_ `DOMException`; it now names the public predicate that _excludes_ it, an exact
+inversion the `.d.ts` and spec call out so a reader carrying the old model is not misled.
 
 ## Cross-realm safety
 
-The realm-safety pattern combines the strategies from [`./thenable.md`](./thenable.md) and
-[`./evented.md`](./evented.md). The local-realm fast path uses `value instanceof Error`;
-the cross-realm fallback uses `Object.prototype.toString`-based `[[Class]]` tag
-inspection. Both are inlined inside `isGenericError` rather than exposed as separate
-`isCurrentRealmError` / `isAlienRealmError` predicates (equip-js had exposed both; the
-species-js round consolidates them — decision #032).
+An `Error` or `DOMException` produced in another realm (iframe, worker, `vm` context) has
+the same structural shape as its local counterpart but a _different intrinsic identity_,
+so `value instanceof Error` against a foreign error returns `false`. Each of the three
+predicates is therefore realm-partitioned (decision #065): a current-realm value is
+confirmed by a throw-safe `instanceof` fast-path plus a structural contract, and a
+foreign-realm value by a throw-safe prototype walk that proves structural equivalence to
+the captured shape. This is the same pattern [`./thenable.md`](./thenable.md) and
+[`./evented.md`](./evented.md) use; the error module applies it twice, once per arm.
 
-Three structural tag branches cover the spec-defined error families:
+### Realm-fixed capture via the shared validated-tuple helper (decisions #060, #065)
 
-- `'[object Error]'` — every value carrying `[[ErrorData]]` resolves to this tag per
-  ECMA-262 §20.1.3.6 step 17. Subclasses (`TypeError`, custom `class X extends Error`)
-  inherit the tag from `Error.prototype`'s `[[ErrorData]]` slot — unless they override
-  `Symbol.toStringTag`. Cross-realm Error instances tag the same way because the spec step
-  is realm-independent.
-- `'[object DOMException]'` — WebIDL defines `DOMException` with its own
-  `Symbol.toStringTag`, so DOMException instances tag differently despite also carrying
-  `[[ErrorData]]`.
-- `'[object Object]'` with matching prototype — the legacy widening branch (decision
-  #033). Catches `Object.create(Error.prototype)` and ES3-style classical-inheritance
-  Errors whose `[[Prototype]]` walks like an Error prototype but never went through the
-  `Error` constructor (and so lack `[[ErrorData]]`).
+Both intrinsics are captured at module-load through the shared
+`getValidatedStandardConstructorAndPrototypeTuple(X, contract)` (`@/utility`) — the same
+helper `@/thenable` uses for `Promise`. It confirms `X` is newable, reads its own
+`prototype` descriptor inertly, and accepts the `[X, X.prototype]` pair only when the
+prototype satisfies the injected `contract` AND back-references the constructor. On ANY
+failure — no global `X`, a rejected contract, a broken back-reference, a throwing
+descriptor — it returns the TOTAL inert surrogate
+`[INSTANCE_LESS_CONSTRUCTOR, BLANK_DICTIONARY]` (decision #064), so every downstream
+`instanceof` is uniformly `false` rather than throwing.
 
-The native `Error.isError` is captured at module-load via
-`const nativeIsError = (Error as ErrorConstructorES2025).isError`, then bound through
-`isFunction(nativeIsError) ? nativeIsError : isGenericError`. The capture is realm-fixed —
-later tampering with `globalThis.Error.isError` does not reach this binding, mirroring the
-realm-fixed pattern used for cached `@/config` primitives.
+The two captures inject DIFFERENT contracts, and the difference is forced by the shape of
+each surface — the same asymmetry evented has between `EventTarget` and `AbortSignal`:
+
+- **`Error`** injects `isGenericErrorPrototypeEquivalent`, which delegates to
+  `doesImplementGenericErrorPrototypeContract` — a pure own-descriptor read of
+  `Error.prototype` (own callable `toString`, string `name` / `message`, and the pinned
+  root values `toString.call(prototype) === 'Error'`, `name === 'Error'`,
+  `message === ''`). Pinning the ROOT values identifies `Error.prototype` _itself_, not
+  any error-named prototype, so the same predicate serves as both the capture gate and the
+  walk target.
+- **`DOMException`** cannot be validated off its bare prototype: its `name` / `message`
+  are spec-defined getters backed by an internal slot that _throw_ on any receiver that is
+  not a live `DOMException`. Its capture instead threads a manufactured live instance
+  (`new DOMException('security error', 'SecurityError')`) as the receiver into
+  `isDOMExceptionPrototypeEquivalent`, then confirms both values round-trip. So
+  module-load validation actually invokes the spec getters against a real instance,
+  confirming the captured prototype end to end — the sibling of evented's
+  manufactured-`AbortSignal` receiver (decision #029 family). The prototype half of the
+  DOMException tuple is discarded; the DOMException paths reach a prototype through each
+  value's own chain, never through this capture.
+
+The sentinel constructor slot has the same two consequences as in evented: the
+realm-instance helpers reduce to a bare
+`try { value instanceof XConstructor } catch { false }` (no presence guard — the total
+tuple keeps the slot always present, and the sentinel is on no value's chain), and
+`nativeIsError` is only read when `GenericErrorConstructor !== INSTANCE_LESS_CONSTRUCTOR`.
+
+### The subclass-safe alien walk (decision #065)
+
+Each alien walk (`isAlienRealmGenericError`, `isAlienRealmDOMException`) climbs the
+prototype chain looking for a level equivalent to the genuine `Error.prototype` /
+`DOMException.prototype`. At every level it reads the constructor from **that level's OWN
+`constructor` back-reference, never from the walked child**. The authentic `Error` /
+`Error.prototype` pairing only co-locates on the level whose own `constructor`
+back-references it (`Error.prototype.constructor === Error`); reading the constructor from
+the child node instead aligns only for a direct `new Error()` and silently misses every
+subclass level (`TypeError`, `class X extends Error`) whose chain reaches the realm's
+`Error.prototype`. The DOMException walk threads the ORIGINAL root `value` — never the
+walked node — as the receiver for the spec getters, for the same throw-on-wrong-receiver
+reason the capture does. Both walks are throw-safe throughout (`getInertPrototypeOf`,
+`getInertDescriptor`).
+
+## The stack-capability machinery — the polyfill's `[[ErrorData]]` proxy (decision #066)
+
+The `Error` arm cannot read `[[ErrorData]]`, so it approximates it through the closest
+_reachable_ side effect of construction: a `stack`. A genuine error ran a constructor and
+(in a stack-capable engine) carries a `stack`; an `Object.create(Error.prototype)` shell
+never ran the constructor and does not. Three pieces of module-load machinery turn that
+observation into a gated filter:
+
+- `ERROR_STACK_CAPABLE` — a `boolean`, probed once by throwing a captured-constructor
+  `Error`, catching it, and testing whether the caught value carries a string `stack`. The
+  throw is deliberate: some engines populate `stack` only on an actually-thrown error.
+- `retrieveErrorStack` — a reader whose access strategy is fixed once at load from how the
+  realm exposes `stack`: `gated-slot` (an accessor — invoke the captured getter with the
+  value as receiver, reading the internal side effect through any chain) or `plain-data`
+  (a data property — read directly and type-check). Both throw-safe → `undefined`; the
+  chosen mode is surfaced as `errorStackMode`.
+- `doesPassErrorGraftFilter(value)` =
+  `!ERROR_STACK_CAPABLE || hasReachableErrorStack(value)` — the graft filter, GATED by the
+  capability probe. Where the environment guarantees stacks a value passes only if it
+  carries a reachable one; where it does not, the filter stands down (a missing `stack`
+  proves nothing there). The `||` short-circuit means `retrieveErrorStack` fires _only_
+  where its answer is meaningful — the machinery does not fire wildly.
+
+The consequence is that the polyfill **converges** on the native verdict rather than
+widening past it: `isError(Object.create(Error.prototype))` is `false` in a stack-capable
+engine — native rejects on the absent slot, the polyfill on the absent `stack`. Only where
+no stacks are populated does the filter stand down and the polyfill admit grafts native
+would reject. This reverses the old widening posture (decision #033, superseded): the
+retired classifier admitted `Object.create(Error.prototype)` and ES3-style errors
+_unconditionally_ via a prototype-shape heuristic, diverging from native even in the
+modern engines that dominate production. `errorStackMode` / `ERROR_STACK_CAPABLE` are
+exported `@internal` so the behavior is inspectable and testable.
+
+Crucially, the `DOMException` arm does NOT route through the stack filter (§ "The
+DOMException descriptor-kind contract"). Its discriminator is engine-independent, which is
+what keeps `isError(new DOMException())` `true` in a browser, where a `DOMException`
+carries no `stack`.
+
+## The `Error` / `DOMException` partition (decisions #067, #069)
+
+`DOMException` is modeled as a distinct arm, never an `Error` subtype — neither at the
+type level (`DOMException` is a package-owned interface that does not `extends Error` and
+declares no `stack`) nor in the runtime partition. The reason is that engines disagree on
+whether `new DOMException() instanceof Error` holds; pinning `DOMException` as its own
+always-excluded arm keeps `isGenericError`'s membership _deterministic across engines_
+rather than moving with the runtime's subclass decision. This is why
+`AnyError = Error | DOMException` stays genuinely two-armed and must not collapse to
+`Error` (decision #067). The "generic ≠ `DOMException`" exclusion is a runtime guarantee,
+not a type — TypeScript has no negation type, so `value is T & Error` cannot spell "and
+not a `DOMException`"; because `DOMException` is not an `Error` subtype, `T & Error`
+already excludes it structurally in ordinary use.
+
+`isGenericError` enforces that exclusion by **two different means, one per realm**
+(decision #069):
+
+- **Current realm — by identity, up front.** A leading
+  `if (!value || isCurrentRealmDOMExceptionInstance(value)) return false` rejects any
+  current-realm `DOMException` instance _before_ any contract or walk. Anchoring on
+  identity (`instanceof`) rather than on the DOMException contract is load-bearing: where
+  `DOMException` subclasses `Error` it also satisfies the generic-error (stack) contract,
+  and a `DOMException` whose contract is broken — a flattened own-data `name` that
+  `isDOMException` rejects — is still `instanceof DOMException`, so an identity guard
+  keeps it out of the generic arm where a contract guard would let it leak. (An empirical
+  partition probe found exactly that leak before the fix: a flattened-`name`
+  `DOMException` subclass read `isGenericError === true` while `isError === false` — a
+  "generic error" that is not an error. The identity anchor restores
+  `isGenericError ⊆ isError`.)
+- **Foreign realm — by contract.** `isAlienRealmGenericError` early-returns on
+  `isAlienRealmDOMException(value)`. This is the "crown-jewel" guard: a Node
+  `DOMException` is `instanceof Error` AND carries an own `stack` (from the internal
+  `new Error()` its constructor runs), so it satisfies the generic-error contract on its
+  own — without the explicit exclusion it would be readmitted on the alien path.
+
+**One accepted realm asymmetry follows.** A _foreign_ flattened `DOMException` — a
+subclass of the foreign `Error`, carrying a `stack` — is classified as a generic `Error`:
+the current-realm identity guard has no cross-realm equivalent (`instanceof` cannot reach
+a foreign constructor), and the structural arm reads the value as an `Error`. Excluding it
+would mean reintroducing the `[[Class]]`-tag reliance the redesign abandoned. This is not
+a partition-law violation — the verdict is self-consistent — but an intent asymmetry: the
+exclusion is exact by provenance current-realm, structural cross-realm. Accepted and
+documented, not reconciled — the same category as the `isPlainObject` realm-asymmetry
+(object round) and the evented tampered-input asymmetry (decision #063).
+
+## The `DOMException` descriptor-kind contract (decision #068)
+
+`isDOMException` is the sole generic `DOMException` predicate — there is no
+`DOMExceptionLike` tier and no `Strict` variant — so its contract must admit every
+`DOMException`, including third-party subclasses, without becoming so loose that any
+error-shaped object slips through. A genuine `DOMException` _owns none of its contract_:
+`name` / `message` are inherited getters backed by an internal slot. The contract keys off
+that getter shape: `doesImplementDOMExceptionContract(value)` =
+`hasInertGetter(value, 'message') && hasInertGetter(value, 'name')`, where
+`hasInertGetter` resolves the descriptor through the prototype chain _own-first,
+first-match-wins_. So `name` and `message` are accepted only as ACCESSORS, reachable
+anywhere from the value's own slot down to the first-matching prototype; a plain DATA
+`value` descriptor is rejected wherever it sits, symmetrically on both members. The
+contract reads PRESENCE, never invoking the getter in the current realm (the cross-realm
+prototype-equivalence path invokes, threading a live receiver).
+
+The own-shadow rejection of decision #063 is deliberately NOT applied here. #063 rejects a
+contract member on own-KEY presence regardless of descriptor kind — the wrong tool for a
+getter-backed contract, since it would reject a legitimate own-getter `name`. The
+getter-vs-data test is the finer discriminator, and it maps onto real idioms: a subclass
+that names itself through `super(message, name)` keeps the inherited getter and is
+admitted; one that flattens `name` to a data field via a class field (the `Error` idiom,
+redundant on `DOMException`, which already takes a name argument) is the "dumb data name"
+and is rejected — landing, since it is still `instanceof DOMException`, as _neither_ arm.
+`isGenericError`'s own-shadow question is separately N/A: `Error` is a data-carrier that
+owns its contract by design, so "owns a contract member = tamper" is false there, the same
+reason `isPlainObject` is exempt in #063. This answers #063's forward FAMILY question for
+`DOMException`: not applicable.
 
 ## Predicate composition
 
-Five predicates — two public, three `@internal` — composing the polyfill stack. Three
-supporting types and one interface declaration round out the surface:
+Twenty-one runtime exports — four public predicates, seventeen `@internal` helpers. The
+public compositions:
 
-| Symbol                      | Kind        | Composition / shape                                                                                     |
-| --------------------------- | ----------- | ------------------------------------------------------------------------------------------------------- |
-| `GenericError`              | type        | `DOMException \| Error` — TypeScript approximation of `[[ErrorData]]`-bearing values                    |
-| `AbortErrorName`            | type        | `` `${string}AbortError` `` — template-literal type for the abort-channel naming convention             |
-| `AbortError`                | type        | `GenericError & { name: AbortErrorName }` — refined intersection                                        |
-| `ErrorConstructorES2025`    | interface   | `ErrorConstructor` extended with optional `isError?(v): v is GenericError` (`@internal`)                |
-| `hasErrorPrototypeContract` | `@internal` | descriptor walk: 4 own descriptors of `prototype` + trailing-`'Error'` name marker; recursive `isError` |
-| `doesMatchErrorContract`    | `@internal` | `sig === '[object Error]' \|\| sig === '[object DOMException]' \|\| (sig === '[object Object]' && ...)` |
-| `isGenericError`            | `@internal` | `!!v && (v instanceof Error \|\| doesMatchErrorContract(v))`                                            |
-| `isError`                   | `public`    | `const isError = isFunction(nativeIsError) ? nativeIsError : isGenericError` (captured at module-load)  |
-| `isAbortError`              | `public`    | `isError(v) && v.name.endsWith('AbortError')`                                                           |
+| Predicate        | Composition                                                                                                                                                                                   |
+| ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `isGenericError` | `if (!v \|\| isCurrentRealmDOMExceptionInstance(v)) return false; if (isCurrentRealmGenericErrorInstance(v)) return doesImplementGenericErrorContract(v); return isAlienRealmGenericError(v)` |
+| `isDOMException` | `!!v && isCurrentRealmDOMExceptionInstance(v) ? doesImplementDOMExceptionContract(v) : isAlienRealmDOMException(v)`                                                                           |
+| `isError`        | `const isError = isFunction(nativeIsError) ? nativeIsError : isAnyError` (bound once at module-load)                                                                                          |
+| `isAbortError`   | `isError(v) && isStringValue(v.name) && v.name.endsWith('AbortError')`                                                                                                                        |
 
-The composition mirrors the established `doesImplement<X>Contract` pattern from thenable
-(`doesImplementPromiseContract`) and evented (`doesImplementEventTargetContract`,
-`doesImplementAbortSignalContract`) — same "structural fallback dispatcher" role at the
-internal layer. The realm-fast-path inlining inside `isGenericError` matches the
-`isPromiseLike` / `isEventTargetLike` shape, where the `instanceof <Constructor>` fast
-path composes with the structural fallback inside one umbrella predicate without exposing
-the two halves separately.
+The `@internal` helper compositions:
 
-## Polyfill widening over `[[ErrorData]]`
+| Helper                                              | Composition                                                                                                                                                                                                                         |
+| --------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `isAnyError`                                        | `!!v && isCurrentRealmDOMExceptionInstance(v) ? doesImplementDOMExceptionContract(v) : isCurrentRealmGenericErrorInstance(v) ? doesImplementGenericErrorContract(v) : isAlienRealmDOMException(v) \|\| isAlienRealmGenericError(v)` |
+| `isCurrentRealm{GenericError,DOMException}Instance` | `try { v instanceof XConstructor } catch { false }`                                                                                                                                                                                 |
+| `doesImplementMinimumErrorContract`                 | `try { isStringValue(v.message) && isStringValue(v.name) } catch { false }`                                                                                                                                                         |
+| `doesImplementGenericErrorContract`                 | `doesPassErrorGraftFilter(v) && doesImplementMinimumErrorContract(v)` (graft filter first)                                                                                                                                          |
+| `doesImplementDOMExceptionContract`                 | `hasInertGetter(v, 'message') && hasInertGetter(v, 'name')`                                                                                                                                                                         |
+| `doesImplementGenericErrorPrototypeContract`        | `try { own callable toString && string own name/message && toString.call(proto) === 'Error' && name === 'Error' && message === '' } catch { false }`                                                                                |
+| `doesImplementDOMExceptionPrototypeContract`        | `try { name & message each a getter (no setter) yielding a string when invoked as get.call(value) } catch { false }`                                                                                                                |
+| `isGenericErrorPrototypeEquivalent`                 | `getTypeSignature(proto) === '[object Object]' && getVerifiedOwnName(ctor) === 'Error' && isClass(ctor) && ctor.prototype === proto && doesImplementGenericErrorPrototypeContract(proto)`                                           |
+| `isDOMExceptionPrototypeEquivalent`                 | `getTypeSignature(proto) === '[object DOMException]' && getVerifiedOwnName(ctor) === 'DOMException' && isClass(ctor) && ctor.prototype === proto && doesImplementDOMExceptionPrototypeContract(proto, value)`                       |
+| `isAlienRealm{GenericError,DOMException}`           | contract gate + a chain walk matching `isXPrototypeEquivalent(proto, own-back-ref ctor[, value])`; the generic walk additionally early-returns on `isAlienRealmDOMException(v)`                                                     |
+| `doesPassErrorGraftFilter`                          | `!ERROR_STACK_CAPABLE \|\| hasReachableErrorStack(v)`                                                                                                                                                                               |
+| `hasReachableErrorStack`                            | `isStringValue(retrieveErrorStack(v))`                                                                                                                                                                                              |
 
-`isGenericError` admits a deliberate superset of the spec-precise `Error.isError` check.
-The fourth structural branch — `'[object Object]'` with matching prototype — catches
-values that lack `[[ErrorData]]` but walk like Errors: `Object.create(Error.prototype)`
-and ES3-style classical-inheritance errors. The widening preserves equip-js's historical
-acceptance set, which downstream production code may rely on.
+Two ordering choices worth naming:
 
-The widening is implementation-level only. When native `Error.isError` is available, the
-public `isError` delegates to it — the polyfill widening only affects runtimes where the
-native method is missing. The two forms agree on well-behaved code and diverge only on the
-legacy edge cases the polyfill admits. Documented at the `isError` JSDoc level so
-consumers can see the divergence without reading the implementation. Consumers who want
-strict spec semantics reach for the public `isError` (which delegates to native when
-present); consumers who want the widened polyfill semantics irrespective of runtime reach
-for `isGenericError` explicitly (exported `@internal` for testing and for this exact use
-case). See decision #033.
+- **`doesImplementGenericErrorContract` runs the graft filter FIRST**, ahead of the `name`
+  / `message` read, so a grafted shell is rejected before its coincidental string members
+  are ever considered. The ordering optimizes the graft-rejection path: on a graft the
+  filter short-circuits cheaply (no reachable `stack`); on a genuine error it is the
+  costlier half — reading a reachable `stack` can force stack materialization — but the
+  ordering costs nothing there and buys the early-out on the graft.
+- **`isAnyError` checks the `DOMException` arm FIRST.** Where an engine makes
+  `DOMException` subclass `Error`, a `DOMException` is also `instanceof Error`, so the
+  more specific arm must win; and the DOMException arm uses the getter contract, not the
+  stack contract, so a valid but stackless (browser) `DOMException` is admitted. Routing
+  `DOMException`s through the stack contract instead would reject them in a browser — a
+  rejected design (decision #069).
 
-The `hasErrorPrototypeContract` helper carries the prototype-shape heuristic that
-implements the widening — four `Error.prototype` member presence/type assertions plus a
-trailing-`'Error'` `name` marker. The trailing-`'Error'` check reads through the
-descriptor chain rather than invoking `prototype.toString()`, both because the descriptor
-read aligns with the spec-shape rule (decisions #020, #021) for own-data properties and
-because `prototype.toString()` triggers the `@typescript-eslint/no-base-to-string` rule
-when `prototype: object` — the workaround is to invoke the toString descriptor's value
-directly via `.call(prototype)`, sidestepping the rule's symbol-identity heuristic.
+## Native-or-polyfill capture at module-load (decisions #065, #032 retained)
 
-## Native-or-polyfill capture at module-load
-
-The public `isError` uses a `const`-binding pattern that captures native `Error.isError`
-once at module-load:
+The public `isError` captures native `Error.isError` once at module-load and binds native
+or polyfill by a runtime feature-detection gate:
 
 ```js
-const nativeIsError = /** @type {ErrorConstructorES2025} */ (Error).isError;
+const nativeIsError = /** @type {import('@/error').isError | undefined} */ (
+  GenericErrorConstructor !== INSTANCE_LESS_CONSTRUCTOR
+    ? /** @type {ErrorConstructorES2025} */ (GenericErrorConstructor).isError
+    : void 0
+);
 
 export const isError = /** @type {import('@/error').isError} */ (
-  isFunction(nativeIsError) ? nativeIsError : isGenericError
+  isFunction(nativeIsError) ? nativeIsError : isAnyError
 );
 ```
 
 The cast through `ErrorConstructorES2025` (the interface declaring `isError?` as
 _optional_) reads the native method honestly — its type is
-`((v: unknown) => v is GenericError) | undefined` after the cast. The `isFunction` gate
-runs at module-load; the ternary picks native or polyfill based on the gate's outcome. The
-result is bound as `const isError`, then re-cast via `import('@/error').isError` to
-recover the predicate type through the `isFunction` narrow (which would otherwise flatten
-to `VerifiedFunction`).
+`((v: unknown) => v is AnyError) | undefined`. The `isFunction` gate runs at module-load;
+the ternary picks native or the `isAnyError` polyfill. The capture is realm-fixed by
+construction: the binding does not re-read `globalThis.Error.isError` at each call, so
+later tampering with the global does not reach it. This native-or-polyfill _capture
+posture_ is retained from the retired #032; only the polyfill _body_ changed — from the
+tag-classifier to the realm-partitioned `isAnyError` (decision #065). When native is
+present it is the spec-precise `[[ErrorData]]` check; the polyfill approximates it
+structurally and converges on its verdict wherever stacks are guaranteed (§ "The
+stack-capability machinery").
 
-The capture is realm-fixed by construction: the binding does not re-read
-`globalThis.Error.isError` at each call, so later tampering with the global `Error`
-constructor's `isError` does not affect this predicate. The pattern mirrors the
-realm-fixed capture used for cached `@/config` primitives. The capture also documents the
-runtime feature-detection pattern at the type level: `ErrorConstructorES2025` declares the
-optional `isError?` method, narrowed to its present-or-absent form by the runtime
-`isFunction` gate. See decision #032.
+## `AbortError` as a name-suffix refinement (decision #035)
 
-## `AbortError` as a name-suffix refinement
-
-`AbortError` refines `GenericError` via the DOM-conventional `'AbortError'` name suffix
+`AbortError` refines `AnyError` via the DOM-conventional `'AbortError'` name-suffix
 pattern. `AbortErrorName` is a template-literal type `` `${string}AbortError` `` that
 admits the empty-prefix case (`'AbortError'` itself) and arbitrary qualifier prefixes
 (`'TimeoutAbortError'`, `'UserAbortError'`, `'NavigationAbortError'`) uniformly.
-`AbortError` is the structural intersection `GenericError & { name: AbortErrorName }`.
+`AbortError` is the structural intersection `AnyError & { name: AbortErrorName }`.
 
-`isAbortError(v)` composes `isError(v)` with `v.name.endsWith('AbortError')`.
-Short-circuit `&&` runs `isError` first as the cheaper gate; the suffix check fires only
-after `v` is confirmed to be an Error (which also guarantees `name` is a string per the
-Error contract). Suffix-match is by design — exact equality would reject the legitimate
-qualified variants the convention permits. The template-literal type is structural
-documentation rather than a runtime guarantee — template-literal types collapse to
-`string` at the runtime level — so the runtime guarantee is the `endsWith` check.
+`isAbortError(v)` composes `isError(v)` with `isStringValue(v.name)` and
+`v.name.endsWith('AbortError')`. Short-circuit `&&` runs `isError` first as the cheaper
+gate, then the string-type gate, then the suffix check. The string-type gate is
+load-bearing: neither native `Error.isError` (which inspects only `[[ErrorData]]`) nor the
+polyfill's structural path verifies the value's own `name` override, so an error with
+`Object.defineProperty(err, 'name', { value: 42 })` passes `isError` but its `name` is not
+a string — without the gate the bare `42.endsWith` would throw. Suffix-match is by design:
+exact equality would reject the legitimate qualified variants. The template-literal type
+is structural documentation, not a runtime guarantee (it collapses to `string`); the
+runtime guarantee is the `endsWith` check.
 
 The error-module discrimination is _value-side only_: `isAbortError` inspects the error
 value's `name`, not the abort-channel mechanics. Producer-side inspection of the abort
-channel (`AbortSignal.aborted`, `AbortController` linkage) belongs to the evented module
-(`isAbortSignal`, `isAbortSignalLike`). The two modules don't conflate concerns:
-error-handling consumers reach for `isAbortError`; channel-inspection consumers reach for
-`isAbortSignal`. See decision #035.
+channel (`AbortSignal.aborted`, `AbortController` linkage) belongs to the evented module.
 
 ## Cross-module abort-channel surface
 
-Three modules together compose the full abort-channel surface:
+Three modules together compose the full abort-channel surface, each in the module whose
+vocabulary it belongs to:
 
 - `evented` ships `AbortSignalLike` / `isAbortSignalLike` / `AbortSignal` /
-  `isAbortSignal` — the structural contract for the producer side ("values that look like
-  an abort signal").
+  `isAbortSignal` — the producer-side contract ("values that emit abort signals").
 - `error` (this module) ships `AbortError`, `AbortErrorName`, and `isAbortError` — the
-  structural contract for the rejected-value side ("errors that look like abort-channel
-  errors").
-- `thenable` ships `AbortableThenable<T>` (shipped 2026-06-06 in decision #037) — the
-  consumer-side contract that extends `Thenable<T>` with an `onaborted` callback typed
-  against `AbortError`. Chained `then` returns `AbortableThenable<...>` so the abort
-  channel survives the chain at the type level.
+  rejected-value side ("errors that look like abort-channel errors").
+- `thenable` ships `AbortableThenable<T>` (decision #037) — the consumer-side contract
+  that extends `Thenable<T>` with an `onaborted` callback typed against `AbortError`, so
+  the abort channel survives the chain at the type level.
 
-The three-module split keeps the concerns clean: signal producers, error values, and the
-abort-channel-aware Thenable refinement each live in the module whose vocabulary they
-belong to. Consumers building an abortable operation depend on all three; consumers
-discriminating only one concern depend on only the relevant module.
+Consumers building an abortable operation depend on all three; consumers discriminating a
+single concern depend on only the relevant module.
 
 ## Open architectural questions
 
-_Section currently empty — Q.004 (`AbortableThenable<T>` placement) was resolved
-2026-06-06 by decision #037._
+- **A package-owned `GenericError` type alias (open, decision #067).** `isGenericError`
+  currently narrows to the built-in `Error`, breaking the `predicate → same-named type`
+  symmetry the other predicates have (`isDOMException → DOMException`,
+  `isError → AnyError`). A `type GenericError = Error` alias would regularize it and let
+  `AnyError = GenericError | DOMException` read in package vocabulary. It is nominal —
+  TypeScript has no negation, and `Error` already excludes `DOMException` structurally —
+  so it would change no runtime vector; a documentation / symmetry call left to the design
+  owner.
+- **Native `Error.isError(new DOMException())` membership (policy flag).** The polyfill
+  guarantees a `DOMException` is admitted by `isError`, but the public binding defers to
+  native when present, and whether native admits a `DOMException` depends on the engine
+  granting it `[[ErrorData]]`. The behavior is asserted runtime-agnostically in
+  `ERROR.spec.md`; a native verdict is not baked in, pending per-engine verification.

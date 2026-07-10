@@ -72,11 +72,16 @@ Open architectural questions live in [open-questions.md](./open-questions.md).
 
 ### type-detection / error
 
-| #                                                    | Title                                                                  | Date       |
-| ---------------------------------------------------- | ---------------------------------------------------------------------- | ---------- |
-| [032](./0032-error-predicates-native-or-polyfill.md) | Error predicates: layered composition with native-or-polyfill capture  | 2026-06-05 |
-| [033](./0033-polyfill-widening-error-data.md)        | Polyfill widening semantics over the unobservable `[[ErrorData]]` slot | 2026-06-05 |
-| [035](./0035-abort-error-name-suffix-refinement.md)  | `AbortError` as a name-suffix refinement via template-literal type     | 2026-06-05 |
+| #                                                                             | Title                                                                                                | Date       |
+| ----------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- | ---------- |
+| [032](./0032-error-predicates-native-or-polyfill.md)                          | Error predicates: layered composition with native-or-polyfill capture (structure superseded by #065) | 2026-06-05 |
+| [033](./0033-polyfill-widening-error-data.md)                                 | Polyfill widening semantics over the unobservable `[[ErrorData]]` slot (superseded by #066)          | 2026-06-05 |
+| [035](./0035-abort-error-name-suffix-refinement.md)                           | `AbortError` as a name-suffix refinement via template-literal type                                   | 2026-06-05 |
+| [065](./0065-error-module-redesign-identity-capture-realm-partition.md)       | Error module redesign: identity-capture + realm partition; the three-predicate split                 | 2026-07-10 |
+| [066](./0066-stack-capability-machinery-polyfill-converges.md)                | Stack-capability machinery; the polyfill converges with native, not widens                           | 2026-07-10 |
+| [067](./0067-domexception-distinct-arm-anyerror-two-armed.md)                 | `DOMException` a distinct arm, not an `Error` subtype; `AnyError` two-armed; `DOMExceptionLike` cut  | 2026-07-10 |
+| [068](./0068-domexception-descriptor-kind-contract-own-shadow-not-applied.md) | `isDOMException` descriptor-kind contract (getter admits, data rejects); #063 own-shadow not applied | 2026-07-10 |
+| [069](./0069-isgenericerror-domexception-exclusion-by-identity.md)            | `isGenericError` excludes `DOMException` by identity; partition-leak fix + accepted realm asymmetry  | 2026-07-10 |
 
 ### type-detection / primitive
 
@@ -188,3 +193,8 @@ order with one-line summaries:
 | 2026-07-01 | [062](./0062-strict-identity-predicates-excluded-from-generic-family.md)              | Strict identity predicates excluded from the generic `<T = unknown>` family                    |
 | 2026-07-01 | [063](./0063-own-level-contract-shadow-rejection-strict-predicates.md)                | Own-level contract-shadow rejection in the strict identity predicates                          |
 | 2026-07-05 | [064](./0064-object-shape-carriers-and-config-primitive-homes.md)                     | Three object-shape carriers; config-level primitive homes                                      |
+| 2026-07-10 | [065](./0065-error-module-redesign-identity-capture-realm-partition.md)               | Error module redesign: identity-capture + realm partition; three-predicate split               |
+| 2026-07-10 | [066](./0066-stack-capability-machinery-polyfill-converges.md)                        | Stack-capability machinery; polyfill converges with native, not widens                         |
+| 2026-07-10 | [067](./0067-domexception-distinct-arm-anyerror-two-armed.md)                         | `DOMException` a distinct arm, not an `Error` subtype; `AnyError` two-armed                    |
+| 2026-07-10 | [068](./0068-domexception-descriptor-kind-contract-own-shadow-not-applied.md)         | `isDOMException` descriptor-kind contract; #063 own-shadow not applied                         |
+| 2026-07-10 | [069](./0069-isgenericerror-domexception-exclusion-by-identity.md)                    | `isGenericError` excludes `DOMException` by identity; partition-leak fix + realm asymmetry     |

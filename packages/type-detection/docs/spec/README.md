@@ -178,13 +178,13 @@ spec-writing phase (the test-green close comes later, at axis-1 generation).
 
 ## Status
 
-| Module    | Spec              | Axis-1 suite | Notes                                                                        |
-| --------- | ----------------- | ------------ | ---------------------------------------------------------------------------- |
-| thenable  | frozen 2026-06-18 | —            | template-validation module; decidability check passed                        |
-| primitive | frozen 2026-06-18 | —            | 19 predicates + 10 exported helpers; decidability check passed               |
-| evented   | frozen 2026-06-18 | —            | 4 predicates (2 lattices) + 4 exported helpers; decidability passed          |
-| error     | frozen 2026-06-18 | —            | isError (native-or-polyfill) + isAbortError + 3 helpers; decidability passed |
-| object    | frozen 2026-06-18 | —            | 4 predicates + 2 helpers; decidability passed (fixed 1 stale doc claim)      |
-| function  | frozen 2026-06-19 | —            | 11 predicates + hasConstructSlot + 9 helpers; Symbol/BigInt-as-class ruling  |
-| utility   | frozen 2026-06-19 | —            | 15 public readers/probes (inert set promoted public); decidability clean     |
-| config    | frozen 2026-06-19 | —            | 26 `@internal` captures; contract spec (realm-fixity + retypes + polyfills)  |
+| Module    | Spec              | Axis-1 suite | Notes                                                                                                                                                                                                                |
+| --------- | ----------------- | ------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| thenable  | frozen 2026-06-18 | —            | template-validation module; decidability check passed                                                                                                                                                                |
+| primitive | frozen 2026-06-18 | —            | 19 predicates + 10 exported helpers; decidability check passed                                                                                                                                                       |
+| evented   | frozen 2026-06-18 | —            | 4 predicates (2 lattices) + 4 exported helpers; decidability passed                                                                                                                                                  |
+| error     | frozen 2026-07-10 | —            | full rewrite for the realm-partitioned redesign (isGenericError/isDOMException/isError/isAbortError + 17 `@internal`); supersedes the retired classifier spec; decidability passed (41 cases), owner review complete |
+| object    | frozen 2026-06-18 | —            | 4 predicates + 2 helpers; decidability passed (fixed 1 stale doc claim)                                                                                                                                              |
+| function  | frozen 2026-06-19 | —            | 11 predicates + hasConstructSlot + 9 helpers; Symbol/BigInt-as-class ruling                                                                                                                                          |
+| utility   | frozen 2026-06-19 | —            | 15 public readers/probes (inert set promoted public); decidability clean                                                                                                                                             |
+| config    | frozen 2026-06-19 | —            | 26 `@internal` captures; contract spec (realm-fixity + retypes + polyfills)                                                                                                                                          |
