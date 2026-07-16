@@ -68,5 +68,8 @@ describe('entry-point arena — every published subpath loads clean as its own e
       expect(stderr).not.toMatch(/before initialization/);
       expect(status).toBe(0);
     },
+    // Each case spawns a fresh Node process; give it headroom under the loaded
+    // parallel coverage run on a low-core machine (the 5s default can flake there).
+    30000,
   );
 });
