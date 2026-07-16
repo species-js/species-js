@@ -28,12 +28,12 @@
 
 import { describe, it, expect } from 'vitest';
 import { spawnSync } from 'node:child_process';
-import { fileURLToPath } from 'node:url';
 
 import pkg from '../package.json';
 
 const PACKAGE_ROOT = new URL('../', import.meta.url);
-const REGISTER = fileURLToPath(new URL('./_arena/register.js', import.meta.url));
+// A `file://` URL, not an OS path — `--import` misparses a raw `C:\…` path on Windows.
+const REGISTER = new URL('./_arena/register.js', import.meta.url).href;
 
 const ENTRIES = Object.entries(pkg.exports).map(([subpath, condition]) => ({
   subpath,
