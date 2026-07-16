@@ -17,6 +17,8 @@
  * while staying cross-realm safe.
  */
 
+import { TRUSTED_DATA_CONFIRMATION } from '@/foundation';
+
 import {
   getOwnPropertyDescriptors,
   getOwnPropertyNames,
@@ -24,7 +26,6 @@ import {
 } from '@/config';
 
 import {
-  TRUSTED_DATA_CONFIRMATION,
   isValueOfBoundSet,
   getInertPrototypeOf,
   getInertDescriptor,

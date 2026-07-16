@@ -12,9 +12,9 @@
  * generator, or class.
  */
 
+import { TRUSTED_DATA_CONFIRMATION } from '@/foundation';
 import { toFunctionString } from '@/config';
 import {
-  TRUSTED_DATA_CONFIRMATION,
   hasOwnWritablePrototype,
   hasOwnPrototype,
   getInertPrototypeOf,

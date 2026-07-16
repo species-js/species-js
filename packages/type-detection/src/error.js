@@ -31,6 +31,8 @@
  * error's `name`, capturing the abort-channel naming convention.
  */
 
+import { TRUSTED_DATA_CONFIRMATION } from '@/foundation';
+
 import {
   globalContext,
   restrictedDescriptorOptions,
@@ -41,7 +43,6 @@ import {
 } from '@/config';
 
 import {
-  TRUSTED_DATA_CONFIRMATION,
   getInertPrototypeOf,
   getInertDescriptor,
   hasInertGetter,

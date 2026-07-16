@@ -9,6 +9,8 @@
  * downstream packages that need the same cross-realm-safe primitives.
  */
 
+import { TRUSTED_DATA_CONFIRMATION } from '@/foundation';
+
 import {
   BLANK_DICTIONARY,
   INSTANCE_LESS_CONSTRUCTOR,
@@ -31,7 +33,7 @@ import { isCallable, isFunction, isNewableFunction } from '@/function';
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 
-/** @typedef {import('./index').TRUSTED_DATA_CONFIRMATION} TRUSTED_DATA_CONFIRMATION_FLAG */
+/** @typedef {import('@/foundation').TRUSTED_DATA_CONFIRMATION} TRUSTED_DATA_CONFIRMATION_FLAG */
 
 /** @typedef {typeof import('@/config').INSTANCE_LESS_CONSTRUCTOR} NEVER_INVOKED_CONSTRUCTOR */
 
@@ -57,9 +59,7 @@ import { isCallable, isFunction, isNewableFunction } from '@/function';
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 
-export const TRUSTED_DATA_CONFIRMATION = /** @type {TRUSTED_DATA_CONFIRMATION_FLAG} */ (
-  true
-);
+export { TRUSTED_DATA_CONFIRMATION };
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 

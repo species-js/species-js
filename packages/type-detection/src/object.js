@@ -27,9 +27,10 @@
  * parallel JSDoc.
  */
 
+import { TRUSTED_DATA_CONFIRMATION } from '@/foundation';
+
 import { getOwnPropertyDescriptors, objectPrototype } from '@/config';
 import {
-  TRUSTED_DATA_CONFIRMATION,
   getInertPrototypeOf,
   getInertDescriptor,
   getVerifiedOwnName,

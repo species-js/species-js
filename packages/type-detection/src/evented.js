@@ -20,6 +20,8 @@
  * structural-then-identity layering as their EventTarget counterparts.
  */
 
+import { TRUSTED_DATA_CONFIRMATION } from '@/foundation';
+
 import {
   globalContext,
   getOwnPropertyDescriptors,
@@ -28,7 +30,6 @@ import {
 } from '@/config';
 
 import {
-  TRUSTED_DATA_CONFIRMATION,
   isValueOfBoundSet,
   getInertPrototypeOf,
   getInertDescriptor,

@@ -15,14 +15,15 @@ Open architectural questions live in [open-questions.md](./open-questions.md).
 
 ### Foundational
 
-| #                                                         | Title                                                                        | Date       |
-| --------------------------------------------------------- | ---------------------------------------------------------------------------- | ---------- |
-| [001](./0001-branding-rejected-for-type-name-strings.md)  | Branding rejected for type-name string aliases                               | 2026-05-29 |
-| [002](./0002-tier-s-documentation-style.md)               | Tier-S documentation style established + codified package-wide               | 2026-05-29 |
-| [018](./0018-prose-voice-refinement.md)                   | Prose-voice refinement of the documentation style                            | 2026-06-03 |
-| [020](./0020-spec-shape-determines-access-path.md)        | Spec-shape determines the access path                                        | 2026-06-03 |
-| [021](./0021-spec-shape-rule-predicate-over-inherited.md) | Spec-shape rule extended — descriptor-walk for inspection without invocation | 2026-06-04 |
-| [025](./0025-parameter-default-to-null.md)                | Parameter-default-to-`null` for strict-equality nullish unification          | 2026-06-04 |
+| #                                                                  | Title                                                                        | Date       |
+| ------------------------------------------------------------------ | ---------------------------------------------------------------------------- | ---------- |
+| [001](./0001-branding-rejected-for-type-name-strings.md)           | Branding rejected for type-name string aliases                               | 2026-05-29 |
+| [002](./0002-tier-s-documentation-style.md)                        | Tier-S documentation style established + codified package-wide               | 2026-05-29 |
+| [018](./0018-prose-voice-refinement.md)                            | Prose-voice refinement of the documentation style                            | 2026-06-03 |
+| [020](./0020-spec-shape-determines-access-path.md)                 | Spec-shape determines the access path                                        | 2026-06-03 |
+| [021](./0021-spec-shape-rule-predicate-over-inherited.md)          | Spec-shape rule extended — descriptor-walk for inspection without invocation | 2026-06-04 |
+| [025](./0025-parameter-default-to-null.md)                         | Parameter-default-to-`null` for strict-equality nullish unification          | 2026-06-04 |
+| [070](./0070-foundation-leaf-module-load-order-tdz-dissolution.md) | `foundation` leaf module; load-order TDZ dissolution on direct subpath entry | 2026-07-16 |
 
 ### type-detection / function
 
@@ -198,3 +199,4 @@ order with one-line summaries:
 | 2026-07-10 | [067](./0067-domexception-distinct-arm-anyerror-two-armed.md)                         | `DOMException` a distinct arm, not an `Error` subtype; `AnyError` two-armed                    |
 | 2026-07-10 | [068](./0068-domexception-descriptor-kind-contract-own-shadow-not-applied.md)         | `isDOMException` descriptor-kind contract; #063 own-shadow not applied                         |
 | 2026-07-10 | [069](./0069-isgenericerror-domexception-exclusion-by-identity.md)                    | `isGenericError` excludes `DOMException` by identity; partition-leak fix + realm asymmetry     |
+| 2026-07-16 | [070](./0070-foundation-leaf-module-load-order-tdz-dissolution.md)                    | `foundation` leaf module; load-order TDZ dissolution on direct subpath entry                   |

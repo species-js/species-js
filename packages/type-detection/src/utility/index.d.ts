@@ -126,7 +126,7 @@ export type WeakKey = symbol | object | Callable;
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 
-export const TRUSTED_DATA_CONFIRMATION = true;
+export { TRUSTED_DATA_CONFIRMATION } from '@/foundation';
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 
