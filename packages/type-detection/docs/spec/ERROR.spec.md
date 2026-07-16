@@ -4,7 +4,7 @@
 > Vectors are reasoned from the canon (`error.d.ts` + `error.js`, both re-documented
 > 2026-07-10 to the current implementation) and **confirmed by a decidability run
 > 2026-07-10** — an ephemeral suite over all four public predicates + the 17 `@internal`
-> helpers via the `@/index.js` barrel, real implementations, Node 22 (V8, no native
+> helpers via the `#index` barrel, real implementations, Node 22 (V8, no native
 > `Error.isError`, so the polyfill path was exercised) plus `vm` cross-realm fixtures; 41
 > cases / ~90 vector-inputs, **zero corrections**. Status: **FROZEN 2026-07-10** — owner
 > design review passed; the behavioral vectors are the axis-1 oracle, and post-freeze
@@ -450,7 +450,7 @@ basis: #035 — the abort-channel `name`-suffix refinement over `isError`.
   a link to an `AbortController`. Purely a `name`-suffix check; producer-side abort
   inspection belongs to the `evented` module (`isAbortSignal` / `isAbortSignalLike`).
 
-**Composition note (axis 4):** drives `isError` + `isStringValue` (`@/primitive`).
+**Composition note (axis 4):** drives `isError` + `isStringValue` (`#primitive`).
 
 ---
 

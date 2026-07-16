@@ -4,7 +4,7 @@
 > Vectors are reasoned from the canon (`evented.d.ts`, `evented.js`,
 > `architecture/evented.md`, decisions #027–#030, #036, #050, #053). Status: **FROZEN
 > 2026-06-18** — decidability check passed (8 suites over all 4 public predicates + the 4
-> exported helpers, run against the real implementations through the `@/index.js` barrel,
+> exported helpers, run against the real implementations through the `#index` barrel,
 > single realm; no spec corrections needed). Base for the axis-1 suite; axes 2–4 derive
 > alongside.
 >
@@ -410,7 +410,7 @@ denylist = that superset ∪ `{ aborted, reason, onabort, throwIfAborted }`.
 `Symbol.toStringTag` is a symbol key, absent from the string-keyed `getOwnPropertyNames`,
 so own-tag tampering is NOT caught here (deliberate — cosmetic, and identity already
 holds). Throw-safe and fail-closed: a hostile `ownKeys` trap → `false` (unconfirmable
-clean surface → treated as shadowed). `isValueOfBoundSet` (`@/utility`) is the
+clean surface → treated as shadowed). `isValueOfBoundSet` (`#utility`) is the
 allocation-free `this`-bound membership callback (denylist as the `some` `thisArg`).
 
 - `dNSET/A1` — `new EventTarget()`; a bare `Object.create(EventTarget.prototype)`; a value
@@ -584,14 +584,14 @@ Resolves the constructor once and threads it (#059).
      `isAbortSignal/R5`,`R6` and helper specs `dNSET/*`, `dNSAS/*` appended. **Scope
      constraint:** applicable ONLY to spec-pinned architectures whose instances own none
      of their contract (EventTarget / AbortSignal / Promise), NOT to user types that own
-     their surface by design. Uses the new `@/utility` `isValueOfBoundSet`
-     (allocation-free `this`-bound `Set` membership callback).
+     their surface by design. Uses the new `#utility` `isValueOfBoundSet` (allocation-free
+     `this`-bound `Set` membership callback).
 
 5. **Capture harmonized to the shared validated-tuple helper (2026-07-03) — refines
    item 2.** Both intrinsic captures moved off the item-2
    `isCallable(X) ? X : INSTANCE_LESS_CONSTRUCTOR` shape onto the shared
-   `getValidatedStandardConstructorAndPrototypeTuple(X, contract)` (`@/utility`, the same
-   helper `@/thenable` uses for `Promise`), which returns the TOTAL inert surrogate
+   `getValidatedStandardConstructorAndPrototypeTuple(X, contract)` (`#utility`, the same
+   helper `#thenable` uses for `Promise`), which returns the TOTAL inert surrogate
    `[INSTANCE_LESS_CONSTRUCTOR, BLANK_DICTIONARY]` on any failure — so the paired
    `Xprototype` slot is now `BLANK_DICTIONARY` (not a per-caller `objectCreate(null)`) in
    the absent-global case. `EventTarget` injects its lenient
@@ -613,7 +613,7 @@ Resolves the constructor once and threads it (#059).
    mechanism and the `architecture/evented.md` "Realm-fixed capture" subsection. No axis-4
    inventory change (`createInertAbortSignal` is deliberately unexported, covered
    indirectly — a bad receiver would collapse every `AbortSignal` verdict). No new ADR (a
-   mechanical harmonization to the `@/thenable` / object-round precedent, part of the same
+   mechanical harmonization to the `#thenable` / object-round precedent, part of the same
    2026-07-03 cross-realm pass; cf. THENABLE spec item 8).
 
 No open items.

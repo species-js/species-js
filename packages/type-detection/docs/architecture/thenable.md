@@ -29,7 +29,7 @@ equivalence: `isClass`, the prototype's own `[[Class]]` tag, a round-trip
 
 `AbortableThenable<T>` is a _parallel_ refinement of `Thenable<T>`, independent from the
 `PromiseLike` chain. It adds an optional third `onaborted` callback to `then`, typed
-against `AbortError` from `@/error`. The two refinements are orthogonal axes: a value can
+against `AbortError` from `#error`. The two refinements are orthogonal axes: a value can
 satisfy both (`PromiseLike & AbortableThenable`), one, or neither (just the `Thenable`
 floor). No `isAbortableThenable` predicate exists — a `Thenable` with a two-argument
 `then` and one with a three-argument `then` are runtime-indistinguishable. See decision
@@ -45,15 +45,15 @@ Q). `isPromise` does NOT: its cross-realm arm reads the PROTOTYPE's own member s
 two `doesImplement…` helpers are counterparts — value-chain for the lenient tier,
 prototype-own for the strict anchor.
 
-Since decision #054 (structurally harmonized with `@/object` on 2026-07-03, spec item #8),
-`isPromise`'s cross-realm arm is factored into named helpers that mirror `@/object`'s
+Since decision #054 (structurally harmonized with `#object` on 2026-07-03, spec item #8),
+`isPromise`'s cross-realm arm is factored into named helpers that mirror `#object`'s
 `isAlienRealmPlainObject`: `isAlienRealmPromise` orchestrates the value-side identity
 signal (`hasPromiseIdentitySignal` — the `[[Class]]` tag plus the constructor name) AND a
 prototype anchor (`isPromisePrototypeEquivalent`). The anchor is a four-marker chain —
 `isClass(constructor)`, the prototype's own `[[Class]]` tag `'[object Promise]'`, a
 round-trip `constructor.prototype === prototype` identity read via the throw-safe
 `getInertDescriptor`, and the prototype's own `then`/`catch`/`finally` member surface
-(`doesImplementPromisePrototypeContract`). Unlike `@/object`'s
+(`doesImplementPromisePrototypeContract`). Unlike `#object`'s
 `isObjectPrototypeEquivalent` there is NO chain-depth marker: `Promise.prototype`'s
 `[[Prototype]]` is `Object.prototype`, not `null`, so a top-level check would wrongly
 reject every genuine `Promise.prototype`.
@@ -115,7 +115,7 @@ composing identity and structure rather than choosing one:
 The
 `const [PromiseConstructorFunction, promisePrototype] = getValidatedStandardConstructorAndPrototypeTuple(Promise, doesImplementPromiseContract);`
 capture in `thenable.js` is the module-load realm-fixed source for the `instanceof` fast
-path and the proto-identity comparison. The shared `@/utility` capture helper confirms
+path and the proto-identity comparison. The shared `#utility` capture helper confirms
 `Promise` is newable, reads its own `prototype` descriptor inertly, and accepts the pair
 only when the prototype satisfies the injected contract AND back-references the
 constructor (`prototype.constructor === Promise`) — the tamper-resistant identity check.
@@ -125,7 +125,7 @@ which `instanceof` is uniformly `false`, paired with an empty prototype-less dic
 Because both slots are always present, every caller destructures and uses
 `PromiseConstructorFunction` directly with `instanceof` — no per-caller presence guard.
 `thenable.js` and `evented.js` share this one capture helper; if a third consumer needs
-the pair, the natural promotion is to `@/config` alongside the other intrinsics.
+the pair, the natural promotion is to `#config` alongside the other intrinsics.
 
 ## Predicate composition
 
@@ -154,7 +154,7 @@ operations) while the cross-realm arm runs the value-side signal (tag + construc
 → the prototype anchor (`isClass` → prototype tag → round-trip identity → prototype member
 surface) in inexpensive-first order.
 
-The factoring of `hasInertMethod` as a `@/utility` primitive — rather than inlining the
+The factoring of `hasInertMethod` as a `#utility` primitive — rather than inlining the
 descriptor-walk inside `isThenable` — is what makes `doesImplementPromiseContract` and any
 future method-contract predicate compose cleanly. See decision #024.
 
@@ -309,7 +309,7 @@ invariants (§20.5.2), Map/Set protocols.
 
 ## The `hasInertMethod` primitive
 
-`hasInertMethod(value, key)` from `@/utility` is the general-purpose method-contract
+`hasInertMethod(value, key)` from `#utility` is the general-purpose method-contract
 primitive that the thenable predicates compose. It tests whether `value` carries a
 callable data property at `key`, reachable through its prototype chain.
 
@@ -317,7 +317,7 @@ callable data property at `key`, reachable through its prototype chain.
 are rejected even when the getter would return a callable, because invoking the getter
 would not be inert. The implementation walks the prototype chain via
 `getNextAvailablePropertyDescriptor` (the chain-walking descriptor reader from
-`@/utility`), then narrows the descriptor in two steps —
+`#utility`), then narrows the descriptor in two steps —
 `objectHasOwn(descriptor, 'value')` rejects accessor descriptors, and
 `isCallable(descriptor.value)` verifies that the resolved data value is invocable.
 
@@ -337,7 +337,7 @@ reinventing the descriptor-walk and accessor-rejection composition.
 `AbortableThenable<T>` refines `Thenable<T>` on an axis orthogonal to `PromiseLike<T>`.
 Where `PromiseLike<T>` adds the chaining-method contract (`catch` + `finally`),
 `AbortableThenable<T>` adds the abort-channel contract — an optional third `onaborted`
-callback to `then`, typed against `AbortError` from `@/error`. The two refinements are
+callback to `then`, typed against `AbortError` from `#error`. The two refinements are
 independent: a value can satisfy both, one, or neither (just the `Thenable` floor).
 
 The refinement is type-only. There is no `isAbortableThenable` predicate by design: a
@@ -356,13 +356,13 @@ the refinement persists through chaining, so consumers can keep calling
 
 The abort-channel feature is structurally distributed across three modules:
 
-- `@/error` ships `AbortError`, `AbortErrorName`, and `isAbortError` for the
-  rejected-value side — the error type the `onaborted` callback receives.
-- `@/evented` ships `AbortSignalLike` / `isAbortSignalLike` / `AbortSignal` /
+- `#error` ships `AbortError`, `AbortErrorName`, and `isAbortError` for the rejected-value
+  side — the error type the `onaborted` callback receives.
+- `#evented` ships `AbortSignalLike` / `isAbortSignalLike` / `AbortSignal` /
   `isAbortSignal` for the producer side — the structural contract of values that emit
   abort signals.
-- `@/thenable` ships `AbortableThenable<T>` for the consumer side — the structural
-  contract of consumer-side abortable thenables that receive abort signals through their
+- `#thenable` ships `AbortableThenable<T>` for the consumer side — the structural contract
+  of consumer-side abortable thenables that receive abort signals through their
   `then.onaborted` callback.
 
 Consumers building an abortable operation depend on all three; consumers handling only one

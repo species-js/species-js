@@ -55,9 +55,9 @@ refinements layer on the #047 walk:
   `{ assumePrototype: true }` reads the prototype's OWN `constructor` (ECMA-262 §10.2.6)
   instead of walking up. The option lives on `getDefinedConstructor` and threads through
   `getDefinedConstructorName`; its `assumePrototype` call sites are the four
-  `isAlienRealm{X}` cross-realm seams — `isAlienRealmPlainObject` (`@/object`),
-  `isAlienRealmPromise` (`@/thenable`), and `isAlienRealmEventTarget` /
-  `isAlienRealmAbortSignal` (`@/evented`) — each resolving the constructor once from the
+  `isAlienRealm{X}` cross-realm seams — `isAlienRealmPlainObject` (`#object`),
+  `isAlienRealmPromise` (`#thenable`), and `isAlienRealmEventTarget` /
+  `isAlienRealmAbortSignal` (`#evented`) — each resolving the constructor once from the
   threaded `[[Prototype]]`.
 - **No cross-call memoization; intra-call threading (decision #059).**
   `getDefinedConstructorName` is
@@ -78,10 +78,10 @@ refinements layer on the #047 walk:
   wrapped, so a hostile trap (or a nullish input) yields `undefined` ("no reachable
   constructor" / "no verified name") rather than propagating. This applies the same #029
   trust boundary the inert probes use, making every constructor-walk consumer
-  (`@/thenable`, `@/object`, `@/function`, `@/primitive`, `@/evented`) throw-safe; #059
-  extends it to the name read, closing the former raw `getOwnPropertyDescriptor` name
-  read. The earlier "honest throw" stance is retracted — `undefined` is the
-  contract-consistent answer, and no consumer relied on the throw.
+  (`#thenable`, `#object`, `#function`, `#primitive`, `#evented`) throw-safe; #059 extends
+  it to the name read, closing the former raw `getOwnPropertyDescriptor` name read. The
+  earlier "honest throw" stance is retracted — `undefined` is the contract-consistent
+  answer, and no consumer relied on the throw.
 
 ## Raw/inert pairing and layered throw-safety
 
@@ -107,7 +107,7 @@ as-is, recorded so they need not be re-derived. None is a work item.
 
 - **`doesNotShadow{X}Contract` allocates the value's full own-name array on the hot
   local-realm path** — `getOwnPropertyNames(value).some(isValueOfBoundSet, denylist)` in
-  `@/thenable` / `@/evented`. Inverting to probe only the fixed denylist
+  `#thenable` / `#evented`. Inverting to probe only the fixed denylist
   (`denylist.some((name) => objectHasOwn(value, name))`) would be allocation-free and
   O(denylist), but a genuine direct instance owns ZERO contract keys, so the array is
   already tiny and #063 deliberately made the callback closure-free (`isValueOfBoundSet`).

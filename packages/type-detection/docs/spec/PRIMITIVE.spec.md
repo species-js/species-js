@@ -5,7 +5,7 @@
 > `architecture/primitive.md`, decisions #038, #039, #042, #043, #049, #050, #051, #053;
 > boxed-primitive memory). Status: **FROZEN 2026-06-18** — decidability check passed (23
 > cases over all 19 public predicates + the 10 exported helpers, run against the real
-> implementations through the `@/index.js` barrel). The run corrected the equality-helper
+> implementations through the `#index` barrel). The run corrected the equality-helper
 > behavior (they admit the same-family primitive too, not only the boxed form). Base for
 > the axis-1 suite; axes 2–4 derive alongside.
 >
@@ -139,7 +139,7 @@ and the cheapest predicates in the package.
 **Family-specific admits worth pinning:**
 
 - `isNumberValue/A-special` — `NaN`, `Infinity`, `-Infinity`, `-0` → true (all numeric
-  primitives; finiteness is a separate concern, `@/config`).
+  primitives; finiteness is a separate concern, `#config`).
 - `isStringValue/A-empty` — `''` → true.
 - `isSymbolValue/A-wellknown` — `Symbol.iterator`, `Symbol.for('x')` → true (well-known +
   registered symbols).
@@ -220,9 +220,9 @@ rejected by the `[[XData]]` slot probe (unforgeable). Proto-graft
 (`Object.create(X.prototype)`) rejected by the slot probe. Description-shadow (Symbol)
 rejected by the description cross-check.
 
-**Composition note (axis 4):** drives `isObject` (`@/object`), the module-local
+**Composition note (axis 4):** drives `isObject` (`#object`), the module-local
 `isCurrentRealmNativeX` (constructor-aware families), `getTypeSignature` +
-`getDefinedConstructorName` (`@/utility`), and the exported
+`getDefinedConstructorName` (`#utility`), and the exported
 `doesHaveStrictUnboxedXValueEquality`.
 
 ---

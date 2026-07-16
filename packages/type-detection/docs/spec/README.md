@@ -101,7 +101,7 @@ This is **one coherent invariant, not a family of per-input boundary vectors.** 
 states it **once** — a short _Throw-safety_ paragraph in the module contract — naming the
 hostile-input classes the module's reads are exposed to (prototype-trap, descriptor-trap,
 accessor-throw, tag-getter-throw) and the throw-safe reader each routes through
-(`getInert*` from `@/utility`, the `try/catch`-wrapped `instanceof` inside an
+(`getInert*` from `#utility`, the `try/catch`-wrapped `instanceof` inside an
 `isCurrentRealm*Instance` helper, `getTypeSignature`, `getVerifiedOwnName`,
 `getDefinedConstructor`).
 
@@ -114,7 +114,7 @@ carries the enumeration.
 
 **Code consequence.** A module is not throw-safe until every predicate fast-path that
 reads a prototype or descriptor routes through a throw-safe reader — **no raw
-`instanceof`, no raw `@/config` `getPrototypeOf` / `getOwnPropertyDescriptor` on the
+`instanceof`, no raw `#config` `getPrototypeOf` / `getOwnPropertyDescriptor` on the
 value.** Auditing this (and filling the matrix) is a required step of every module's test
 round; `object` and `thenable` satisfy it today, the remaining modules harden to it in
 their rounds.
@@ -170,11 +170,10 @@ spec-writing phase (the test-green close comes later, at axis-1 generation).
 - Spec files: `<MODULE>.spec.md` (uppercase module name), e.g. `THENABLE.spec.md`.
 - Test files (test round): TBD with the spec owner — expected `test/<module>.test.js` per
   module, mirroring the source layout, so the axis suites can fan out per module.
-- Axis suites import predicates through the `@/index.js` barrel, not the module file
-  directly — the barrel orders its re-exports so the `config ↔ function` load-order cycle
-  resolves. A direct `@/<module>.js` import throws
-  `getOwnPropertyDescriptor is not a function` at module init. Confirmed during the
-  thenable decidability check.
+- Axis suites import predicates through the `#index` barrel, not the module file directly
+  — the barrel orders its re-exports so the `config ↔ function` load-order cycle resolves.
+  A direct `#<module>` import throws `getOwnPropertyDescriptor is not a function` at
+  module init. Confirmed during the thenable decidability check.
 
 ## Status
 

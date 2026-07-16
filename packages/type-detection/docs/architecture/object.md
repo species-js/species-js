@@ -88,7 +88,7 @@ isObject(value) &&
 
 The fast path (`prototype === objectPrototype`) catches the common case in a single
 reference comparison. `objectPrototype` is the realm-fixed `Object.prototype` capture from
-`@/config` — taken once at module-load so the comparison is immune to a post-load
+`#config` — taken once at module-load so the comparison is immune to a post-load
 reassignment of `globalThis.Object`. The `!!prototype` guard is a dictionary fast-reject
 (a plain object always has _some_ realm's `Object.prototype`, never `null`/`undefined`).
 The structural anchor (`isAlienRealmPlainObject`) catches cross-realm Plain Objects whose
@@ -130,7 +130,7 @@ throw-safe reader, so a type-guard answers a boolean on every input — includin
 `Proxy` — rather than propagating a trap's throw (hardened during the 2026-06-25 test
 round, decision-aligned with #056/#057/#029):
 
-- **Prototype reads** → `getInertPrototypeOf` (`@/utility`, the #057 wrapper). A throwing
+- **Prototype reads** → `getInertPrototypeOf` (`#utility`, the #057 wrapper). A throwing
   `getPrototypeOf` trap yields `undefined` — matching neither `objectPrototype` nor
   `null`.
 - **The six-marker contract** (`isObjectPrototypeEquivalent`) reads the constructor's own
@@ -138,7 +138,7 @@ round, decision-aligned with #056/#057/#029):
   `getInertDescriptor` (#056), not raw `getOwnPropertyDescriptor`; its member-surface
   marker 6 (`doesImplementObjectPrototypeContract`) wraps `getOwnPropertyDescriptors` in a
   `try/catch` so a throwing `ownKeys` trap yields `false`.
-- **`isClass`** (`@/function`) was the upstream root cause — it did its own raw
+- **`isClass`** (`#function`) was the upstream root cause — it did its own raw
   `getOwnPropertyDescriptor(value, 'prototype')`, so a hostile constructor threw there
   before object's own markers ran. Root-fixed to route through `getInertDescriptor`
   (#056), which makes every `isClass` consumer throw-safe for free. The from-every-angle
@@ -295,20 +295,20 @@ does reconcile).
 `DictionaryObject` (this module) is one of three prototype-shape carriers, distinguished
 along two axes — whether a prototype-chain exists, and whether own keys may be present.
 `DictionaryObject` lives here (beside its predicate `isDictionaryObject` and its
-`extends AnyObject` base); `BlankType` and `BlankDictionary` live in `@/config`, beside
-the `BLANK_TYPE` / `BLANK_DICTIONARY` constants that carry them:
+`extends AnyObject` base); `BlankType` and `BlankDictionary` live in `#config`, beside the
+`BLANK_TYPE` / `BLANK_DICTIONARY` constants that carry them:
 
-- **`DictionaryObject`** (`@/object`) — prototype-less, constructor-less, own keys OPEN.
+- **`DictionaryObject`** (`#object`) — prototype-less, constructor-less, own keys OPEN.
   `AnyObject` extended with the `constructor?: never` discriminator; the honest return of
-  `@/config`'s `objectCreate(null)` and the narrow target of `isDictionaryObject`.
-- **`BlankType`** (`@/config`) — a real `Object` (so it carries `Object.prototype` and the
+  `#config`'s `objectCreate(null)` and the narrow target of `isDictionaryObject`.
+- **`BlankType`** (`#config`) — a real `Object` (so it carries `Object.prototype` and the
   `Object` constructor) with no own key: the empty ordinary object `{}`.
   `Record<PropertyKey, never>`. Carrier: `BLANK_TYPE`.
-- **`BlankDictionary`** (`@/config`) — prototype-less, constructor-less, AND empty: the
+- **`BlankDictionary`** (`#config`) — prototype-less, constructor-less, AND empty: the
   never-mutated `Object.create(null)`, the intersection
   `BlankType & { constructor?: never }`. Carrier: `BLANK_DICTIONARY` — the sentinel behind
-  `@/error`'s `hasErrorPrototypeContract` heuristic and the absent-global capture
-  surrogate (decisions #017, #034, #060).
+  `#error`'s `hasErrorPrototypeContract` heuristic and the absent-global capture surrogate
+  (decisions #017, #034, #060).
 
 Per TypeScript variance, `BlankDictionary` is a structural subtype of `DictionaryObject`
 (its `never` own-key surface refines the latter's `unknown` index). The prototype-chain

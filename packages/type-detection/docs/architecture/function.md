@@ -50,7 +50,7 @@ the floor; `Symbol.toStringTag` reads through the realm-fixed
 `Object.prototype.toString.call`; constructor-name reads through a four-source fallback
 (`getDefinedConstructor` in `utility/index.{d.ts,js}`) that defends against tampering.
 
-Every "cached" reference at `@/config` is captured at module-load to pin its identity to
+Every "cached" reference at `#config` is captured at module-load to pin its identity to
 the current realm. The package uses these captured references — `toObjectString`,
 `toFunctionString`, `getPrototypeOf`, `getOwnPropertyDescriptor`, and the rest — instead
 of reaching for `Object.X` at each call site, so a runtime that later tampers with the
@@ -152,9 +152,9 @@ encode that constraint). Consumers that import these directly take the `any` cas
 their code: every assignment of the return value trips
 `@typescript-eslint/no-unsafe-assignment` and forces a cast.
 
-The package closes these gaps at the `@/config` boundary, not at the call sites. The
-cached primitives in `config/index.d.ts` are retyped to the spec-precise signature, and
-every consumer inherits the honest signature for free. See decisions #008 and #017.
+The package closes these gaps at the `#config` boundary, not at the call sites. The cached
+primitives in `config/index.d.ts` are retyped to the spec-precise signature, and every
+consumer inherits the honest signature for free. See decisions #008 and #017.
 
 Five instances have landed so far:
 
@@ -171,7 +171,7 @@ Five instances have landed so far:
   prototyped forms yield `object`, with `ThisType<unknown>` over lib's `ThisType<any>`
   (decision #034).
 
-The pattern generalizes. Any future cached `@/config` primitive whose lib signature
+The pattern generalizes. Any future cached `#config` primitive whose lib signature
 propagates `any` should be retyped at the boundary as a single edit, not laundered through
 `/** @type {unknown} */` at every call site. The `.d.ts` JSDoc on each retyped primitive
 documents the deviation from `typeof Object.X` so the choice is auditable.
@@ -179,7 +179,7 @@ documents the deviation from `typeof Object.X` so the choice is auditable.
 The recurring nature of this pattern is itself the meta-observation: TS lib types are
 _conservative simplifications_ of ECMA-262 / WebIDL behavior that lean on `any` as a "we
 don't know" placeholder. Every consumer that touches a leaky lib API gets `any` baked into
-its call site. The closure point is the cached primitive at `@/config`, where one retyping
+its call site. The closure point is the cached primitive at `#config`, where one retyping
 eliminates the cascade for every downstream consumer. Reach for this discipline whenever a
 new cached primitive is added and its lib type returns `any` or accepts overly-narrow
 inputs — treat it as a steady-state cost of working inside vendor-shaped TS, not an
@@ -205,9 +205,9 @@ behavior at every existing call site.
 The pattern addresses the same pathology as boundary-retyping: TS's default types are too
 lossy at a boundary, and the cleanup work piles up at every consumer site instead of being
 absorbed once at the boundary. Boundary-retyping closes the call-side `any`-cascade at
-`@/config`; the generic-predicate pattern closes the narrow-side flatten at the
-predicate's declaration. Both rulings codify "fix at the boundary, not at the call site"
-as a steady-state response to TS's leaky defaults. See decision #031.
+`#config`; the generic-predicate pattern closes the narrow-side flatten at the predicate's
+declaration. Both rulings codify "fix at the boundary, not at the call site" as a
+steady-state response to TS's leaky defaults. See decision #031.
 
 The pattern generalizes beyond the function family. The same form has been applied across
 the `thenable` module (`isThenable`, `isPromiseLike`, `isPromise`), the `evented` module
@@ -262,7 +262,7 @@ whose body benefits from a single nullish check is parameter-default-to-`null` (
 both `null` and `undefined` are unified at the parameter-binding step, allowing strict-
 equality `!== null` checks without lint friction and without rejecting falsy primitives
 (which auto-box correctly and may have legitimate inherited methods). Canonical
-implementations: `hasInertMethod` and `getNextAvailablePropertyDescriptor` in `@/utility`.
+implementations: `hasInertMethod` and `getNextAvailablePropertyDescriptor` in `#utility`.
 See `[[design-rulings]]` for the forward-applicable framing.
 
 ## Realm intrinsics: the `%X%` notation

@@ -4,13 +4,13 @@
 > Vectors are reasoned from the canon (`object.d.ts`, `object.js`,
 > `architecture/object.md`, decisions #040, #041, #044, #045, #046, #047). Status:
 > **FROZEN 2026-06-18** — decidability check passed (6 suites over all 4 public
-> predicates + the 2 exported helpers, via the `@/index.js` barrel, single realm). The run
+> predicates + the 2 exported helpers, via the `#index` barrel, single realm). The run
 > corrected one stale doc-comment claim — the `isDictionaryObject` `getDefinedConstructor`
 > cross-validator admits (not rejects) an attached own `constructor` key (#047); the
 > `object.{js,d.ts}` comments were fixed. Base for the axis-1 suite; axes 2–4 derive
 > alongside. Amended 2026-06-25 (test round) — throw-safety hardening (every descriptor /
 > prototype read routes through a throw-safe reader, incl. the `isClass` root-fix in
-> `@/function`) + #059 prototype-threading; public admit/reject verdicts unchanged, new
+> `#function`) + #059 prototype-threading; public admit/reject verdicts unchanged, new
 > `*/B1`–`B3` adversarial vectors — see Resolved items #2. Amended 2026-06-29 (test round)
 > — the five-marker anchor became a **six-marker** anchor (the member-surface marker, a
 > new `doesImplementObjectPrototypeContract` helper); the cross-realm anchor was renamed
@@ -76,7 +76,7 @@ are exposed to, and the throw-safe reader each routes through:
 - **descriptor-trap** (a `Proxy` whose `getOwnPropertyDescriptor` throws — on the value,
   on a pivoted `[[Prototype]]`, or on a hostile `constructor`) → `getInertDescriptor`,
   `getDefinedConstructor`, `getVerifiedOwnName`, and `isClass` (each throw-safe at its own
-  read; `isClass` root-fixed in `@/function`);
+  read; `isClass` root-fixed in `#function`);
 - **ownKeys-trap** (a `Proxy` whose `ownKeys` throws) → the `try/catch`-wrapped
   `getOwnPropertyDescriptors` inside `doesImplementObjectPrototypeContract` (marker 6);
 - **tag-getter-throw** (a throwing `Symbol.toStringTag`) → `getTypeSignature`.
@@ -324,8 +324,8 @@ prototype-less is prototype-less in every realm. **Spoof (axis 3):** the
 (`R4`). The `getDefinedConstructor === undefined` marker does NOT reject an attached own
 `constructor` key (it is ignored by design, #047 — see `A3`); it is defense-in-depth
 paired with `getInertPrototypeOf === null`. **Composition note (axis 4):** `isObject` +
-`getInertPrototypeOf` (`@/utility`) + `hasDictionaryObjectIdentitySignal`
-(`getDefinedConstructor` + `getTypeSignature`, `@/utility`).
+`getInertPrototypeOf` (`#utility`) + `hasDictionaryObjectIdentitySignal`
+(`getDefinedConstructor` + `getTypeSignature`, `#utility`).
 
 ---
 
@@ -518,14 +518,14 @@ resolve-once logic into it.
    cause. The complete set of reads now routes through throw-safe readers:
    - **Prototype reads** (`isPlainObject`, `isDictionaryObject`,
      `isPlainOrDictionaryObject`) → `getInertPrototypeOf` (#057), replacing raw
-     `getPrototypeOf` (`@/config`).
+     `getPrototypeOf` (`#config`).
    - **Marker 3** (constructor `name`) → `getVerifiedOwnName` (#059); **marker 4**
      (constructor `prototype` round-trip) → `getInertDescriptor` (#056), replacing raw
      `getOwnPropertyDescriptor`.
-   - **`isClass` root-fix (`@/function`, cross-module, user green-lit).** `isClass` did
-     its own raw `getOwnPropertyDescriptor(value, 'prototype')` — the throw originated
-     there, upstream of object's markers. Routed through `getInertDescriptor` (#056);
-     every `isClass` consumer is now throw-safe for free. (The sibling `hasOwnPrototype` /
+   - **`isClass` root-fix (`#function`, cross-module, user green-lit).** `isClass` did its
+     own raw `getOwnPropertyDescriptor(value, 'prototype')` — the throw originated there,
+     upstream of object's markers. Routed through `getInertDescriptor` (#056); every
+     `isClass` consumer is now throw-safe for free. (The sibling `hasOwnPrototype` /
      `hasOwnWritablePrototype` helpers carry the same raw-read surface — a finding
      deferred to the `function` round; object does not depend on them.)
 
@@ -547,7 +547,7 @@ resolve-once logic into it.
      `hasPlainObjectIdentitySignal`). Surface gate moved 6 → 8 exports.
    - **Load-cycle fix.** `object` participates in the
      `config → primitive → object → config` import cycle. The member-surface calibration
-     first ran as an eager module-top-level IIFE touching the `@/config` captures
+     first ran as an eager module-top-level IIFE touching the `#config` captures
      (`getOwnPropertyDescriptors`, `objectPrototype`) — which are still uninitialized when
      `object`'s body executes mid-cycle, so every test failed at import
      (`getOwnPropertyDescriptors is not a function`). Moved to a lazy, memoized

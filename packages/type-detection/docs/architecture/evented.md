@@ -63,8 +63,8 @@ even when the value carries the full method contract. The pattern from thenable 
 ### Realm-fixed capture via the shared validated-tuple helper (decision #060)
 
 Both intrinsics are captured at module-load through the shared
-`getValidatedStandardConstructorAndPrototypeTuple(X, contract)` (`@/utility`) — the same
-capture helper `@/thenable` uses for `Promise`. It confirms `X` is newable, reads its own
+`getValidatedStandardConstructorAndPrototypeTuple(X, contract)` (`#utility`) — the same
+capture helper `#thenable` uses for `Promise`. It confirms `X` is newable, reads its own
 `prototype` descriptor inertly, and accepts the `[X, X.prototype]` pair only when the
 prototype satisfies the injected `contract` AND back-references the constructor
 (`X.prototype.constructor === X`) — the tamper-resistant identity check. On ANY failure —
@@ -282,7 +282,7 @@ shape of values that emit abort signals (native `AbortSignal`, `AbortController.
 userland abortable producers, cross-realm instances). The thenable module's
 `AbortableThenable<T>` (shipped 2026-06-06 in decision #037) is the consumer-side contract
 — the structural shape of thenables that receive abort signals through their
-`then.onaborted` callback. `@/error` ships `AbortError` for the rejected-value side that
+`then.onaborted` callback. `#error` ships `AbortError` for the rejected-value side that
 the `onaborted` callback receives.
 
 Consumers building an abortable operation depend on all three modules; consumers handling

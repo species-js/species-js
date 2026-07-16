@@ -52,8 +52,8 @@ the captured shape. This is the same pattern [`./thenable.md`](./thenable.md) an
 ### Realm-fixed capture via the shared validated-tuple helper (decisions #060, #065)
 
 Both intrinsics are captured at module-load through the shared
-`getValidatedStandardConstructorAndPrototypeTuple(X, contract)` (`@/utility`) — the same
-helper `@/thenable` uses for `Promise`. It confirms `X` is newable, reads its own
+`getValidatedStandardConstructorAndPrototypeTuple(X, contract)` (`#utility`) — the same
+helper `#thenable` uses for `Promise`. It confirms `X` is newable, reads its own
 `prototype` descriptor inertly, and accepts the `[X, X.prototype]` pair only when the
 prototype satisfies the injected `contract` AND back-references the constructor. On ANY
 failure — no global `X`, a rejected contract, a broken back-reference, a throwing
@@ -265,13 +265,13 @@ The public `isError` captures native `Error.isError` once at module-load and bin
 or polyfill by a runtime feature-detection gate:
 
 ```js
-const nativeIsError = /** @type {import('@/error').isError | undefined} */ (
+const nativeIsError = /** @type {import('#error').isError | undefined} */ (
   GenericErrorConstructor !== INSTANCE_LESS_CONSTRUCTOR
     ? /** @type {ErrorConstructorES2025} */ (GenericErrorConstructor).isError
     : void 0
 );
 
-export const isError = /** @type {import('@/error').isError} */ (
+export const isError = /** @type {import('#error').isError} */ (
   isFunction(nativeIsError) ? nativeIsError : isAnyError
 );
 ```

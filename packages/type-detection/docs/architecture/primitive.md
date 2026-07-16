@@ -52,9 +52,9 @@ foreign realm has a different `String` constructor identity than the local-realm
 `instanceof String` against it returns `false`. The package handles this with the same
 machinery used by `isPromise` / `isEventTarget`: the `[[Class]]` tag read through the
 realm-fixed `toObjectString.call` capture, and the constructor-name walked through the
-four-source `getDefinedConstructor` fallback in `@/utility`. Both work
-realm-independently. The `typeof === 'object'` gate is the cheapest first marker that
-rejects primitives and `undefined` in O(1).
+four-source `getDefinedConstructor` fallback in `#utility`. Both work realm-independently.
+The `typeof === 'object'` gate is the cheapest first marker that rejects primitives and
+`undefined` in O(1).
 
 ## Predicate composition
 
@@ -202,8 +202,8 @@ here. The rationale for revisiting: literal-union callers benefit (`'on' | 'off'
 narrows to `'on' | 'off'` after `isStringValue`), the boxed and composite predicates
 clearly benefit (they narrow to object-shape types), and internal consistency across the
 family matters. The pattern is now uniform across value-only, boxed-only, composite, and
-generic-floor predicates in `@/primitive`, alongside `@/function`, `@/thenable`,
-`@/evented`, and `@/error`. See decision #039 for the full framing.
+generic-floor predicates in `#primitive`, alongside `#function`, `#thenable`, `#evented`,
+and `#error`. See decision #039 for the full framing.
 
 ## Wrapper-object types
 
@@ -310,34 +310,34 @@ the tampering surface that survives the slot probe.
 
 ## Realm-fixed captures: boundary-retyping vs pure capture
 
-`objectIs = Object.is` was added to `@/config` to support the Number-family equality
+`objectIs = Object.is` was added to `#config` to support the Number-family equality
 strategy. It is a _pure_ realm-fix capture — the lib type for `Object.is` is already
 precise (`(value1: any, value2: any) => boolean`), so no boundary-retyping is needed. This
 is distinct from the boundary-retyping pattern of decisions #008, #017, #026, #034, which
-retype `any` returns to spec-precise types at the `@/config` boundary specifically to
-close consumer-side `any`-cascades.
+retype `any` returns to spec-precise types at the `#config` boundary specifically to close
+consumer-side `any`-cascades.
 
 Both patterns share the realm-fix benefit (pinning the captured reference to this realm's
 identity, immune to later tampering with the global). They differ on the type-system side:
-boundary-retyping changes the captured primitive's declared type at the `@/config`
+boundary-retyping changes the captured primitive's declared type at the `#config`
 boundary; pure capture leaves the type as-is. `objectIs` is the second realm-fix-only
 capture, alongside `toObjectString`'s pure-capture nature in the
 captures-for-cross-realm-tag-reading set. The two patterns coexist within the same
-`@/config` family.
+`#config` family.
 
-The minor implication: not every `@/config` cached primitive needs a `.d.ts` retyping. The
+The minor implication: not every `#config` cached primitive needs a `.d.ts` retyping. The
 boundary-retyping ruling in `[[design-rulings]]` should be read as _"when the lib type
 forces an `any`-cascade, retype at the boundary,"_ not as _"every captured primitive must
 be retyped."_ `objectIs` is the canonical example of the realm-fix-only form: type is
 already precise; only the realm capture matters.
 
-## Module-local capture vs `@/config` promotion
+## Module-local capture vs `#config` promotion
 
 The five `prototype.valueOf` references for the boxed-equality helpers
 (`String.prototype.valueOf`, `Number.prototype.valueOf`, etc.) live at the top of
-`primitive.js` rather than at `@/config`. They share the same realm-fix semantics as
-`@/config`'s captures but stay scoped to where they're used. The rule of thumb: a captured
-primitive earns promotion to `@/config` when a second module needs it. Module-local is the
+`primitive.js` rather than at `#config`. They share the same realm-fix semantics as
+`#config`'s captures but stay scoped to where they're used. The rule of thumb: a captured
+primitive earns promotion to `#config` when a second module needs it. Module-local is the
 default for first-use; promotion is the response to second-use. Today the
 prototype-valueOf captures are first-use; if `@species-js/type-identity` or a future
 module needs them, promotion is mechanical.

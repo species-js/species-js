@@ -5,7 +5,7 @@
 > `architecture/utility.md`, decisions #020 (inert/property-access discipline), #025
 > (parameter-default-to-`null`), #026 (`isSafeIntegerValue` retype), #047 (inert
 > constructor walk), #048 (lowercase-name precedence)). Status: **FROZEN 2026-06-19** —
-> decidability check passed (44 suites over all 15 public functions, via the `@/index.js`
+> decidability check passed (44 suites over all 15 public functions, via the `#index`
 > barrel, single realm). No surprises — the canon was accurate and every vector matched
 > the real impl on the first run. The three inert-probe siblings
 > (`hasInertGetter`/`Setter`/ `Value`) were promoted from `@internal` to public after the
@@ -61,8 +61,8 @@ tags were removed (Resolved items #1).
 
 **Exported types (9):** `PropertyDescriptor`, `PropertyDescriptorMap`,
 `DefinedConstructorAccessorOptions`, `ConstructorName`, `TaggedType`, `ResolvedType`,
-`TypeSignature`, `WeakKey`, `PredicateFunction`. (`BlankType` is a `@/config` type — see
-ADR #064 — not a `@/utility` export; the earlier tally wrongly listed it and omitted
+`TypeSignature`, `WeakKey`, `PredicateFunction`. (`BlankType` is a `#config` type — see
+ADR #064 — not a `#utility` export; the earlier tally wrongly listed it and omitted
 `WeakKey` / `PredicateFunction`.)
 
 Re-confirmation gate (as amended 2026-06-25): 14 public `.js` value exports + 3
@@ -120,7 +120,7 @@ the utility test round.
 - `hOWP/R3` — `(function () {}).bind(null)`, `{}`, CC/nullish → false.
 
 **Cross-realm (axis 2):** realm-safe. **Composition note:** the structural discriminator
-`isES3Function` (`@/function`) drives this.
+`isES3Function` (`#function`) drives this.
 
 ---
 

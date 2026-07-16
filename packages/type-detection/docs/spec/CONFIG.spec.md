@@ -8,15 +8,15 @@
 > `architecture/config.md` — config is infrastructure, not a discrimination domain.
 > Status: **FROZEN 2026-06-19** — decidability check passed over the runtime-decidable
 > dimensions (realm-fixity + tamper-immunity, the polyfill selectors, the four exported
-> polyfill closures, the capture reads, and the preset shapes) via the `@/index.js`
-> barrel, single realm; dimension B is typecheck-gated, not a runtime vector. No
-> surprises: every polyfilled selector took the native branch in this runtime
-> (identity-equal to its `Object.`/`Number.` intrinsic), the closures run the fallback
-> logic correctly in isolation, captures are identity-equal, and the `Number.isXxx`
-> no-coercion semantics hold. The polyfill closures (`hasOwn`, `isFiniteNumber`,
-> `isInteger`, `isSafeInteger`) are exported `@internal` (#053-style) so the fallback path
-> is directly testable (Resolved items #1). The eighth and final type-detection spec. Base
-> for the axis-1 suite; axes 2–3 derive alongside.
+> polyfill closures, the capture reads, and the preset shapes) via the `#index` barrel,
+> single realm; dimension B is typecheck-gated, not a runtime vector. No surprises: every
+> polyfilled selector took the native branch in this runtime (identity-equal to its
+> `Object.`/`Number.` intrinsic), the closures run the fallback logic correctly in
+> isolation, captures are identity-equal, and the `Number.isXxx` no-coercion semantics
+> hold. The polyfill closures (`hasOwn`, `isFiniteNumber`, `isInteger`, `isSafeInteger`)
+> are exported `@internal` (#053-style) so the fallback path is directly testable
+> (Resolved items #1). The eighth and final type-detection spec. Base for the axis-1
+> suite; axes 2–3 derive alongside.
 
 ## Module contract
 
@@ -135,7 +135,7 @@ and exhibits native semantics.
 - `oHO/R2` — `objectHasOwn({}, 'nope')` → false.
 - `oHO/B1` — `objectHasOwn(null, 'x')` / `objectHasOwn(undefined, 'x')` → **throws**
   (`ToObject` on nullish; both the native and the `hasOwnProperty.call` polyfill throw).
-  This is the precondition behind `@/utility`'s `?? {}` guard in `hasInertValue`.
+  This is the precondition behind `#utility`'s `?? {}` guard in `hasInertValue`.
 
 ### `isFiniteNumberValue(value)` — also retyped `value is number`
 
@@ -163,7 +163,7 @@ and exhibits native semantics.
 The four closures are exported so the fallback logic runs and is asserted regardless of
 which branch the selector takes in the host runtime. These vectors target the closure
 directly, so they are decidable even where the native shadows the selector. (Confirmed via
-the `@/index.js` barrel in the decidability run.)
+the `#index` barrel in the decidability run.)
 
 - `hasOwn/A1` — `hasOwn({ a: 1 }, 'a')` → true; `hasOwn({}, 'toString')` → false
   (own-only); `hasOwn({}, 'nope')` → false; `hasOwn(null, 'x')` → **throws** (`ToObject`,
@@ -190,7 +190,7 @@ re-defines `Object`'s behavior):
   non-callable-receiver constraint that the `(this: Callable)` retype (#008) encodes. The
   retype makes this a compile-time error too; at runtime it throws.
 - `cap/A3` — `objectIs(NaN, NaN)` → true; `objectIs(0, -0)` → false (the NaN-equality and
-  ±0 distinction `===` cannot express — the reason `@/primitive` uses `objectIs` for
+  ±0 distinction `===` cannot express — the reason `#primitive` uses `objectIs` for
   `BoxedNumber` equality).
 - `cap/A4` — `getPrototypeOf([])` → `Array.prototype`;
   `getPrototypeOf(Object.create(null))` → `null` (the `object | null` return the #017
