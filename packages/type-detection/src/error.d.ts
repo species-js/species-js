@@ -25,7 +25,7 @@
  * `AbortController` and userland abortable operations.
  */
 
-import type { NewableFunction } from '@/function';
+import type { NewableFunction } from '#function';
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 //

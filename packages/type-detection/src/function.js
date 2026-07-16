@@ -12,8 +12,8 @@
  * generator, or class.
  */
 
-import { TRUSTED_DATA_CONFIRMATION } from '@/foundation';
-import { toFunctionString } from '@/config';
+import { TRUSTED_DATA_CONFIRMATION } from '#foundation';
+import { toFunctionString } from '#config';
 import {
   hasOwnWritablePrototype,
   hasOwnPrototype,
@@ -23,20 +23,20 @@ import {
   getTypeSignature,
   getDefinedConstructor,
   getDefinedConstructorName,
-} from '@/utility';
+} from '#utility';
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 
-/** @typedef {import('@/function').Callable} Callable */
-/** @typedef {import('@/function').VerifiedFunction} VerifiedFunction */
-/** @typedef {import('@/function').NewableFunction} NewableFunction */
-/** @typedef {import('@/function').ClassConstructor} ClassConstructor */
-/** @typedef {import('@/function').ES3Function} ES3Function */
-/** @typedef {import('@/function').AsyncFunction} AsyncFunction */
-/** @typedef {import('@/function').Generator} Generator */
-/** @typedef {import('@/function').AsyncGenerator} AsyncGenerator */
-/** @typedef {import('@/function').GeneratorFunction} GeneratorFunction */
-/** @typedef {import('@/function').AsyncGeneratorFunction} AsyncGeneratorFunction */
-/** @typedef {import('@/function').AnyGeneratorFunction} AnyGeneratorFunction */
+/** @typedef {import('#function').Callable} Callable */
+/** @typedef {import('#function').VerifiedFunction} VerifiedFunction */
+/** @typedef {import('#function').NewableFunction} NewableFunction */
+/** @typedef {import('#function').ClassConstructor} ClassConstructor */
+/** @typedef {import('#function').ES3Function} ES3Function */
+/** @typedef {import('#function').AsyncFunction} AsyncFunction */
+/** @typedef {import('#function').Generator} Generator */
+/** @typedef {import('#function').AsyncGenerator} AsyncGenerator */
+/** @typedef {import('#function').GeneratorFunction} GeneratorFunction */
+/** @typedef {import('#function').AsyncGeneratorFunction} AsyncGeneratorFunction */
+/** @typedef {import('#function').AnyGeneratorFunction} AnyGeneratorFunction */
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 //
@@ -93,7 +93,7 @@ export function getFunctionSource(value) {
  *  narrowing `value` to `T & Callable`; `false` otherwise
  */
 // Load-order invariant: must remain a hoisted `function` declaration.
-// `@/config` calls `isCallable` at its own module-evaluation time (the
+// `#config` calls `isCallable` at its own module-evaluation time (the
 // `objectHasOwn` and `Number.is*` gates), and `config` sits in a circular
 // import with this module. Function-declaration hoisting makes `isCallable`
 // reachable mid-cycle, before `function.js` has finished evaluating.
@@ -266,7 +266,7 @@ export function isES3Function(value) {
  * Proxy-trap on `value` yields `undefined` (→ `false`) rather than
  * propagating. This extends the constructor-resolution layer's throw-safety
  * (decision #056) to `isClass`, so every consumer — notably the cross-realm
- * `@/object` plain-object contract — is throw-safe against a hostile
+ * `#object` plain-object contract — is throw-safe against a hostile
  * constructor for free.
  *
  * Generic in `T` per the family-pattern. The narrow returns

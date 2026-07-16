@@ -31,7 +31,7 @@
  * error's `name`, capturing the abort-channel naming convention.
  */
 
-import { TRUSTED_DATA_CONFIRMATION } from '@/foundation';
+import { TRUSTED_DATA_CONFIRMATION } from '#foundation';
 
 import {
   globalContext,
@@ -40,7 +40,7 @@ import {
   getOwnPropertyDescriptors,
   getOwnPropertyDescriptor,
   INSTANCE_LESS_CONSTRUCTOR,
-} from '@/config';
+} from '#config';
 
 import {
   getInertPrototypeOf,
@@ -49,18 +49,18 @@ import {
   getTypeSignature,
   getVerifiedOwnName,
   getValidatedStandardConstructorAndPrototypeTuple,
-} from '@/utility';
+} from '#utility';
 
-import { isCallable, isFunction, isClass } from '@/function';
-import { isStringValue } from '@/primitive';
+import { isCallable, isFunction, isClass } from '#function';
+import { isStringValue } from '#primitive';
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 
-/** @typedef {typeof import('@/config').INSTANCE_LESS_CONSTRUCTOR} NEVER_INVOKED_CONSTRUCTOR */
-/** @typedef {import('@/config').BlankDictionary} BlankDictionary */
+/** @typedef {typeof import('#config').INSTANCE_LESS_CONSTRUCTOR} NEVER_INVOKED_CONSTRUCTOR */
+/** @typedef {import('#config').BlankDictionary} BlankDictionary */
 
-/** @typedef {import('@/utility').PropertyDescriptor} PropertyDescriptor */
-/** @typedef {import('@/function').NewableFunction} NewableFunction */
+/** @typedef {import('#utility').PropertyDescriptor} PropertyDescriptor */
+/** @typedef {import('#function').NewableFunction} NewableFunction */
 
 /**
  * The shape of an Error-prototype's own `toString` method. Spec-defined
@@ -71,13 +71,13 @@ import { isStringValue } from '@/primitive';
  * @typedef {(this: object) => string} ErrorPrototypeToStringMethod
  */
 
-/** @typedef {import('@/error').ErrorConstructorES2025} ErrorConstructorES2025 */
+/** @typedef {import('#error').ErrorConstructorES2025} ErrorConstructorES2025 */
 
-/** @typedef {import('@/error').DOMException} DOMException */
-/** @typedef {import('@/error').AnyError} AnyError */
+/** @typedef {import('#error').DOMException} DOMException */
+/** @typedef {import('#error').AnyError} AnyError */
 
-/** @typedef {import('@/error').AbortError} AbortError */
-/** @typedef {import('@/error').AbortErrorName} AbortErrorName */
+/** @typedef {import('#error').AbortError} AbortError */
+/** @typedef {import('#error').AbortErrorName} AbortErrorName */
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 
@@ -830,7 +830,7 @@ export function isAnyError(value) {
 // `((value: unknown) => value is AnyError) | undefined`, narrowed by
 // the runtime `isFunction` check below. Realm-fixed at module-load:
 // later tampering with `globalThis.Error` does not reach this binding.
-const nativeIsError = /** @type {import('@/error').isError | undefined} */ (
+const nativeIsError = /** @type {import('#error').isError | undefined} */ (
   GenericErrorConstructor !== INSTANCE_LESS_CONSTRUCTOR
     ? /** @type {ErrorConstructorES2025} */ (GenericErrorConstructor).isError
     : void 0
@@ -869,7 +869,7 @@ const nativeIsError = /** @type {import('@/error').isError | undefined} */ (
  * isError(null);                                // false
  * @see {@link https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Error/isError}
  */
-export const isError = /** @type {import('@/error').isError} */ (
+export const isError = /** @type {import('#error').isError} */ (
   isFunction(nativeIsError) ? nativeIsError : isAnyError
 );
 

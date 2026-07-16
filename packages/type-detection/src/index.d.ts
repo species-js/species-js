@@ -29,16 +29,16 @@
  *   and `Promise` structural lattices.
  *
  * Re-export order below mirrors the `.js` barrel, where the order is
- * driven by ESM module-load semantics (`@/function` first so the
+ * driven by ESM module-load semantics (`#function` first so the
  * `config ↔ function` cycle resolves through `function`'s hoisted
  * `isCallable` declaration).
  */
 
-export * from '@/function';
-export * from '@/config';
-export * from '@/utility';
-export * from '@/primitive';
-export * from '@/error';
-export * from '@/object';
-export * from '@/evented';
-export * from '@/thenable';
+export * from '#function';
+export * from '#config';
+export * from '#utility';
+export * from '#primitive';
+export * from '#error';
+export * from '#object';
+export * from '#evented';
+export * from '#thenable';

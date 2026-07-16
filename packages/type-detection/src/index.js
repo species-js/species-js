@@ -31,20 +31,20 @@
  *   and `Promise` structural lattices.
  *
  * Re-export order below is driven by ESM module-load semantics rather
- * than documentation framing: `@/function` is re-exported first so that
+ * than documentation framing: `#function` is re-exported first so that
  * its hoisted `export function isCallable` declaration is reachable
- * when `@/config` then evaluates and needs it for the
+ * when `#config` then evaluates and needs it for the
  * `isCallable(nativeHasOwn)` gate. With this order the
  * `config ↔ function` cycle resolves cleanly; reversing it would leave
  * `config`'s `const` exports in TDZ when `function`'s top-level
  * intrinsic captures fire mid-cycle.
  */
 
-export * from '@/function';
-export * from '@/config';
-export * from '@/utility';
-export * from '@/primitive';
-export * from '@/error';
-export * from '@/object';
-export * from '@/evented';
-export * from '@/thenable';
+export * from '#function';
+export * from '#config';
+export * from '#utility';
+export * from '#primitive';
+export * from '#error';
+export * from '#object';
+export * from '#evented';
+export * from '#thenable';

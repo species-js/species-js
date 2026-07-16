@@ -157,8 +157,8 @@ export interface EventTargetLike {
  * `AbortableThenable.then.onaborted` callback.
  *
  * The full cross-module abort-channel surface is distributed across
- * three modules: `@/error` for the rejected-value side (`AbortError`),
- * `@/evented` for the producer side (this interface), and `@/thenable`
+ * three modules: `#error` for the rejected-value side (`AbortError`),
+ * `#evented` for the producer side (this interface), and `#thenable`
  * for the consumer-side abortable-thenable (`AbortableThenable<T>`).
  * Consumers building an abortable operation depend on all three.
  */
@@ -386,7 +386,7 @@ export function doesImplementEventTargetPrototypeContract(prototype: object): bo
  */
 export function isEventTargetPrototypeEquivalent(
   prototype: object,
-  constructor: import('@/function').NewableFunction | undefined,
+  constructor: import('#function').NewableFunction | undefined,
 ): boolean;
 
 /**
@@ -642,7 +642,7 @@ export function doesImplementAbortSignalPrototypeContract(
  */
 export function isAbortSignalPrototypeEquivalent(
   prototype: object,
-  constructor: import('@/function').NewableFunction | undefined,
+  constructor: import('#function').NewableFunction | undefined,
   value: object,
 ): boolean;
 

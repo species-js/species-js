@@ -18,7 +18,7 @@
 
 import { describe, it, expect } from 'vitest';
 
-import { isThenable, isPromiseLike, isPromise } from '@/index.js';
+import { isThenable, isPromiseLike, isPromise } from '#index';
 
 import { specMatrix, crossCuttingRejections } from './__config.js';
 

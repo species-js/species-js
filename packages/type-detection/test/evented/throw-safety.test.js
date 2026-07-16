@@ -36,7 +36,7 @@ import {
   isEventTarget,
   isAbortSignalLike,
   isAbortSignal,
-} from '@/index.js';
+} from '#index';
 
 import { throwSafetyMatrix } from './__config.js';
 

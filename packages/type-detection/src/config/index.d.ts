@@ -12,8 +12,8 @@
  * building blocks.
  */
 
-import type { Callable, NewableFunction } from '@/function';
-import type { DictionaryObject } from '@/object';
+import type { Callable, NewableFunction } from '#function';
+import type { DictionaryObject } from '#object';
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 //
@@ -105,7 +105,7 @@ export declare const sealedDescriptorOptions: {
  * resolve through whatever `Object` happens to reference at that
  * moment, which the capture forecloses.
  *
- * Used as the local-realm fast-path target in `@/object`'s
+ * Used as the local-realm fast-path target in `#object`'s
  * `isPlainObject` and `isPlainOrDictionaryObject`, and as the root
  * from which {@link toObjectString} and the module-local
  * `hasOwnProperty` chain are extracted.

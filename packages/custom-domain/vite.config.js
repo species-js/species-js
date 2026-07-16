@@ -33,11 +33,6 @@ export default defineConfig({
     sourcemap: true,
     target: isUmd ? 'es2020' : isNode ? 'node22' : 'es2020',
   },
-  resolve: {
-    alias: {
-      '@': resolve(import.meta.dirname, 'src'),
-    },
-  },
   test: {
     coverage: {
       include: ['src/**/*.js'],

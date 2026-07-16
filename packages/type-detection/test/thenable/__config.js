@@ -18,7 +18,7 @@
  * Mirrors `docs/spec/THENABLE.spec.md`.
  */
 
-import { objectCreate } from '@/index.js';
+import { objectCreate } from '#index';
 
 import { foreignRealmEval, createForeignRealm } from '../_cross-realm.js';
 

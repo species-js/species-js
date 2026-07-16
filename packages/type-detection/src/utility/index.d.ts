@@ -7,10 +7,10 @@
  * downstream packages that need the same cross-realm-safe primitives.
  */
 
-import { INSTANCE_LESS_CONSTRUCTOR } from '@/config';
+import { INSTANCE_LESS_CONSTRUCTOR } from '#config';
 
-import type { BlankDictionary } from '@/config';
-import type { Callable, NewableFunction } from '@/function';
+import type { BlankDictionary } from '#config';
+import type { Callable, NewableFunction } from '#function';
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 //
@@ -126,7 +126,7 @@ export type WeakKey = symbol | object | Callable;
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 
-export { TRUSTED_DATA_CONFIRMATION } from '@/foundation';
+export { TRUSTED_DATA_CONFIRMATION } from '#foundation';
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 
@@ -194,7 +194,7 @@ export type PredicateFunction<T extends unknown[] = unknown[]> = (
  * fails.
  *
  * The single, throw-safe capture helper behind the per-module realm-fixed
- * intrinsic pairs (e.g. `Promise` for `@/thenable`). It confirms `constructor`
+ * intrinsic pairs (e.g. `Promise` for `#thenable`). It confirms `constructor`
  * is newable and reads its own `prototype` inertly. It accepts the pair only
  * when the prototype satisfies the injected `doesPassAsConstructorPrototype`
  * predicate and, for a non-`null` prototype, reciprocally back-references the

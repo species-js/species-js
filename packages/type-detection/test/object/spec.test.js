@@ -25,7 +25,7 @@ import {
   isPlainObject,
   isDictionaryObject,
   isPlainOrDictionaryObject,
-} from '@/index.js';
+} from '#index';
 
 import { specMatrix, crossCuttingRejections } from './__config.js';
 

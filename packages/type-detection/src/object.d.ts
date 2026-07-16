@@ -60,22 +60,22 @@
  *
  * `DictionaryObject` is the canonical member of a three-type family
  * distinguished along two axes — whether a prototype-chain exists, and whether
- * own keys may be present. `DictionaryObject` lives here in `@/object` (beside
+ * own keys may be present. `DictionaryObject` lives here in `#object` (beside
  * its predicate {@link isDictionaryObject}); `BlankType` and `BlankDictionary`
- * live in `@/config`, beside the `BLANK_TYPE` / `BLANK_DICTIONARY` constants that
+ * live in `#config`, beside the `BLANK_TYPE` / `BLANK_DICTIONARY` constants that
  * carry them:
  *
- * - `DictionaryObject` (`@/object`) — prototype-less, constructor-less, own keys
+ * - `DictionaryObject` (`#object`) — prototype-less, constructor-less, own keys
  *   OPEN; the narrow target of {@link isDictionaryObject} and the honest return
- *   of `@/config`'s `objectCreate(null)`. `Record<PropertyKey, unknown>` extended
+ *   of `#config`'s `objectCreate(null)`. `Record<PropertyKey, unknown>` extended
  *   with the `constructor?: never` discriminator.
- * - `BlankType` (`@/config`) — a real `Object` (carrying `Object.prototype` and
+ * - `BlankType` (`#config`) — a real `Object` (carrying `Object.prototype` and
  *   the `Object` constructor) with no own key; the empty ordinary object `{}`.
  *   Modelled as `Record<PropertyKey, never>`. Its realm-fixed carrier is
  *   `BLANK_TYPE`.
- * - `BlankDictionary` (`@/config`) — prototype-less, constructor-less, AND empty;
+ * - `BlankDictionary` (`#config`) — prototype-less, constructor-less, AND empty;
  *   the never-mutated `Object.create(null)`. The intersection of the other two,
- *   and the type of `BLANK_DICTIONARY` — the sentinel behind `@/error`'s legacy
+ *   and the type of `BLANK_DICTIONARY` — the sentinel behind `#error`'s legacy
  *   `hasErrorPrototypeContract` heuristic and the absent-global capture surrogate
  *   (decisions #017, #034, #060).
  *
@@ -86,7 +86,7 @@
  * it is carried by the runtime predicates and the distinct constants.
  */
 
-import type { NewableFunction } from '@/function';
+import type { NewableFunction } from '#function';
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 //
@@ -172,7 +172,7 @@ export interface PlainObject extends AnyObject {
  * A prototype-less object — `getPrototypeOf(v) === null` — whose own keys are
  * open: the populated hashmap form, typically created via `Object.create(null)`
  * to avoid key collisions with `Object.prototype` members. The narrow target of
- * {@link isDictionaryObject} and the honest return of `@/config`'s
+ * {@link isDictionaryObject} and the honest return of `#config`'s
  * `objectCreate(null)`.
  *
  * Runtime characteristic (verified by the predicate):
@@ -195,7 +195,7 @@ export interface PlainObject extends AnyObject {
  * object carries no own `prototype` property (that is a function-only slot), so
  * modeling one would misdescribe the runtime value.
  *
- * ## Siblings: `BlankType` and `BlankDictionary` (in `@/config`)
+ * ## Siblings: `BlankType` and `BlankDictionary` (in `#config`)
  *
  * The three prototype-shape carriers differ along two axes — whether a
  * prototype-chain exists, and whether own keys may be present:

@@ -14,7 +14,7 @@
  * PromiseLike refinement and is discriminated by {@link isPromise}.
  */
 
-import type { AbortError } from '@/error';
+import type { AbortError } from '#error';
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 //
@@ -223,14 +223,14 @@ export interface PromiseLike<out T> extends Thenable<T> {
  * type-detection modules. Each module discriminates one side of the
  * three-party contract:
  *
- * - `@/error` ships {@link AbortError} (and `AbortErrorName`) for the
+ * - `#error` ships {@link AbortError} (and `AbortErrorName`) for the
  *   rejected-value side — the error type the `onaborted` callback
  *   receives.
- * - `@/evented` ships `AbortSignalLike` and `isAbortSignalLike` for the
+ * - `#evented` ships `AbortSignalLike` and `isAbortSignalLike` for the
  *   producer side — the structural contract of values that emit abort
  *   signals (`AbortSignal`, `AbortController.signal`, userland abortable
  *   producers).
- * - `@/thenable` ships `AbortableThenable<T>` (this interface) — the
+ * - `#thenable` ships `AbortableThenable<T>` (this interface) — the
  *   structural contract of consumer-side abortable thenables that
  *   receive abort signals through their `then.onaborted` callback.
  *
@@ -644,7 +644,7 @@ export function isPromise(value?: unknown): value is Promise<unknown>;
  * very getter returns a callable type.
  *
  * Generic in `T` per the family-pattern set by `isCallable` and
- * `isFunction` in `@/function`. The narrow returns `T & Thenable<unknown>`;
+ * `isFunction` in `#function`. The narrow returns `T & Thenable<unknown>`;
  * `T = unknown` collapses to `Thenable<unknown>`.
  *
  * @typeParam T - the caller-side type of `value`; defaults to `unknown`

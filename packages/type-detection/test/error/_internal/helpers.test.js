@@ -48,7 +48,7 @@ import {
   isCurrentRealmDOMExceptionInstance,
   isAnyError,
   objectCreate,
-} from '@/index.js';
+} from '#index';
 
 import {
   plainError,
@@ -68,7 +68,7 @@ import {
   throwingOwnKeysProto,
 } from '../__config.js';
 
-/** @typedef {import('@/function').NewableFunction} NewableFunction */
+/** @typedef {import('#function').NewableFunction} NewableFunction */
 
 const domExceptionPrototype = DOMException.prototype;
 /** @param {unknown} c - a value to cast to `NewableFunction` for the equivalence helpers */

@@ -31,7 +31,7 @@
 
 import { describe, it, expect } from 'vitest';
 
-import { isDictionaryObject, isPlainObject, isPlainOrDictionaryObject } from '@/index.js';
+import { isDictionaryObject, isPlainObject, isPlainOrDictionaryObject } from '#index';
 
 import {
   tagSpoofedNullProto,

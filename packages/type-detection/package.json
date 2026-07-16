@@ -17,6 +17,18 @@
   "types": "./src/index.d.ts",
   "unpkg": "./dist/umd/index.umd.js",
   "jsdelivr": "./dist/umd/index.umd.js",
+  "imports": {
+    "#index": "./src/index.js",
+    "#foundation": "./src/foundation/index.js",
+    "#function": "./src/function.js",
+    "#config": "./src/config/index.js",
+    "#utility": "./src/utility/index.js",
+    "#primitive": "./src/primitive.js",
+    "#error": "./src/error.js",
+    "#object": "./src/object.js",
+    "#evented": "./src/evented.js",
+    "#thenable": "./src/thenable.js"
+  },
   "exports": {
     ".": {
       "types": "./src/index.d.ts",

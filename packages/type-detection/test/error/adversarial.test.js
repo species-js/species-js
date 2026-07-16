@@ -25,7 +25,7 @@
 
 import { describe, it, expect } from 'vitest';
 
-import { isGenericError, isDOMException, isError, isAbortError } from '@/index.js';
+import { isGenericError, isDOMException, isError, isAbortError } from '#index';
 
 import {
   bareDomExceptionGraft,

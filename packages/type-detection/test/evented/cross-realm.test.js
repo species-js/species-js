@@ -30,7 +30,7 @@ import {
   isAlienRealmEventTarget,
   isAlienRealmAbortSignal,
   getInertPrototypeOf,
-} from '@/index.js';
+} from '#index';
 
 import {
   foreignEventTarget,

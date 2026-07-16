@@ -48,7 +48,7 @@ import {
   isAlienRealmAbortSignal,
   getInertPrototypeOf,
   objectCreate,
-} from '@/index.js';
+} from '#index';
 
 import {
   directEventTarget,
@@ -67,7 +67,7 @@ import {
   foreignAbortSignal,
 } from '../__config.js';
 
-/** @typedef {import('@/function').NewableFunction} NewableFunction */
+/** @typedef {import('#function').NewableFunction} NewableFunction */
 
 const noop = () => undefined;
 

@@ -11,7 +11,7 @@
  *   Realm-independent (`typeof` reads the same in every realm) and the
  *   least expensive predicates in the package.
  * - `BoxedX` / `isBoxedX` — the boxed wrapper-object form. All boxed
- *   predicates share two fixtures: the `isObject` gate from `@/object`
+ *   predicates share two fixtures: the `isObject` gate from `#object`
  *   (truthiness + `typeof === 'object'`) at the top as O(1)
  *   primitive-and-null rejection, and the spec-precise `[[XData]]`
  *   internal-slot probe via the captured `X.prototype.valueOf` at the
@@ -108,7 +108,7 @@
  * ## Generic-typed predicate pattern
  *
  * All predicates follow the family-pattern set by `isCallable` and
- * `isFunction` in `@/function` (decision #031). The narrow returns
+ * `isFunction` in `#function` (decision #031). The narrow returns
  * `T & X` rather than bare `X`, preserving any caller-side narrowing
  * through the predicate. For `T = unknown` (the default), the
  * intersection collapses to `X`, matching pre-generic behavior. Applied
@@ -181,7 +181,7 @@ export function isStringValue<T = unknown>(value?: T): value is T & StringValue;
 
 /**
  * Narrows a value to the boxed `String` wrapper-object form via the
- * `isObject` gate from `@/object`, a two-branch identity-check, and the
+ * `isObject` gate from `#object`, a two-branch identity-check, and the
  * spec-precise `[[StringData]]` internal-slot probe via the captured
  * `String.prototype.valueOf`.
  *
@@ -274,7 +274,7 @@ export function isString<T = unknown>(value?: T): value is T & StringType;
  * primitive. Includes `NaN` and `±Infinity`. Finiteness and integrality
  * are separate concerns the caller layers on (e.g., via
  * `isFiniteNumberValue` / `isIntegerValue` / `isSafeIntegerValue` in
- * `@/config`).
+ * `#config`).
  */
 export type NumberValue = number;
 
@@ -300,7 +300,7 @@ export type NumberType = NumberValue | BoxedNumber;
  * Matches every numeric primitive — `NaN`, `±Infinity`, and finite
  * numbers alike. Finiteness, integrality, and safe-integer-range
  * checks are caller's concerns. Reach for `isFiniteNumberValue`,
- * `isIntegerValue`, or `isSafeIntegerValue` in `@/config` for those
+ * `isIntegerValue`, or `isSafeIntegerValue` in `#config` for those
  * (decision #026). Boxed `Number` objects, such as `new Number(42)`,
  * report `typeof === 'object'` and are deliberately excluded. Admitting
  * both forms requires {@link isNumber}. Discriminating the boxed form
@@ -325,7 +325,7 @@ export function isNumberValue<T = unknown>(value?: T): value is T & NumberValue;
 
 /**
  * Narrows a value to the boxed `Number` wrapper-object form via the
- * `isObject` gate from `@/object`, a two-branch identity-check, and the
+ * `isObject` gate from `#object`, a two-branch identity-check, and the
  * spec-precise `[[NumberData]]` internal-slot probe via the captured
  * `Number.prototype.valueOf`.
  *
@@ -470,7 +470,7 @@ export function isBooleanValue<T = unknown>(value?: T): value is T & BooleanValu
 
 /**
  * Narrows a value to the boxed `Boolean` wrapper-object form via the
- * `isObject` gate from `@/object`, a two-branch identity-check, and the
+ * `isObject` gate from `#object`, a two-branch identity-check, and the
  * spec-precise `[[BooleanData]]` internal-slot probe via the captured
  * `Boolean.prototype.valueOf`.
  *
@@ -623,7 +623,7 @@ export function isSymbolValue<T = unknown>(value?: T): value is T & SymbolValue;
 
 /**
  * Narrows a value to the boxed `Symbol` wrapper-object form via four
- * cross-validating markers: the `isObject` gate from `@/object`, the
+ * cross-validating markers: the `isObject` gate from `#object`, the
  * `[[Class]]` tag `'[object Symbol]'`, the constructor-name `'Symbol'`,
  * and the spec-precise `[[SymbolData]]` internal-slot probe via the
  * captured `Symbol.prototype.valueOf` paired with a `description`-value
@@ -790,7 +790,7 @@ export function isBigIntValue<T = unknown>(value?: T): value is T & BigIntValue;
 
 /**
  * Narrows a value to the boxed `BigInt` wrapper-object form via four
- * cross-validating markers: the `isObject` gate from `@/object`, the
+ * cross-validating markers: the `isObject` gate from `#object`, the
  * `[[Class]]` tag `'[object BigInt]'`, the constructor-name `'BigInt'`,
  * and the spec-precise `[[BigIntData]]` internal-slot probe via the
  * captured `BigInt.prototype.valueOf`.
@@ -1220,7 +1220,7 @@ export function isPrimitiveValue<T = unknown>(value?: T): value is T & Primitive
  * {@link BoxedNumber}, {@link BoxedBoolean}, {@link BoxedSymbol},
  * {@link BoxedBigInt}).
  *
- * Composes the `isObject` gate from `@/object` with a two-path
+ * Composes the `isObject` gate from `#object` with a two-path
  * resolution:
  *
  * 1. **ES3 native hot-path**. The local-realm fast-path for the three

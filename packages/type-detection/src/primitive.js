@@ -9,7 +9,7 @@
  * `boolean`, `symbol`, `bigint`) ships three predicates here: a
  * `typeof`-based value predicate, a boxed predicate, and a composite
  * predicate admitting either form. All boxed predicates share two
- * fixtures: the {@link isObject} gate from `@/object` (truthiness +
+ * fixtures: the {@link isObject} gate from `#object` (truthiness +
  * `typeof === 'object'`) at the top for O(1) primitive-and-null
  * rejection, and the spec-precise `[[XData]]` internal-slot probe via
  * the captured `X.prototype.valueOf` at the bottom as the spoof-proof
@@ -53,37 +53,37 @@
  * the runtime implementation with parallel JSDoc.
  */
 
-import { objectIs, getPrototypeOf } from '@/config';
-import { getTypeSignature, getDefinedConstructorName, getTaggedType } from '@/utility';
+import { objectIs, getPrototypeOf } from '#config';
+import { getTypeSignature, getDefinedConstructorName, getTaggedType } from '#utility';
 
-import { isObject } from '@/object';
+import { isObject } from '#object';
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 
-/** @typedef {import('@/primitive').StringValue} StringValue */
-/** @typedef {import('@/primitive').BoxedString} BoxedString */
-/** @typedef {import('@/primitive').StringType} StringType */
+/** @typedef {import('#primitive').StringValue} StringValue */
+/** @typedef {import('#primitive').BoxedString} BoxedString */
+/** @typedef {import('#primitive').StringType} StringType */
 
-/** @typedef {import('@/primitive').NumberValue} NumberValue */
-/** @typedef {import('@/primitive').BoxedNumber} BoxedNumber */
-/** @typedef {import('@/primitive').NumberType} NumberType */
+/** @typedef {import('#primitive').NumberValue} NumberValue */
+/** @typedef {import('#primitive').BoxedNumber} BoxedNumber */
+/** @typedef {import('#primitive').NumberType} NumberType */
 
-/** @typedef {import('@/primitive').BooleanValue} BooleanValue */
-/** @typedef {import('@/primitive').BoxedBoolean} BoxedBoolean */
-/** @typedef {import('@/primitive').BooleanType} BooleanType */
+/** @typedef {import('#primitive').BooleanValue} BooleanValue */
+/** @typedef {import('#primitive').BoxedBoolean} BoxedBoolean */
+/** @typedef {import('#primitive').BooleanType} BooleanType */
 
-/** @typedef {import('@/primitive').SymbolValue} SymbolValue */
-/** @typedef {import('@/primitive').BoxedSymbol} BoxedSymbol */
-/** @typedef {import('@/primitive').SymbolType} SymbolType */
+/** @typedef {import('#primitive').SymbolValue} SymbolValue */
+/** @typedef {import('#primitive').BoxedSymbol} BoxedSymbol */
+/** @typedef {import('#primitive').SymbolType} SymbolType */
 
-/** @typedef {import('@/primitive').BigIntValue} BigIntValue */
-/** @typedef {import('@/primitive').BoxedBigInt} BoxedBigInt */
-/** @typedef {import('@/primitive').BigIntType} BigIntType */
+/** @typedef {import('#primitive').BigIntValue} BigIntValue */
+/** @typedef {import('#primitive').BoxedBigInt} BoxedBigInt */
+/** @typedef {import('#primitive').BigIntType} BigIntType */
 
-/** @typedef {import('@/primitive').NullishPrimitive} NullishPrimitive */
-/** @typedef {import('@/primitive').BoxablePrimitive} BoxablePrimitive */
-/** @typedef {import('@/primitive').PrimitiveValue} PrimitiveValue */
-/** @typedef {import('@/primitive').BoxedPrimitive} BoxedPrimitive */
+/** @typedef {import('#primitive').NullishPrimitive} NullishPrimitive */
+/** @typedef {import('#primitive').BoxablePrimitive} BoxablePrimitive */
+/** @typedef {import('#primitive').PrimitiveValue} PrimitiveValue */
+/** @typedef {import('#primitive').BoxedPrimitive} BoxedPrimitive */
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 
@@ -343,7 +343,7 @@ export function isString(value) {
  * slot. `Object.is` is used in preference to `===` so that
  * `new Number(NaN)` is correctly admitted (`Object.is(NaN, NaN) === true`,
  * whereas `NaN === NaN` is `false`). The realm-fixed `objectIs` from
- * `@/config` is the capture.
+ * `#config` is the capture.
  *
  * @param {unknown} value - the value to test
  * @returns {boolean} `true` when `Object.is(unboxed, Number(value))`
@@ -365,7 +365,7 @@ export function doesHaveStrictUnboxedNumberValueEquality(value) {
  * Matches every numeric primitive — `NaN`, `±Infinity`, and finite
  * numbers alike. Finiteness, integrality, and safe-integer-range
  * checks are caller's concerns. Reach for `isFiniteNumberValue`,
- * `isIntegerValue`, or `isSafeIntegerValue` in `@/config` for those
+ * `isIntegerValue`, or `isSafeIntegerValue` in `#config` for those
  * (decision #026). Boxed `Number` objects, such as `new Number(42)`,
  * report `typeof === 'object'` and are deliberately excluded. Admitting
  * both forms requires {@link isNumber}. Discriminating the boxed form

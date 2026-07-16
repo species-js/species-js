@@ -29,7 +29,7 @@ import {
   isAbortError,
   isAlienRealmGenericError,
   isAlienRealmDOMException,
-} from '@/index.js';
+} from '#index';
 
 import {
   foreignError,

@@ -37,7 +37,7 @@ import {
   getInertPrototypeOf,
   getDefinedConstructor,
   objectCreate,
-} from '@/index.js';
+} from '#index';
 
 import {
   fullContract,

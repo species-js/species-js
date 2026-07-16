@@ -24,7 +24,7 @@ import {
   isAbortSignalLike,
   isAbortSignal,
   objectCreate,
-} from '@/index.js';
+} from '#index';
 
 import {
   tagSpoofedEventTarget,

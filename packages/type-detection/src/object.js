@@ -12,9 +12,9 @@
  * forms — the lodash-equivalent permissive semantic). The strict
  * predicates use cross-realm-safe machinery drawn from three modules:
  * `getOwnPropertyDescriptors` and the realm-fixed `objectPrototype` from
- * `@/config`; the throw-safe `getInertPrototypeOf`, `getInertDescriptor`, and
+ * `#config`; the throw-safe `getInertPrototypeOf`, `getInertDescriptor`, and
  * `getVerifiedOwnName`, plus `getTypeSignature` and `getDefinedConstructor`,
- * from `@/utility`; and `isCallable` and `isClass` from `@/function`. They
+ * from `#utility`; and `isCallable` and `isClass` from `#function`. They
  * discriminate the constructor identity realm-independently rather than via a
  * local `instanceof Object`, which would miss cross-realm Plain Objects. Every prototype and
  * descriptor read is throw-safe (the `getInert*` readers, and a guarded
@@ -27,27 +27,27 @@
  * parallel JSDoc.
  */
 
-import { TRUSTED_DATA_CONFIRMATION } from '@/foundation';
+import { TRUSTED_DATA_CONFIRMATION } from '#foundation';
 
-import { getOwnPropertyDescriptors, objectPrototype } from '@/config';
+import { getOwnPropertyDescriptors, objectPrototype } from '#config';
 import {
   getInertPrototypeOf,
   getInertDescriptor,
   getVerifiedOwnName,
   getTypeSignature,
   getDefinedConstructor,
-} from '@/utility';
+} from '#utility';
 
-import { isCallable, isClass } from '@/function.js';
+import { isCallable, isClass } from '#function';
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 
-/** @typedef {import('@/function').NewableFunction} NewableFunction */
+/** @typedef {import('#function').NewableFunction} NewableFunction */
 
-/** @typedef {import('@/object').AnyObject} AnyObject */
-/** @typedef {import('@/object').PlainObject} PlainObject */
-/** @typedef {import('@/object').DictionaryObject} DictionaryObject */
-/** @typedef {import('@/object').PlainOrDictionaryObject} PlainOrDictionaryObject */
+/** @typedef {import('#object').AnyObject} AnyObject */
+/** @typedef {import('#object').PlainObject} PlainObject */
+/** @typedef {import('#object').DictionaryObject} DictionaryObject */
+/** @typedef {import('#object').PlainOrDictionaryObject} PlainOrDictionaryObject */
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 //
@@ -153,7 +153,7 @@ const calibratedObjectPrototypeDescriptorNames = [];
  *
  * Calibrated lazily on first call and memoized — deliberately NOT at module
  * load. `object` participates in the `config → primitive → object → config`
- * import cycle, so touching the `@/config` captures (`getOwnPropertyDescriptors`,
+ * import cycle, so touching the `#config` captures (`getOwnPropertyDescriptors`,
  * `objectPrototype`) at module-evaluation time reads them before `config`
  * finishes initializing. Every other config consumer in the package dodges this
  * by reading captures only at call time; this helper follows the same rule.

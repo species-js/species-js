@@ -16,15 +16,15 @@
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 
-import { isCallable } from '@/function';
-import { isNumberValue } from '@/primitive';
+import { isCallable } from '#function';
+import { isNumberValue } from '#primitive';
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 
 /** @typedef {typeof import('./index').objectHasOwn} objectHasOwnProperty */
 /** @typedef {typeof import('./index').objectCreate} createCustomType */
 
-/** @typedef {import('@/object').DictionaryObject} DictionaryObject */
+/** @typedef {import('#object').DictionaryObject} DictionaryObject */
 
 /** @typedef {import('./index').BlankDictionary} BlankDictionary */
 /** @typedef {import('./index').BlankType} BlankType */
@@ -127,7 +127,7 @@ export const sealedDescriptorOptions = {
  * resolve through whatever `Object` happens to reference at that
  * moment, which the capture forecloses.
  *
- * Used as the local-realm fast-path target in `@/object`'s
+ * Used as the local-realm fast-path target in `#object`'s
  * `isPlainObject` and `isPlainOrDictionaryObject`, and as the root
  * from which {@link toObjectString} and the module-local
  * `hasOwnProperty` chain are extracted.
@@ -366,7 +366,7 @@ export const BLANK_TYPE = /** @type {BlankType} */ ({});
  * decision #060). Because its `prototype` is never touched,
  * `value instanceof INSTANCE_LESS_CONSTRUCTOR` is uniformly `false` without
  * throwing, so callers run `instanceof` against the realm-fixed reference
- * unguarded. It is cast to `NewableFunction` (the `@/config` `.d.ts` surface) so
+ * unguarded. It is cast to `NewableFunction` (the `#config` `.d.ts` surface) so
  * the plain function statement is accepted where a constructor reference is
  * expected.
  * @internal

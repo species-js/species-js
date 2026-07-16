@@ -27,7 +27,7 @@ import {
   getInertPrototypeOf,
   getDefinedConstructor,
   getVerifiedOwnName,
-} from '@/index.js';
+} from '#index';
 
 import {
   foreignPlainObject,

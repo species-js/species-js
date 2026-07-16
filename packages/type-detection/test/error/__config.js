@@ -27,7 +27,7 @@
  * Mirrors `docs/spec/ERROR.spec.md`.
  */
 
-import { objectCreate } from '@/index.js';
+import { objectCreate } from '#index';
 
 import { foreignRealmEval } from '../_cross-realm.js';
 

@@ -17,6 +17,9 @@
   "types": "./src/index.d.ts",
   "unpkg": "./dist/umd/index.umd.js",
   "jsdelivr": "./dist/umd/index.umd.js",
+  "imports": {
+    "#index": "./src/index.js"
+  },
   "exports": {
     ".": {
       "types": "./src/index.d.ts",

@@ -36,9 +36,9 @@ depend on these packages.
   signatures with JSDoc `@param name - desc` and `@returns desc` (description only, no
   inline type — the type is in the TS signature). Inline `/** @type {…} */ (expr)` casts
   in `.js` are the standard tool for type-narrowing and lib-gap acknowledgement (the
-  `objectHasOwn` pattern). Use `@typedef {import('@/module').Name} Name` at the top of
+  `objectHasOwn` pattern). Use `@typedef {import('#module').Name} Name` at the top of
   `.js` files to bring named types (a sibling `.d.ts` or another module) into JSDoc scope.
-  Like every module reference in the package, these use the `@/` alias.
+  Like every module reference in the package, these use the `#`-subpath scheme.
 - **`@internal` tag** — present in both files for non-public surface. Place it on its own
   line, **last** (after the description and any other tags), in both `.js` and `.d.ts`.
   Never put it first (the following description is then parsed as the tag's content →
@@ -80,11 +80,18 @@ depend on these packages.
 - **No commented-out code in committed files** — git history is the archive. If an
   alternative was deliberately rejected and is worth recording, capture it as prose in a
   JSDoc block or in SCAFFOLD.md, never as `//`-commented code.
-- **`@/` alias** — resolves to `src/` in each package (tsc paths + vite alias). Used
-  uniformly in **both** `.js` and `.d.ts` (imports and JSDoc `import()` specifiers); no
-  relative-path exception. A phantom `TS2307` on a `@/` import in a freshly-created
-  `.d.ts` is an IDE TS-server indexing artifact — tsc and vite resolve it — so restart the
-  TS service / re-index rather than switching to a relative path.
+- **`#`-subpath imports** — internal modules are referenced by `#<module>` specifiers
+  (`#function`, `#config`, …), declared in each package's `package.json` `imports` map and
+  resolving to `src/`. Used uniformly in **both** `.js` and `.d.ts` (imports and JSDoc
+  `import()` specifiers); no relative-path exception. Unlike a bundler / tsconfig alias,
+  the `imports` map ships inside `package.json`, so `#…` specifiers in shipped `.d.ts`
+  also resolve at a consumer's compiler (Node subpath imports; TS ≥ 5.4 under
+  `moduleResolution: bundler | nodenext`) — which a `@/`-style alias cannot, since it
+  lives only in this workspace's tsconfig/vite (ADR #071). The scheme mirrors the public
+  `exports` subpaths: `#foo` internal ↔ `/foo` external. A phantom `TS2307` on a `#…`
+  import in a freshly-created `.d.ts` is an IDE TS-server indexing artifact — tsc and vite
+  resolve it — so restart the TS service / re-index rather than switching to a relative
+  path.
 - **Per-domain barrel layout** — each package has `src/index.{js,d.ts}` plus sibling
   `name.{js,d.ts}` pairs (or `name/index.{js,d.ts}` for substantial subdomains); each
   subdomain gets its own subpath export. See `SCAFFOLD.md` → "Per-package subdomain

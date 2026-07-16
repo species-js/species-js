@@ -9,7 +9,7 @@
  * downstream packages that need the same cross-realm-safe primitives.
  */
 
-import { TRUSTED_DATA_CONFIRMATION } from '@/foundation';
+import { TRUSTED_DATA_CONFIRMATION } from '#foundation';
 
 import {
   BLANK_DICTIONARY,
@@ -20,24 +20,24 @@ import {
   getPrototypeOf as nativeGetPrototypeOf,
   objectHasOwn,
   toObjectString,
-} from '@/config';
+} from '#config';
 
 import {
   isStringValue,
   isNumberValue,
   isSymbolValue,
   unguardedIsUnregisteredSymbol,
-} from '@/primitive';
+} from '#primitive';
 
-import { isCallable, isFunction, isNewableFunction } from '@/function';
+import { isCallable, isFunction, isNewableFunction } from '#function';
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 
-/** @typedef {import('@/foundation').TRUSTED_DATA_CONFIRMATION} TRUSTED_DATA_CONFIRMATION_FLAG */
+/** @typedef {import('#foundation').TRUSTED_DATA_CONFIRMATION} TRUSTED_DATA_CONFIRMATION_FLAG */
 
-/** @typedef {typeof import('@/config').INSTANCE_LESS_CONSTRUCTOR} NEVER_INVOKED_CONSTRUCTOR */
+/** @typedef {typeof import('#config').INSTANCE_LESS_CONSTRUCTOR} NEVER_INVOKED_CONSTRUCTOR */
 
-/** @typedef {import('@/config').BlankDictionary} BlankDictionary */
+/** @typedef {import('#config').BlankDictionary} BlankDictionary */
 
 /** @typedef {import('./index').WeakKey} WeakKey */
 /** @typedef {import('./index').DefinedConstructorAccessorOptions} DefinedConstructorAccessorOptions */
@@ -49,11 +49,11 @@ import { isCallable, isFunction, isNewableFunction } from '@/function';
 /** @typedef {import('./index').TaggedType} TaggedType */
 /** @typedef {import('./index').ResolvedType} ResolvedType */
 
-/** @typedef {import('@/function').Callable} Callable */
+/** @typedef {import('#function').Callable} Callable */
 
-/** @typedef {import('@/function').NewableFunction} NewableFunction */
-/** @typedef {import('@/function').ES3Function} ES3Function */
-/** @typedef {import('@/function').ClassConstructor} ClassConstructor */
+/** @typedef {import('#function').NewableFunction} NewableFunction */
+/** @typedef {import('#function').ES3Function} ES3Function */
+/** @typedef {import('#function').ClassConstructor} ClassConstructor */
 
 /** @typedef {import('./index').PredicateFunction} PredicateFunction */
 
@@ -861,7 +861,7 @@ export function resolveType(...args) {
  * fails.
  *
  * The single, throw-safe capture helper behind the per-module realm-fixed
- * intrinsic pairs (e.g. `Promise` for `@/thenable`). It confirms `constructor`
+ * intrinsic pairs (e.g. `Promise` for `#thenable`). It confirms `constructor`
  * is newable via {@link isNewableFunction} and reads its own `prototype`
  * descriptor inertly (the raw walk, wrapped here in `try/catch`).
  *

@@ -20,14 +20,14 @@
  * structural-then-identity layering as their EventTarget counterparts.
  */
 
-import { TRUSTED_DATA_CONFIRMATION } from '@/foundation';
+import { TRUSTED_DATA_CONFIRMATION } from '#foundation';
 
 import {
   globalContext,
   getOwnPropertyDescriptors,
   getOwnPropertyNames,
   INSTANCE_LESS_CONSTRUCTOR,
-} from '@/config';
+} from '#config';
 
 import {
   isValueOfBoundSet,
@@ -38,20 +38,20 @@ import {
   getVerifiedOwnName,
   getDefinedConstructor,
   getValidatedStandardConstructorAndPrototypeTuple,
-} from '@/utility';
+} from '#utility';
 
-import { isCallable, isNewableFunction, isClass } from '@/function';
-import { isBooleanValue } from '@/primitive';
+import { isCallable, isNewableFunction, isClass } from '#function';
+import { isBooleanValue } from '#primitive';
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 
-/** @typedef {typeof import('@/config').INSTANCE_LESS_CONSTRUCTOR} NEVER_INVOKED_CONSTRUCTOR */
-/** @typedef {import('@/config').BlankDictionary} BlankDictionary */
+/** @typedef {typeof import('#config').INSTANCE_LESS_CONSTRUCTOR} NEVER_INVOKED_CONSTRUCTOR */
+/** @typedef {import('#config').BlankDictionary} BlankDictionary */
 
-/** @typedef {import('@/function').NewableFunction} NewableFunction */
+/** @typedef {import('#function').NewableFunction} NewableFunction */
 
-/** @typedef {import('@/evented').EventTargetLike} EventTargetLike */
-/** @typedef {import('@/evented').AbortSignalLike} AbortSignalLike */
+/** @typedef {import('#evented').EventTargetLike} EventTargetLike */
+/** @typedef {import('#evented').AbortSignalLike} AbortSignalLike */
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 

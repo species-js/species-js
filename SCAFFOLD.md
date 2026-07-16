@@ -48,13 +48,18 @@ Flags like `strictNullChecks`, `strictFunctionTypes`, `strictBindCallApply`,
 `declaration` and `declarationMap` are not set — both are implied by `noEmit: true` and
 would be vestigial.
 
-### `baseUrl` deprecation (TS 6 → TS 7)
+### Internal module resolution — `#`-subpath imports (no `baseUrl`)
 
-TS 6 deprecates `baseUrl` (removal in TS 7). The `@/*` path alias requires `baseUrl` +
-`paths`. We suppress the deprecation via `ignoreDeprecations: "6.0"` in the base tsconfig.
-This buys time until TS 7, at which point the migration path is Node subpath imports
-(`"imports"` in `package.json` with `#` prefix) or dropping the alias in favour of
-relative paths.
+Internal cross-module references use Node subpath imports — `#<module>` specifiers
+declared in each package's `package.json` `imports` map, resolving to `src/` — rather than
+a tsconfig `@/*` path alias (ADR #071). This needs neither `baseUrl` nor `paths`, so it
+sidesteps the TS 6 `baseUrl` deprecation / TS 7 removal outright (the base tsconfig no
+longer carries `ignoreDeprecations`). It also fixes delivery: the `imports` map ships
+inside `package.json`, so the `#…` specifiers in the shipped `src/*.d.ts` resolve at a
+consumer's compiler — whereas a `@/` alias, which lives only in this workspace's
+tsconfig + vite, produced `TS2307` at every consumer. `moduleResolution: "bundler"` (base
+tsconfig) reads the `imports` map; the scheme mirrors the public `exports` subpaths
+(`#foo` internal ↔ `/foo` external).
 
 ### Per-package tsconfig — `.js`-only include, no `files` array
 
@@ -63,7 +68,7 @@ Each package's `tsconfig.json` includes `.js` files only and declares no `files`
 ```json
 {
   "extends": "../../tsconfig.base.json",
-  "compilerOptions": { "rootDir": ".", "baseUrl": ".", "paths": { "@/*": ["src/*"] } },
+  "compilerOptions": { "rootDir": "." },
   "include": ["src/**/*.js", "test/**/*.js", "vite.config.js"]
 }
 ```
