@@ -94,12 +94,20 @@ Most of the house style lives in `CLAUDE.md`; these few bite immediately:
   contract. There is no build step turning `.ts` into `.js`. If your instinct is "why
   isn't this TypeScript?", read the SCAFFOLD rationale before fighting it — it's
   deliberate, and both files must stay in sync (every export documented in both).
-- **Import from the barrel `@/index.js`, never a module file directly.** A direct
-  `@/<module>.js` import can trip a load-order cycle and fail at init with
-  `getOwnPropertyDescriptor is not a function`. Tests import predicates through
-  `@/index.js` for the same reason.
-- **`@/` resolves to `src/`** in every package (tsc paths + vite alias), used uniformly in
-  both `.js` and `.d.ts`.
+- **Direct subpath entries are safe — and guarded.** Loading a module file directly
+  (rather than through the `#index` barrel) used to risk a load-order crash from the
+  `config ↔ function ↔ utility` import cycle; that hazard was dissolved by the import-free
+  `foundation` leaf (ADR #070) and is now permanently pinned by the entry-point arena
+  (`test/entry-arena.test.js`), which loads every published subpath as its own entry on
+  every run. Prefer the barrel in tests as the house default (see
+  [Testing model](#testing-model)) — but if a direct entry ever fails again, that is an
+  arena regression, not a you-problem: report it.
+- **Internal imports use `#` subpath specifiers** (`#function`, `#utility`, …), declared
+  in each package's `package.json` `imports` map and used uniformly in both `.js` and
+  `.d.ts`. The map ships with the package, so the same specifier resolves for Node, for
+  the bundler, and — critically — for a consumer's compiler reading the shipped
+  declarations (ADR #071). Do not introduce tsconfig-only aliases (`@/`-style): they
+  resolve only inside this workspace and break at the consumer's side.
 - **ES2020 runtime floor.** No ES2021+ runtime APIs (`Object.hasOwn`,
   `Array.prototype.at`, `String.prototype.replaceAll`, …). Syntax is lowered by the
   bundler; runtime APIs are not.
@@ -114,8 +122,12 @@ Work on a module follows a repeatable loop — it is what keeps the docs and tes
 2. **Derive the spec from the code.** Write `docs/spec/<MODULE>.spec.md` to describe what
    the implementation actually does — what it _admits_, _rejects_, and deliberately
    _refuses to claim_ — as concrete, ID'd vectors.
-3. **Harden in rounds.** Bidirectional passes between spec and code, each surfacing
-   imprecision in one or the other.
+3. **Harden in rounds — then freeze.** Bidirectional passes between spec and code, each
+   surfacing imprecision in one or the other. A module's rounds end in an explicit **spec
+   freeze**: from that point the spec is the fixed oracle — tests derive from it and the
+   code answers to it, never the reverse. The freeze is what keeps spec-derived-from-code
+   from collapsing into test-derived-from-implementation; without it, step 4's warning
+   about the tautology trap applies to the spec itself.
 4. **Add tests that were NOT derived from the spec.** Adversarial, real-world, and
    cross-realm vectors that try to _break_ the implementation from angles the spec didn't
    anticipate. This pairing is essential: a spec derived from code, tested only by tests
@@ -150,13 +162,18 @@ the "why does my small PR feel incomplete?" answer, made explicit.
 Tests derive from **specification**, not implementation, and full coverage of a module
 comes from several axes (defined in `packages/<pkg>/docs/spec/README.md`):
 
-| Axis            | Question                                                          | Source                                        |
-| --------------- | ----------------------------------------------------------------- | --------------------------------------------- |
-| Spec / contract | Does the predicate honour its documented contract?                | `spec/<MODULE>.spec.md`                       |
-| Cross-realm     | Do the claims hold for foreign-realm values (`vm`/iframe/worker)? | the spec's per-predicate expectation          |
-| Adversarial     | Does it resist spoofs _and_ stay throw-safe on every path?        | spoof vectors + the throw-safety invariant    |
-| Helper-unit     | Does each `@internal` helper do its isolated job?                 | the implementation's helper inventory         |
-| Coverage        | Does every branch execute?                                        | the V8 report (a gate, not an authored suite) |
+| Axis            | Question                                                                                                                                                               | Source                                                                           |
+| --------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| Spec / contract | Does the predicate honour its documented contract?                                                                                                                     | `spec/<MODULE>.spec.md`                                                          |
+| Cross-realm     | Do the claims hold for foreign-realm values (`vm`/iframe/worker)?                                                                                                      | the spec's per-predicate expectation                                             |
+| Adversarial     | Does it resist spoofs _and_ stay throw-safe on every path?                                                                                                             | spoof vectors + the throw-safety invariant                                       |
+| Helper-unit     | Does each `@internal` helper do its isolated job?                                                                                                                      | the implementation's helper inventory                                            |
+| Delivery        | Does the package _arrive_? Every published subpath loads as its own entry, and the shipped `.d.ts` resolve under a consumer's compiler — no workspace config in scope. | `test/entry-arena.test.js` + `test/consumer-resolution.test.js` (ADRs #070/#071) |
+| Coverage        | Does every branch execute?                                                                                                                                             | the V8 report (a gate, not an authored suite)                                    |
+
+The first four axes interrogate the code's _behaviour_; Delivery interrogates its
+_arrival_. Both delivery fixtures derive their entry set from `exports`, so a newly
+published subpath is covered automatically — you don't wire it up.
 
 Where a module fits it, the suite is **config-driven**, one folder per module:
 
@@ -184,7 +201,10 @@ test/<module>/
   `DOMException`) are not ECMAScript intrinsics, so a bare `vm` realm can't construct them
   — those vectors use _foreign synthetics_ (a foreign class carrying the right shape).
   Real intrinsics (`Error`, `Promise`) can be constructed foreign directly.
-- **Import predicates from `@/index.js`** in tests (the barrel), never a module file.
+- **Import predicates from `#index`** in tests (the barrel) — the house default, so
+  behavioural suites exercise the surface consumers import. The one designed exception is
+  the delivery axis: `entry-arena.test.js` loads subpaths directly _on purpose_ — its job
+  is the raw entry, and routing it through the barrel would test nothing.
 
 ## Before you open a PR — the verification checklist
 
@@ -208,6 +228,12 @@ project's standing pre-submission gauntlet, in short form):
    each build and test green on their own; resolve any `TODO` markers before committing.
 7. **The full package suite is green** — `pnpm --filter @species-js/<pkg> run test`, not
    just the file you touched. A change can have blast radius beyond its module.
+8. **The delivery axis is green.** `entry-arena.test.js` and `consumer-resolution.test.js`
+   pass — every published subpath loads as its own entry and every shipped declaration
+   resolves from a consumer's position. If you added or renamed a subpath, both fixtures
+   pick it up from `exports` automatically; a failure here means the package's _arrival_
+   broke, however green its behaviour is. This project shipped-in-theory twice before this
+   axis existed (ADRs #070/#071) — the checklist remembers so you don't have to.
 
 ## Design decisions
 

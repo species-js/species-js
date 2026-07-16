@@ -28,21 +28,26 @@ A module's spec is the source of truth for **one** test axis. Full coverage of a
 implemented module comes from several accompanying axes, each answering a different
 question and drawing from a different source:
 
-| Axis | Suite                         | Question it answers                                                    | Source of truth                                                                                              |
-| ---- | ----------------------------- | ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
-| 1    | **Spec / contract**           | Does the public predicate honor its documented contract?               | `spec/<MODULE>.spec.md` (this directory)                                                                     |
-| 2    | **Cross-realm**               | Do the same claims hold for foreign-realm values (`vm`/iframe/worker)? | the spec's per-predicate _cross-realm expectation_, re-verified through the realm-fixture harness            |
-| 3    | **Adversarial / smart-alien** | Does it resist spoofs _and_ stay throw-safe on every path?             | the spec's _spoof-resistance_ vectors + the _throw-safety invariant_ (exhaustive hostile × predicate matrix) |
-| 4    | **Helper-unit**               | Does each `@internal` helper do its isolated job?                      | the implementation's helper inventory (white-box)                                                            |
-| 5    | **Coverage-completeness**     | Does every branch actually execute?                                    | the V8 coverage report, ratcheted                                                                            |
+| Axis | Suite                         | Question it answers                                                                                                                                                       | Source of truth                                                                                              |
+| ---- | ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| 1    | **Spec / contract**           | Does the public predicate honor its documented contract?                                                                                                                  | `spec/<MODULE>.spec.md` (this directory)                                                                     |
+| 2    | **Cross-realm**               | Do the same claims hold for foreign-realm values (`vm`/iframe/worker)?                                                                                                    | the spec's per-predicate _cross-realm expectation_, re-verified through the realm-fixture harness            |
+| 3    | **Adversarial / smart-alien** | Does it resist spoofs _and_ stay throw-safe on every path?                                                                                                                | the spec's _spoof-resistance_ vectors + the _throw-safety invariant_ (exhaustive hostile × predicate matrix) |
+| 4    | **Helper-unit**               | Does each `@internal` helper do its isolated job?                                                                                                                         | the implementation's helper inventory (white-box)                                                            |
+| 5    | **Delivery**                  | Does the package _arrive_? Every published subpath loads as its own entry, and the shipped `.d.ts` resolve under a consumer's compiler with no workspace config in scope. | `test/entry-arena.test.js` + `test/consumer-resolution.test.js` (package-level; ADRs #070/#071)              |
+| 6    | **Coverage-completeness**     | Does every branch actually execute?                                                                                                                                       | the V8 coverage report, ratcheted                                                                            |
 
 The load-bearing point: **axes 2 and 3 are still spec claims** — cross-realm independence
 and spoof-resistance are behavioral guarantees, so the spec carries the _expectations_;
 the harnesses are merely the _mechanism_ for exercising them. **Axis 4 is the one
 genuinely implementation-derived suite** — it tests the orchestrator / helper / sub-helper
 decomposition, and it is where the cross-realm code path gets unit coverage without an
-iframe (the shape/contract helpers _are_ the cross-realm path). **Axis 5 is a gate, not an
-authored suite.**
+iframe (the shape/contract helpers _are_ the cross-realm path). **Axis 5 (Delivery)
+interrogates the package's _arrival_, not a predicate's behavior** — that every published
+entry point loads and every shipped declaration resolves at a consumer. It is
+package-level (one pair of fixtures at `test/` root, derived from `exports`), not per
+module, and it guards the two failure modes that shipped-in-theory before it existed (#070
+/ #071). **Axis 6 is a gate, not an authored suite.**
 
 Each spec section is therefore tagged with the axis (or axes) its vectors feed, so the
 test round knows which suite consumes it.
@@ -171,9 +176,12 @@ spec-writing phase (the test-green close comes later, at axis-1 generation).
 - Test files (test round): TBD with the spec owner — expected `test/<module>.test.js` per
   module, mirroring the source layout, so the axis suites can fan out per module.
 - Axis suites import predicates through the `#index` barrel, not the module file directly
-  — the barrel orders its re-exports so the `config ↔ function` load-order cycle resolves.
-  A direct `#<module>` import throws `getOwnPropertyDescriptor is not a function` at
-  module init. Confirmed during the thenable decidability check.
+  — the barrel is the curated public surface. A direct `#<module>` import once tripped the
+  `config ↔ function` load-order cycle at init
+  (`getOwnPropertyDescriptor is not a function`); that cycle is dissolved (ADR #070) and
+  every published subpath is proven to load clean as its own entry by
+  `test/entry-arena.test.js`, so the barrel convention is no longer crash-avoidance. The
+  delivery-seam fixtures load subpaths directly by design.
 
 ## Status
 
