@@ -307,9 +307,12 @@ returning the first descriptor found. Getter never invoked. The **raw** form (no
 - `gNAPD/B1` — `({ get x() { throw new Error('boom'); } }, 'x')` → the accessor descriptor
   returned as-is, **without throwing** (the getter is not invoked — the inert guarantee).
 - `gNAPD/R1` — `({}, 'nonexistent')` → `undefined` (chain exhausted).
-- `gNAPD/R2` — `({ a: 1 }, 1.5)` / `({ a: 1 }, {})` → `undefined` (invalid key
-  short-circuits before any walk; note `1.5` IS a valid key per #072, so this vector uses
-  a genuinely invalid key such as `{}`; a numeric non-key is no longer available).
+- `gNAPD/R2` — `({ a: 1 }, {})` → `undefined`: a non-`PropertyKey` fails the
+  `isValidPropertyKey` guard and short-circuits before any walk. Contrast
+  `({ a: 1 }, 1.5)` → also `undefined`, but `1.5` IS a valid key per ADR #072 (finite
+  number), so it resolves via chain-exhaustion, NOT the guard — a distinct path with the
+  same result. Both are asserted (the former pins the guard, the latter the #072 seam); a
+  numeric non-key is no longer available.
 - `gNAPD/R3` — `(null, 'x')` → `undefined` (the `value = null` default + loop guard).
 
 **Throws (not throw-safe):** the `getSafePrototypeOf` step is absorbed, but the own
@@ -504,8 +507,9 @@ string primitive. Own-only (no chain walk; `getVerifiedNextAvailableName` reserv
 `@@throw-safe`.
 
 - `gVON/A1` — `function foo() {}` → `'foo'`; `class Bar {}` → `'Bar'` (own `name` string).
-- `gVON/A2` — `new Function()` / anonymous `(function () {})` → `''` (own `name` is the
-  empty string — a real string; pin this).
+- `gVON/A2` — an anonymous function expression `(function () {})` → `''` (own `name` is
+  the empty string — a real string; pin this). `new Function()` is NOT empty: its own
+  `name` is `'anonymous'` (also a real string), so it returns `'anonymous'`, not `''`.
 - `gVON/R1` — a value whose `name` is an accessor (`get name()`) → `undefined` (descriptor
   `value` is undefined; the getter is never invoked).
 - `gVON/R2` — a value whose own `name` is a non-string (`{ value: 123 }`) → `undefined`

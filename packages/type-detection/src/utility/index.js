@@ -230,7 +230,8 @@ export function hasOwnPrototype(value) {
  * reads the descriptor's `writable` field, requiring it to be `true`.
  *
  * This is the structural tell of an {@link ES3Function} versus a
- * {@link ClassConstructor}, whose own `prototype` is read-only.
+ * {@link ClassConstructor}, whose own `prototype` is read-only; its exact
+ * complement is {@link hasOwnNonWritablePrototype}.
  *
  * @param {unknown} [value] - the value to test; omitted is treated as
  *  `undefined`, which has no own prototype
@@ -325,6 +326,9 @@ export function isValidPropertyKey(value) {
  *  omitted) yields `[]`
  * @returns {(string | symbol)[]} the own string and symbol keys; an empty array
  *  when there are none
+ * @throws {unknown} when a hostile `Proxy` `ownKeys` trap throws — the raw form
+ *  leaves the enumeration unguarded; {@link getSafeOwnPropertyKeys} is the
+ *  throw-safe twin
  */
 export function getOwnPropertyKeys(value) {
   value = value ?? !0;

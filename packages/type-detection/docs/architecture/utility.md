@@ -23,13 +23,30 @@ oracle). The helpers compose into the predicates the type-domain modules export.
 module sits below every domain in the dependency graph and carries no domain-specific
 knowledge of its own.
 
+## Own-`prototype` predicates
+
+Three throw-safe predicates read a value's own `prototype` descriptor — never the
+inheritance chain — to answer the ES3-function-versus-class question structurally.
+`hasOwnPrototype` reports whether an own `prototype` descriptor exists at all (an arrow
+function, whose `prototype` is inherited from `Function.prototype`, answers `false`).
+`hasOwnWritablePrototype` and `hasOwnNonWritablePrototype` are the exact complements over
+values that own one: an `ES3Function`'s own `prototype` is `writable: true`, a
+`ClassConstructor`'s (custom or built-in) is `writable: false` — the sole spec-given
+discriminator between the two. A value with no own `prototype` answers `false` to both (a
+missing descriptor's `?.writable` is `undefined`, matching neither).
+
+These are the structural tells that `#function`'s `isES3Function` (→
+`hasOwnWritablePrototype`) and `isClass` (→ `hasOwnNonWritablePrototype`) delegate to.
+Like every read here the descriptor access is throw-safe: nullish input and a hostile
+`getOwnPropertyDescriptor` trap alike yield `false`, never a throw.
+
 ## Type Resolution
 
 `resolveType` is the single public composer of the constructor-name and the tagged-type
 signals. It codifies a two-axis dispatch rule.
 
 **Axis 1 — PascalCase-leading constructor name wins outright.** Checked via the
-module-local `startsWithUpperCase = /^\p{Lu}/u` regex. Every built-in and every
+module-local `regXStartsWithUpperCase = /^\p{Lu}/u` regex. Every built-in and every
 well-written user class carries a Unicode uppercase-leading name; when present, it is the
 most precise type signal available and the tag is not consulted.
 

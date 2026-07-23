@@ -264,7 +264,8 @@ export function hasOwnPrototype(value?: unknown): boolean;
  * descriptor is `writable: true`.
  *
  * This is the structural tell of an `ES3Function` versus a
- * `ClassConstructor`, whose own `prototype` is read-only.
+ * `ClassConstructor`, whose own `prototype` is read-only; its exact complement
+ * is {@link hasOwnNonWritablePrototype}.
  *
  * Throw-safe: nullish input and a hostile descriptor trap both yield `false`
  * rather than throwing.
@@ -336,6 +337,8 @@ export function isValidPropertyKey(value?: unknown): value is PropertyKey;
  * @param value - the value whose own keys to collect; nullish (or omitted)
  *  yields `[]`
  * @returns the own string and symbol keys; an empty array when there are none
+ * @throws when a hostile `Proxy` `ownKeys` trap throws — the raw form leaves the
+ *  enumeration unguarded; {@link getSafeOwnPropertyKeys} is the throw-safe twin
  */
 export function getOwnPropertyKeys(value?: unknown): (string | symbol)[];
 
@@ -690,9 +693,9 @@ export function getTaggedType(): undefined;
  *
  * Two-stage walk:
  *
- * 1. {@link getNextAvailablePropertyDescriptor} on the pivot finds the
- *    first `constructor` descriptor along its `[[Prototype]]` chain.
- *    For the common case, the descriptor's value is a function, returned
+ * 1. {@link getNextAvailableSafeDescriptor} (the throw-safe descriptor walk) on
+ *    the pivot finds the first `constructor` descriptor along its `[[Prototype]]`
+ *    chain. For the common case, the descriptor's value is a function, returned
  *    directly.
  * 2. For the generator-function family, the first walk lands on a
  *    `constructor` descriptor whose value is itself an OBJECT, not a
