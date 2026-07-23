@@ -52,7 +52,7 @@ to, and the throw-safe reader each routes through:
 
 - **prototype-trap** (a `Proxy` whose `getPrototypeOf` throws) → the `try/catch` in
   `isCurrentRealm{EventTarget,AbortSignal}Instance` (the `instanceof` walk, #060) and the
-  strict-tier `getInertPrototypeOf`;
+  strict-tier `getSafePrototypeOf`;
 - **descriptor-trap** (a `Proxy` whose `getOwnPropertyDescriptor` throws — on a pivoted
   `[[Prototype]]` or a hostile `constructor`) → `getInertDescriptor`,
   `getDefinedConstructor`, `getVerifiedOwnName`, and `isClass` (each throw-safe at its own
@@ -171,7 +171,7 @@ Subclass-admitting (bare `instanceof`, no proto-identity).
 ## `isEventTarget`
 
 `isEventTarget(value?: unknown): value is EventTarget` (non-generic, #062) Composition:
-`const proto = getInertPrototypeOf(value); !!proto && (isCurrentRealmEventTargetInstance(value) ? proto === eventTargetPrototype && doesNotShadowEventTargetContract(value) : EventTargetConstructor !== INSTANCE_LESS_CONSTRUCTOR && isAlienRealmEventTarget(value, proto))`
+`const proto = getSafePrototypeOf(value); !!proto && (isCurrentRealmEventTargetInstance(value) ? proto === eventTargetPrototype && doesNotShadowEventTargetContract(value) : EventTargetConstructor !== INSTANCE_LESS_CONSTRUCTOR && isAlienRealmEventTarget(value, proto))`
 Spec basis: `EventTarget` identity — two-axis dispatch (#050) lifted to cross-realm
 prototype-equivalence (#054 / #061), subclass rejection (#028), own-level contract-shadow
 rejection (#063).
@@ -219,7 +219,7 @@ signal gate rejects tag/name claimants, and `isEventTargetPrototypeEquivalent`
 (constructor is-a-class, prototype tag, `constructor.prototype === prototype` round-trip,
 own-descriptor method contract) rejects a plain object carrying the right tag + name +
 method-names but not the real prototype shape (decision #061). **Composition note (axis
-4):** prototype resolved once via `getInertPrototypeOf` and threaded (#059); two-axis
+4):** prototype resolved once via `getSafePrototypeOf` and threaded (#059); two-axis
 ternary over `isCurrentRealmEventTargetInstance`; local arm
 `prototype === eventTargetPrototype && doesNotShadowEventTargetContract(value)` (the
 own-shadow gate, #063); cross-realm arm `isAlienRealmEventTarget` guarded by
@@ -313,7 +313,7 @@ Subclass-admitting.
 ## `isAbortSignal`
 
 `isAbortSignal(value?: unknown): value is AbortSignal` (non-generic, #062) Composition:
-`const proto = getInertPrototypeOf(value); !!proto && (isCurrentRealmAbortSignalInstance(value) ? proto === abortSignalPrototype && doesNotShadowAbortSignalContract(value) : AbortSignalConstructor !== INSTANCE_LESS_CONSTRUCTOR && isAlienRealmAbortSignal(value, proto))`
+`const proto = getSafePrototypeOf(value); !!proto && (isCurrentRealmAbortSignalInstance(value) ? proto === abortSignalPrototype && doesNotShadowAbortSignalContract(value) : AbortSignalConstructor !== INSTANCE_LESS_CONSTRUCTOR && isAlienRealmAbortSignal(value, proto))`
 Spec basis: `AbortSignal` identity — two-axis dispatch (#050) lifted to cross-realm
 prototype-equivalence (#054 / #061), subclass rejection (#028), own-level contract-shadow
 rejection (#063; denylist a superset of EventTarget's).
@@ -355,8 +355,8 @@ rejection (#063; denylist a superset of EventTarget's).
 `isAbortSignalPrototypeEquivalent` — additionally invoking the prototype's `aborted`
 getter with the real receiver (`try/catch`-guarded, #029) and requiring the
 readonly-accessor shape (getter, no setter) the Like tier does not. **Composition note
-(axis 4):** prototype resolved once via `getInertPrototypeOf` and threaded (#059);
-two-axis ternary over `isCurrentRealmAbortSignalInstance`; local arm
+(axis 4):** prototype resolved once via `getSafePrototypeOf` and threaded (#059); two-axis
+ternary over `isCurrentRealmAbortSignalInstance`; local arm
 `prototype === abortSignalPrototype && doesNotShadowAbortSignalContract(value)` (the
 own-shadow gate, #063); cross-realm arm `isAlienRealmAbortSignal` guarded by
 `AbortSignalConstructor !== INSTANCE_LESS_CONSTRUCTOR`.

@@ -100,7 +100,7 @@ the child node instead aligns only for a direct `new Error()` and silently misse
 subclass level (`TypeError`, `class X extends Error`) whose chain reaches the realm's
 `Error.prototype`. The DOMException walk threads the ORIGINAL root `value` — never the
 walked node — as the receiver for the spec getters, for the same throw-on-wrong-receiver
-reason the capture does. Both walks are throw-safe throughout (`getInertPrototypeOf`,
+reason the capture does. Both walks are throw-safe throughout (`getSafePrototypeOf`,
 `getInertDescriptor`).
 
 ## The stack-capability machinery — the polyfill's `[[ErrorData]]` proxy (decision #066)

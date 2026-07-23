@@ -29,11 +29,17 @@
  * the load-bearing reason callers reach for this helper, so stripping the
  * markers would defeat the purpose.
  *
+ * Throw-safe: even a genuine callable can make `Function.prototype.toString`
+ * throw (a revoked callable `Proxy`, a hostile subclass), so the return type
+ * widens to `| undefined` — that `undefined` is intrinsic to the capture, not
+ * a symptom of a non-function argument.
+ *
  * @param value - the function whose source should be read
- * @returns the function's source as a trimmed string
+ * @returns the function's source as a trimmed string; `undefined` when the
+ *  realm-fixed `toString` throws
  * @internal
  */
-export function getFunctionSource(value: Callable): string;
+export function getFunctionSource(value: Callable): string | undefined;
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 //
@@ -476,15 +482,15 @@ export function isES3Function<T = unknown>(value?: T): value is T & ES3Function;
  * Bound class constructors are deliberately rejected. Though they remain
  * newable, `bind` has stripped the own `prototype` slot from the bound
  * result. What remains is no longer a class shape.
- * The descriptor read returns `undefined` and `undefined?.writable === false`
- * short-circuits to `false`. The {@link NewableFunction} gate still admits
- * bound newables; this guard does not.
+ * With no own `prototype` descriptor, `hasOwnNonWritablePrototype` returns
+ * `false`. The {@link NewableFunction} gate still admits bound newables;
+ * this guard does not.
  *
- * Throw-safe: the `prototype` descriptor read routes through the throw-safe
- * `getInertDescriptor`, so a hostile `getOwnPropertyDescriptor` Proxy-trap on
- * `value` yields `undefined` (→ `false`) rather than propagating — extending
- * the decision #056 constructor-resolution throw-safety to `isClass` and every
- * consumer (notably the cross-realm `#object` plain-object contract).
+ * Throw-safe: the own `prototype` descriptor read routes through the throw-safe
+ * `hasOwnNonWritablePrototype`, so a hostile `getOwnPropertyDescriptor` Proxy-trap on
+ * `value` yields `false` rather than propagating — extending the decision #056
+ * constructor-resolution throw-safety to `isClass` and every consumer (notably
+ * the cross-realm `#object` plain-object contract).
  *
  * Generic in `T` per the family-pattern. The narrow returns
  * `T & ClassConstructor`. `T = unknown` collapses to `ClassConstructor`.

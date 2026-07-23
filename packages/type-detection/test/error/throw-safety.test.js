@@ -15,7 +15,7 @@
  * error's hostile set is re-derived from its own read surface. The PUBLIC-reachable
  * throw-surfaces:
  *   - prototype-trap — a `getPrototypeOf` Proxy-trap that throws (hits both the
- *     `instanceof` walk in isCurrentRealm*Instance and the alien `getInertPrototypeOf`).
+ *     `instanceof` walk in isCurrentRealm*Instance and the alien `getSafePrototypeOf`).
  *   - descriptor-trap — a value over a `[[Prototype]]` whose
  *     `getOwnPropertyDescriptor` throws (the alien-walk constructor read + the
  *     DOMException `hasInertGetter` reads).

@@ -13,7 +13,7 @@
  *
  * evented's hostile set is re-derived from its own read surface (it differs from
  * object's — evented reaches the `instanceof` prototype-walk, the strict-tier
- * `getInertPrototypeOf` resolve, the constructor-walk descriptor reads, and —
+ * `getSafePrototypeOf` resolve, the constructor-walk descriptor reads, and —
  * AbortSignal-only — the `aborted` getter):
  *   - prototype-trap — a `getPrototypeOf` Proxy-trap that throws (hits both the
  *     Like-tier `instanceof` walk and the strict-tier prototype resolve).

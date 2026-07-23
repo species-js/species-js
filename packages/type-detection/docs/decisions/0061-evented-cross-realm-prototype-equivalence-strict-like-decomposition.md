@@ -15,7 +15,7 @@ for the strict tier, and that it is exactly what the lenient Like tier needs.
 EventTarget and AbortSignal, and decompose each predicate into two tiers.
 
 - **Strict** (`isEventTarget` / `isAbortSignal`): resolve the prototype once via
-  `getInertPrototypeOf` (#059 threading), then a local-realm fast-path
+  `getSafePrototypeOf` (#059 threading), then a local-realm fast-path
   (`isCurrentRealm*Instance` + `prototype === Xprototype`) OR a cross-realm arm
   `isAlienRealmX` = `hasXIdentitySignal` (tag + threaded constructor-name front-gate) AND
   `isXPrototypeEquivalent` (`constructor` is a class + tag + constructor `prototype`

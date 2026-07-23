@@ -1,7 +1,10 @@
 /**
  * @module @species-js/type-detection/utility
  *
- * Cached prototype references and type-signature helpers.
+ * Cross-realm-safe, throw-safe primitives for runtime type inspection: weak-key
+ * and property-key validation, throw-safe prototype and descriptor reads, own
+ * `prototype`-property predicates, type-signature and tag readers, tamper-resistant
+ * constructor inspection, type-name resolution, and standard-constructor validation.
  *
  * Used internally by the package's predicates and exposed via subpath for
  * downstream packages that need the same cross-realm-safe primitives.
@@ -67,6 +70,43 @@ export interface DefinedConstructorAccessorOptions {
    */
   assumePrototype?: boolean;
 }
+
+// ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
+//
+//  Function Types
+//
+// ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
+
+/**
+ * A non-narrowing boolean predicate over its arguments — the shape of the
+ * package's structural contract checks (`doesImplement…Contract`, the
+ * `has…Shape` helpers, `hasConstructSlot`): it answers a yes/no question and
+ * returns a plain `boolean`, narrowing nothing.
+ *
+ * Generic in the argument tuple, defaulting to `unknown[]` per the package's
+ * `unknown`-over-`any` discipline: the arguments are a rest list, so a nullary,
+ * unary, or n-ary predicate is equally assignable and arity is never the
+ * limiting factor. A caller may pin the exact tuple when useful
+ * (e.g. `PredicateFunction<[unknown, unknown]>` for a two-argument gate); the
+ * default `unknown[]` accepts any arity. Because a rest of `unknown` is the
+ * strictest target under `strictFunctionTypes` (each parameter position is
+ * contravariant), a predicate assigned here must itself accept `unknown` at
+ * every parameter — the injected contract predicates therefore type their
+ * parameters `unknown`, narrowing internally.
+ *
+ * Distinct from a narrowing type-guard (`(value?: T) => value is T & X`):
+ * that carries a `value is …` predicate and cannot collapse into one reusable
+ * alias, because the narrowed target `X` differs per guard. `PredicateFunction`
+ * is the right type for a predicate passed as a value — e.g. the
+ * `doesPassAsConstructorPrototype` callback injected into
+ * {@link getValidatedStandardConstructorAndPrototypeTuple}.
+ *
+ * @typeParam T - the argument tuple; defaults to `unknown[]`, i.e. any arity of
+ *  `unknown`-typed arguments
+ */
+export type PredicateFunction<T extends unknown[] = unknown[]> = (
+  ...values: T
+) => boolean;
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 //
@@ -147,88 +187,11 @@ export function isValueOfBoundSet(this: ReadonlySet<unknown>, value: unknown): b
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 //
-//  Function Types
-//
-// ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
-
-/**
- * A non-narrowing boolean predicate over its arguments — the shape of the
- * package's structural contract checks (`doesImplement…Contract`, the
- * `has…Shape` helpers, `hasConstructSlot`): it answers a yes/no question and
- * returns a plain `boolean`, narrowing nothing.
- *
- * Generic in the argument tuple, defaulting to `unknown[]` per the package's
- * `unknown`-over-`any` discipline: the arguments are a rest list, so a nullary,
- * unary, or n-ary predicate is equally assignable and arity is never the
- * limiting factor. A caller may pin the exact tuple when useful
- * (e.g. `PredicateFunction<[unknown, unknown]>` for a two-argument gate); the
- * default `unknown[]` accepts any arity. Because a rest of `unknown` is the
- * strictest target under `strictFunctionTypes` (each parameter position is
- * contravariant), a predicate assigned here must itself accept `unknown` at
- * every parameter — the injected contract predicates therefore type their
- * parameters `unknown`, narrowing internally.
- *
- * Distinct from a narrowing type-guard (`(value?: T) => value is T & X`):
- * that carries a `value is …` predicate and cannot collapse into one reusable
- * alias, because the narrowed target `X` differs per guard. `PredicateFunction`
- * is the right type for a predicate passed as a value — e.g. the
- * `doesPassAsConstructorPrototype` callback injected into
- * {@link getValidatedStandardConstructorAndPrototypeTuple}.
- *
- * @typeParam T - the argument tuple; defaults to `unknown[]`, i.e. any arity of
- *  `unknown`-typed arguments
- */
-export type PredicateFunction<T extends unknown[] = unknown[]> = (
-  ...values: T
-) => boolean;
-
-// ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
-//
-//  Standard-Constructor Validation
-//
-// ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
-
-/**
- * Validates a standard built-in constructor and returns its realm-fixed
- * `[constructor, prototype]` tuple, or an inert surrogate tuple when validation
- * fails.
- *
- * The single, throw-safe capture helper behind the per-module realm-fixed
- * intrinsic pairs (e.g. `Promise` for `#thenable`). It confirms `constructor`
- * is newable and reads its own `prototype` inertly. It accepts the pair only
- * when the prototype satisfies the injected `doesPassAsConstructorPrototype`
- * predicate and, for a non-`null` prototype, reciprocally back-references the
- * constructor (`prototype.constructor === constructor`) — the tamper-resistant
- * identity check. A `null` prototype has no `constructor` to reciprocate, so it
- * rests on the predicate alone (the `null` arm of the returned prototype slot).
- *
- * On any failure — a non-newable constructor, a rejected prototype predicate, a
- * broken back-reference, or a throwing descriptor/accessor — it returns the
- * TOTAL inert surrogate `[INSTANCE_LESS_CONSTRUCTOR, BLANK_DICTIONARY]` rather
- * than an empty tuple: a never-instantiated function whose `prototype` makes
- * `instanceof` uniformly `false`, paired with an empty prototype-less
- * dictionary. Every caller can therefore destructure both slots and use the
- * constructor directly with `instanceof` — no per-caller presence guard.
- *
- * @param constructor - the candidate standard constructor; a non-newable value
- *  yields the inert surrogate
- * @param doesPassAsConstructorPrototype - the prototype predicate-gate applied
- *  to the constructor's `prototype`
- * @returns the validated `[constructor, prototype]` tuple, or the inert surrogate
- *  `[INSTANCE_LESS_CONSTRUCTOR, BLANK_DICTIONARY]` on any failure
- * @internal
- */
-export function getValidatedStandardConstructorAndPrototypeTuple(
-  constructor: unknown,
-  doesPassAsConstructorPrototype: PredicateFunction,
-): [NewableFunction, object | null] | [typeof INSTANCE_LESS_CONSTRUCTOR, BlankDictionary];
-
-// ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
-//
 //  Weak-Key Validation
 //
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 
+/* @@throw-safe */
 /**
  * Narrows a value to {@link WeakKey} — a value usable as a `WeakMap` / `WeakSet`
  * key: any object, function, or symbol. Returns `false` for primitives other
@@ -249,10 +212,11 @@ export function isValidWeakKey(value?: unknown): value is WeakKey;
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 //
-//  Inert Prototype Access
+//  Throw-safe Prototype Access
 //
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 
+/* @@throw-safe */
 /**
  * Reads `getPrototypeOf(value)` throw-safely.
  *
@@ -266,18 +230,16 @@ export function isValidWeakKey(value?: unknown): value is WeakKey;
  *  `undefined`
  * @returns the value's prototype (an object, a callable, or `null`);
  *  `undefined` for nullish input or when a hostile trap threw
- * @internal
  */
-export function getInertPrototypeOf(
-  value?: unknown,
-): object | Callable | null | undefined;
+export function getSafePrototypeOf(value?: unknown): object | Callable | null | undefined;
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 //
-//  Prototype-Property Predicates
+//  Throw-safe "prototype" Property Predicates
 //
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 
+/* @@throw-safe */
 /**
  * Detects whether the value carries an own `prototype` property.
  *
@@ -286,6 +248,9 @@ export function getInertPrototypeOf(
  * whose `prototype` comes from `Function.prototype` is the canonical
  * example.
  *
+ * Throw-safe: nullish input and a hostile `getOwnPropertyDescriptor`
+ * Proxy-trap both yield `false` rather than throwing.
+ *
  * @param value - the value to test; omitted is treated as `undefined`, which
  *  has no own prototype
  * @returns `true` when the value carries an own `prototype` property;
@@ -293,12 +258,16 @@ export function getInertPrototypeOf(
  */
 export function hasOwnPrototype(value?: unknown): boolean;
 
+/* @@throw-safe */
 /**
  * Detects whether the value carries an own `prototype` property whose
  * descriptor is `writable: true`.
  *
  * This is the structural tell of an `ES3Function` versus a
  * `ClassConstructor`, whose own `prototype` is read-only.
+ *
+ * Throw-safe: nullish input and a hostile descriptor trap both yield `false`
+ * rather than throwing.
  *
  * @param value - the value to test; omitted is treated as `undefined`, which
  *  has no own prototype
@@ -307,12 +276,33 @@ export function hasOwnPrototype(value?: unknown): boolean;
  */
 export function hasOwnWritablePrototype(value?: unknown): boolean;
 
+/* @@throw-safe */
+/**
+ * Detects whether the value carries an own `prototype` property whose
+ * descriptor is NOT writable (`writable: false`).
+ *
+ * The exact complement of `hasOwnWritablePrototype` over values that own a
+ * `prototype`: a `ClassConstructor`, whose own `prototype` is read-only,
+ * answers `true`; an `ES3Function`, whose own `prototype` is writable,
+ * answers `false`. A value with no own `prototype` at all answers `false`.
+ *
+ * Throw-safe: nullish input and a hostile descriptor trap both yield `false`
+ * rather than throwing.
+ *
+ * @param value - the value to test; omitted is treated as `undefined`, which
+ *  has no own prototype
+ * @returns `true` when the value's own `prototype` exists but is NOT writable;
+ *  `false` otherwise
+ */
+export function hasOwnNonWritablePrototype(value?: unknown): boolean;
+
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 //
-//  Property-Key Utilities
+//  Property-Key related Utilities
 //
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 
+/* @@throw-safe */
 /**
  * Narrows a value to `PropertyKey`.
  *
@@ -334,9 +324,9 @@ export function isValidPropertyKey(value?: unknown): value is PropertyKey;
  *
  * Concatenates the own string keys (including non-enumerable ones) with the own
  * symbol keys. A nullish (or omitted) argument yields `[]` rather than throwing.
- * This is the raw form; {@link getInertOwnPropertyKeys} is the throw-safe twin
- * that also absorbs a hostile `Proxy` `ownKeys` trap (the raw/inert pairing used
- * across this module).
+ * This is the raw form; {@link getSafeOwnPropertyKeys} is the throw-safe twin
+ * that also absorbs a hostile `Proxy` `ownKeys` trap (the raw/throw-safe pairing
+ * used across this module).
  *
  * @param value - the value whose own keys to collect; nullish (or omitted)
  *  yields `[]`
@@ -350,6 +340,10 @@ export function getOwnPropertyKeys(value?: unknown): (string | symbol)[];
  *
  * Walks own properties first and then the prototype-chain. Accessor
  * descriptors are returned as-is. The getter is never invoked.
+ *
+ * This is the raw, non-throw-safe form: a hostile `getOwnPropertyDescriptor`
+ * Proxy-trap along the chain propagates. {@link getNextAvailableSafeDescriptor}
+ * is the throw-safe twin that swallows it and reports `undefined`.
  *
  * @param value - the value whose descriptor chain should be inspected
  * @param key - the property key to resolve; invalid keys yield `undefined`
@@ -365,10 +359,11 @@ export function getNextAvailablePropertyDescriptor(
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 //
-//  Inert Property-Key Utilities
+//  Throw-safe Property-Key related Utilities
 //
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 
+/* @@throw-safe */
 /**
  * The throw-safe variant of `Object.getOwnPropertyNames` — a value's own
  * string-keyed property names (enumerable and non-enumerable), or `[]` when
@@ -378,10 +373,10 @@ export function getNextAvailablePropertyDescriptor(
  *  omitted) yields `[]`
  * @returns the own string-keyed property names; `[]` when none are reachable
  *  or a trap threw
- * @internal
  */
-export function getInertOwnPropertyNames(value?: unknown): string[];
+export function getSafeOwnPropertyNames(value?: unknown): string[];
 
+/* @@throw-safe */
 /**
  * The throw-safe variant of `Object.getOwnPropertySymbols` — a value's own
  * symbol-keyed properties, or `[]` when none are reachable (nullish input or a
@@ -391,26 +386,26 @@ export function getInertOwnPropertyNames(value?: unknown): string[];
  *  yields `[]`
  * @returns the own symbol-keyed properties; `[]` when none are reachable or a
  *  trap threw
- * @internal
  */
-export function getInertOwnPropertySymbols(value?: unknown): symbol[];
+export function getSafeOwnPropertySymbols(value?: unknown): symbol[];
 
+/* @@throw-safe */
 /**
  * The throw-safe variant of {@link getOwnPropertyKeys} — all of a value's own
  * property keys, both string-named and symbol-keyed, as a single array.
  *
- * Concatenates {@link getInertOwnPropertyNames} and
- * {@link getInertOwnPropertySymbols}, inheriting their inert discipline: nullish
- * input and hostile traps yield `[]` rather than throwing.
+ * Concatenates {@link getSafeOwnPropertyNames} and
+ * {@link getSafeOwnPropertySymbols}, inheriting their throw-safe discipline:
+ * nullish input and hostile traps yield `[]` rather than throwing.
  *
  * @param value - the value whose own keys to collect; nullish (or omitted)
  *  yields `[]`
  * @returns the own string and symbol keys; `[]` when none are reachable or a
  *  trap threw
- * @internal
  */
-export function getInertOwnPropertyKeys(value?: unknown): (string | symbol)[];
+export function getSafeOwnPropertyKeys(value?: unknown): (string | symbol)[];
 
+/* @@throw-safe */
 /**
  * Walks for the next available descriptor like
  * {@link getNextAvailablePropertyDescriptor}, but swallows any throw from a
@@ -433,12 +428,13 @@ export function getInertOwnPropertyKeys(value?: unknown): (string | symbol)[];
  * @returns the first descriptor found while walking the chain; `undefined` if
  *  none exists or a trap threw
  */
-export function getInertDescriptor(
+export function getNextAvailableSafeDescriptor(
   type: unknown,
   key: PropertyKey,
   trustedData?: boolean,
 ): PropertyDescriptor | undefined;
 
+/* @@throw-safe */
 /**
  * Tests whether the value carries a callable data property at `key`,
  * reachable through its prototype-chain.
@@ -487,6 +483,7 @@ export function hasInertMethod(
   trustedData?: boolean,
 ): boolean;
 
+/* @@throw-safe */
 /**
  * Tests whether the value carries an accessor `get` at `key`, reachable
  * through its prototype-chain.
@@ -514,6 +511,7 @@ export function hasInertGetter(
   trustedData?: boolean,
 ): boolean;
 
+/* @@throw-safe */
 /**
  * Tests whether the value carries an accessor `set` at `key`, reachable
  * through its prototype-chain.
@@ -535,6 +533,7 @@ export function hasInertSetter(
   trustedData?: boolean,
 ): boolean;
 
+/* @@throw-safe */
 /**
  * Tests whether the value carries a data property at `key`, reachable
  * through its prototype-chain.
@@ -569,6 +568,7 @@ export function hasInertValue(
   trustedData?: boolean,
 ): boolean;
 
+/* @@throw-safe */
 /**
  * Reads the value's own `name` property descriptor and returns its data `value`
  * only when that value is a string primitive; `undefined` otherwise.
@@ -585,16 +585,16 @@ export function hasInertValue(
  * @param value - the value whose own `name` to read
  * @returns the own `name` value when present and a string primitive; `undefined`
  *  otherwise
- * @internal
  */
 export function getVerifiedOwnName(value?: unknown): string | undefined;
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 //
-//  Type-Signature Readers
+//  Throw-safe Type-Signature Readers
 //
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 
+/* @@throw-safe */
 /**
  * Returns the value's internal `[[Class]]` signature.
  *
@@ -623,6 +623,7 @@ export function getTypeSignature(value: unknown): TypeSignature | undefined;
  */
 export function getTypeSignature(): undefined;
 
+/* @@throw-safe */
 /**
  * Returns the tag portion of a value's type signature.
  *
@@ -630,14 +631,20 @@ export function getTypeSignature(): undefined;
  * `[object …]` wrapper. Custom tags installed via `Symbol.toStringTag`
  * are honored.
  *
+ * Throw-safe: it inherits {@link getTypeSignature}'s behavior, so a value whose
+ * `Symbol.toStringTag` accessor throws on read yields `undefined` at runtime
+ * rather than propagating — which is why the return type widens `TaggedType` to
+ * `| undefined`.
+ *
  * @param value - the value whose tag should be extracted
- * @returns the tag substring
+ * @returns the tag substring; `undefined` when a hostile `Symbol.toStringTag`
+ *  getter threw
  * @example
  * getTaggedType([]);                                 // 'Array'
  * getTaggedType(new Date());                         // 'Date'
  * getTaggedType({ [Symbol.toStringTag]: 'Custom' }); // 'Custom'
  */
-export function getTaggedType(value: unknown): TaggedType;
+export function getTaggedType(value: unknown): TaggedType | undefined;
 
 /**
  * The no-argument overload. Returns `undefined`, mirroring
@@ -647,10 +654,11 @@ export function getTaggedType(): undefined;
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 //
-//  Constructor Inspection
+//  Throw-safe Constructor Inspection
 //
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 
+/* @@throw-safe */
 /**
  * Walks the value to its constructor function via inert descriptor
  * traversal.
@@ -720,6 +728,7 @@ export function getDefinedConstructor(
   options?: DefinedConstructorAccessorOptions,
 ): NewableFunction | undefined;
 
+/* @@throw-safe */
 /**
  * Returns the constructor's `name` via its property descriptor.
  *
@@ -760,10 +769,11 @@ export function getDefinedConstructorName(
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 //
-//  Type Resolution
+//  Throw-safe Type Resolution
 //
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 
+/* @@throw-safe */
 /**
  * Resolves a value to its type-name.
  *
@@ -784,8 +794,15 @@ export function getDefinedConstructorName(
  * minification only if both the constructor's `name` descriptor
  * and the prototype's `Symbol.toStringTag` are frozen.
  *
+ * Throw-safe: it resolves through {@link getDefinedConstructorName} and
+ * {@link getTaggedType}, both throw-safe. A value with no reachable constructor
+ * whose `Symbol.toStringTag` getter also throws leaves nothing to resolve, so
+ * the return type widens `ResolvedType` to `| undefined`.
+ *
  * @param value - the value whose type-name should be resolved
- * @returns the resolved type-name (constructor-name or tagged-type)
+ * @returns the resolved type-name (constructor-name or tagged-type); `undefined`
+ *  when neither is reachable (no constructor and a hostile `Symbol.toStringTag`
+ *  getter threw)
  * @example
  * resolveType([]);                         // 'Array'
  * resolveType(Promise.resolve());          // 'Promise'
@@ -794,12 +811,54 @@ export function getDefinedConstructorName(
  * resolveType(new (function foo () {})()); // 'foo'
  * resolveType(new (function () {})());     // 'Object'
  */
-export function resolveType(value: unknown): ResolvedType;
+export function resolveType(value: unknown): ResolvedType | undefined;
 
 /**
  * The no-argument overload. Returns `undefined`, distinguishing an
  * omitted call from one that passed `undefined` explicitly.
  */
 export function resolveType(): undefined;
+
+// ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
+//
+//  Throw-safe Standard-Constructor Validation
+//
+// ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
+
+/* @@throw-safe */
+/**
+ * Validates a standard built-in constructor and returns its realm-fixed
+ * `[constructor, prototype]` tuple, or an inert surrogate tuple when validation
+ * fails.
+ *
+ * The single, throw-safe capture helper behind the per-module realm-fixed
+ * intrinsic pairs (e.g. `Promise` for `#thenable`). It confirms `constructor`
+ * is newable and reads its own `prototype` inertly. It accepts the pair only
+ * when the prototype satisfies the injected `doesPassAsConstructorPrototype`
+ * predicate and, for a non-`null` prototype, reciprocally back-references the
+ * constructor (`prototype.constructor === constructor`) — the tamper-resistant
+ * identity check. A `null` prototype has no `constructor` to reciprocate, so it
+ * rests on the predicate alone (the `null` arm of the returned prototype slot).
+ *
+ * On any failure — a non-newable constructor, a rejected prototype predicate, a
+ * broken back-reference, or a throwing descriptor/accessor — it returns the
+ * TOTAL inert surrogate `[INSTANCE_LESS_CONSTRUCTOR, BLANK_DICTIONARY]` rather
+ * than an empty tuple: a never-instantiated function whose `prototype` makes
+ * `instanceof` uniformly `false`, paired with an empty prototype-less
+ * dictionary. Every caller can therefore destructure both slots and use the
+ * constructor directly with `instanceof` — no per-caller presence guard.
+ *
+ * @param constructor - the candidate standard constructor; a non-newable value
+ *  yields the inert surrogate
+ * @param doesPassAsConstructorPrototype - the prototype predicate-gate applied
+ *  to the constructor's `prototype`
+ * @returns the validated `[constructor, prototype]` tuple, or the inert surrogate
+ *  `[INSTANCE_LESS_CONSTRUCTOR, BLANK_DICTIONARY]` on any failure
+ * @internal
+ */
+export function getValidatedStandardConstructorAndPrototypeTuple(
+  constructor: unknown,
+  doesPassAsConstructorPrototype: PredicateFunction,
+): [NewableFunction, object | null] | [typeof INSTANCE_LESS_CONSTRUCTOR, BlankDictionary];
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----

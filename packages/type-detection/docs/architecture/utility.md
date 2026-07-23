@@ -94,7 +94,7 @@ counterparts. The raw form is for call sites that supply their own guarding (e.g
 the shape once and it recurs across the module.
 
 Throw-safety is deliberately layered, not doubled. `getNextAvailablePropertyDescriptor`
-steps the chain through the throw-safe `getInertPrototypeOf` (which absorbs a hostile
+steps the chain through the throw-safe `getSafePrototypeOf` (which absorbs a hostile
 `getPrototypeOf` trap), while `getInertDescriptor` wraps the whole walk (absorbing a
 hostile `getOwnPropertyDescriptor` trap). Two guards cover two distinct throw sources, so
 the constructor-walk nesting them is defense-in-depth, not redundancy (decisions #029,

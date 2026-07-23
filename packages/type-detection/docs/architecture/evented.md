@@ -49,7 +49,7 @@ even when the value carries the full method contract. The pattern from thenable 
   `doesImplementEventTargetContract` for the structural check. The same pattern in
   `isAbortSignalLike` through `isCurrentRealmAbortSignalInstance`.
 - `isEventTarget` and `isAbortSignal` each resolve the value's `[[Prototype]]` ONCE via
-  `getInertPrototypeOf` and thread it onward (decision #059). A leading `!!prototype`
+  `getSafePrototypeOf` and thread it onward (decision #059). A leading `!!prototype`
   short-circuit rejects nullish and other falsy values (and absorbs a hostile
   `getPrototypeOf`-trap, which the inert read collapses to `undefined`) before any further
   read. They then DISPATCH on the same realm-fixed `instanceof` helper — the local-realm
@@ -143,7 +143,7 @@ not to user types that own their surface by design. Complementary to #052's slot
 
 Eighteen functions — four public predicates, fourteen `@internal` helpers — distributed
 across two two-tier lattices. The public composition shapes
-(`proto = getInertPrototypeOf(v)`, resolved once and threaded, decision #059):
+(`proto = getSafePrototypeOf(v)`, resolved once and threaded, decision #059):
 
 | Predicate           | Composition                                                                                                                                                                                                               |
 | ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |

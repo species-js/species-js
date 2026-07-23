@@ -175,14 +175,14 @@ export const foreignFlattenedDomException = () =>
 
 // ----- throw-safety probes (error's re-derived hostile set) -----
 // error's read surface: the `instanceof` prototype-walk (isCurrentRealm*Instance),
-// the alien-walk `getInertPrototypeOf` + `getInertDescriptor`, the direct
+// the alien-walk `getSafePrototypeOf` + `getInertDescriptor`, the direct
 // `name`/`message` reads (doesImplementMinimumErrorContract), the captured stack
 // getter (retrieveErrorStack), and — DOMException-only — the inert getter-presence
 // reads (never invoked current-realm). The public-reachable throw-surfaces:
 
 // (1) prototype-trap: a Proxy whose `getPrototypeOf` throws — hits the
 // `instanceof` walk (isCurrentRealm*Instance try/catch) AND the alien
-// `getInertPrototypeOf`. All four → false, not thrown.
+// `getSafePrototypeOf`. All four → false, not thrown.
 export const prototypeTrapProxy = () =>
   new Proxy(
     {},

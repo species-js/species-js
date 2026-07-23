@@ -27,8 +27,8 @@ import {
 
 import {
   isValueOfBoundSet,
-  getInertPrototypeOf,
-  getInertDescriptor,
+  getSafePrototypeOf,
+  getNextAvailableSafeDescriptor,
   hasInertMethod,
   getTypeSignature,
   getVerifiedOwnName,
@@ -214,7 +214,7 @@ export function doesImplementPromisePrototypeContract(prototype) {
  *    `[[Class]]` tag matches.
  * 3. The constructor's own `prototype` data property points back to the threaded
  *    `prototype` — round-trip identity, read via the throw-safe
- *    `getInertDescriptor(...).value` (an accessor-form definition yields
+ *    `getNextAvailableSafeDescriptor(...).value` (an accessor-form definition yields
  *    `undefined` and fails, closing the lying-accessor spoof).
  * 4. {@link doesImplementPromisePrototypeContract} — the prototype carries the
  *    `then`/`catch`/`finally` contract as its own callable members.
@@ -227,7 +227,7 @@ export function doesImplementPromisePrototypeContract(prototype) {
  * {@link hasPromiseIdentitySignal}.
  *
  * Throw-safe: the tag read (`getTypeSignature`), the round-trip
- * (`getInertDescriptor`), and the member surface (a guarded
+ * (`getNextAvailableSafeDescriptor`), and the member surface (a guarded
  * `getOwnPropertyDescriptors`) each absorb a hostile Proxy-trap, failing the
  * contract rather than propagating; `isClass` is likewise throw-safe at its own
  * descriptor read.
@@ -243,8 +243,8 @@ export function isPromisePrototypeEquivalent(prototype, constructor) {
   return (
     isClass(constructor) &&
     getTypeSignature(prototype) === '[object Promise]' &&
-    getInertDescriptor(constructor, 'prototype', TRUSTED_DATA_CONFIRMATION)?.value ===
-      prototype &&
+    getNextAvailableSafeDescriptor(constructor, 'prototype', TRUSTED_DATA_CONFIRMATION)
+      ?.value === prototype &&
     doesImplementPromisePrototypeContract(/** @type {object} */ (prototype))
   );
 }
@@ -391,7 +391,7 @@ export function isPromiseLike(value) {
  * The local-realm fast-path pairs `isCurrentRealmPromiseInstance(value)`
  * (the captured `value instanceof PromiseConstructorFunction`) with
  * `prototype === promisePrototype`, where `prototype` is the once-resolved
- * throw-safe `getInertPrototypeOf(value)` read threaded into both arms
+ * throw-safe `getSafePrototypeOf(value)` read threaded into both arms
  * (decision #059). The pair admits only direct `Promise` instances;
  * subclasses pass `instanceof` but fail the prototype identity-check,
  * preserving subclass rejection in two O(1) operations. Both captures are
@@ -453,9 +453,9 @@ export function isPromiseLike(value) {
  */
 export function isPromise(value) {
   // Resolve the prototype ONCE and thread it into the contract walk (decision
-  // #059), instead of letting the helper re-read it. `getInertPrototypeOf` is
+  // #059), instead of letting the helper re-read it. `getSafePrototypeOf` is
   // capable of handling _nullish_ values.
-  const prototype = getInertPrototypeOf(value);
+  const prototype = getSafePrototypeOf(value);
 
   return (
     // nullish / falsy / hostile-trap values are all excluded by this first

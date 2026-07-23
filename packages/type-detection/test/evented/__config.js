@@ -223,13 +223,13 @@ export const foreignTagSpoofedEventTargetGraft = () =>
 // ----- throw-safety probes (evented's re-derived hostile set) -----
 // The public predicates must answer a boolean on EVERY hostile input and never
 // propagate a throw. evented's read surface differs from object's — it reaches
-// the `instanceof` prototype-walk (isCurrentRealm*Instance), `getInertPrototypeOf`
+// the `instanceof` prototype-walk (isCurrentRealm*Instance), `getSafePrototypeOf`
 // (the strict-tier prototype resolve), the constructor-walk descriptor reads, and
 // — AbortSignal-only — the `aborted` getter. Three public-predicate surfaces:
 
 // (1) a Proxy value whose `getPrototypeOf` trap throws — hits BOTH the Like-tier
 // `instanceof` walk (isCurrentRealm*Instance's try/catch absorbs it) AND the
-// strict-tier `getInertPrototypeOf` (collapses to `undefined` → the `!!prototype`
+// strict-tier `getSafePrototypeOf` (collapses to `undefined` → the `!!prototype`
 // short-circuit). All four predicates → false, not thrown.
 export const throwingProtoTrapProxy = () =>
   new Proxy(

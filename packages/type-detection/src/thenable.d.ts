@@ -552,7 +552,7 @@ export function isPromiseLike<T = unknown>(value?: T): value is T & PromiseLike<
  *
  * The local-realm fast-path pairs `value instanceof PromiseConstructor`
  * with `prototype === promisePrototype`, where `prototype` is the
- * once-resolved throw-safe `getInertPrototypeOf(value)` read threaded
+ * once-resolved throw-safe `getSafePrototypeOf(value)` read threaded
  * into both arms. The pair admits only direct `Promise` instances;
  * subclasses pass `instanceof` but fail the prototype identity-check,
  * preserving subclass rejection in two O(1) operations. Both captures

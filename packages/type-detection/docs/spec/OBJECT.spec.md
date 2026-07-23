@@ -72,7 +72,7 @@ every `@internal` helper returns its sentinel (`false` for the boolean probes) s
 composing predicate collapses to `false`. The hostile-input classes this module's reads
 are exposed to, and the throw-safe reader each routes through:
 
-- **prototype-trap** (a `Proxy` whose `getPrototypeOf` throws) → `getInertPrototypeOf`;
+- **prototype-trap** (a `Proxy` whose `getPrototypeOf` throws) → `getSafePrototypeOf`;
 - **descriptor-trap** (a `Proxy` whose `getOwnPropertyDescriptor` throws — on the value,
   on a pivoted `[[Prototype]]`, or on a hostile `constructor`) → `getInertDescriptor`,
   `getDefinedConstructor`, `getVerifiedOwnName`, and `isClass` (each throw-safe at its own
@@ -171,14 +171,14 @@ none (syntactic operator).
 
 `isPlainObject<T = unknown>(value?: T): value is T & PlainObject` Composition: the
 `isObject` gate, then the prototype is resolved ONCE
-(`prototype = getInertPrototypeOf(value)`, #059) and
+(`prototype = getSafePrototypeOf(value)`, #059) and
 `!!prototype && (prototype === objectPrototype || isAlienRealmPlainObject(value, prototype))`.
 
 The `!!prototype` guard is a deliberate O(1) **dictionary fast-reject**: a plain object
 always has a (some realm's) `Object.prototype`, so a `null` prototype (a dictionary, or
-`Object.prototype` itself) and an `undefined` prototype (a throw-safe
-`getInertPrototypeOf` result on a hostile trap) are rejected before the signal +
-six-marker walk runs — and can never reject a true positive.
+`Object.prototype` itself) and an `undefined` prototype (a throw-safe `getSafePrototypeOf`
+result on a hostile trap) are rejected before the signal + six-marker walk runs — and can
+never reject a true positive.
 
 - `isPlainObject/A1` — `{}`, `{ a: 1 }`, `new Object()`, `Object.create(Object.prototype)`
   → true (local-realm fast-path: proto === `objectPrototype`).
@@ -230,7 +230,7 @@ instances (chain-depth marker 5), and the hollow `class extends null` renamed `'
 (member-surface marker 6). Residual: a from-scratch reconstruction of `Object`'s spec
 mechanics that ALSO installs the full canonical member set = a parallel implementation,
 not a spoof (`dIOPC/A2`). **Composition note (axis 4):** `isObject` gate →
-`getInertPrototypeOf` once → `!!prototype` reject → fast-path `objectPrototype` ref →
+`getSafePrototypeOf` once → `!!prototype` reject → fast-path `objectPrototype` ref →
 `isAlienRealmPlainObject` (`hasPlainObjectIdentitySignal` +
 `isObjectPrototypeEquivalent`).
 
@@ -274,12 +274,12 @@ Consequences; EVENTED Resolved #3).
 ## `isDictionaryObject`
 
 `isDictionaryObject<T = unknown>(value?: T): value is T & DictionaryObject` Composition:
-`isObject(value) && getInertPrototypeOf(value) === null && hasDictionaryObjectIdentitySignal(value)`,
+`isObject(value) && getSafePrototypeOf(value) === null && hasDictionaryObjectIdentitySignal(value)`,
 where the two non-gate cross-validators (`getTypeSignature(value) === '[object Object]'`
 and `getDefinedConstructor(value) === undefined`, in that short-circuit order — cheap tag
 first, matching the helper formula) are bundled in the helper:
 
-- `getInertPrototypeOf === null` is the spec-correct, throw-safe test for "no
+- `getSafePrototypeOf === null` is the spec-correct, throw-safe test for "no
   prototype-chain." `Object.create(null)` is the canonical way to reach this state, but
   any object whose prototype was later set to `null` via
   `Object.setPrototypeOf(obj, null)` also passes.
@@ -323,8 +323,8 @@ prototype-less is prototype-less in every realm. **Spoof (axis 3):** the
 `getTypeSignature === '[object Object]'` cross-validator closes the spoofed-tag surface
 (`R4`). The `getDefinedConstructor === undefined` marker does NOT reject an attached own
 `constructor` key (it is ignored by design, #047 — see `A3`); it is defense-in-depth
-paired with `getInertPrototypeOf === null`. **Composition note (axis 4):** `isObject` +
-`getInertPrototypeOf` (`#utility`) + `hasDictionaryObjectIdentitySignal`
+paired with `getSafePrototypeOf === null`. **Composition note (axis 4):** `isObject` +
+`getSafePrototypeOf` (`#utility`) + `hasDictionaryObjectIdentitySignal`
 (`getDefinedConstructor` + `getTypeSignature`, `#utility`).
 
 ---
@@ -332,7 +332,7 @@ paired with `getInertPrototypeOf === null`. **Composition note (axis 4):** `isOb
 ## `isPlainOrDictionaryObject`
 
 `isPlainOrDictionaryObject<T = unknown>(value?: T): value is T & PlainOrDictionaryObject`
-Fused: one `isObject` gate + one throw-safe `getInertPrototypeOf` read, then dispatch by
+Fused: one `isObject` gate + one throw-safe `getSafePrototypeOf` read, then dispatch by
 prototype value — `=== objectPrototype` → accept; `=== null` →
 `hasDictionaryObjectIdentitySignal(value)`; else →
 `isAlienRealmPlainObject(value, prototype)` (the cross-realm plain-object contract).
@@ -415,7 +415,7 @@ Markers, short-circuited in cost-order:
         `name` yields `undefined`).
 3. `getInertDescriptor(constructor, 'prototype').value === prototype` — round-trip
    identity (throw-safe; accessor-form yields `undefined`).
-4. `getInertPrototypeOf(prototype) === null` — chain-depth check (top-level prototype).
+4. `getSafePrototypeOf(prototype) === null` — chain-depth check (top-level prototype).
 5. `doesImplementObjectPrototypeContract(prototype)` — member-surface check: the prototype
    carries every canonical `Object.prototype` member as its own non-enumerable callable.
 
@@ -506,7 +506,7 @@ resolve-once logic into it.
    **admitted** (`A3`), not rejected. The implementation is correct (a hashmap with a
    `'constructor'` key is still a dictionary); the doc-comments were corrected to describe
    the marker's real behavior (defense-in-depth paired with
-   `getInertPrototypeOf === null`). `architecture/object.md` needed no change (it already
+   `getSafePrototypeOf === null`). `architecture/object.md` needed no change (it already
    attributed spoof-closing to the tag cross-validator only). Both structural helpers were
    already exported `@internal` (no #053-style action needed).
 
@@ -517,7 +517,7 @@ resolve-once logic into it.
    thenable/evented treatment), not document-the-throw — including the cross-module root
    cause. The complete set of reads now routes through throw-safe readers:
    - **Prototype reads** (`isPlainObject`, `isDictionaryObject`,
-     `isPlainOrDictionaryObject`) → `getInertPrototypeOf` (#057), replacing raw
+     `isPlainOrDictionaryObject`) → `getSafePrototypeOf` (#057), replacing raw
      `getPrototypeOf` (`#config`).
    - **Marker 3** (constructor `name`) → `getVerifiedOwnName` (#059); **marker 4**
      (constructor `prototype` round-trip) → `getInertDescriptor` (#056), replacing raw
@@ -556,12 +556,12 @@ resolve-once logic into it.
      config consumer already follows.
    - **`isPlainObject(Object.prototype)` regression — found & fixed.** The #059 threading
      rewrite had introduced
-     `prototype = value === objectPrototype ? objectPrototype : getInertPrototypeOf(value)`,
+     `prototype = value === objectPrototype ? objectPrototype : getSafePrototypeOf(value)`,
      which routed `Object.prototype` itself into the local-realm fast-path and flipped
      `isPlainObject(Object.prototype)` from **false → true**. Because
      `isDictionaryObject(Object.prototype)` is true, this broke
      PlainObject/DictionaryObject mutual exclusivity. Fixed by dropping the special-case
-     (`prototype = getInertPrototypeOf(value)`) and adding the `!!prototype` dictionary
+     (`prototype = getSafePrototypeOf(value)`) and adding the `!!prototype` dictionary
      fast-reject; `isPlainObject(Object.prototype)` is **false** again, `Object.prototype`
      is a dictionary only (`isPlainObject/R7`, `isDictionaryObject/A4`), disjointness
      holds. Verified empirically (mutual-exclusivity + union battery, incl.

@@ -34,7 +34,7 @@ import {
   isPromisePrototypeEquivalent,
   isAlienRealmPromise,
   isCurrentRealmPromiseInstance,
-  getInertPrototypeOf,
+  getSafePrototypeOf,
   getDefinedConstructor,
   objectCreate,
 } from '#index';
@@ -215,7 +215,7 @@ describe('[Internal] isAlienRealmPromise (the exported cross-realm seam)', () =>
   const iARP = (value) =>
     isAlienRealmPromise(
       /** @type {object} */ (value),
-      /** @type {object} */ (getInertPrototypeOf(value)),
+      /** @type {object} */ (getSafePrototypeOf(value)),
     );
 
   it('iARP/A1: a foreign direct Promise → true (the cross-realm arm; mirrors isPromise/A3)', () => {

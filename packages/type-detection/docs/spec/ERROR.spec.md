@@ -98,7 +98,7 @@ module's reads are exposed to, and the throw-safe reader each routes through:
 
 - **hasInstance-trap** (a poisoned `Symbol.hasInstance`, a throwing prototype-walk) → the
   `try/catch` inside `isCurrentRealm{GenericError,DOMException}Instance` (#060);
-- **prototype-trap** (a `Proxy` whose `getPrototypeOf` throws) → `getInertPrototypeOf` in
+- **prototype-trap** (a `Proxy` whose `getPrototypeOf` throws) → `getSafePrototypeOf` in
   the alien walks;
 - **descriptor-trap** (a `Proxy` whose `getOwnPropertyDescriptor` throws — on a pivoted
   `[[Prototype]]` or a hostile `constructor`) → `getInertDescriptor`,

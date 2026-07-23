@@ -46,7 +46,7 @@ import {
   isAbortSignalPrototypeEquivalent,
   isAlienRealmEventTarget,
   isAlienRealmAbortSignal,
-  getInertPrototypeOf,
+  getSafePrototypeOf,
   objectCreate,
 } from '#index';
 
@@ -237,7 +237,7 @@ describe('[Internal] isAlienRealmEventTarget (value, prototype)', () => {
     // foreign-fixture path is asserted in `cross-realm.test.js`.
     const value = directEventTarget();
     expect(
-      isAlienRealmEventTarget(value, /** @type {object} */ (getInertPrototypeOf(value))),
+      isAlienRealmEventTarget(value, /** @type {object} */ (getSafePrototypeOf(value))),
     ).toBe(true);
   });
 
@@ -265,7 +265,7 @@ describe('[Internal] isAlienRealmEventTarget (value, prototype)', () => {
   it('iARET/R2: an `EventTarget` subclass → false (constructor-name signal gate)', () => {
     const value = new (class Widget extends EventTarget {})();
     expect(
-      isAlienRealmEventTarget(value, /** @type {object} */ (getInertPrototypeOf(value))),
+      isAlienRealmEventTarget(value, /** @type {object} */ (getSafePrototypeOf(value))),
     ).toBe(false);
   });
 });
@@ -437,14 +437,14 @@ describe('[Internal] isAlienRealmAbortSignal (value, prototype)', () => {
   it('iARAS/A1: a genuine `AbortSignal` and its prototype → true (realm-independent arm)', () => {
     const value = abortControllerSignal();
     expect(
-      isAlienRealmAbortSignal(value, /** @type {object} */ (getInertPrototypeOf(value))),
+      isAlienRealmAbortSignal(value, /** @type {object} */ (getSafePrototypeOf(value))),
     ).toBe(true);
   });
 
   it('iARAS/R1: an `EventTarget` (not an `AbortSignal`) → false (tag/name gate)', () => {
     const value = directEventTarget();
     expect(
-      isAlienRealmAbortSignal(value, /** @type {object} */ (getInertPrototypeOf(value))),
+      isAlienRealmAbortSignal(value, /** @type {object} */ (getSafePrototypeOf(value))),
     ).toBe(false);
   });
 });

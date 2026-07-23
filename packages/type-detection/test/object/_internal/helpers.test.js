@@ -38,7 +38,7 @@ import {
   isObjectPrototypeEquivalent,
   doesImplementObjectPrototypeContract,
   isAlienRealmPlainObject,
-  getInertPrototypeOf,
+  getSafePrototypeOf,
   getDefinedConstructor,
   getVerifiedOwnName,
 } from '#index';
@@ -72,7 +72,7 @@ import {
  * @param {unknown} value - a candidate whose `[[Prototype]]` to resolve
  * @returns {object} the prototype, cast to `object` for the tight helper params
  */
-const protoOf = (value) => /** @type {object} */ (getInertPrototypeOf(value));
+const protoOf = (value) => /** @type {object} */ (getSafePrototypeOf(value));
 /**
  * @param {object} prototype - the resolved prototype to walk for its constructor
  */
@@ -141,29 +141,29 @@ describe('[Internal] hasDictionaryObjectIdentitySignal', () => {
 
 describe('[Internal] isObjectPrototypeEquivalent (fed the resolved prototype + constructor + name)', () => {
   it('iOPE/A1: a real plain object`s prototype → true (all six markers hold)', () => {
-    expect(iOPE(getInertPrototypeOf(emptyObject()))).toBe(true);
-    expect(iOPE(getInertPrototypeOf(newObject()))).toBe(true);
+    expect(iOPE(getSafePrototypeOf(emptyObject()))).toBe(true);
+    expect(iOPE(getSafePrototypeOf(newObject()))).toBe(true);
   });
 
   it('iOPE/R1: an array`s prototype → false (marker 2: tag is `[object Array]`)', () => {
-    expect(iOPE(getInertPrototypeOf(array()))).toBe(false);
+    expect(iOPE(getSafePrototypeOf(array()))).toBe(false);
   });
 
   it('iOPE/R2: a class instance`s prototype → false (marker 3: constructor name is `Foo`)', () => {
-    expect(iOPE(getInertPrototypeOf(classInstance()))).toBe(false);
+    expect(iOPE(getSafePrototypeOf(classInstance()))).toBe(false);
   });
 
   it('iOPE/R3: a null prototype → false (marker 1: no constructor → isClass fails)', () => {
-    expect(iOPE(getInertPrototypeOf(nullProtoObject()))).toBe(false);
+    expect(iOPE(getSafePrototypeOf(nullProtoObject()))).toBe(false);
   });
 
   it('iOPE/R4: tampered `constructor` over a hand-crafted prototype → false (round-trip marker 4)', () => {
-    expect(iOPE(getInertPrototypeOf(tamperedConstructorPlainObject()))).toBe(false);
+    expect(iOPE(getSafePrototypeOf(tamperedConstructorPlainObject()))).toBe(false);
   });
 
   it('iOPE/R5: hollow `class extends null` renamed `Object` → false (member-surface marker 6)', () => {
     // satisfies markers 1–5; only the member-surface marker rejects it.
-    expect(iOPE(getInertPrototypeOf(classExtendsNullRenamedObject()))).toBe(false);
+    expect(iOPE(getSafePrototypeOf(classExtendsNullRenamedObject()))).toBe(false);
   });
 
   it('iOPE/B1: a prototype carrying a hostile (throwing-descriptor) `constructor` → false, not thrown', () => {
@@ -179,11 +179,11 @@ describe('[Internal] isObjectPrototypeEquivalent (fed the resolved prototype + c
     // too, though isClass already gates. A propagated throw from any of these
     // reads surfaces here as a test error, not a `false`.
     expect(
-      iOPE(getInertPrototypeOf(valueWithSurgicalHostileConstructor())),
+      iOPE(getSafePrototypeOf(valueWithSurgicalHostileConstructor())),
       'surgical',
     ).toBe(false);
     expect(
-      iOPE(getInertPrototypeOf(valueWithBlanketHostileConstructor())),
+      iOPE(getSafePrototypeOf(valueWithBlanketHostileConstructor())),
       'blanket',
     ).toBe(false);
   });
@@ -191,7 +191,7 @@ describe('[Internal] isObjectPrototypeEquivalent (fed the resolved prototype + c
 
 describe('[Internal] doesImplementObjectPrototypeContract (marker 6 in isolation)', () => {
   it('dIOPC/A1: a real Object.prototype → true (full canonical member surface)', () => {
-    expect(doesImplementObjectPrototypeContract(getInertPrototypeOf(emptyObject()))).toBe(
+    expect(doesImplementObjectPrototypeContract(getSafePrototypeOf(emptyObject()))).toBe(
       true,
     );
   });
@@ -210,15 +210,13 @@ describe('[Internal] doesImplementObjectPrototypeContract (marker 6 in isolation
   it('dIOPC/R1: a hollow `class extends null` prototype → false (carries only `constructor`)', () => {
     expect(
       doesImplementObjectPrototypeContract(
-        getInertPrototypeOf(classExtendsNullRenamedObject()),
+        getSafePrototypeOf(classExtendsNullRenamedObject()),
       ),
     ).toBe(false);
   });
 
   it('dIOPC/R2: Array.prototype → false (own, not inherited: it inherits the Object methods)', () => {
-    expect(doesImplementObjectPrototypeContract(getInertPrototypeOf(array()))).toBe(
-      false,
-    );
+    expect(doesImplementObjectPrototypeContract(getSafePrototypeOf(array()))).toBe(false);
   });
 
   it('dIOPC/R3: canonical names with the WRONG descriptor shape → false (accessor / enumerable / non-callable)', () => {

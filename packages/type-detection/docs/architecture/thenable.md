@@ -98,8 +98,8 @@ composing identity and structure rather than choosing one:
   the fallback; userland Promise-likes pass via the fallback too.
 - `isPromise` runs the same realm-fixed `instanceof` check, then DISPATCHES — local-realm
   arm commits to `prototype === promisePrototype && doesNotShadowPromiseContract(value)`
-  (the once-resolved, throw-safe `getInertPrototypeOf(value)` read threaded into both
-  arms, decision #059, plus the #063 own-surface integrity gate that demotes an own-level
+  (the once-resolved, throw-safe `getSafePrototypeOf(value)` read threaded into both arms,
+  decision #059, plus the #063 own-surface integrity gate that demotes an own-level
   contract override `is`→`Like`) for direct-instance discrimination in O(1); cross-realm
   arm runs `isAlienRealmPromise`, the value-side identity signal
   (`hasPromiseIdentitySignal`) AND the four-marker prototype anchor
@@ -134,16 +134,16 @@ cross-realm arm decomposes further into structural-equivalence helpers (decision
 Reading from the floor up (`aP` = `{ assumePrototype: true }`, `dc` = the once-resolved
 defined constructor threaded through the helper, decision #059):
 
-| Predicate / helper                      | Composition                                                                                                                                                                                                                 |
-| --------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `isThenable`                            | `!!v && (isCurrentRealmPromiseInstance(v) \|\| hasInertMethod(v, 'then'))`                                                                                                                                                  |
-| `doesImplementPromiseContract`          | `hasInertMethod(v, 'then') && hasInertMethod(v, 'catch') && hasInertMethod(v, 'finally')`                                                                                                                                   |
-| `isPromiseLike`                         | `!!v && (isCurrentRealmPromiseInstance(v) \|\| doesImplementPromiseContract(v))`                                                                                                                                            |
-| `hasPromiseIdentitySignal`              | `name === 'Promise' && getTypeSignature(v) === '[object Promise]'` (caller threads `name`)                                                                                                                                  |
-| `doesImplementPromisePrototypeContract` | `d = getOwnPropertyDescriptors(proto); isCallable(d.then?.value) && isCallable(d.catch?.value) && isCallable(d.finally?.value)` (throw-safe)                                                                                |
-| `isPromisePrototypeEquivalent`          | `isClass(ctor) && getTypeSignature(proto) === '[object Promise]' && getInertDescriptor(ctor, 'prototype')?.value === proto && doesImplementPromisePrototypeContract(proto)`                                                 |
-| `isAlienRealmPromise`                   | `dc = getDefinedConstructor(proto, aP); hasPromiseIdentitySignal(v, getVerifiedOwnName(dc)) && isPromisePrototypeEquivalent(proto, dc)`                                                                                     |
-| `isPromise`                             | `p = getInertPrototypeOf(v); !!p && (isCurrentRealmPromiseInstance(v) ? p === promisePrototype && doesNotShadowPromiseContract(v) : PromiseConstructorFunction !== INSTANCE_LESS_CONSTRUCTOR && isAlienRealmPromise(v, p))` |
+| Predicate / helper                      | Composition                                                                                                                                                                                                                |
+| --------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `isThenable`                            | `!!v && (isCurrentRealmPromiseInstance(v) \|\| hasInertMethod(v, 'then'))`                                                                                                                                                 |
+| `doesImplementPromiseContract`          | `hasInertMethod(v, 'then') && hasInertMethod(v, 'catch') && hasInertMethod(v, 'finally')`                                                                                                                                  |
+| `isPromiseLike`                         | `!!v && (isCurrentRealmPromiseInstance(v) \|\| doesImplementPromiseContract(v))`                                                                                                                                           |
+| `hasPromiseIdentitySignal`              | `name === 'Promise' && getTypeSignature(v) === '[object Promise]'` (caller threads `name`)                                                                                                                                 |
+| `doesImplementPromisePrototypeContract` | `d = getOwnPropertyDescriptors(proto); isCallable(d.then?.value) && isCallable(d.catch?.value) && isCallable(d.finally?.value)` (throw-safe)                                                                               |
+| `isPromisePrototypeEquivalent`          | `isClass(ctor) && getTypeSignature(proto) === '[object Promise]' && getInertDescriptor(ctor, 'prototype')?.value === proto && doesImplementPromisePrototypeContract(proto)`                                                |
+| `isAlienRealmPromise`                   | `dc = getDefinedConstructor(proto, aP); hasPromiseIdentitySignal(v, getVerifiedOwnName(dc)) && isPromisePrototypeEquivalent(proto, dc)`                                                                                    |
+| `isPromise`                             | `p = getSafePrototypeOf(v); !!p && (isCurrentRealmPromiseInstance(v) ? p === promisePrototype && doesNotShadowPromiseContract(v) : PromiseConstructorFunction !== INSTANCE_LESS_CONSTRUCTOR && isAlienRealmPromise(v, p))` |
 
 Each layer adds exactly one semantic level. No layer redoes work the layer below already
 did. Short-circuit `&&` enforces a _"least expensive first"_ ordering at each layer: in
@@ -166,7 +166,7 @@ the `Like`-cascade pattern in decision #050. Two arms, mutually exclusive:
 
 - **Local-realm arm** (`isCurrentRealmPromiseInstance(v) === true`) — settles on
   `prototype === promisePrototype && doesNotShadowPromiseContract(v)` (the once-resolved
-  throw-safe `getInertPrototypeOf(v)`, then the own-surface integrity gate). Admits only
+  throw-safe `getSafePrototypeOf(v)`, then the own-surface integrity gate). Admits only
   direct `Promise` instances; subclasses pass `instanceof` but fail the proto-identity
   check, and a value that overrides an inherited contract member (or the `constructor`) at
   its OWN level is demoted `is`→`Like` by the gate — the #028 subclass rejection applied

@@ -3,7 +3,10 @@
 /**
  * @module @species-js/type-detection/utility
  *
- * Cached prototype references and type-signature helpers.
+ * Cross-realm-safe, throw-safe primitives for runtime type inspection: weak-key
+ * and property-key validation, throw-safe prototype and descriptor reads, own
+ * `prototype`-property predicates, type-signature and tag readers, tamper-resistant
+ * constructor inspection, type-name resolution, and standard-constructor validation.
  *
  * Used internally by the package's predicates and exposed via subpath for
  * downstream packages that need the same cross-realm-safe primitives.
@@ -90,6 +93,7 @@ export function isValueOfBoundSet(value) {
 
 const weakKeyTypeSignatures = new Set(['object', 'function']);
 
+/* @@throw-safe */
 /**
  * Narrows a value to {@link WeakKey} — a value usable as a `WeakMap` / `WeakSet` key:
  * an object, a function, or (where the runtime supports it) an unregistered symbol.
@@ -123,6 +127,7 @@ export const isValidWeakKey = (function createIsValidWeakKeyPredicate(SymbolFact
   return (
     supportsSymbolAsWeakKey
       ? {
+          /* @@throw-safe */
           /**
            * @param {unknown} value - the value to test; omitted is
            *  treated as `undefined`, which is not a valid weak key
@@ -140,6 +145,7 @@ export const isValidWeakKey = (function createIsValidWeakKeyPredicate(SymbolFact
           },
         }
       : {
+          /* @@throw-safe */
           /**
            * @param {unknown} value - the value to test; omitted is
            *  treated as `undefined`, which is not a valid weak key
@@ -156,10 +162,11 @@ export const isValidWeakKey = (function createIsValidWeakKeyPredicate(SymbolFact
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 //
-//  Inert Prototype Access
+//  Throw-safe Prototype Access
 //
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 
+/* @@throw-safe */
 /**
  * Reads `getPrototypeOf(value)` throw-safely.
  *
@@ -175,12 +182,8 @@ export const isValidWeakKey = (function createIsValidWeakKeyPredicate(SymbolFact
  * @returns {object | Callable | null | undefined} the value's prototype (an
  *  object, a callable, or `null`); `undefined` for nullish input or when a
  *  hostile trap threw
- * @internal
  */
-export function getInertPrototypeOf(value = null) {
-  if (value === null) {
-    return void 0;
-  }
+export function getSafePrototypeOf(value) {
   try {
     return nativeGetPrototypeOf(value);
   } catch {
@@ -190,10 +193,11 @@ export function getInertPrototypeOf(value = null) {
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 //
-//  Prototype-Property Predicates
+//  Throw-safe "prototype" Property Predicates
 //
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 
+/* @@throw-safe */
 /**
  * Detects whether the value carries an own `prototype` property.
  *
@@ -202,8 +206,10 @@ export function getInertPrototypeOf(value = null) {
  * whose `prototype` comes from `Function.prototype` is the canonical
  * example.
  *
- * Guards nullish input with `!!value` so no descriptor lookup runs on
- * `null` or `undefined`.
+ * Throw-safe: the descriptor read runs inside a `try/catch`, so nullish
+ * input (`getOwnPropertyDescriptor` on `null`/`undefined`) and a hostile
+ * `getOwnPropertyDescriptor` Proxy-trap alike yield `false` rather than
+ * throwing.
  *
  * @param {unknown} [value] - the value to test; omitted is treated as
  *  `undefined`, which has no own prototype
@@ -211,15 +217,21 @@ export function getInertPrototypeOf(value = null) {
  *  property; `false` otherwise
  */
 export function hasOwnPrototype(value) {
-  return !!value && !!getOwnPropertyDescriptor(value, 'prototype');
+  try {
+    return !!getOwnPropertyDescriptor(value, 'prototype');
+  } catch {
+    return false;
+  }
 }
 
+/* @@throw-safe */
 /**
  * Detects whether the value carries an own `prototype` property whose
  * descriptor is `writable: true`.
  *
- * Uses the same nullish guard as {@link hasOwnPrototype}, plus a direct
- * read of the descriptor's `writable` field.
+ * Shares the throw-safe discipline of {@link hasOwnPrototype} — nullish
+ * input and a hostile descriptor trap yield `false` — and additionally
+ * reads the descriptor's `writable` field, requiring it to be `true`.
  *
  * This is the structural tell of an {@link ES3Function} versus a
  * {@link ClassConstructor}, whose own `prototype` is read-only.
@@ -230,15 +242,48 @@ export function hasOwnPrototype(value) {
  *  writable; `false` otherwise
  */
 export function hasOwnWritablePrototype(value) {
-  return !!value && getOwnPropertyDescriptor(value, 'prototype')?.writable === true;
+  try {
+    return getOwnPropertyDescriptor(value, 'prototype')?.writable === true;
+  } catch {
+    return false;
+  }
+}
+
+/* @@throw-safe */
+/**
+ * Detects whether the value carries an own `prototype` property whose
+ * descriptor is NOT writable (`writable: false`).
+ *
+ * The exact complement of {@link hasOwnWritablePrototype} over values that
+ * own a `prototype`: a {@link ClassConstructor}, whose own `prototype` is
+ * read-only, answers `true`; an {@link ES3Function}, whose own `prototype`
+ * is writable, answers `false`. A value with no own `prototype` at all (an
+ * arrow function, a plain object) also answers `false` — the missing
+ * descriptor's `?.writable` is `undefined`, not `false`.
+ *
+ * Throw-safe: the descriptor read runs inside a `try/catch`, so nullish
+ * input and a hostile descriptor trap yield `false` rather than throwing.
+ *
+ * @param {unknown} [value] - the value to test; omitted is treated as
+ *  `undefined`, which has no own prototype
+ * @returns {boolean} `true` when the value's own `prototype` exists but
+ *  is NOT writable; `false` otherwise
+ */
+export function hasOwnNonWritablePrototype(value) {
+  try {
+    return getOwnPropertyDescriptor(value, 'prototype')?.writable === false;
+  } catch {
+    return false;
+  }
 }
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 //
-//  Property-Key Utilities
+//  Property-Key related Utilities
 //
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 
+/* @@throw-safe */
 /**
  * Narrows the value to a valid `PropertyKey`.
  *
@@ -266,10 +311,10 @@ export function isValidPropertyKey(value) {
  * sidesteps the `TypeError` that `Object.getOwnPropertyNames(null)` would raise
  * — so a nullish (or omitted) argument yields `[]` rather than throwing.
  *
- * This is the raw form; {@link getInertOwnPropertyKeys} is the throw-safe twin
- * that also absorbs a hostile `Proxy` `ownKeys` trap (the raw/inert pairing used
- * across this module, mirroring
- * {@link getNextAvailablePropertyDescriptor} / {@link getInertDescriptor}).
+ * This is the raw form; {@link getSafeOwnPropertyKeys} is the throw-safe twin
+ * that also absorbs a hostile `Proxy` `ownKeys` trap (the raw/throw-safe pairing
+ * used across this module, mirroring
+ * {@link getNextAvailablePropertyDescriptor} / {@link getNextAvailableSafeDescriptor}).
  *
  * @param {unknown} [value] - the value whose own keys to collect; nullish (or
  *  omitted) yields `[]`
@@ -291,7 +336,7 @@ export function getOwnPropertyKeys(value) {
  * Uses the parameter-default-to-`null` pattern so the `!== null` loop
  * guard narrows `value` through each guarded `getPrototypeOf` step. Each
  * iteration reads the own descriptor at the current level, then steps
- * up via `getInertPrototypeOf(value) ?? null`. The loop terminates on
+ * up via `getSafePrototypeOf(value) ?? null`. The loop terminates on
  * the first descriptor hit or when the chain runs out.
  *
  * Accessor descriptors are returned as-is. The getter is never invoked.
@@ -303,7 +348,7 @@ export function getOwnPropertyKeys(value) {
  * @param {TRUSTED_DATA_CONFIRMATION_FLAG} [trustedData] - call-site hint
  * @returns {PropertyDescriptor | undefined} the first descriptor found
  *  while walking up the chain; `undefined` if none exists
- * @throws {unknown} at a malicious `getOwnPropertyDescriptors` proxy-trap
+ * @throws {unknown} at a malicious `getOwnPropertyDescriptor` proxy-trap
  */
 export function getNextAvailablePropertyDescriptor(value = null, key, trustedData) {
   if (trustedData !== true && !isValidPropertyKey(key)) {
@@ -316,17 +361,18 @@ export function getNextAvailablePropertyDescriptor(value = null, key, trustedDat
     descriptor = /** @type {PropertyDescriptor | undefined} */ (
       getOwnPropertyDescriptor(value, key)
     );
-    value = getInertPrototypeOf(value) ?? null;
+    value = getSafePrototypeOf(value) ?? null;
   }
   return descriptor;
 }
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 //
-//  Inert Property-Key Utilities
+//  Throw-safe Property-Key related Utilities
 //
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 
+/* @@throw-safe */
 /**
  * The throw-safe variant of {@link getOwnPropertyNames} — a value's own
  * string-keyed property names (enumerable and non-enumerable), or `[]` when
@@ -336,15 +382,14 @@ export function getNextAvailablePropertyDescriptor(value = null, key, trustedDat
  * sidesteps the `TypeError` that `Object.getOwnPropertyNames(null)` would raise;
  * the surrounding `try`/`catch` additionally swallows any throw from a hostile
  * `Proxy` `ownKeys` trap and reports `[]` instead — so this answers an array on
- * every input, the inert-probe discipline (decisions #029, #056).
+ * every input, the throw-safe discipline (decisions #029, #056).
  *
  * @param {unknown} [value] - the value whose own string-keyed names to read;
  *  nullish (or omitted) yields `[]`
  * @returns {string[]} the own string-keyed property names; `[]` when none are
  *  reachable or a trap threw
- * @internal
  */
-export function getInertOwnPropertyNames(value) {
+export function getSafeOwnPropertyNames(value) {
   try {
     return getOwnPropertyNames(value ?? !0);
   } catch {
@@ -352,11 +397,12 @@ export function getInertOwnPropertyNames(value) {
   }
 }
 
+/* @@throw-safe */
 /**
  * The throw-safe variant of {@link getOwnPropertySymbols} — a value's own
  * symbol-keyed properties, or `[]` when none are reachable.
  *
- * Same inert discipline as {@link getInertOwnPropertyNames}: the `value ?? !0`
+ * Same throw-safe discipline as {@link getSafeOwnPropertyNames}: the `value ?? !0`
  * guard sidesteps the nullish `TypeError`, and the `try`/`catch` swallows a
  * hostile `ownKeys` trap, reporting `[]`.
  *
@@ -364,9 +410,8 @@ export function getInertOwnPropertyNames(value) {
  *  (or omitted) yields `[]`
  * @returns {symbol[]} the own symbol-keyed properties; `[]` when none are
  *  reachable or a trap threw
- * @internal
  */
-export function getInertOwnPropertySymbols(value) {
+export function getSafeOwnPropertySymbols(value) {
   try {
     return getOwnPropertySymbols(value ?? !0);
   } catch {
@@ -374,27 +419,28 @@ export function getInertOwnPropertySymbols(value) {
   }
 }
 
+/* @@throw-safe */
 /**
  * The throw-safe variant of {@link getOwnPropertyKeys} — all of a value's own
  * property keys, both string-named and symbol-keyed (enumerable and
  * non-enumerable), as a single array.
  *
- * Concatenates {@link getInertOwnPropertyNames} and
- * {@link getInertOwnPropertySymbols}, so it inherits their inert discipline:
+ * Concatenates {@link getSafeOwnPropertyNames} and
+ * {@link getSafeOwnPropertySymbols}, so it inherits their throw-safe discipline:
  * nullish input and hostile traps yield `[]` rather than throwing.
  *
  * @param {unknown} [value] - the value whose own keys to collect; nullish (or
  *  omitted) yields `[]`
  * @returns {(string | symbol)[]} the own string and symbol keys; `[]` when none
  *  are reachable or a trap threw
- * @internal
  */
-export function getInertOwnPropertyKeys(value) {
-  return /** @type {(string | symbol)[]} */ (getInertOwnPropertyNames(value)).concat(
-    getInertOwnPropertySymbols(value),
+export function getSafeOwnPropertyKeys(value) {
+  return /** @type {(string | symbol)[]} */ (getSafeOwnPropertyNames(value)).concat(
+    getSafeOwnPropertySymbols(value),
   );
 }
 
+/* @@throw-safe */
 /**
  * Walks for the next available descriptor like
  * {@link getNextAvailablePropertyDescriptor}, but swallows any throw from a
@@ -417,7 +463,7 @@ export function getInertOwnPropertyKeys(value) {
  * @returns {PropertyDescriptor | undefined} the first descriptor found
  *  while walking the chain; `undefined` if none exists or a trap threw
  */
-export function getInertDescriptor(type, key, trustedData) {
+export function getNextAvailableSafeDescriptor(type, key, trustedData) {
   try {
     return getNextAvailablePropertyDescriptor(type, key, trustedData);
   } catch {
@@ -425,6 +471,7 @@ export function getInertDescriptor(type, key, trustedData) {
   }
 }
 
+/* @@throw-safe */
 /**
  * Tests whether the value carries a callable data property at `key`,
  * reachable through its prototype-chain.
@@ -441,7 +488,7 @@ export function getInertDescriptor(type, key, trustedData) {
  * regardless of whether the getter returns a callable. The predicate
  * rejects accessor descriptors, so the inspection itself remains inert.
  *
- * Throw-safe: the descriptor walk runs through {@link getInertDescriptor}, so
+ * Throw-safe: the descriptor walk runs through {@link getNextAvailableSafeDescriptor}, so
  * a value whose `getOwnPropertyDescriptor` / `getPrototypeOf` Proxy-trap throws
  * yields `false` rather than propagating — a type-guard must answer. The sibling
  * probes share this guarantee.
@@ -466,9 +513,13 @@ export function getInertDescriptor(type, key, trustedData) {
  * hasInertMethod(null, 'then');                                // false
  */
 export function hasInertMethod(type = null, key, trustedData) {
-  return type !== null && isCallable(getInertDescriptor(type, key, trustedData)?.value);
+  return (
+    type !== null &&
+    isCallable(getNextAvailableSafeDescriptor(type, key, trustedData)?.value)
+  );
 }
 
+/* @@throw-safe */
 /**
  * Tests whether the value carries an accessor `get` at `key`, reachable
  * through its prototype-chain.
@@ -491,9 +542,13 @@ export function hasInertMethod(type = null, key, trustedData) {
  *  callable getter at `key` in its prototype-chain; `false` otherwise
  */
 export function hasInertGetter(type = null, key, trustedData) {
-  return type !== null && isCallable(getInertDescriptor(type, key, trustedData)?.get);
+  return (
+    type !== null &&
+    isCallable(getNextAvailableSafeDescriptor(type, key, trustedData)?.get)
+  );
 }
 
+/* @@throw-safe */
 /**
  * Tests whether the value carries an accessor `set` at `key`, reachable
  * through its prototype-chain.
@@ -510,9 +565,13 @@ export function hasInertGetter(type = null, key, trustedData) {
  *  callable setter at `key` in its prototype-chain; `false` otherwise
  */
 export function hasInertSetter(type = null, key, trustedData) {
-  return type !== null && isCallable(getInertDescriptor(type, key, trustedData)?.set);
+  return (
+    type !== null &&
+    isCallable(getNextAvailableSafeDescriptor(type, key, trustedData)?.set)
+  );
 }
 
+/* @@throw-safe */
 /**
  * Tests whether the value carries a data property at `key`, reachable
  * through its prototype-chain.
@@ -544,10 +603,11 @@ export function hasInertSetter(type = null, key, trustedData) {
 export function hasInertValue(type = null, key, trustedData) {
   return (
     type !== null &&
-    objectHasOwn(getInertDescriptor(type, key, trustedData) ?? {}, 'value')
+    objectHasOwn(getNextAvailableSafeDescriptor(type, key, trustedData) ?? {}, 'value')
   );
 }
 
+/* @@throw-safe */
 /**
  * Reads the value's own `name` property descriptor and returns its data `value`
  * only when that value is a string primitive; `undefined` otherwise.
@@ -567,7 +627,6 @@ export function hasInertValue(type = null, key, trustedData) {
  * @param {unknown} [value] - the value whose own `name` to read
  * @returns {string | undefined} the own `name` value when present and a string
  *  primitive; `undefined` otherwise
- * @internal
  */
 export function getVerifiedOwnName(value) {
   try {
@@ -582,10 +641,11 @@ export function getVerifiedOwnName(value) {
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 //
-//  Type-Signature Readers
+//  Throw-safe Type-Signature Readers
 //
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 
+/* @@throw-safe */
 /**
  * Returns the value's internal `[[Class]]` signature.
  *
@@ -625,17 +685,20 @@ export function getTypeSignature(...args) {
   }
 }
 
+/* @@throw-safe */
 /**
  * Returns the tag portion of a value's type signature.
  *
  * Calls {@link getTypeSignature} and slices `[object ` and `]` off the
- * result. The `isStringValue` check short-circuits the no-argument case,
- * where `getTypeSignature` returned `undefined`.
+ * result. The `isStringValue` check short-circuits both cases where
+ * `getTypeSignature` returned `undefined` — a no-argument call and a value
+ * whose `Symbol.toStringTag` getter threw — so the tag read stays throw-safe.
  *
  * @param {...unknown} args - forwarded as-is to {@link getTypeSignature};
  *  presence is detected from its return value
  * @returns {TaggedType | undefined} the tag substring when an argument was
- *  provided; `undefined` when no argument was passed
+ *  provided; `undefined` when no argument was passed or a hostile
+ *  `Symbol.toStringTag` getter threw
  * @example
  * getTaggedType([]);                                 // 'Array'
  * getTaggedType(new Date());                         // 'Date'
@@ -653,10 +716,11 @@ export function getTaggedType(...args) {
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 //
-//  Constructor Inspection
+//  Throw-safe Constructor Inspection
 //
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 
+/* @@throw-safe */
 /**
  * Walks the value to its constructor function via inert descriptor
  * traversal.
@@ -683,7 +747,7 @@ export function getTaggedType(...args) {
  *
  * Two-stage walk:
  *
- * 1. {@link getInertDescriptor} (the throw-safe descriptor walk) on the pivot
+ * 1. {@link getNextAvailableSafeDescriptor} (the throw-safe descriptor walk) on the pivot
  *    finds the first `constructor` descriptor along its `[[Prototype]]` chain.
  *    For the common case, the descriptor's value is a function, returned
  *    directly.
@@ -695,7 +759,7 @@ export function getTaggedType(...args) {
  *    (`%GeneratorFunction%`, `%AsyncGeneratorFunction%`).
  *
  * Fully inert — accessor getters are never invoked — and throw-safe: the
- * descriptor walk routes through {@link getInertDescriptor}, so a hostile
+ * descriptor walk routes through {@link getNextAvailableSafeDescriptor}, so a hostile
  * `getOwnPropertyDescriptor` / `getPrototypeOf` Proxy-trap yields `undefined`
  * (the contract's "no reachable constructor") rather than propagating
  * (decision #056). There are valid
@@ -730,15 +794,16 @@ export function getDefinedConstructor(value = null, options) {
   const { assumePrototype = false } =
     /** @type {DefinedConstructorAccessorOptions} */ (options) ?? {};
 
-  const type = isCallable(value) || assumePrototype ? value : getInertPrototypeOf(value);
+  const type = isCallable(value) || assumePrototype ? value : getSafePrototypeOf(value);
 
   const creator =
-    getInertDescriptor(type, 'constructor', TRUSTED_DATA_CONFIRMATION)?.value ?? null;
+    getNextAvailableSafeDescriptor(type, 'constructor', TRUSTED_DATA_CONFIRMATION)
+      ?.value ?? null;
 
   if (isFunction(creator)) {
     return /** @type {NewableFunction} */ (creator);
   } else if (creator !== null) {
-    const constructor = getInertDescriptor(
+    const constructor = getNextAvailableSafeDescriptor(
       creator,
       'constructor',
       TRUSTED_DATA_CONFIRMATION,
@@ -751,6 +816,7 @@ export function getDefinedConstructor(value = null, options) {
   return void 0;
 }
 
+/* @@throw-safe */
 /**
  * Returns the constructor's `name` via its property descriptor.
  *
@@ -791,12 +857,13 @@ export function getDefinedConstructorName(value, options) {
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 //
-//  Type Resolution
+//  Throw-safe Type Resolution
 //
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 
 const regXStartsWithUpperCase = /^\p{Lu}/u;
 
+/* @@throw-safe */
 /**
  * Resolves a value to its type-name.
  *
@@ -823,7 +890,9 @@ const regXStartsWithUpperCase = /^\p{Lu}/u;
  * @param {...unknown} args - the first argument (`args[0]`) is the value;
  *  presence is detected via `args.length`
  * @returns {ResolvedType | undefined} the resolved type-name when an
- *  argument was provided; `undefined` when no argument was passed
+ *  argument was provided; `undefined` when no argument was passed, or when
+ *  the value has no reachable constructor and a hostile `Symbol.toStringTag`
+ *  getter threw
  * @example
  * resolveType([]);                         // 'Array'
  * resolveType(Promise.resolve());          // 'Promise'
@@ -851,10 +920,11 @@ export function resolveType(...args) {
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 //
-//  Standard-Constructor Validation
+//  Throw-safe Standard-Constructor Validation
 //
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 
+/* @@throw-safe */
 /**
  * Validates a standard built-in constructor and returns its realm-fixed
  * `[constructor, prototype]` tuple, or an inert surrogate tuple when validation

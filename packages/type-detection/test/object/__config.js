@@ -200,7 +200,7 @@ export const accessorNameConstructorPrototype = () => {
 // Proxies. Three distinct trap surfaces, attacked from every angle:
 
 // (1) a hostile [[Prototype]] whose `getPrototypeOf` trap throws — hits the
-// direct prototype reads (now `getInertPrototypeOf`).
+// direct prototype reads (now `getSafePrototypeOf`).
 export const throwingProtoTrapProxy = () =>
   new Proxy(
     {},

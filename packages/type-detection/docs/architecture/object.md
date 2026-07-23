@@ -80,7 +80,7 @@ anchor:
 
 ```js
 // the prototype is resolved ONCE and threaded into the anchor (#059):
-const prototype = getPrototypeOf(value); // conceptual; impl uses getInertPrototypeOf
+const prototype = getPrototypeOf(value); // conceptual; impl uses getSafePrototypeOf
 isObject(value) &&
   !!prototype &&
   (prototype === objectPrototype || isAlienRealmPlainObject(value, prototype));
@@ -130,7 +130,7 @@ throw-safe reader, so a type-guard answers a boolean on every input — includin
 `Proxy` — rather than propagating a trap's throw (hardened during the 2026-06-25 test
 round, decision-aligned with #056/#057/#029):
 
-- **Prototype reads** → `getInertPrototypeOf` (`#utility`, the #057 wrapper). A throwing
+- **Prototype reads** → `getSafePrototypeOf` (`#utility`, the #057 wrapper). A throwing
   `getPrototypeOf` trap yields `undefined` — matching neither `objectPrototype` nor
   `null`.
 - **The six-marker contract** (`isObjectPrototypeEquivalent`) reads the constructor's own
@@ -190,7 +190,7 @@ export function isObjectPrototypeEquivalent(prototype, constructor, name) {
     hasPlainObjectIdentitySignal(prototype, name) && // 2+3 — prototype [[Class]] tag + ctor `name`
     getInertDescriptor(constructor, 'prototype', TRUSTED_DATA_CONFIRMATION)?.value ===
       prototype && // 4 — round-trip identity
-    getInertPrototypeOf(prototype) === null && // 5 — chain-depth (top-level prototype)
+    getSafePrototypeOf(prototype) === null && // 5 — chain-depth (top-level prototype)
     doesImplementObjectPrototypeContract(prototype) // 6 — own member surface
   );
 }

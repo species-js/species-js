@@ -498,7 +498,7 @@ both shape helpers and both fast paths.
 
 ### `hasAsyncFunctionPrototypeSurface(value)` — `@internal`
 
-`new Set(getInertOwnPropertyNames(getInertPrototypeOf(value)))` has `'constructor'` and
+`new Set(getSafeOwnPropertyNames(getSafePrototypeOf(value)))` has `'constructor'` and
 **not** `'prototype'`.
 
 - `hAFPS/A1` — `async function () {}`, `async () => {}` → true
@@ -529,8 +529,8 @@ both shape helpers and both fast paths.
 
 ### `hasAnyGeneratorFunctionPrototypeSurface(value)` — `@internal` (family-shared)
 
-`new Set(getInertOwnPropertyNames(getInertPrototypeOf(value)))` has **both**
-`'constructor'` and `'prototype'`.
+`new Set(getSafeOwnPropertyNames(getSafePrototypeOf(value)))` has **both** `'constructor'`
+and `'prototype'`.
 
 - `hAGFPS/A1` — `function* () {}`, `async function* () {}` → true (both generator protos
   carry `constructor` + `prototype`).

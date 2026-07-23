@@ -43,8 +43,8 @@ import {
 } from '#config';
 
 import {
-  getInertPrototypeOf,
-  getInertDescriptor,
+  getSafePrototypeOf,
+  getNextAvailableSafeDescriptor,
   hasInertGetter,
   getTypeSignature,
   getVerifiedOwnName,
@@ -472,8 +472,8 @@ export function isGenericErrorPrototypeEquivalent(prototype, constructor) {
     getTypeSignature(prototype) === '[object Object]' &&
     getVerifiedOwnName(constructor) === 'Error' &&
     isClass(constructor) &&
-    getInertDescriptor(constructor, 'prototype', TRUSTED_DATA_CONFIRMATION)?.value ===
-      prototype &&
+    getNextAvailableSafeDescriptor(constructor, 'prototype', TRUSTED_DATA_CONFIRMATION)
+      ?.value === prototype &&
     doesImplementGenericErrorPrototypeContract(/** @type {object} */ (prototype))
   );
 }
@@ -507,8 +507,8 @@ export function isDOMExceptionPrototypeEquivalent(prototype, constructor, value)
     getTypeSignature(prototype) === '[object DOMException]' &&
     getVerifiedOwnName(constructor) === 'DOMException' &&
     isClass(constructor) &&
-    getInertDescriptor(constructor, 'prototype', TRUSTED_DATA_CONFIRMATION)?.value ===
-      prototype &&
+    getNextAvailableSafeDescriptor(constructor, 'prototype', TRUSTED_DATA_CONFIRMATION)
+      ?.value === prototype &&
     doesImplementDOMExceptionPrototypeContract(prototype, value)
   );
 }
@@ -565,13 +565,17 @@ export function isAlienRealmGenericError(value) {
   let prototype;
 
   while (node !== null) {
-    prototype = getInertPrototypeOf(node) ?? null;
+    prototype = getSafePrototypeOf(node) ?? null;
 
     if (
       prototype !== null &&
       isGenericErrorPrototypeEquivalent(
         prototype,
-        getInertDescriptor(prototype, 'constructor', TRUSTED_DATA_CONFIRMATION)?.value,
+        getNextAvailableSafeDescriptor(
+          prototype,
+          'constructor',
+          TRUSTED_DATA_CONFIRMATION,
+        )?.value,
       )
     ) {
       result = true;
@@ -619,14 +623,18 @@ export function isAlienRealmDOMException(value) {
   let prototype;
 
   while (node !== null) {
-    prototype = getInertPrototypeOf(node) ?? null;
+    prototype = getSafePrototypeOf(node) ?? null;
 
     if (
       prototype !== null &&
       isDOMExceptionPrototypeEquivalent(
         prototype,
         /** @type {NewableFunction | undefined} */ (
-          getInertDescriptor(prototype, 'constructor', TRUSTED_DATA_CONFIRMATION)?.value
+          getNextAvailableSafeDescriptor(
+            prototype,
+            'constructor',
+            TRUSTED_DATA_CONFIRMATION,
+          )?.value
         ),
         /** @type {object} */ (value),
       )

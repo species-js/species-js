@@ -388,8 +388,8 @@ export function hasDictionaryObjectIdentitySignal(value: unknown): boolean;
  *    definition yields `undefined` and fails the check.
  * 4. The constructor's own `prototype` data property points back to
  *    the threaded `prototype` — round-trip identity, read via the
- *    throw-safe `getInertDescriptor(...).value` (same discipline).
- * 5. `getInertPrototypeOf(prototype) === null` — chain-depth check: the
+ *    throw-safe `getNextAvailableSafeDescriptor(...).value` (same discipline).
+ * 5. `getSafePrototypeOf(prototype) === null` — chain-depth check: the
  *    prototype is a top-level (no further `[[Prototype]]`), which
  *    every realm's `Object.prototype` satisfies and which class
  *    instances and built-in container instances do not.
@@ -407,9 +407,9 @@ export function hasDictionaryObjectIdentitySignal(value: unknown): boolean;
  * surface where a getter returns one value during the check and a
  * different value to later observers.
  *
- * Throw-safe end to end: the prototype read (`getInertPrototypeOf`), the
+ * Throw-safe end to end: the prototype read (`getSafePrototypeOf`), the
  * constructor `name` (`getVerifiedOwnName`), the constructor `prototype`
- * round-trip (`getInertDescriptor`), and the member-surface read (a
+ * round-trip (`getNextAvailableSafeDescriptor`), and the member-surface read (a
  * guarded `getOwnPropertyDescriptors`) each absorb a hostile
  * `getPrototypeOf` / `getOwnPropertyDescriptor` Proxy-trap, failing the
  * contract rather than propagating. `isClass` is likewise throw-safe at
@@ -471,9 +471,9 @@ export function isAlienRealmPlainObject(value: object, prototype: object): boole
  *   newable class shape (`isClass`), the prototype's own
  *   `[[Class]]` tag is `'[object Object]'`, the constructor's own
  *   `name` and `prototype` properties read via the throw-safe
- *   `getVerifiedOwnName` / `getInertDescriptor(...).value` (skipping
+ *   `getVerifiedOwnName` / `getNextAvailableSafeDescriptor(...).value` (skipping
  *   accessors), the `prototype` value round-trips back to the threaded
- *   prototype, `getInertPrototypeOf(prototype) === null` confirms the
+ *   prototype, `getSafePrototypeOf(prototype) === null` confirms the
  *   chain-depth invariant that every realm's `Object.prototype` carries,
  *   and `doesImplementObjectPrototypeContract(prototype)` confirms the
  *   prototype's own member surface (every canonical `Object.prototype`
@@ -503,7 +503,7 @@ export function isAlienRealmPlainObject(value: object, prototype: object): boole
  * Cross-realm safe by construction. The fast-path matches local-realm
  * `Object.prototype` identity. The fallback uses realm-fixed captures
  * (`toObjectString.call` via `getTypeSignature`, the throw-safe
- * `getInertPrototypeOf`, `getVerifiedOwnName` and `getInertDescriptor`,
+ * `getSafePrototypeOf`, `getVerifiedOwnName` and `getNextAvailableSafeDescriptor`,
  * and a guarded `getOwnPropertyDescriptors` for the member surface) and
  * the four-source constructor walk (via `getDefinedConstructor`, its
  * name read via `getVerifiedOwnName`). Cross-realm Plain Objects (from
@@ -511,7 +511,7 @@ export function isAlienRealmPlainObject(value: object, prototype: object): boole
  * `Object.prototype` reference does not match their prototype, but
  * their structural contract matches in every realm.
  *
- * Throw-safe: every prototype read routes through `getInertPrototypeOf`,
+ * Throw-safe: every prototype read routes through `getSafePrototypeOf`,
  * so a hostile `getPrototypeOf` Proxy-trap yields `false` rather than
  * propagating the throw.
  *
@@ -581,7 +581,7 @@ export function isPlainObject<T = unknown>(value?: T): value is T & PlainObject;
  * `getDefinedConstructor` walk and the `getTypeSignature` capture
  * are cross-realm safe.
  *
- * Throw-safe: the prototype read routes through `getInertPrototypeOf`,
+ * Throw-safe: the prototype read routes through `getSafePrototypeOf`,
  * so a hostile `getPrototypeOf` Proxy-trap yields `undefined` (not
  * `null`) and the predicate returns `false` rather than propagating.
  *
@@ -609,7 +609,7 @@ export function isDictionaryObject<T = unknown>(value?: T): value is T & Diction
  * {@link DictionaryObject} (prototype-less).
  *
  * Fused implementation: shares one `isObject` gate and one throw-safe
- * `getInertPrototypeOf` read across both branches, then dispatches by
+ * `getSafePrototypeOf` read across both branches, then dispatches by
  * prototype value:
  *
  * - `prototype === Object.prototype` → local-realm `PlainObject`,
@@ -627,7 +627,7 @@ export function isDictionaryObject<T = unknown>(value?: T): value is T & Diction
  * composition would perform — especially in the `DictionaryObject` input case,
  * where the strict predicate runs its signal + contract checks before failing.
  *
- * Throw-safe: the shared prototype read routes through `getInertPrototypeOf`,
+ * Throw-safe: the shared prototype read routes through `getSafePrototypeOf`,
  * so a hostile `getPrototypeOf` Proxy-trap yields `undefined` — matching
  * neither dispatch branch, so it falls to the structural fallback and returns
  * `false` rather than propagating the throw.

@@ -10,7 +10,7 @@
 > the real impl on the first run. The three inert-probe siblings
 > (`hasInertGetter`/`Setter`/ `Value`) were promoted from `@internal` to public after the
 > run (Resolved items #1). Base for the axis-1 suite; axes 2–4 derive alongside. Amended
-> 2026-06-25 — the `getInertPrototypeOf` rename (was `guardedGetPrototypeOf`) and the
+> 2026-06-25 — the `getSafePrototypeOf` rename (was `guardedGetPrototypeOf`) and the
 > retirement of the `getOwnPropertyDescriptors{Keys,KeySet}` pair in favour of
 > `getOwnPropertyKeys` + the throw-safe `getInertOwnProperty{Names,Symbols,Keys}` family
 > (see Resolved items #2).
@@ -54,7 +54,7 @@ returns `boolean`, a `string`/`Set`/descriptor, or `undefined`.
 - Type resolution: `resolveType` (overloaded: omitted arg → `undefined`).
 
 **Exported `@internal` helpers — 3:** the throw-safe own-key readers
-`getInertOwnPropertyNames`, `getInertOwnPropertySymbols`, `getInertOwnPropertyKeys` (added
+`getSafeOwnPropertyNames`, `getInertOwnPropertySymbols`, `getInertOwnPropertyKeys` (added
 post-freeze 2026-06-25; see Resolved items #2). The inert _probe_ set
 (`hasInertGetter`/`hasInertSetter`/`hasInertValue`) is public — its former `@internal`
 tags were removed (Resolved items #1).
@@ -75,7 +75,7 @@ the utility test round.
 ## Cross-cutting vectors
 
 - **CC/nullish-safe** — `hasOwnPrototype`, `hasOwnWritablePrototype`,
-  `getOwnPropertyKeys`, `getInertOwnPropertyNames`/`Symbols`/`Keys`,
+  `getOwnPropertyKeys`, `getSafeOwnPropertyNames`/`Symbols`/`Keys`,
   `getDefinedConstructor`, `getDefinedConstructorName`, `isValidPropertyKey` all accept
   `null`/`undefined`/omitted without throwing (each returns its empty/false/undefined
   floor). The inert probes (`hasInertMethod`/`Getter`/`Setter`/`Value`) take `null` as the
@@ -186,7 +186,7 @@ throw-safe twin is `getInertOwnPropertyKeys`.
 
 ---
 
-## `getInertOwnPropertyNames` / `getInertOwnPropertySymbols` / `getInertOwnPropertyKeys` — `@internal`
+## `getSafeOwnPropertyNames` / `getInertOwnPropertySymbols` / `getInertOwnPropertyKeys` — `@internal`
 
 The throw-safe variants of `getOwnPropertyNames` / `getOwnPropertySymbols` / {@link
 getOwnPropertyKeys}: each wraps its read so a hostile `Proxy` `ownKeys` trap (or nullish
@@ -200,7 +200,7 @@ other two.
 - `gIOPK/A1` — string + symbol keys (the two above concatenated); throwing trap → `[]`.
 
 These feed the function-family proto-surface helpers, e.g.
-`new Set(getInertOwnPropertyNames(getInertPrototypeOf(value)))`.
+`new Set(getSafeOwnPropertyNames(getSafePrototypeOf(value)))`.
 
 **Cross-realm (axis 2):** realm-safe.
 
@@ -446,16 +446,16 @@ descriptor holding `undefined` is still recognized (matches ECMA-262 §6.2.5.1
 
 4. **Property-key helper retirement + inert own-key family — RESOLVED (2026-06-25).** Two
    surface changes landed during the `function` / `object` rounds:
-   - **Rename:** `guardedGetPrototypeOf` → `getInertPrototypeOf` (the throw-safe prototype
+   - **Rename:** `guardedGetPrototypeOf` → `getSafePrototypeOf` (the throw-safe prototype
      reader), aligning it with the `getInert*` naming of the rest of the inert layer. Pure
      rename; same behavior. All `src` + doc references updated (only `dist/` build
      artifacts carry the old name until the next build).
    - **Retirement:** the `getOwnPropertyDescriptorsKeys` /
      `getOwnPropertyDescriptorsKeySet` pair was removed. The function-family proto-surface
-     helpers migrated to `new Set(getInertOwnPropertyNames(getInertPrototypeOf(value)))`,
+     helpers migrated to `new Set(getSafeOwnPropertyNames(getSafePrototypeOf(value)))`,
      leaving the pair with no consumers (reference-checked: dead). In their place: the
      public `getOwnPropertyKeys` (own string **and symbol** keys — a superset of the old
-     string-only `…Keys`) and the throw-safe `@internal` family `getInertOwnPropertyNames`
+     string-only `…Keys`) and the throw-safe `@internal` family `getSafeOwnPropertyNames`
      / `getInertOwnPropertySymbols` / `getInertOwnPropertyKeys`. The retired sections'
      `gOPDK/*` / `gOPDKS/*` vectors are replaced by `gOPK/*` and `gIOP{N,S,K}/*` above.
      ADR #011 (the `Set` shape-probe decision) stands — only the underlying key-reader

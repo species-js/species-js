@@ -24,7 +24,7 @@ import {
   hasPlainObjectIdentitySignal,
   isObjectPrototypeEquivalent,
   isAlienRealmPlainObject,
-  getInertPrototypeOf,
+  getSafePrototypeOf,
   getDefinedConstructor,
   getVerifiedOwnName,
 } from '#index';
@@ -52,7 +52,7 @@ describe('object — cross-realm (axis 2)', () => {
     // Resolve the threaded constructor/name ONCE from the [[Prototype]], exactly
     // as `isAlienRealmPlainObject` does (#059) — the foreign `Object` resolves to
     // name `'Object'` in every realm.
-    const prototype = /** @type {object} */ (getInertPrototypeOf(foreign));
+    const prototype = /** @type {object} */ (getSafePrototypeOf(foreign));
     const constructor = getDefinedConstructor(prototype, { assumePrototype: true });
     const name = getVerifiedOwnName(constructor);
     expect(hasPlainObjectIdentitySignal(foreign, name), 'signal').toBe(true);

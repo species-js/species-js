@@ -12,18 +12,18 @@
  * generator, or class.
  */
 
-import { TRUSTED_DATA_CONFIRMATION } from '#foundation';
 import { toFunctionString } from '#config';
 import {
+  hasOwnNonWritablePrototype,
   hasOwnWritablePrototype,
   hasOwnPrototype,
-  getInertPrototypeOf,
-  getInertDescriptor,
-  getInertOwnPropertyNames,
+  getSafePrototypeOf,
+  getSafeOwnPropertyNames,
   getTypeSignature,
   getDefinedConstructor,
   getDefinedConstructorName,
 } from '#utility';
+
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 
 /** @typedef {import('#function').Callable} Callable */
@@ -57,12 +57,22 @@ import {
  * the load-bearing reason callers reach for this helper, so stripping the
  * markers would defeat the purpose.
  *
+ * Throw-safe: even a genuine callable can make `toFunctionString.call` throw
+ * (a revoked callable `Proxy`, a hostile subclass), so the read is wrapped and
+ * yields `undefined` rather than propagating — the `| undefined` is intrinsic
+ * to the capture, not a symptom of a non-function argument.
+ *
  * @param {Callable} value - the function whose source should be read
- * @returns {string} the function's source as a trimmed string
- * @internal
+ * @returns {string | undefined} the function's source as a trimmed string;
+ *  `undefined` when the realm-fixed `toString` throws (e.g. a revoked
+ *  callable `Proxy`)
  */
 export function getFunctionSource(value) {
-  return toFunctionString.call(value).trim();
+  try {
+    return toFunctionString.call(value).trim();
+  } catch {
+    return void 0;
+  }
 }
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
@@ -257,17 +267,17 @@ export function isES3Function(value) {
  * Bound class constructors are deliberately rejected. Though they remain
  * newable, `bind` has stripped the own `prototype` slot from the bound
  * result. What remains is no longer a class shape.
- * The descriptor read returns `undefined` and `undefined?.writable === false`
- * short-circuits to `false`. The {@link NewableFunction} gate still admits
- * bound newables; this guard does not.
+ * With no own `prototype` descriptor, {@link hasOwnNonWritablePrototype}
+ * returns `false`. The {@link NewableFunction} gate still admits bound
+ * newables; this guard does not.
  *
- * Throw-safe: the `prototype` descriptor read routes through the
- * throw-safe `getInertDescriptor`, so a hostile `getOwnPropertyDescriptor`
- * Proxy-trap on `value` yields `undefined` (→ `false`) rather than
- * propagating. This extends the constructor-resolution layer's throw-safety
- * (decision #056) to `isClass`, so every consumer — notably the cross-realm
- * `#object` plain-object contract — is throw-safe against a hostile
- * constructor for free.
+ * Throw-safe: the own `prototype` descriptor read routes through the
+ * throw-safe {@link hasOwnNonWritablePrototype}, so a hostile
+ * `getOwnPropertyDescriptor` Proxy-trap on `value` yields `false` rather
+ * than propagating. This extends the constructor-resolution layer's
+ * throw-safety (decision #056) to `isClass`, so every consumer — notably
+ * the cross-realm `#object` plain-object contract — is throw-safe against
+ * a hostile constructor for free.
  *
  * Generic in `T` per the family-pattern. The narrow returns
  * `T & ClassConstructor`. `T = unknown` collapses to `ClassConstructor`.
@@ -280,10 +290,7 @@ export function isES3Function(value) {
  *  `T & ClassConstructor`; `false` otherwise
  */
 export function isClass(value) {
-  return (
-    isNewableFunction(value) &&
-    getInertDescriptor(value, 'prototype', TRUSTED_DATA_CONFIRMATION)?.writable === false
-  );
+  return isNewableFunction(value) && hasOwnNonWritablePrototype(value);
 }
 
 /**
@@ -311,7 +318,7 @@ export function isClass(value) {
  *  `false` otherwise
  */
 export function isCustomClass(value) {
-  return isClass(value) && getFunctionSource(value).startsWith('class');
+  return isClass(value) && (getFunctionSource(value) ?? '').startsWith('class');
 }
 
 /**
@@ -338,7 +345,7 @@ export function isCustomClass(value) {
  *  `false` otherwise
  */
 export function isBuiltInClass(value) {
-  return isClass(value) && !getFunctionSource(value).startsWith('class');
+  return isClass(value) && !(getFunctionSource(value) ?? '').startsWith('class');
 }
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
@@ -386,18 +393,18 @@ export function hasAsyncFunctionIdentitySignal(value) {
  * of `%AsyncFunction.prototype%`: `'constructor'` present and `'prototype'`
  * absent.
  *
- * The proto-side check builds a `Set` from {@link getInertOwnPropertyNames}
+ * The proto-side check builds a `Set` from {@link getSafeOwnPropertyNames}
  * and uses its membership semantics, so a prototype with extra own keys is
  * admitted as long as both conditions hold. The spec promises which keys
  * `%AsyncFunction.prototype%` exhibits, not that those are the only keys.
  *
- * Throw-safe: the `[[Prototype]]` read ({@link getInertPrototypeOf}) and the
- * own-key read ({@link getInertOwnPropertyNames}) each absorb a hostile
+ * Throw-safe: the `[[Prototype]]` read ({@link getSafePrototypeOf}) and the
+ * own-key read ({@link getSafeOwnPropertyNames}) each absorb a hostile
  * `getPrototypeOf` / `ownKeys` Proxy-trap, yielding an empty key set (→
  * `false`) rather than propagating.
  *
  * Called only as the last link of {@link hasAsyncFunctionShape}'s `&&`
- * chain, so by the time `getInertPrototypeOf` runs the upstream `[[Class]]`
+ * chain, so by the time `getSafePrototypeOf` runs the upstream `[[Class]]`
  * check has already rejected `null` and `undefined`.
  *
  * @param {unknown} value - the value whose `[[Prototype]]` should be inspected
@@ -406,7 +413,7 @@ export function hasAsyncFunctionIdentitySignal(value) {
  * @internal
  */
 export function hasAsyncFunctionPrototypeSurface(value) {
-  const set = new Set(getInertOwnPropertyNames(getInertPrototypeOf(value)));
+  const set = new Set(getSafeOwnPropertyNames(getSafePrototypeOf(value)));
   return set.has('constructor') && !set.has('prototype');
 }
 
@@ -602,12 +609,12 @@ export function hasAsyncGeneratorFunctionIdentitySignal(value) {
  * `'prototype'` points to `%Generator.prototype%` or
  * `%AsyncGenerator.prototype%`, the iterator-instance or
  * async-iterator-instance prototype holding `next`, `return`, and `throw`.
- * The proto-side check builds a `Set` from {@link getInertOwnPropertyNames}
+ * The proto-side check builds a `Set` from {@link getSafeOwnPropertyNames}
  * and uses its membership semantics, so a prototype with extra own keys is
  * admitted as long as both required keys are present.
  *
- * Throw-safe: the `[[Prototype]]` read ({@link getInertPrototypeOf}) and the
- * own-key read ({@link getInertOwnPropertyNames}) each absorb a hostile
+ * Throw-safe: the `[[Prototype]]` read ({@link getSafePrototypeOf}) and the
+ * own-key read ({@link getSafeOwnPropertyNames}) each absorb a hostile
  * `getPrototypeOf` / `ownKeys` Proxy-trap, yielding an empty key set (→
  * `false`) rather than propagating.
  *
@@ -625,7 +632,7 @@ export function hasAsyncGeneratorFunctionIdentitySignal(value) {
  * Called only as the last link of both
  * {@link hasGeneratorFunctionShape}'s and
  * {@link hasAsyncGeneratorFunctionShape}'s `&&` chains, so by the time
- * `getInertPrototypeOf` runs the upstream `[[Class]]` check has already
+ * `getSafePrototypeOf` runs the upstream `[[Class]]` check has already
  * rejected `null` and `undefined`.
  *
  * @param {unknown} value - the value whose `[[Prototype]]` should be inspected
@@ -634,7 +641,7 @@ export function hasAsyncGeneratorFunctionIdentitySignal(value) {
  * @internal
  */
 export function hasAnyGeneratorFunctionPrototypeSurface(value) {
-  const set = new Set(getInertOwnPropertyNames(getInertPrototypeOf(value)));
+  const set = new Set(getSafeOwnPropertyNames(getSafePrototypeOf(value)));
   return set.has('constructor') && set.has('prototype');
 }
 

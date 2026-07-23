@@ -11,7 +11,7 @@
 > unchanged throughout — see Resolved items #4 and #5. Re-validated 2026-06-29 — adopted
 > the package-wide clean throw-safety model (universal invariant + axis-3
 > `hostile × predicate` matrix; refuses-to-claim demoted to prose), fixed the
-> `getInertPrototypeOf` rename drift, and closed the `isPromise/A2` + throw-safety-cell
+> `getSafePrototypeOf` rename drift, and closed the `isPromise/A2` + throw-safety-cell
 > coverage gaps; no admit/reject verdict changed — see Resolved items #6. Amended
 > 2026-07-02 (evented/object-round parity back-port) — three coupled changes to
 > `isPromise`: (a) a new `@internal` `doesNotShadowPromiseContract` gate ANDed onto the
@@ -49,8 +49,8 @@ readers, `false` for probes) so the composing predicate collapses to `false`. Th
 hostile-input classes this module's reads are exposed to, and the throw-safe reader each
 routes through:
 
-- **prototype-trap** (a `Proxy` whose `getPrototypeOf` throws) → `getInertPrototypeOf`,
-  and the `try/catch`-wrapped `instanceof` inside `isCurrentRealmPromiseInstance`;
+- **prototype-trap** (a `Proxy` whose `getPrototypeOf` throws) → `getSafePrototypeOf`, and
+  the `try/catch`-wrapped `instanceof` inside `isCurrentRealmPromiseInstance`;
 - **descriptor-trap** (a `Proxy` whose `getOwnPropertyDescriptor` throws, including on a
   pivoted `[[Prototype]]`) → `hasInertMethod` / `getDefinedConstructor`, both via
   `getInertDescriptor`;
@@ -231,7 +231,7 @@ proto-identity narrowing.
 `isPromise(value?: unknown): value is Promise<unknown>` — strict identity to the concrete
 `Promise` intrinsic, so intentionally **non-generic** (decision #062), unlike the
 subclass-admitting `isThenable` / `isPromiseLike`. Composition: the prototype is resolved
-ONCE via the throw-safe `getInertPrototypeOf(value)` (which absorbs nullish input and a
+ONCE via the throw-safe `getSafePrototypeOf(value)` (which absorbs nullish input and a
 hostile `getPrototypeOf` trap, decision #059 threading), and the leading `!!prototype`
 short-circuit excludes nullish/falsy/hostile-trap values before any further read. That
 single prototype read is threaded into both dispatch arms —
@@ -345,7 +345,7 @@ that graft is now closed by the `#063` own-shadow gate (`isPromise/R8`,`R9`).
 
 **Composition note (axis 4):** two-axis ternary over `isCurrentRealmPromiseInstance`,
 gated by a leading `!!prototype` short-circuit; the local-realm arm compares the
-once-resolved `getInertPrototypeOf` (`#utility`) read against the realm-fixed
+once-resolved `getSafePrototypeOf` (`#utility`) read against the realm-fixed
 `promisePrototype` capture (ANDed with the `#063` own-shadow gate); the cross-realm arm is
 `isAlienRealmPromise` (guarded by
 `PromiseConstructorFunction !== INSTANCE_LESS_CONSTRUCTOR`), composing
@@ -473,7 +473,7 @@ verified separately by that caller. Decisions #054, #059.
 `hasPromiseIdentitySignal(value, getVerifiedOwnName(constructor)) && isPromisePrototypeEquivalent(prototype, constructor)`.
 The single resolution is threaded into both the value's name marker (via
 `getVerifiedOwnName`) and the prototype anchor. `isPromise` passes its already-read
-`getInertPrototypeOf(value)` as `prototype` (decision #059). These vectors are the
+`getSafePrototypeOf(value)` as `prototype` (decision #059). These vectors are the
 white-box counterparts of the public `isPromise` cross-realm vectors.
 
 - `iARP/A1` — a cross-realm _direct_ `Promise` (fixture) → true — mirrors `isPromise/A3`.
@@ -595,9 +595,9 @@ post-freeze amendment is recorded below (item 4).
      **prose**. The testable-boundary grafts (`isThenable/B3`, `isPromise/B2`) and the
      helper-unit vectors (`hPIS/B1`, `iCRPI/B1`) keep their IDs. The dangling
      `isThenable/B7` reference is resolved (folded into the invariant).
-   - **Rename drift fixed.** The 2026-06-29 `getInertPrototypeOf` rename had left
+   - **Rename drift fixed.** The 2026-06-29 `getSafePrototypeOf` rename had left
      `getPrototypeOf` stragglers in `isPromise`'s composition formula and
-     Composition/helper notes; the spec now mirrors the threaded `getInertPrototypeOf`
+     Composition/helper notes; the spec now mirrors the threaded `getSafePrototypeOf`
      code.
    - **Coverage gap closed.** `isPromise/A2` (`new Promise(() => {})`) gained its missing
      matrix row; the axis-3 throw-safety matrix filled the previously-empty

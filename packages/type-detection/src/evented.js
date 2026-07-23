@@ -31,8 +31,8 @@ import {
 
 import {
   isValueOfBoundSet,
-  getInertPrototypeOf,
-  getInertDescriptor,
+  getSafePrototypeOf,
+  getNextAvailableSafeDescriptor,
   hasInertMethod,
   getTypeSignature,
   getVerifiedOwnName,
@@ -336,8 +336,8 @@ export function isEventTargetPrototypeEquivalent(prototype, constructor) {
   return (
     isClass(constructor) &&
     getTypeSignature(prototype) === '[object EventTarget]' &&
-    getInertDescriptor(constructor, 'prototype', TRUSTED_DATA_CONFIRMATION)?.value ===
-      prototype &&
+    getNextAvailableSafeDescriptor(constructor, 'prototype', TRUSTED_DATA_CONFIRMATION)
+      ?.value === prototype &&
     doesImplementEventTargetPrototypeContract(prototype)
   );
 }
@@ -419,10 +419,10 @@ export function isEventTargetLike(value) {
 /**
  * Narrows a value to `EventTarget` via a two-axis identity dispatch.
  *
- * The prototype is resolved ONCE via `getInertPrototypeOf` and threaded into
+ * The prototype is resolved ONCE via `getSafePrototypeOf` and threaded into
  * the cross-realm arm (decision #059). The leading `!!prototype` short-circuit
  * rejects nullish and other falsy values, and absorbs a hostile
- * `getPrototypeOf`-trap (which `getInertPrototypeOf` collapses to `undefined`)
+ * `getPrototypeOf`-trap (which `getSafePrototypeOf` collapses to `undefined`)
  * before any further read.
  *
  * The local-realm fast-path pairs `isCurrentRealmEventTargetInstance(value)`
@@ -455,9 +455,9 @@ export function isEventTargetLike(value) {
  */
 export function isEventTarget(value) {
   // Resolve the prototype ONCE and thread it into the contract walk (decision
-  // #059), instead of letting the helper re-read it. `getInertPrototypeOf` is
+  // #059), instead of letting the helper re-read it. `getSafePrototypeOf` is
   // capable of handling _nullish_ values.
-  const prototype = getInertPrototypeOf(value);
+  const prototype = getSafePrototypeOf(value);
 
   return (
     // nullish / falsy / hostile-trap values are all excluded by this first
@@ -721,8 +721,8 @@ export function isAbortSignalPrototypeEquivalent(prototype, constructor, value) 
   return (
     isClass(constructor) &&
     getTypeSignature(prototype) === '[object AbortSignal]' &&
-    getInertDescriptor(constructor, 'prototype', TRUSTED_DATA_CONFIRMATION)?.value ===
-      prototype &&
+    getNextAvailableSafeDescriptor(constructor, 'prototype', TRUSTED_DATA_CONFIRMATION)
+      ?.value === prototype &&
     doesImplementAbortSignalPrototypeContract(prototype, value)
   );
 }
@@ -797,10 +797,10 @@ export function isAbortSignalLike(value) {
 /**
  * Narrows a value to `AbortSignal` via a two-axis identity dispatch.
  *
- * The prototype is resolved ONCE via `getInertPrototypeOf` and threaded into
+ * The prototype is resolved ONCE via `getSafePrototypeOf` and threaded into
  * the cross-realm arm (decision #059). The leading `!!prototype` short-circuit
  * rejects nullish and other falsy values, and absorbs a hostile
- * `getPrototypeOf`-trap (which `getInertPrototypeOf` collapses to `undefined`)
+ * `getPrototypeOf`-trap (which `getSafePrototypeOf` collapses to `undefined`)
  * before any further read.
  *
  * The local-realm fast-path pairs `isCurrentRealmAbortSignalInstance(value)`
@@ -833,9 +833,9 @@ export function isAbortSignalLike(value) {
  */
 export function isAbortSignal(value) {
   // Resolve the prototype ONCE and thread it into the contract walk (decision
-  // #059), instead of letting the helper re-read it. `getInertPrototypeOf` is
+  // #059), instead of letting the helper re-read it. `getSafePrototypeOf` is
   // capable of handling _nullish_ values.
-  const prototype = getInertPrototypeOf(value);
+  const prototype = getSafePrototypeOf(value);
 
   return (
     // nullish / falsy / hostile-trap values are all excluded by this first

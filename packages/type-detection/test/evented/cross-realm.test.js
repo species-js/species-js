@@ -29,7 +29,7 @@ import {
   isAbortSignal,
   isAlienRealmEventTarget,
   isAlienRealmAbortSignal,
-  getInertPrototypeOf,
+  getSafePrototypeOf,
 } from '#index';
 
 import {
@@ -70,7 +70,7 @@ describe('evented — cross-realm (axis 2)', () => {
     expect(
       isAlienRealmEventTarget(
         /** @type {object} */ (foreignET),
-        /** @type {object} */ (getInertPrototypeOf(foreignET)),
+        /** @type {object} */ (getSafePrototypeOf(foreignET)),
       ),
       'isAlienRealmEventTarget',
     ).toBe(true);
@@ -79,7 +79,7 @@ describe('evented — cross-realm (axis 2)', () => {
     expect(
       isAlienRealmAbortSignal(
         /** @type {object} */ (foreignAS),
-        /** @type {object} */ (getInertPrototypeOf(foreignAS)),
+        /** @type {object} */ (getSafePrototypeOf(foreignAS)),
       ),
       'isAlienRealmAbortSignal',
     ).toBe(true);

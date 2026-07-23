@@ -12,12 +12,12 @@
  * forms — the lodash-equivalent permissive semantic). The strict
  * predicates use cross-realm-safe machinery drawn from three modules:
  * `getOwnPropertyDescriptors` and the realm-fixed `objectPrototype` from
- * `#config`; the throw-safe `getInertPrototypeOf`, `getInertDescriptor`, and
+ * `#config`; the throw-safe `getSafePrototypeOf`, `getNextAvailableSafeDescriptor`, and
  * `getVerifiedOwnName`, plus `getTypeSignature` and `getDefinedConstructor`,
  * from `#utility`; and `isCallable` and `isClass` from `#function`. They
  * discriminate the constructor identity realm-independently rather than via a
  * local `instanceof Object`, which would miss cross-realm Plain Objects. Every prototype and
- * descriptor read is throw-safe (the `getInert*` readers, and a guarded
+ * descriptor read is throw-safe (the `getSafe*` readers, and a guarded
  * `getOwnPropertyDescriptors` for the member-surface contract), so a
  * hostile `getPrototypeOf` / `getOwnPropertyDescriptor` Proxy-trap
  * yields `false`, never a propagated throw.
@@ -31,8 +31,8 @@ import { TRUSTED_DATA_CONFIRMATION } from '#foundation';
 
 import { getOwnPropertyDescriptors, objectPrototype } from '#config';
 import {
-  getInertPrototypeOf,
-  getInertDescriptor,
+  getSafePrototypeOf,
+  getNextAvailableSafeDescriptor,
   getVerifiedOwnName,
   getTypeSignature,
   getDefinedConstructor,
@@ -202,7 +202,7 @@ function getObjectPrototypeDescriptorNames() {
  * The read is `getOwnPropertyDescriptors` (own descriptors only): the
  * contract is about what the prototype itself implements, never what it
  * inherits. Do not substitute a prototype-chain-walking reader (e.g.
- * `getInertDescriptor`) — that would accept members inherited from an
+ * `getNextAvailableSafeDescriptor`) — that would accept members inherited from an
  * ancestor and silently weaken the contract for standalone callers. The
  * `.every` short-circuits on the first absent or wrong-shaped member.
  *
@@ -311,8 +311,8 @@ export function hasDictionaryObjectIdentitySignal(value) {
  *    `undefined` for it.
  * 4. The constructor's own `prototype` data property points back to the
  *    threaded `prototype` — round-trip identity, read via the throw-safe
- *    `getInertDescriptor(...).value` (same descriptor discipline).
- * 5. `getInertPrototypeOf(prototype) === null` — chain-depth check: the
+ *    `getNextAvailableSafeDescriptor(...).value` (same descriptor discipline).
+ * 5. `getSafePrototypeOf(prototype) === null` — chain-depth check: the
  *    prototype is a top-level (no further `[[Prototype]]`), which
  *    every realm's `Object.prototype` satisfies and which class
  *    instances and built-in container instances do not.
@@ -330,9 +330,9 @@ export function hasDictionaryObjectIdentitySignal(value) {
  * surface where a getter returns one value during the check and a
  * different value to later observers.
  *
- * Throw-safe end to end: the prototype read (`getInertPrototypeOf`), the
+ * Throw-safe end to end: the prototype read (`getSafePrototypeOf`), the
  * constructor `name` (`getVerifiedOwnName`), the constructor `prototype`
- * round-trip (`getInertDescriptor`), and the member-surface read
+ * round-trip (`getNextAvailableSafeDescriptor`), and the member-surface read
  * (a guarded `getOwnPropertyDescriptors`) each absorb a hostile
  * `getPrototypeOf` / `getOwnPropertyDescriptor` Proxy-trap, failing the
  * contract rather than propagating. `isClass` is likewise throw-safe at
@@ -349,16 +349,16 @@ export function hasDictionaryObjectIdentitySignal(value) {
  */
 export function isObjectPrototypeEquivalent(prototype, constructor, name) {
   // Markers 3/4 read the constructor's own `name` / `prototype` through the
-  // throw-safe `getVerifiedOwnName` and `getInertDescriptor` (decision #056):
+  // throw-safe `getVerifiedOwnName` and `getNextAvailableSafeDescriptor` (decision #056):
   // a hostile `getOwnPropertyDescriptor` Proxy-trap on the constructor yields
   // `undefined` rather than propagating. (`isClass` is throw-safe at its own
   // descriptor read for the same reason.)
   return (
     isClass(constructor) &&
     hasPlainObjectIdentitySignal(prototype, name) &&
-    getInertDescriptor(constructor, 'prototype', TRUSTED_DATA_CONFIRMATION)?.value ===
-      prototype &&
-    getInertPrototypeOf(prototype) === null &&
+    getNextAvailableSafeDescriptor(constructor, 'prototype', TRUSTED_DATA_CONFIRMATION)
+      ?.value === prototype &&
+    getSafePrototypeOf(prototype) === null &&
     doesImplementObjectPrototypeContract(/** @type {object} */ (prototype))
   );
 }
@@ -426,9 +426,9 @@ export function isAlienRealmPlainObject(value, prototype) {
  *   newable class shape (`isClass`), the prototype's own
  *   `[[Class]]` tag is `'[object Object]'`, the constructor's own
  *   `name` and `prototype` properties read via the throw-safe
- *   `getVerifiedOwnName` / `getInertDescriptor(...).value` (skipping
+ *   `getVerifiedOwnName` / `getNextAvailableSafeDescriptor(...).value` (skipping
  *   accessors), the `prototype` value round-trips back to the threaded
- *   prototype, `getInertPrototypeOf(prototype) === null` confirms the
+ *   prototype, `getSafePrototypeOf(prototype) === null` confirms the
  *   chain-depth invariant that every realm's `Object.prototype`
  *   carries, and `doesImplementObjectPrototypeContract(prototype)`
  *   confirms the prototype's own member surface (every canonical
@@ -458,7 +458,7 @@ export function isAlienRealmPlainObject(value, prototype) {
  * Cross-realm safe by construction. The fast-path matches local-realm
  * `Object.prototype` identity. The fallback uses realm-fixed captures
  * (`toObjectString.call` via `getTypeSignature`, the throw-safe
- * `getInertPrototypeOf`, `getVerifiedOwnName` and `getInertDescriptor`,
+ * `getSafePrototypeOf`, `getVerifiedOwnName` and `getNextAvailableSafeDescriptor`,
  * and a guarded `getOwnPropertyDescriptors` for the member surface) and
  * the four-source constructor walk (via `getDefinedConstructor`, its
  * name read via `getVerifiedOwnName`). Cross-realm Plain Objects (from
@@ -466,7 +466,7 @@ export function isAlienRealmPlainObject(value, prototype) {
  * `Object.prototype` reference does not match their prototype, but
  * their structural contract matches in every realm.
  *
- * Throw-safe: the prototype read routes through `getInertPrototypeOf`,
+ * Throw-safe: the prototype read routes through `getSafePrototypeOf`,
  * so a hostile `getPrototypeOf` Proxy-trap yields `undefined` (matching
  * neither `objectPrototype` nor a valid contract) and the predicate
  * returns `false` rather than propagating the throw.
@@ -507,7 +507,7 @@ export function isPlainObject(value) {
   }
   // Resolve the prototype ONCE and thread it into the contract walk (decision
   // #059), instead of letting the helper re-read it.
-  const prototype = getInertPrototypeOf(value);
+  const prototype = getSafePrototypeOf(value);
 
   return (
     // `!!prototype` rejects a null prototype (a dictionary object) and a
@@ -526,7 +526,7 @@ export function isPlainObject(value) {
  * use as a hashmap.
  *
  * Composes four markers via short-circuit `&&`: the `isObject` gate,
- * the throw-safe prototype check `getInertPrototypeOf(value) === null`,
+ * the throw-safe prototype check `getSafePrototypeOf(value) === null`,
  * then the two markers bundled by {@link hasDictionaryObjectIdentitySignal}
  * — the constructor-absence check `getDefinedConstructor(value) ===
  * undefined` and the tag-signature cross-validator
@@ -556,7 +556,7 @@ export function isPlainObject(value) {
  * `getDefinedConstructor` walk, and the `getTypeSignature` capture
  * are cross-realm safe.
  *
- * Throw-safe: the prototype read routes through `getInertPrototypeOf`,
+ * Throw-safe: the prototype read routes through `getSafePrototypeOf`,
  * so a hostile `getPrototypeOf` Proxy-trap yields `undefined` (not
  * `null`) and the predicate returns `false` rather than propagating.
  *
@@ -580,7 +580,7 @@ export function isPlainObject(value) {
 export function isDictionaryObject(value) {
   return (
     isObject(value) &&
-    getInertPrototypeOf(value) === null &&
+    getSafePrototypeOf(value) === null &&
     hasDictionaryObjectIdentitySignal(value)
   );
 }
@@ -591,7 +591,7 @@ export function isDictionaryObject(value) {
  * {@link DictionaryObject} (prototype-less).
  *
  * Fused implementation: shares one `isObject` gate and one throw-safe
- * `getInertPrototypeOf` read across both branches, then dispatches by
+ * `getSafePrototypeOf` read across both branches, then dispatches by
  * prototype value:
  *
  * - `prototype === Object.prototype` → local-realm `PlainObject`,
@@ -609,7 +609,7 @@ export function isDictionaryObject(value) {
  * composition would perform — especially in the `DictionaryObject` input case,
  * where the strict predicate runs its signal + contract checks before failing.
  *
- * Throw-safe: the shared prototype read routes through `getInertPrototypeOf`,
+ * Throw-safe: the shared prototype read routes through `getSafePrototypeOf`,
  * so a hostile `getPrototypeOf` Proxy-trap yields `undefined` — matching
  * neither dispatch branch, so it falls to the structural fallback and returns
  * `false` rather than propagating the throw.
@@ -645,7 +645,7 @@ export function isPlainOrDictionaryObject(value) {
   if (!isObject(value)) {
     return false;
   }
-  const prototype = getInertPrototypeOf(value);
+  const prototype = getSafePrototypeOf(value);
 
   // PlainObject — local-realm fast-path: prototype-identity
   if (prototype === objectPrototype) {
