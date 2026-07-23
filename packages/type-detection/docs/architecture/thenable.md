@@ -52,8 +52,8 @@ signal (`hasPromiseIdentitySignal` — the `[[Class]]` tag plus the constructor 
 prototype anchor (`isPromisePrototypeEquivalent`). The anchor is a four-marker chain —
 `isClass(constructor)`, the prototype's own `[[Class]]` tag `'[object Promise]'`, a
 round-trip `constructor.prototype === prototype` identity read via the throw-safe
-`getInertDescriptor`, and the prototype's own `then`/`catch`/`finally` member surface
-(`doesImplementPromisePrototypeContract`). Unlike `#object`'s
+`getNextAvailableSafeDescriptor`, and the prototype's own `then`/`catch`/`finally` member
+surface (`doesImplementPromisePrototypeContract`). Unlike `#object`'s
 `isObjectPrototypeEquivalent` there is NO chain-depth marker: `Promise.prototype`'s
 `[[Prototype]]` is `Object.prototype`, not `null`, so a top-level check would wrongly
 reject every genuine `Promise.prototype`.
@@ -141,7 +141,7 @@ defined constructor threaded through the helper, decision #059):
 | `isPromiseLike`                         | `!!v && (isCurrentRealmPromiseInstance(v) \|\| doesImplementPromiseContract(v))`                                                                                                                                           |
 | `hasPromiseIdentitySignal`              | `name === 'Promise' && getTypeSignature(v) === '[object Promise]'` (caller threads `name`)                                                                                                                                 |
 | `doesImplementPromisePrototypeContract` | `d = getOwnPropertyDescriptors(proto); isCallable(d.then?.value) && isCallable(d.catch?.value) && isCallable(d.finally?.value)` (throw-safe)                                                                               |
-| `isPromisePrototypeEquivalent`          | `isClass(ctor) && getTypeSignature(proto) === '[object Promise]' && getInertDescriptor(ctor, 'prototype')?.value === proto && doesImplementPromisePrototypeContract(proto)`                                                |
+| `isPromisePrototypeEquivalent`          | `isClass(ctor) && getTypeSignature(proto) === '[object Promise]' && getNextAvailableSafeDescriptor(ctor, 'prototype')?.value === proto && doesImplementPromisePrototypeContract(proto)`                                    |
 | `isAlienRealmPromise`                   | `dc = getDefinedConstructor(proto, aP); hasPromiseIdentitySignal(v, getVerifiedOwnName(dc)) && isPromisePrototypeEquivalent(proto, dc)`                                                                                    |
 | `isPromise`                             | `p = getSafePrototypeOf(v); !!p && (isCurrentRealmPromiseInstance(v) ? p === promisePrototype && doesNotShadowPromiseContract(v) : PromiseConstructorFunction !== INSTANCE_LESS_CONSTRUCTOR && isAlienRealmPromise(v, p))` |
 

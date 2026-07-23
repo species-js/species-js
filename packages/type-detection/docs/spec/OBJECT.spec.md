@@ -74,9 +74,9 @@ are exposed to, and the throw-safe reader each routes through:
 
 - **prototype-trap** (a `Proxy` whose `getPrototypeOf` throws) → `getSafePrototypeOf`;
 - **descriptor-trap** (a `Proxy` whose `getOwnPropertyDescriptor` throws — on the value,
-  on a pivoted `[[Prototype]]`, or on a hostile `constructor`) → `getInertDescriptor`,
-  `getDefinedConstructor`, `getVerifiedOwnName`, and `isClass` (each throw-safe at its own
-  read; `isClass` root-fixed in `#function`);
+  on a pivoted `[[Prototype]]`, or on a hostile `constructor`) →
+  `getNextAvailableSafeDescriptor`, `getDefinedConstructor`, `getVerifiedOwnName`, and
+  `isClass` (each throw-safe at its own read; `isClass` root-fixed in `#function`);
 - **ownKeys-trap** (a `Proxy` whose `ownKeys` throws) → the `try/catch`-wrapped
   `getOwnPropertyDescriptors` inside `doesImplementObjectPrototypeContract` (marker 6);
 - **tag-getter-throw** (a throwing `Symbol.toStringTag`) → `getTypeSignature`.
@@ -413,8 +413,8 @@ Markers, short-circuited in cost-order:
         first) AND the prototype's own `[[Class]]` tag is `'[object Object]'` (marker 2).
         The `name` was resolved once via `getVerifiedOwnName` (throw-safe; accessor-form
         `name` yields `undefined`).
-3. `getInertDescriptor(constructor, 'prototype').value === prototype` — round-trip
-   identity (throw-safe; accessor-form yields `undefined`).
+3. `getNextAvailableSafeDescriptor(constructor, 'prototype').value === prototype` —
+   round-trip identity (throw-safe; accessor-form yields `undefined`).
 4. `getSafePrototypeOf(prototype) === null` — chain-depth check (top-level prototype).
 5. `doesImplementObjectPrototypeContract(prototype)` — member-surface check: the prototype
    carries every canonical `Object.prototype` member as its own non-enumerable callable.
@@ -520,12 +520,12 @@ resolve-once logic into it.
      `isPlainOrDictionaryObject`) → `getSafePrototypeOf` (#057), replacing raw
      `getPrototypeOf` (`#config`).
    - **Marker 3** (constructor `name`) → `getVerifiedOwnName` (#059); **marker 4**
-     (constructor `prototype` round-trip) → `getInertDescriptor` (#056), replacing raw
-     `getOwnPropertyDescriptor`.
+     (constructor `prototype` round-trip) → `getNextAvailableSafeDescriptor` (#056),
+     replacing raw `getOwnPropertyDescriptor`.
    - **`isClass` root-fix (`#function`, cross-module, user green-lit).** `isClass` did its
      own raw `getOwnPropertyDescriptor(value, 'prototype')` — the throw originated there,
-     upstream of object's markers. Routed through `getInertDescriptor` (#056); every
-     `isClass` consumer is now throw-safe for free. (The sibling `hasOwnPrototype` /
+     upstream of object's markers. Routed through `getNextAvailableSafeDescriptor` (#056);
+     every `isClass` consumer is now throw-safe for free. (The sibling `hasOwnPrototype` /
      `hasOwnWritablePrototype` helpers carry the same raw-read surface — a finding
      deferred to the `function` round; object does not depend on them.)
 

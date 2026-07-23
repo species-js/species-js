@@ -418,8 +418,6 @@ export function isFiniteNumber(value) {
  * `(value: unknown) => value is number` to propagate narrowing at
  * consumer call sites. The runtime export is the native method when
  * callable; otherwise it falls back to the {@link isFiniteNumber} polyfill.
- *
- * @internal
  */
 export const isFiniteNumberValue = isCallable(n.isFinite) ? n.isFinite : isFiniteNumber;
 
@@ -446,8 +444,6 @@ export function isInteger(value) {
  * `(value: unknown) => value is number` to propagate narrowing at
  * consumer call sites. The runtime export is the native method when
  * callable; otherwise it falls back to the {@link isInteger} polyfill.
- *
- * @internal
  */
 export const isIntegerValue = isCallable(n.isInteger) ? n.isInteger : isInteger;
 
@@ -479,8 +475,6 @@ export function isSafeInteger(value) {
  * `(value: unknown) => value is number` to propagate narrowing. The runtime
  * export is the native method when callable; otherwise it falls back to the
  * {@link isSafeInteger} polyfill.
- *
- * @internal
  */
 export const isSafeIntegerValue = isCallable(n.isSafeInteger)
   ? n.isSafeInteger

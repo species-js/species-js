@@ -106,7 +106,7 @@ This is **one coherent invariant, not a family of per-input boundary vectors.** 
 states it **once** — a short _Throw-safety_ paragraph in the module contract — naming the
 hostile-input classes the module's reads are exposed to (prototype-trap, descriptor-trap,
 accessor-throw, tag-getter-throw) and the throw-safe reader each routes through
-(`getInert*` from `#utility`, the `try/catch`-wrapped `instanceof` inside an
+(`getSafe*` from `#utility`, the `try/catch`-wrapped `instanceof` inside an
 `isCurrentRealm*Instance` helper, `getTypeSignature`, `getVerifiedOwnName`,
 `getDefinedConstructor`).
 

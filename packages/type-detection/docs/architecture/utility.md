@@ -4,20 +4,24 @@
 
 The utility module hosts cross-realm-safe primitives that feed the domain-specific
 predicates: descriptor walks (`getNextAvailablePropertyDescriptor` and its throw-safe
-wrapper `getInertDescriptor`), inert method and accessor probes (`hasInertMethod`,
-`hasInertGetter`, `hasInertSetter`, `hasInertValue`), tag and type-signature readers
-(`getTypeSignature`, `getTaggedType`), the inert constructor walk (`getDefinedConstructor`
-and `getDefinedConstructorName` — decisions #047, #054–#059) plus the generic
-verified-name reader (`getVerifiedOwnName`), and the user-facing type-name resolver
-(`resolveType`).
+wrapper `getNextAvailableSafeDescriptor`), inert method and accessor probes
+(`hasInertMethod`, `hasInertGetter`, `hasInertSetter`, `hasInertValue`), tag and
+type-signature readers (`getTypeSignature`, `getTaggedType`), the inert constructor walk
+(`getDefinedConstructor` and `getDefinedConstructorName` — decisions #047, #054–#059) plus
+the generic verified-name reader (`getVerifiedOwnName`), and the user-facing type-name
+resolver (`resolveType`).
 
 The discipline is uniform: every property read is descriptor-based, accessor invocation is
 deliberately avoided, and — since decision #056 — the descriptor-walk reads are
 throw-safe: a hostile `getOwnPropertyDescriptor` / `getPrototypeOf` Proxy-trap yields the
 "couldn't-determine" sentinel (`undefined` / `false`) rather than propagating, so a
-type-guard always answers. The helpers compose into the predicates the type-domain modules
-export. The module sits below every domain in the dependency graph and carries no
-domain-specific knowledge of its own.
+type-guard always answers. These are two orthogonal properties — getter-inertness (never
+invoke an accessor, named `Inert` on the `hasInert*` probes) and throw-safety (swallow a
+hostile trap, named `Safe`) — which #073 gave distinct vocabulary and an explicit
+`/* @@throw-safe */` source marker enumerating the throw-safe set (the utility test-round
+oracle). The helpers compose into the predicates the type-domain modules export. The
+module sits below every domain in the dependency graph and carries no domain-specific
+knowledge of its own.
 
 ## Type Resolution
 
@@ -74,31 +78,31 @@ refinements layer on the #047 walk:
   for `prototypeRegistry` (#057) and retires the `(value, assumePrototype)` keying and
   poisoning fix of #054/#055 along with the caches.
 - **Throw-safety (decisions #056, #059).** `getDefinedConstructor`'s two descriptor reads
-  route through `getInertDescriptor`, and `getVerifiedOwnName`'s own `name` read is
-  wrapped, so a hostile trap (or a nullish input) yields `undefined` ("no reachable
-  constructor" / "no verified name") rather than propagating. This applies the same #029
-  trust boundary the inert probes use, making every constructor-walk consumer
+  route through `getNextAvailableSafeDescriptor`, and `getVerifiedOwnName`'s own `name`
+  read is wrapped, so a hostile trap (or a nullish input) yields `undefined` ("no
+  reachable constructor" / "no verified name") rather than propagating. This applies the
+  same #029 trust boundary the inert probes use, making every constructor-walk consumer
   (`#thenable`, `#object`, `#function`, `#primitive`, `#evented`) throw-safe; #059 extends
   it to the name read, closing the former raw `getOwnPropertyDescriptor` name read. The
   earlier "honest throw" stance is retracted — `undefined` is the contract-consistent
   answer, and no consumer relied on the throw.
 
-## Raw/inert pairing and layered throw-safety
+## Raw/throw-safe pairing and layered throw-safety
 
-The module's reads come in matched pairs — a raw form and a throw-safe inert twin over the
-same operation: `getNextAvailablePropertyDescriptor` ↔ `getInertDescriptor`, and
-`getOwnPropertyNames` / `getOwnPropertySymbols` / `getOwnPropertyKeys` ↔ their `getInert…`
+The module's reads come in matched pairs — a raw form and a throw-safe twin over the same
+operation: `getNextAvailablePropertyDescriptor` ↔ `getNextAvailableSafeDescriptor`, and
+`getOwnPropertyNames` / `getOwnPropertySymbols` / `getOwnPropertyKeys` ↔ their `getSafe…`
 counterparts. The raw form is for call sites that supply their own guarding (e.g.
 `getValidatedStandardConstructorAndPrototypeTuple`, which wraps its own walk in
-`try/catch`); the inert form is the default the domain predicates compose. A reader learns
-the shape once and it recurs across the module.
+`try/catch`); the throw-safe form is the default the domain predicates compose. A reader
+learns the shape once and it recurs across the module.
 
 Throw-safety is deliberately layered, not doubled. `getNextAvailablePropertyDescriptor`
 steps the chain through the throw-safe `getSafePrototypeOf` (which absorbs a hostile
-`getPrototypeOf` trap), while `getInertDescriptor` wraps the whole walk (absorbing a
-hostile `getOwnPropertyDescriptor` trap). Two guards cover two distinct throw sources, so
-the constructor-walk nesting them is defense-in-depth, not redundancy (decisions #029,
-#056).
+`getPrototypeOf` trap), while `getNextAvailableSafeDescriptor` wraps the whole walk
+(absorbing a hostile `getOwnPropertyDescriptor` trap). Two guards cover two distinct throw
+sources, so the constructor-walk nesting them is defense-in-depth, not redundancy
+(decisions #029, #056).
 
 ## Base-layer watch-list
 

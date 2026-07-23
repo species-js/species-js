@@ -304,17 +304,22 @@ export function hasOwnNonWritablePrototype(value?: unknown): boolean;
 
 /* @@throw-safe */
 /**
- * Narrows a value to `PropertyKey`.
+ * Narrows the value to a valid `PropertyKey`.
  *
- * Accepts strings, symbols, and numbers. A number check is sufficient because
- * every number — including non-integers like `1.5`, and even `NaN` and
- * `±Infinity` — coerces to a string primitive the moment it is used as an
- * object's property key.
+ * Admits a `string`, a `symbol`, or a finite `number`, narrowing to TypeScript's
+ * built-in `PropertyKey` (`string | number | symbol`).
  *
- * @param value - the value to test; omitted is treated as `undefined`, which
- *  is not a property key
- * @returns `true` when the value can be safely used as a property key,
- *  narrowing `value` to `PropertyKey`; `false` otherwise
+ * The finite-`number` line is deliberate and general-purpose: a property key is
+ * a string, so every finite number coerces to a deterministic string key
+ * (`1.5` and `2 ** 53` included). `NaN` / `±Infinity` are excluded as
+ * error-state numbers; `bigint` is excluded because it is not a member of
+ * `PropertyKey`, so admitting it would break the narrow (a bigint id is
+ * normalized via `String(id)`).
+ *
+ * @param value - the value to test; omitted is treated as `undefined`, which is
+ *  not a property key
+ * @returns `true` when the value is a string, symbol, or finite number,
+ *  narrowing to `PropertyKey`; `false` otherwise
  */
 export function isValidPropertyKey(value?: unknown): value is PropertyKey;
 

@@ -54,7 +54,7 @@ to, and the throw-safe reader each routes through:
   `isCurrentRealm{EventTarget,AbortSignal}Instance` (the `instanceof` walk, #060) and the
   strict-tier `getSafePrototypeOf`;
 - **descriptor-trap** (a `Proxy` whose `getOwnPropertyDescriptor` throws — on a pivoted
-  `[[Prototype]]` or a hostile `constructor`) → `getInertDescriptor`,
+  `[[Prototype]]` or a hostile `constructor`) → `getNextAvailableSafeDescriptor`,
   `getDefinedConstructor`, `getVerifiedOwnName`, and `isClass` (each throw-safe at its own
   read), plus the `hasInertMethod` chain-walk of the Like-tier contract;
 - **ownKeys-trap** (a `Proxy` whose `ownKeys` throws) → the `try/catch`-wrapped
@@ -497,7 +497,7 @@ getter's receiver.
 ### `isEventTargetPrototypeEquivalent(prototype, constructor)` / `isAbortSignalPrototypeEquivalent(prototype, constructor, value)` — `@internal`
 
 The four-marker identity chain:
-`isClass(constructor) && getTypeSignature(prototype) === '[object <X>]' && getInertDescriptor(constructor, 'prototype')?.value === prototype && doesImplement<X>PrototypeContract(prototype[, value])`.
+`isClass(constructor) && getTypeSignature(prototype) === '[object <X>]' && getNextAvailableSafeDescriptor(constructor, 'prototype')?.value === prototype && doesImplement<X>PrototypeContract(prototype[, value])`.
 AbortSignal threads `value` as the `aborted`-getter receiver.
 
 - `iETPE/A1` — `(EventTarget.prototype, EventTarget)` → true.

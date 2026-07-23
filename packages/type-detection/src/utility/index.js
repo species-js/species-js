@@ -23,14 +23,10 @@ import {
   getPrototypeOf as nativeGetPrototypeOf,
   objectHasOwn,
   toObjectString,
+  isFiniteNumberValue,
 } from '#config';
 
-import {
-  isStringValue,
-  isNumberValue,
-  isSymbolValue,
-  unguardedIsUnregisteredSymbol,
-} from '#primitive';
+import { isStringValue, unguardedIsUnregisteredSymbol } from '#primitive';
 
 import { isCallable, isFunction, isNewableFunction } from '#function';
 
@@ -287,18 +283,27 @@ export function hasOwnNonWritablePrototype(value) {
 /**
  * Narrows the value to a valid `PropertyKey`.
  *
- * Composes {@link isStringValue}, {@link isSymbolValue}, and
- * {@link isNumberValue}. The number check is sufficient because every
- * number — including `±Infinity` and even `NaN` — coerces to a string
- * primitive the moment it is used as an object's property key.
+ * Admits a `string`, a `symbol`, or a finite `number` (`typeof` for the first
+ * two, {@link isFiniteNumberValue} for the third), narrowing to TypeScript's
+ * built-in `PropertyKey` (`string | number | symbol`).
+ *
+ * The finite-`number` line is deliberate and general-purpose: a property key is
+ * a string, so every finite number coerces to a deterministic string key —
+ * `1.5` and `2 ** 53` included (ADR #072, superseding the safe-integer
+ * tightening of #026). `NaN` / `±Infinity` are excluded as error-state numbers.
+ * `bigint` is excluded for a different reason — it is not a member of
+ * `PropertyKey`, so admitting it would break the `value is PropertyKey` narrow
+ * (TypeScript's own `PropertyKey` omits it); a bigint id is normalized via
+ * `String(id)`.
  *
  * @param {unknown} [value] - the value to test; omitted is treated as
  *  `undefined`, which is not a property key
- * @returns {value is PropertyKey} `true` when the value can be safely used
- *  as a property key; `false` otherwise
+ * @returns {value is PropertyKey} `true` when the value is a string, symbol, or
+ *  finite number, narrowing to `PropertyKey`; `false` otherwise
  */
 export function isValidPropertyKey(value) {
-  return isStringValue(value) || isSymbolValue(value) || isNumberValue(value);
+  const valueType = typeof value;
+  return valueType === 'string' || valueType === 'symbol' || isFiniteNumberValue(value);
 }
 
 /**

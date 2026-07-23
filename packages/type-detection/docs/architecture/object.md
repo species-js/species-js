@@ -135,17 +135,18 @@ round, decision-aligned with #056/#057/#029):
   `null`.
 - **The six-marker contract** (`isObjectPrototypeEquivalent`) reads the constructor's own
   `name` via `getVerifiedOwnName` (#059) and its `prototype` round-trip via
-  `getInertDescriptor` (#056), not raw `getOwnPropertyDescriptor`; its member-surface
-  marker 6 (`doesImplementObjectPrototypeContract`) wraps `getOwnPropertyDescriptors` in a
-  `try/catch` so a throwing `ownKeys` trap yields `false`.
+  `getNextAvailableSafeDescriptor` (#056), not raw `getOwnPropertyDescriptor`; its
+  member-surface marker 6 (`doesImplementObjectPrototypeContract`) wraps
+  `getOwnPropertyDescriptors` in a `try/catch` so a throwing `ownKeys` trap yields
+  `false`.
 - **`isClass`** (`#function`) was the upstream root cause — it did its own raw
   `getOwnPropertyDescriptor(value, 'prototype')`, so a hostile constructor threw there
-  before object's own markers ran. Root-fixed to route through `getInertDescriptor`
-  (#056), which makes every `isClass` consumer throw-safe for free. The from-every-angle
-  adversarial probe — a SURGICAL hostile constructor that throws only for `'prototype'`
-  and so passes the cheap identity-signal gate — is what drove the hostile value into this
-  surface and exposed it; a blanket-throwing Proxy is caught earlier by the throw-safe
-  signal gate.
+  before object's own markers ran. Root-fixed to route through
+  `getNextAvailableSafeDescriptor` (#056), which makes every `isClass` consumer throw-safe
+  for free. The from-every-angle adversarial probe — a SURGICAL hostile constructor that
+  throws only for `'prototype'` and so passes the cheap identity-signal gate — is what
+  drove the hostile value into this surface and exposed it; a blanket-throwing Proxy is
+  caught earlier by the throw-safe signal gate.
 
 The prototype is also resolved ONCE per call and threaded into the anchor, which in turn
 resolves the prototype's `constructor` and `name` ONCE and threads all three into
@@ -181,15 +182,15 @@ export function hasPlainObjectIdentitySignal(value, name) {
 }
 
 // fed the already-resolved `[[Prototype]]`, its constructor, and its name (#059);
-// never re-reads them. Faithful to code — every read is throw-safe (the `getInert*`
+// never re-reads them. Faithful to code — every read is throw-safe (the `getSafe*`
 // readers, the `getVerifiedOwnName` behind the threaded name, the guarded
 // `getOwnPropertyDescriptors` inside marker 6).
 export function isObjectPrototypeEquivalent(prototype, constructor, name) {
   return (
     isClass(constructor) && // 1 — newable class shape
     hasPlainObjectIdentitySignal(prototype, name) && // 2+3 — prototype [[Class]] tag + ctor `name`
-    getInertDescriptor(constructor, 'prototype', TRUSTED_DATA_CONFIRMATION)?.value ===
-      prototype && // 4 — round-trip identity
+    getNextAvailableSafeDescriptor(constructor, 'prototype', TRUSTED_DATA_CONFIRMATION)
+      ?.value === prototype && // 4 — round-trip identity
     getSafePrototypeOf(prototype) === null && // 5 — chain-depth (top-level prototype)
     doesImplementObjectPrototypeContract(prototype) // 6 — own member surface
   );

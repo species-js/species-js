@@ -101,7 +101,7 @@ module's reads are exposed to, and the throw-safe reader each routes through:
 - **prototype-trap** (a `Proxy` whose `getPrototypeOf` throws) → `getSafePrototypeOf` in
   the alien walks;
 - **descriptor-trap** (a `Proxy` whose `getOwnPropertyDescriptor` throws — on a pivoted
-  `[[Prototype]]` or a hostile `constructor`) → `getInertDescriptor`,
+  `[[Prototype]]` or a hostile `constructor`) → `getNextAvailableSafeDescriptor`,
   `getVerifiedOwnName`, `isClass`, and the `hasInertGetter` reads of the DOMException
   contract;
 - **ownKeys-trap** (a `Proxy` whose `ownKeys` throws) → the `try/catch`-wrapped
@@ -336,8 +336,9 @@ predicate (no `*Like`, no `*Strict`); the getter-shape contract (descriptor-kind
 
 `isDOMException` accepts `name` and `message` only as **accessors** (a `get`), reachable
 anywhere from the value's own slot up to the first-matching prototype (own-first,
-first-match-wins, via the chain-walking `getInertDescriptor`); a plain **data** `value` is
-rejected wherever it sits. The rule is **symmetric** on `name` and `message`.
+first-match-wins, via the chain-walking `getNextAvailableSafeDescriptor`); a plain
+**data** `value` is rejected wherever it sits. The rule is **symmetric** on `name` and
+`message`.
 
 Consequence: "every `DOMException` instance is admitted" precisely means "every one that
 keeps its getter-backed contract". An idiomatic subclass that names itself through
@@ -567,7 +568,7 @@ Invokes the spec accessors on the live `value` receiver; pins no specific string
 
 #### `isGenericErrorPrototypeEquivalent(prototype, constructor)` — `@internal`
 
-`getTypeSignature(prototype) === '[object Object]' && getVerifiedOwnName(constructor) === 'Error' && isClass(constructor) && getInertDescriptor(constructor, 'prototype')?.value === prototype && doesImplementGenericErrorPrototypeContract(prototype)`.
+`getTypeSignature(prototype) === '[object Object]' && getVerifiedOwnName(constructor) === 'Error' && isClass(constructor) && getNextAvailableSafeDescriptor(constructor, 'prototype')?.value === prototype && doesImplementGenericErrorPrototypeContract(prototype)`.
 
 - `iGEPE/A1` — `(Error.prototype, Error)` → true. `iGEPE/R1` —
   `(TypeError.prototype, TypeError)` → false (prototype-contract pins the root values —
@@ -577,7 +578,7 @@ Invokes the spec accessors on the live `value` receiver; pins no specific string
 
 #### `isDOMExceptionPrototypeEquivalent(prototype, constructor, value)` — `@internal`
 
-`getTypeSignature(prototype) === '[object DOMException]' && getVerifiedOwnName(constructor) === 'DOMException' && isClass(constructor) && getInertDescriptor(constructor, 'prototype')?.value === prototype && doesImplementDOMExceptionPrototypeContract(prototype, value)`.
+`getTypeSignature(prototype) === '[object DOMException]' && getVerifiedOwnName(constructor) === 'DOMException' && isClass(constructor) && getNextAvailableSafeDescriptor(constructor, 'prototype')?.value === prototype && doesImplementDOMExceptionPrototypeContract(prototype, value)`.
 
 - `iDEPE/A1` — `(DOMException.prototype, DOMException, new DOMException())` → true.
   `iDEPE/R1` — `(Error.prototype, Error, new Error())` → false (tag `'[object Object]'`;

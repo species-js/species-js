@@ -11,8 +11,8 @@
 > the spec vectors were corrected to admit them (see Resolved items #1). One neutral
 > clarifying note was added to `hasConstructSlot`'s doc-comment. Base for the axis-1
 > suite; axes 2–4 derive alongside. Amended 2026-06-25 — `isClass` throw-safety root-fix
-> (its `prototype` descriptor read now routes through `getInertDescriptor`); surfaced by
-> the `#object` round, no behavioral verdict changed — see Resolved items #3.
+> (its `prototype` descriptor read now routes through `getNextAvailableSafeDescriptor`);
+> surfaced by the `#object` round, no behavioral verdict changed — see Resolved items #3.
 
 ## Module contract
 
@@ -267,11 +267,11 @@ spec). **Composition note (axis 4):** `isNewableFunction` → `hasOwnWritablePro
 ## `isClass`
 
 `isClass<T = unknown>(value?: T): value is T & ClassConstructor` —
-`isNewableFunction(value) && getInertDescriptor(value, 'prototype')?.writable === false`.
+`isNewableFunction(value) && getNextAvailableSafeDescriptor(value, 'prototype')?.writable === false`.
 The strict class shape: a newable with an own **readonly** `prototype` descriptor. Covers
 both custom (`class`-syntax) and built-in class constructors. The `prototype` descriptor
-read routes through the throw-safe `getInertDescriptor` (amended 2026-06-25 — see Resolved
-items #2), so a hostile constructor cannot make the read throw.
+read routes through the throw-safe `getNextAvailableSafeDescriptor` (amended 2026-06-25 —
+see Resolved items #2), so a hostile constructor cannot make the read throw.
 
 - `isClass/A1` — `class C {}`, `class Foo extends Array {}` → true (custom).
 - `isClass/A2` — `Array`, `Map`, `Date`, `Number`, `Object` → true (built-in classes; own
@@ -292,18 +292,18 @@ items #2), so a hostile constructor cannot make the read throw.
   newable; contrast `Symbol`/`BigInt` in `A3`).
 - `isClass/B1` — a `Proxy` (newable target) whose `getOwnPropertyDescriptor` trap throws →
   false, **not thrown** — the `prototype` descriptor read routes through the throw-safe
-  `getInertDescriptor` (amended 2026-06-25, decision-aligned with #056). Exercised by the
-  `#object` cross-realm round (a hostile constructor reached through the plain-object
-  contract walk); to be covered directly in the `function` round.
+  `getNextAvailableSafeDescriptor` (amended 2026-06-25, decision-aligned with #056).
+  Exercised by the `#object` cross-realm round (a hostile constructor reached through the
+  plain-object contract walk); to be covered directly in the `function` round.
 - (plus CC vectors.)
 
 **Refuses to claim:** bound classes (own `prototype` stripped). **Cross-realm (axis 2):**
 realm-safe — the own-`prototype`-readonly descriptor read is realm-independent; built-in
 classes from a foreign realm still expose a readonly own `prototype`. **Spoof (axis 3):**
 the `writable === false` own-descriptor read is the only spec-given class/ES3
-discriminator; routed through the throw-safe `getInertDescriptor` so a hostile constructor
-yields `false`, not a throw. **Composition note (axis 4):** `isNewableFunction` →
-`getInertDescriptor` (`#utility`).
+discriminator; routed through the throw-safe `getNextAvailableSafeDescriptor` so a hostile
+constructor yields `false`, not a throw. **Composition note (axis 4):**
+`isNewableFunction` → `getNextAvailableSafeDescriptor` (`#utility`).
 
 ---
 
@@ -623,12 +623,13 @@ and `'prototype'`.
    whose `getOwnPropertyDescriptor` trap throws) made `isClass` — and therefore every
    consumer, notably the `#object` plain-object contract — **throw** rather than answer a
    boolean. The design owner green-lit the cross-module root-fix: route the read through
-   the throw-safe `getInertDescriptor` (#056), so a hostile trap yields `undefined` (→
-   `false`). Behavior unchanged for all legit inputs (own `prototype` is found at level 0
-   of the walk); `isClass/B1` added above. **Finding deferred to the `function` round:**
-   the sibling `#utility` helpers `hasOwnPrototype` / `hasOwnWritablePrototype` (feeding
-   `isES3Function` etc.) carry the same raw-`getOwnPropertyDescriptor` surface and want
-   the same treatment. Decision-aligned with #056/#029 (no new ADR).
+   the throw-safe `getNextAvailableSafeDescriptor` (#056), so a hostile trap yields
+   `undefined` (→ `false`). Behavior unchanged for all legit inputs (own `prototype` is
+   found at level 0 of the walk); `isClass/B1` added above. **Finding deferred to the
+   `function` round:** the sibling `#utility` helpers `hasOwnPrototype` /
+   `hasOwnWritablePrototype` (feeding `isES3Function` etc.) carry the same
+   raw-`getOwnPropertyDescriptor` surface and want the same treatment. Decision-aligned
+   with #056/#029 (no new ADR).
 
 ## Open items
 

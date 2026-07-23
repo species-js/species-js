@@ -53,7 +53,7 @@ routes through:
   the `try/catch`-wrapped `instanceof` inside `isCurrentRealmPromiseInstance`;
 - **descriptor-trap** (a `Proxy` whose `getOwnPropertyDescriptor` throws, including on a
   pivoted `[[Prototype]]`) → `hasInertMethod` / `getDefinedConstructor`, both via
-  `getInertDescriptor`;
+  `getNextAvailableSafeDescriptor`;
 - **accessor-throw** (`{ get then() { throw } }`) → the inert descriptor read never
   invokes the getter;
 - **tag-getter-throw** (a throwing `Symbol.toStringTag`) → `getTypeSignature`.
@@ -325,10 +325,10 @@ the cross-realm arm. A fully committed proxy/rename cannot be beaten structurall
 Throw-safety against a throwing `Symbol.toStringTag` getter and a descriptor-trap on the
 value's (or its pivoted `[[Prototype]]`'s) reads is the universal invariant: the
 cross-realm arm routes the tag read through `getTypeSignature` and the constructor-walk
-through `getInertDescriptor` (decision #056), so the by-contract predicates (`isThenable`,
-`isPromiseLike`) still admit a throwing-tag value while `isPromise` rejects it. The former
-per-input vectors `isPromise/B3` and `isPromise/B5` are **withdrawn**, subsumed by the
-axis-3 `hostile × predicate` matrix — no behavior changed.
+through `getNextAvailableSafeDescriptor` (decision #056), so the by-contract predicates
+(`isThenable`, `isPromiseLike`) still admit a throwing-tag value while `isPromise` rejects
+it. The former per-input vectors `isPromise/B3` and `isPromise/B5` are **withdrawn**,
+subsumed by the axis-3 `hostile × predicate` matrix — no behavior changed.
 
 **Spoof-resistance expectation (axis 3):** the cross-realm markers are independent and
 each closes a distinct false-positive class — the prototype member-surface contract
@@ -351,7 +351,7 @@ once-resolved `getSafePrototypeOf` (`#utility`) read against the realm-fixed
 `PromiseConstructorFunction !== INSTANCE_LESS_CONSTRUCTOR`), composing
 `hasPromiseIdentitySignal` (value tag via `getTypeSignature`, name threaded in by the
 caller) with `isPromisePrototypeEquivalent` (`isClass` + prototype tag + round-trip
-`getInertDescriptor(constructor, 'prototype').value === prototype` +
+`getNextAvailableSafeDescriptor(constructor, 'prototype').value === prototype` +
 `doesImplementPromisePrototypeContract`). The seam resolves the prototype's OWN
 constructor ONCE via `getDefinedConstructor` under `{ assumePrototype: true }` (ECMA-262
 §10.2.6) and threads its name (via `getVerifiedOwnName`) into the signal gate — the same
@@ -449,7 +449,7 @@ implements, never what it inherits. Throw-safe and fail-closed: a hostile `ownKe
 
 Validates that `prototype` IS structurally `Promise.prototype` via a four-marker chain,
 short-circuited in cost-order:
-`isClass(constructor) && getTypeSignature(prototype) === '[object Promise]' && getInertDescriptor(constructor, 'prototype')?.value === prototype && doesImplementPromisePrototypeContract(prototype)`.
+`isClass(constructor) && getTypeSignature(prototype) === '[object Promise]' && getNextAvailableSafeDescriptor(constructor, 'prototype')?.value === prototype && doesImplementPromisePrototypeContract(prototype)`.
 Unlike `#object`'s `isObjectPrototypeEquivalent` there is NO chain-depth marker —
 `Promise.prototype`'s `[[Prototype]]` is `Object.prototype`, not `null`. The constructor
 is threaded in by the caller (`isAlienRealmPromise`, resolved from the prototype under

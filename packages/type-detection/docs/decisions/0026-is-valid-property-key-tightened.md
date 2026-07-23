@@ -2,6 +2,13 @@
 
 **Date:** 2026-06-04
 
+**Status:** The `isValidPropertyKey` tightening below is **superseded in part by #072**
+(2026-07-23) — the numeric arm is `isFiniteNumberValue`, not `isSafeIntegerValue`, so
+non-integer floats (`1.5`) and unsafe integers (`2 ** 53`) are admitted as the valid
+string keys they coerce to. The three `Number` type-guards this ADR adds to `#config`
+(`isFiniteNumberValue` / `isIntegerValue` / `isSafeIntegerValue`) remain canonical; only
+the `isValidPropertyKey` composition changed.
+
 **Context.** The previous `isValidPropertyKey` accepted `isStringValue`, `isSymbolValue`,
 and `isNumberValue && Number.isFinite` — any finite number, including non-integer floats
 like `1.5` and integers beyond `Number.MAX_SAFE_INTEGER`. Floats coerce to strings

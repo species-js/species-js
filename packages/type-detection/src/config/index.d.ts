@@ -427,7 +427,6 @@ export declare function isFiniteNumber(value: unknown): value is number;
  * does not propagate narrowing at the call site; the retyped signature
  * carries the narrow. The runtime export is the native method when callable;
  * otherwise it falls back to the {@link isFiniteNumber} polyfill.
- * @internal
  */
 export declare const isFiniteNumberValue: (value: unknown) => value is number;
 
@@ -451,7 +450,6 @@ export declare function isInteger(value: unknown): value is number;
  * reason as {@link isFiniteNumberValue} above. The runtime export is the
  * native method when callable; otherwise it falls back to the
  * {@link isInteger} polyfill.
- * @internal
  */
 export declare const isIntegerValue: (value: unknown) => value is number;
 
@@ -479,7 +477,6 @@ export declare function isSafeInteger(value: unknown): value is number;
  * {@link isFiniteNumberValue} above. The runtime export is the native method
  * when callable; otherwise it falls back to the {@link isSafeInteger}
  * polyfill.
- * @internal
  */
 export declare const isSafeIntegerValue: (value: unknown) => value is number;
 
