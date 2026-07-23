@@ -14,17 +14,18 @@
  * This file grows in increments, each mirroring a section of
  * `docs/spec/UTILITY.spec.md`:
  *   1. boolean-predicate clusters — `hasOwn*` (matrix), `hasInert*` (matrix),
- *      `isValidPropertyKey` / `isValidWeakKey` (accept/reject sets).  ← this increment
+ *      `isValidPropertyKey` / `isValidWeakKey` (accept/reject sets).  ✓ landed
  *   2. reader input→output tables — `getSafePrototypeOf`, `getTypeSignature`,
  *      `getTaggedType`, `getDefinedConstructor(Name)`, `resolveType`,
- *      `getVerifiedOwnName`, the own-key readers, the descriptor walks.
- *   3. throw-safety matrix — `hostile-input × throw-safe function` (oracle: the
- *      `@@throw-safe` set), with per-arity sentinels.
+ *      `getVerifiedOwnName`, the own-key readers, the descriptor walks.  ✓ landed
+ *   3. throw-safety matrix — `hostile-mechanism × throw-safe function` (oracle: the
+ *      `@@throw-safe` set), heterogeneous per-cell sentinels.  ✓ landed
  *   4. `@internal` helper inputs — `getValidatedStandardConstructorAndPrototypeTuple`,
- *      `isValueOfBoundSet`.
+ *      `isValueOfBoundSet`.  ← next (drives `_internal/helpers.test.js`)
  *
- * `spec.test.js` drives the matrices; the targeted axis suites import the named
- * factories they need.
+ * `spec.test.js` drives the axis-1 matrices and the axis-2 realm-agnosticism
+ * vectors; `throw-safety.test.js` drives the axis-3 matrix; `adversarial.test.js`
+ * imports the named attack-angle factories it needs.
  */
 
 import { objectCreate } from '#index';
@@ -184,7 +185,7 @@ export const hasInertMatrix = {
       hasInertSetter: false,
       hasInertValue: true,
     },
-    vectors: ['hIM/A2', 'hIV/A1'],
+    vectors: ['hIM/A2', 'hIV/A1', 'hIG/R1'],
   },
   inheritedCallableData: {
     description: 'an inherited callable `then` (a Promise instance)',
@@ -229,7 +230,7 @@ export const hasInertMatrix = {
       hasInertSetter: true,
       hasInertValue: false,
     },
-    vectors: ['hIS/A1', 'hIG/R2'],
+    vectors: ['hIS/A1', 'hIG/R2', 'hIS/R1'],
   },
   dataNonCallable: {
     description: 'a non-callable data property `{ then: 5 }` at `then`',
@@ -425,6 +426,19 @@ export const throwingOwnKeysTrapProxy = () =>
       },
     },
   );
+
+// THROWING `Symbol.toStringTag` GETTER (fourth hostile surface): the tag getter
+// lives on the PROTOTYPE, so `Object.prototype.toString`'s chain-walking
+// `Get(@@toStringTag)` fires it (`getTypeSignature` / `getTaggedType` absorb the
+// throw), while the inheritor itself carries no own keys — the own-key readers
+// still report `[]`, the honest empty. The constructor walk never touches the tag,
+// so `getDefinedConstructor` still resolves `Object` through the real chain.
+const throwingTagProto = {
+  get [Symbol.toStringTag]() {
+    throw new Error('tag-getter');
+  },
+};
+export const throwingTagInheritor = () => objectCreate(throwingTagProto);
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 //
@@ -741,3 +755,138 @@ export const pascalCtorSpoofedTag = () => {
 // `undefined`); `resolveType` falls to the tag (`Custom`).
 export const nullProtoTagSpoof = () =>
   Object.assign(objectCreate(null), { [Symbol.toStringTag]: 'Custom' });
+
+// ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
+//
+//  Throw-safety matrix (axis 3) — hostile mechanism × throw-safe function
+//
+// ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
+// The universal invariant: every `@@throw-safe` PUBLIC function answers on EVERY
+// hostile input and never propagates. `throw-safety.test.js` drives this matrix,
+// asserting per cell BOTH no-throw AND the honest by-contract value; a
+// completeness guard fails if any hostile row omits a function column, so all
+// four mechanisms score all twenty functions (80 conscious cells).
+//
+// utility's hostile set is re-derived from its OWN read surface, which fans out
+// into FOUR DISJOINT mechanisms — wider than any prior module, because utility is
+// the primitive layer every read routes through:
+//   - proto-trap    — `getPrototypeOf` throws (attacks `getSafePrototypeOf`, the
+//                     chain-step in the descriptor walk, the non-callable
+//                     constructor pivot).
+//   - desc-trap     — `getOwnPropertyDescriptor` throws (attacks the `hasOwn*` /
+//                     `hasInert*` / `getVerifiedOwnName` descriptor reads and the
+//                     `getNextAvailableSafeDescriptor` walk — subsumes a poisoned
+//                     descriptor whose own `value`/`get` getter throws during the
+//                     engine's `ToPropertyDescriptor`, which raises inside the same
+//                     `getOwnPropertyDescriptor` call).
+//   - own-keys-trap — `ownKeys` throws (attacks ONLY the `getSafeOwnProperty*`
+//                     trio — utility SPLITS the key-enumeration surface from the
+//                     descriptor surface; no other function touches `ownKeys`).
+//   - tag-throw     — a `Symbol.toStringTag` getter throws (attacks ONLY the tag
+//                     readers `getTypeSignature` / `getTaggedType`, reached via
+//                     `Object.prototype.toString`).
+//
+// The headline asymmetry, and the reason most cells are honest structural values
+// rather than absorbed sentinels: the constructor walk reads the value's REAL
+// prototype chain, so `getDefinedConstructor` still resolves `Object` under the
+// desc-, own-keys-, and tag-traps (only the proto-trap severs the chain → the lone
+// `undefined`), and `resolveType` returns `'Object'` in every row — under the
+// tag-trap it SHORT-CIRCUITS on the constructor name and never fires the tag
+// getter at all. The invariant is "never throw", not "always the null answer".
+
+// Sentinel tokens for the non-primitive honest values (an identity `toBe` cannot
+// express "some live prototype"); `throw-safety.test.js` maps each to its assertion.
+export const TS_SENTINEL = Object.freeze({
+  UNDEF: /** @type {const} */ ('→ undefined'),
+  EMPTY: /** @type {const} */ ('→ [] (empty own-key array)'),
+  PROTOTYPE: /** @type {const} */ ('→ a live prototype object'),
+});
+
+// Columns shared verbatim by every hostile row (the mechanism never reaches these
+// functions' reads, or reaches an absorbing `try/catch` regardless of mechanism).
+const invariantColumns = {
+  isValidWeakKey: true, // typeof-only; a Proxy is a valid weak key
+  isValidPropertyKey: false, // typeof-only; an object is not a property key
+  hasOwnPrototype: false, // no own `prototype` on any hostile target
+  hasOwnWritablePrototype: false,
+  hasOwnNonWritablePrototype: false,
+  getSafeOwnPropertyNames: TS_SENTINEL.EMPTY,
+  getSafeOwnPropertySymbols: TS_SENTINEL.EMPTY,
+  getSafeOwnPropertyKeys: TS_SENTINEL.EMPTY,
+  getNextAvailableSafeDescriptor: TS_SENTINEL.UNDEF, // no `then` reachable / absorbed
+  hasInertMethod: false,
+  hasInertGetter: false,
+  hasInertSetter: false,
+  hasInertValue: false,
+  getVerifiedOwnName: TS_SENTINEL.UNDEF, // no own `name` reachable
+};
+
+export const throwSafetyMatrix = {
+  protoTrap: {
+    surface: 'proto-trap: Proxy whose `getPrototypeOf` throws',
+    make: throwingProtoTrapProxy,
+    // spec throw-safety `B` vectors this mechanism drives (the absorbing cells):
+    // `getSafePrototypeOf` and the severed-chain `getDefinedConstructor` arm.
+    vectors: ['gSPO/B1', 'gDC/B1'],
+    expected: {
+      ...invariantColumns,
+      getSafePrototypeOf: TS_SENTINEL.UNDEF, // absorbed — this trap's prime victim
+      getTypeSignature: '[object Object]', // toString never reads the prototype
+      getTaggedType: 'Object',
+      getDefinedConstructor: TS_SENTINEL.UNDEF, // chain severed at the pivot
+      getDefinedConstructorName: TS_SENTINEL.UNDEF,
+      resolveType: 'Object', // via the tag fallback (no constructor name)
+    },
+  },
+  descTrap: {
+    surface: 'desc-trap: Proxy whose `getOwnPropertyDescriptor` throws',
+    make: throwingDescTrapProxy,
+    // the descriptor-read throw-safety of the `hasOwn*` family, the own-`name` read,
+    // the Safe descriptor walk, and the `hasInert*` probes.
+    vectors: ['hOP/B1', 'hOWP/B1', 'hONWP/B1', 'gVON/B1', 'gNASD/B1', 'hIM/R6'],
+    expected: {
+      ...invariantColumns,
+      getSafePrototypeOf: TS_SENTINEL.PROTOTYPE, // `getPrototypeOf` untrapped
+      getTypeSignature: '[object Object]',
+      getTaggedType: 'Object',
+      getDefinedConstructor: Object, // walks the REAL `Object.prototype`, bypassing the trap
+      getDefinedConstructorName: 'Object',
+      resolveType: 'Object', // via the constructor name
+    },
+  },
+  ownKeysTrap: {
+    surface: 'own-keys-trap: Proxy whose `ownKeys` throws',
+    make: throwingOwnKeysTrapProxy,
+    // the throwing-trap clause of the safe own-key readers (happy + nullish clauses
+    // are in spec.test.js).
+    vectors: ['gSOPN/A1', 'gSOPS/A1', 'gSOPK/A1'],
+    expected: {
+      ...invariantColumns,
+      // getSafeOwnProperty* absorb this trap (vs the honest-empty of the other
+      // rows) — same value, the completeness guard keeps the cell explicit.
+      getSafePrototypeOf: TS_SENTINEL.PROTOTYPE,
+      getTypeSignature: '[object Object]',
+      getTaggedType: 'Object',
+      getDefinedConstructor: Object,
+      getDefinedConstructorName: 'Object',
+      resolveType: 'Object',
+    },
+  },
+  tagTrap: {
+    surface: 'tag-throw: value whose inherited `Symbol.toStringTag` getter throws',
+    make: throwingTagInheritor,
+    // the tag-read throw-safety of the type-signature readers. (`resolveType`'s
+    // tag-fallback absorption, rT/B2, needs a value with NO reachable constructor —
+    // covered in spec.test.js, since this make resolves `Object` and short-circuits.)
+    vectors: ['gTS/B2', 'gTT/B2'],
+    expected: {
+      ...invariantColumns,
+      getSafePrototypeOf: TS_SENTINEL.PROTOTYPE,
+      getTypeSignature: TS_SENTINEL.UNDEF, // absorbed — this trap's prime victim
+      getTaggedType: TS_SENTINEL.UNDEF, // absorbed (composes getTypeSignature)
+      getDefinedConstructor: Object, // constructor walk never reads the tag
+      getDefinedConstructorName: 'Object',
+      resolveType: 'Object', // short-circuits on the name; tag getter never fires
+    },
+  },
+};

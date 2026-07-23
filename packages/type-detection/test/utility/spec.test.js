@@ -52,6 +52,8 @@ import {
   verifiedOwnNameTable,
 } from './__config.js';
 
+import { foreignRealmEval } from '../_cross-realm.js';
+
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 //
 //  `hasOwn*` prototype-predicate matrix
@@ -130,6 +132,21 @@ describe('hasInert* chain probes', () => {
     expect(hasInertGetter(null, 'x')).toBe(false);
     expect(hasInertSetter(null, 'x')).toBe(false);
     expect(hasInertValue(null, 'x')).toBe(false);
+  });
+
+  it('hIM/R5: an invalid key (a non-`PropertyKey`) → false (undefined descriptor)', () => {
+    // the invalid key fails `isValidPropertyKey` in the walk → undefined descriptor →
+    // `isCallable(undefined?.value)` → false.
+    expect(
+      hasInertMethod(
+        {
+          then() {
+            return undefined;
+          },
+        },
+        /** @type {PropertyKey} */ (/** @type {unknown} */ ({})),
+      ),
+    ).toBe(false);
   });
 });
 
@@ -213,6 +230,44 @@ describe('getVerifiedOwnName', () => {
   }
 });
 
+describe('type-reader reject / edge composition', () => {
+  it('gDCN/R1: a constructor whose `name` is an accessor → undefined (never invoked)', () => {
+    class Named {
+      m() {
+        return true;
+      }
+    }
+    Object.defineProperty(Named, 'name', { get: () => 'Spoofed', configurable: true });
+    // getDefinedConstructor resolves `Named`; getVerifiedOwnName reads the own `name`
+    // DESCRIPTOR, whose accessor carries no data `value` → rejected, getter never fires.
+    expect(getDefinedConstructorName(new Named())).toBe(undefined);
+  });
+
+  it('gDCN/R2: a constructor whose `name` is a non-string → undefined', () => {
+    class Named {
+      m() {
+        return true;
+      }
+    }
+    Object.defineProperty(Named, 'name', { value: 123, configurable: true });
+    expect(getDefinedConstructorName(new Named())).toBe(undefined);
+  });
+
+  it('rT/B2: no reachable constructor AND a throwing `Symbol.toStringTag` → undefined', () => {
+    // the constructor-name path yields undefined (null prototype), so resolveType
+    // falls through to the tag — whose throwing getter the getTypeSignature try/catch
+    // absorbs → undefined. (The complement of throw-safety.test.js's tagTrap row,
+    // where a reachable `Object` short-circuits resolveType before the tag.)
+    const value = objectCreate(null);
+    Object.defineProperty(value, Symbol.toStringTag, {
+      get() {
+        throw new Error('tag');
+      },
+    });
+    expect(resolveType(value)).toBe(undefined);
+  });
+});
+
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 //
 //  Hand-written: identity-return readers
@@ -242,10 +297,40 @@ describe('getDefinedConstructor (identity)', () => {
       Object,
     ); // gDC/A4
   });
+
+  it('gDC/A2: a callable pivots from itself to its own family constructor', () => {
+    const asyncFn = async () => {
+      await Promise.resolve();
+    };
+    // `.constructor` on a typed function value is `Function` (not the `any` that
+    // `Object.getPrototypeOf` would yield) — the %AsyncFunction% intrinsic capture.
+    const AsyncFunction = asyncFn.constructor;
+    expect(
+      getDefinedConstructor(function () {
+        return undefined;
+      }),
+    ).toBe(Function);
+    expect(getDefinedConstructor(asyncFn)).toBe(AsyncFunction);
+  });
+
+  it('gDC/A3: a Generator INSTANCE — the two-stage walk recovers %GeneratorFunction%', () => {
+    // the first walk lands on a `constructor` whose value is the OBJECT
+    // %GeneratorFunction.prototype%; the follow-up walk recovers the function.
+    const GeneratorFunction = function* () {
+      yield undefined;
+    }.constructor;
+    expect(
+      getDefinedConstructor(
+        (function* () {
+          yield undefined;
+        })(),
+      ),
+    ).toBe(GeneratorFunction);
+  });
 });
 
 describe('own-key readers (raw + throw-safe)', () => {
-  it('getOwnPropertyKeys — string + symbol, incl. non-enumerable (gOPK/A1-A3, R1)', () => {
+  it('getOwnPropertyKeys — string + symbol, incl. non-enumerable (gOPK/A1, gOPK/A2, gOPK/A3, gOPK/R1)', () => {
     const s = Symbol('s');
     const value = Object.defineProperty({ a: 1, [s]: 2 }, 'b', { value: 3 });
     expect(getOwnPropertyKeys(value)).toEqual(['a', 'b', s]);
@@ -255,7 +340,7 @@ describe('own-key readers (raw + throw-safe)', () => {
     expect(getOwnPropertyKeys(undefined)).toEqual([]);
   });
 
-  it('getSafeOwnProperty{Names,Symbols,Keys} — same shape, nullish → [] (gSOPN/gSOPS/gSOPK)', () => {
+  it('getSafeOwnProperty{Names,Symbols,Keys} — same shape, nullish → [] (gSOPN/A1, gSOPS/A1, gSOPK/A1)', () => {
     const s = Symbol('s');
     const value = { a: 1, [s]: 2 };
     expect(getSafeOwnPropertyNames(value)).toEqual(['a']);
@@ -270,11 +355,12 @@ describe('own-key readers (raw + throw-safe)', () => {
 });
 
 describe('descriptor walks (raw + throw-safe)', () => {
-  it('getNextAvailablePropertyDescriptor — own, inherited, accessor-inert, miss (gNAPD/A1-B1, R1-R3)', () => {
+  it('getNextAvailablePropertyDescriptor — own, inherited, accessor-inert, miss (gNAPD/A1, gNAPD/A2, gNAPD/A3, gNAPD/B1, gNAPD/R1, gNAPD/R2, gNAPD/R3)', () => {
     expect(getNextAvailablePropertyDescriptor({ a: 1 }, 'a')?.value).toBe(1); // A1
     expect(typeof getNextAvailablePropertyDescriptor({}, 'toString')?.value).toBe(
       'function',
     ); // A2 (inherited)
+    expect(getNextAvailablePropertyDescriptor([], 'length')?.value).toBe(0); // A3 (own data)
     const throwingAccessor = {
       get x() {
         throw new Error('getter');
@@ -283,10 +369,20 @@ describe('descriptor walks (raw + throw-safe)', () => {
     const desc = getNextAvailablePropertyDescriptor(throwingAccessor, 'x'); // B1 — returned, not invoked
     expect(typeof desc?.get).toBe('function');
     expect(getNextAvailablePropertyDescriptor({}, 'nonexistent')).toBe(undefined); // R1
+    // R2 — an invalid key (a non-`PropertyKey` object) fails the `isValidPropertyKey`
+    // guard → undefined. (`1.5` is a VALID key post-ADR #072 — finite number — so it
+    // resolves via chain-exhaustion, not the guard; asserted here to pin that seam.)
+    expect(
+      getNextAvailablePropertyDescriptor(
+        { a: 1 },
+        /** @type {PropertyKey} */ (/** @type {unknown} */ ({})),
+      ),
+    ).toBe(undefined); // R2 (invalid key → guard)
+    expect(getNextAvailablePropertyDescriptor({ a: 1 }, 1.5)).toBe(undefined); // R2 (valid-but-absent, #072)
     expect(getNextAvailablePropertyDescriptor(null, 'x')).toBe(undefined); // R3
   });
 
-  it('getNextAvailableSafeDescriptor — same accepts, and undefined on a miss (gNASD/A1, R1)', () => {
+  it('getNextAvailableSafeDescriptor — same accepts, and undefined on a miss (gNASD/A1, gNASD/R1)', () => {
     expect(getNextAvailableSafeDescriptor({ a: 1 }, 'a')?.value).toBe(1);
     expect(getNextAvailableSafeDescriptor({}, 'nonexistent')).toBe(undefined);
   });
@@ -316,5 +412,49 @@ describe('omitted-argument overloads', () => {
     expect(getTypeSignature(undefined)).toBe('[object Undefined]'); // contrast — explicit
     expect(getTaggedType(undefined)).toBe('Undefined');
     expect(resolveType(undefined)).toBe('Undefined');
+  });
+});
+
+// ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
+//
+//  Realm-agnosticism (axis 2) — utilities read own-realm structural facts
+//
+// ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
+// utility does not carry a standalone cross-realm suite: its functions are
+// structural BY DESIGN — descriptor reads, `Symbol.toStringTag` brands, and the
+// prototype→constructor walk, none of which depend on LOCAL intrinsic identity —
+// so a foreign-realm value yields the SAME answer as a local one. The realm-
+// relative comparison that DOES differ across realms (e.g. `isPlainObject`
+// true-local / false-foreign) is a DOMAIN-predicate concern, tested in those
+// modules' cross-realm suites. These vectors PIN the agnosticism as a positive
+// guarantee — most sharply, `getDefinedConstructor` returns the value's OWN
+// (foreign) constructor, never substituting or comparing against this realm's.
+
+describe('realm-agnosticism (axis 2)', () => {
+  it('getDefinedConstructor returns the FOREIGN constructor — not undefined, not the local one', () => {
+    const foreignArray = foreignRealmEval('[1, 2, 3]');
+    const foreignArrayCtor = foreignRealmEval('Array');
+    const ctor = getDefinedConstructor(foreignArray);
+    expect(ctor).toBe(foreignArrayCtor); // the value's own-realm `Array`…
+    expect(ctor).not.toBe(Array); // …faithfully, never this realm's
+  });
+
+  it('getTaggedType / getTypeSignature read the realm-agnostic `[[Class]]` brand', () => {
+    expect(getTaggedType(foreignRealmEval('new Date()'))).toBe('Date');
+    expect(getTypeSignature(foreignRealmEval('Promise.resolve(1)'))).toBe(
+      '[object Promise]',
+    );
+  });
+
+  it('the own-`prototype` predicates read a foreign function structurally', () => {
+    const foreignFn = foreignRealmEval('(function foo() {})');
+    expect(hasOwnPrototype(foreignFn)).toBe(true);
+    expect(hasOwnWritablePrototype(foreignFn)).toBe(true); // ES3 function — writable own `prototype`
+    expect(hasOwnNonWritablePrototype(foreignFn)).toBe(false);
+  });
+
+  it('resolveType / getDefinedConstructorName resolve the foreign type-name', () => {
+    expect(resolveType(foreignRealmEval('[1]'))).toBe('Array');
+    expect(getDefinedConstructorName(foreignRealmEval('new Error("x")'))).toBe('Error');
   });
 });

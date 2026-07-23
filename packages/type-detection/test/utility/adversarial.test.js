@@ -127,7 +127,7 @@ describe('constructor / type-reader tamper resistance', () => {
     expect(getDefinedConstructor(accessorConstructor())).toBe(Object);
   });
 
-  it('resolveType prefers the PascalCase ctor name over a spoofed tag', () => {
+  it('rT/A6: resolveType prefers the PascalCase ctor name over a spoofed tag', () => {
     const value = pascalCtorSpoofedTag();
     expect(resolveType(value)).toBe('Foo'); // ctor name wins (axis 1)
     expect(getTaggedType(value)).toBe('Bar'); // same value — the tag reader honors the spoof
