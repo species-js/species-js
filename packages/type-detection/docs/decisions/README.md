@@ -125,6 +125,8 @@ Open architectural questions live in [open-questions.md](./open-questions.md).
 | [059](./0059-drop-constructor-registries-thread-constructor-get-verified-own-name.md) | Constructor registries dropped (benchmark-driven); intra-call constructor threading + `getVerifiedOwnName`; `isValidWeakKey` kept as public candidate | 2026-06-25 |
 | [072](./0072-is-valid-property-key-finite-numbers-supersedes-026.md)                  | `isValidPropertyKey` admits finite numbers (not safe-integers), excludes `bigint`; supersedes #026 in part                                            | 2026-07-23 |
 | [073](./0073-utility-throw-safe-vocabulary-marker-and-public-surface.md)              | Utility `Inert`/`Safe` vocabulary disentanglement; the `@@throw-safe` marker; settled public surface; `hasOwnNonWritablePrototype`                    | 2026-07-23 |
+| [074](./0074-number-static-predicates-relocate-config-to-primitive.md)                | Relocate the Number static-method predicates (`isFiniteNumberValue` / `isIntegerValue` / `isSafeIntegerValue`) from `config` to `primitive`           | 2026-07-24 |
+| [075](./0075-config-runtime-leaf-decouple-is-callable.md)                             | `config` becomes a true runtime leaf (inline `isCallable`, drop its last runtime import); config exports safe at eval time; amends #074               | 2026-07-24 |
 
 ## Decisions by date (chronological)
 
@@ -206,3 +208,5 @@ order with one-line summaries:
 | 2026-07-16 | [071](./0071-at-alias-to-hash-subpath-imports-consumer-deliverable.md)                | `@/` path alias → `#` Node subpath imports; consumer-deliverable shipped types                                      |
 | 2026-07-23 | [072](./0072-is-valid-property-key-finite-numbers-supersedes-026.md)                  | `isValidPropertyKey` finite numbers (not safe-integers), excludes `bigint`; supersedes #026 in part                 |
 | 2026-07-23 | [073](./0073-utility-throw-safe-vocabulary-marker-and-public-surface.md)              | Utility `Inert`/`Safe` disentanglement; `@@throw-safe` marker; settled public surface; `hasOwnNonWritablePrototype` |
+| 2026-07-24 | [074](./0074-number-static-predicates-relocate-config-to-primitive.md)                | Number static-method predicates relocated from `config` to `primitive`                                              |
+| 2026-07-24 | [075](./0075-config-runtime-leaf-decouple-is-callable.md)                             | `config` becomes a true runtime leaf; last runtime import (`isCallable`) inlined; amends #074                       |

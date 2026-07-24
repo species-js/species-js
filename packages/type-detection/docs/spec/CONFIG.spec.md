@@ -2,30 +2,40 @@
 
 > Spec format and the multi-axis model are defined in [`./README.md`](./README.md).
 > Vectors are reasoned from the canon (`config/index.d.ts`, `config/index.js`, and the
-> boundary-retyping decisions #008 (`toFunctionString`), #017 (`getPrototypeOf`), #026
-> (the `Number.isXxx` retypes), #034 (`objectCreate`); the pattern itself is documented in
-> `architecture/function.md` → "Boundary-retyping for lib `any`-gaps"). There is no
-> `architecture/config.md` — config is infrastructure, not a discrimination domain.
-> Status: **FROZEN 2026-06-19** — decidability check passed over the runtime-decidable
-> dimensions (realm-fixity + tamper-immunity, the polyfill selectors, the four exported
-> polyfill closures, the capture reads, and the preset shapes) via the `#index` barrel,
-> single realm; dimension B is typecheck-gated, not a runtime vector. No surprises: every
-> polyfilled selector took the native branch in this runtime (identity-equal to its
-> `Object.`/`Number.` intrinsic), the closures run the fallback logic correctly in
-> isolation, captures are identity-equal, and the `Number.isXxx` no-coercion semantics
-> hold. The polyfill closures (`hasOwn`, `isFiniteNumber`, `isInteger`, `isSafeInteger`)
-> are exported `@internal` (#053-style) so the fallback path is directly testable
-> (Resolved items #1). The eighth and final type-detection spec. Base for the axis-1
-> suite; axes 2–3 derive alongside.
+> boundary-retyping decisions #008 (`toFunctionString`), #017 (`getPrototypeOf`), #034
+> (`objectCreate`); the pattern itself is documented in `architecture/function.md` →
+> "Boundary-retyping for lib `any`-gaps"). There is no `architecture/config.md` — config
+> is infrastructure, not a discrimination domain. Status: **FROZEN 2026-06-19** —
+> decidability check passed over the runtime-decidable dimensions (realm-fixity +
+> tamper-immunity, the polyfill selectors, the four exported polyfill closures, the
+> capture reads, and the preset shapes) via the `#index` barrel, single realm; dimension B
+> is typecheck-gated, not a runtime vector. No surprises: every polyfilled selector took
+> the native branch in this runtime (identity-equal to its `Object.`/`Number.` intrinsic),
+> the closures run the fallback logic correctly in isolation, captures are identity-equal,
+> and the `Number.isXxx` no-coercion semantics hold. The polyfill closures (`hasOwn`,
+> `isFiniteNumber`, `isInteger`, `isSafeInteger`) are exported `@internal` (#053-style) so
+> the fallback path is directly testable (Resolved items #1). The eighth and final
+> type-detection spec. Base for the axis-1 suite; axes 2–3 derive alongside.
+
+> **Amended 2026-07-24 (ADR #074 / #075).** The three `Number.isXxx` guards
+> (`isFiniteNumberValue` / `isIntegerValue` / `isSafeIntegerValue`) and their `@internal`
+> polyfill closures (`isFiniteNumber` / `isInteger` / `isSafeInteger`) **relocated to
+> `primitive`** (#074); their vectors move to `PRIMITIVE.spec.md`. `config` also shed its
+> last runtime import and is now a true leaf (#075). **Export count is unchanged at 30** —
+> a coincidence: the six relocated Number exports are offset by six exports the original
+> inventory never listed (`globalContext`, `objectFromEntries`, `defineProperties`,
+> `BLANK_DICTIONARY`, `BLANK_TYPE`, `INSTANCE_LESS_CONSTRUCTOR`). Those six are
+> **pre-existing drift, deferred to the config Round-2 retro-audit** — not inventoried
+> here. The FROZEN status above records the 2026-06-19 run (Number trio then present); the
+> inventory and axis sections below reflect the post-relocation surface.
 
 ## Module contract
 
 `type-detection / config` is the **realm-fixed capture + boundary-retype layer**. It
-captures `Object` / `Object.prototype` / `Function.prototype` / `Number` / `Math` members
-once at module-load — pinning their identity to this realm — and re-exports them (plus
-four descriptor presets) so every predicate reaches for a load-time-fixed reference
-instead of `Object.x` at each call site. This shields the package from later tampering
-with the global `Object`.
+captures `Object` / `Object.prototype` / `Function.prototype` members once at module-load
+— pinning their identity to this realm — and re-exports them (plus four descriptor
+presets) so every predicate reaches for a load-time-fixed reference instead of `Object.x`
+at each call site. This shields the package from later tampering with the global `Object`.
 
 **What makes this spec different from the seven behavioral modules.** Config exports **no
 predicates** and **no public surface** — all 30 exports are `@internal`, surfaced via the
@@ -35,15 +45,14 @@ no admit/reject vectors. The contract instead has **three dimensions**:
 - **(A) Realm-fixity** — each export is the load-time capture of its intrinsic, held in a
   module `const`, so it cannot be re-resolved by post-load mutation of the global. This is
   the module's reason to exist; it maps to the cross-realm axis.
-- **(B) Boundary-retyped signatures** — five exports carry a `.d.ts` signature
+- **(B) Boundary-retyped signatures** — three exports carry a `.d.ts` signature
   deliberately more precise than `typeof Object.X` (closing lib `any`-cascades and adding
   narrowing). This is a **type-level contract, verified by `pnpm run typecheck`, not by a
   runtime vector.** It is the module's primary deliverable.
-- **(C) Polyfill-fallback spec-equivalence** — four selectors (`objectHasOwn` + the three
-  `Number.isXxx` guards) use the native method when callable, else a spec-matching
-  polyfill. The behavioral claim is that either branch matches spec semantics. The
-  polyfill closures are **separately exported** (`hasOwn`, `isFiniteNumber`, `isInteger`,
-  `isSafeInteger`) so the fallback path is directly unit-testable in isolation — without
+- **(C) Polyfill-fallback spec-equivalence** — one selector (`objectHasOwn`) uses the
+  native method when callable, else a spec-matching polyfill. The behavioral claim is that
+  either branch matches spec semantics. The polyfill closure is **separately exported**
+  (`hasOwn`) so the fallback path is directly unit-testable in isolation — without
   stubbing globals or reloading the module (#053-style; see Resolved items #1).
 
 The headline finding of this round: **the config spec is dominated by type-level contract
@@ -54,8 +63,11 @@ real work is typing and identity, not behavior.
 ## Surface inventory
 
 All 30 exports are `@internal`; zero exported types. Re-confirmation gate: 30 `.js`
-exports (26 `const` + 4 `function`) = 30 `.d.ts` declarations (26 `declare const` + 4
-`declare function`); no drift.
+exports (29 `const` + 1 `function`) = 30 `.d.ts` declarations (29 `declare const` + 1
+`declare function`); parity verified. (Six of the 30 — `globalContext`,
+`objectFromEntries`, `defineProperties`, `BLANK_DICTIONARY`, `BLANK_TYPE`,
+`INSTANCE_LESS_CONSTRUCTOR` — are shipping but not yet sectioned below: pre-existing drift
+deferred to the config Round-2 retro-audit, per the amendment banner.)
 
 **Descriptor presets (4) — plain data objects:** `defaultDescriptorOptions`,
 `restrictedDescriptorOptions`, `restrictedAccessorOptions`, `sealedDescriptorOptions`.
@@ -71,25 +83,19 @@ exports (26 `const` + 4 `function`) = 30 `.d.ts` declarations (26 `declare const
 #017), `setPrototypeOf`, `defineProperty`, `getOwnPropertyDescriptor`,
 `getOwnPropertyDescriptors`.
 
-**Number static captures (3) — all retyped `(value: unknown) => value is number` (#026),
-all polyfilled selectors:** `isFiniteNumberValue`, `isIntegerValue`, `isSafeIntegerValue`.
-
-**Polyfill closures (4) — `@internal`, exported for isolated fallback-path testing
+**Polyfill closure (1) — `@internal`, exported for isolated fallback-path testing
 (#053-style):** `hasOwn` (the `Object.prototype.hasOwnProperty`-based fallback behind
-`objectHasOwn`), `isFiniteNumber`, `isInteger`, `isSafeInteger` (the explicit fallbacks
-behind the three Number selectors). Each is a function declaration; consuming code uses
-the selector, which prefers native.
+`objectHasOwn`). It is a function declaration; consuming code uses the selector, which
+prefers native.
 
-Boundary-retyped set (B): `toFunctionString`, `objectCreate`, `getPrototypeOf`,
-`isFiniteNumberValue`, `isIntegerValue`, `isSafeIntegerValue`. Polyfilled-selector set
-(C): `objectHasOwn`, `isFiniteNumberValue`, `isIntegerValue`, `isSafeIntegerValue`; their
-closures `hasOwn`, `isFiniteNumber`, `isInteger`, `isSafeInteger`.
+Boundary-retyped set (B): `toFunctionString`, `objectCreate`, `getPrototypeOf`.
+Polyfilled-selector set (C): `objectHasOwn`; its closure `hasOwn`.
 
 ## Axis mapping for this module
 
 | Axis | How it applies to config                                                                                                                                                           |
 | ---- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1    | Thin — the only runtime behavior is the preset shapes, the polyfill-quartet semantics, and capture identity.                                                                       |
+| 1    | Thin — the only runtime behavior is the preset shapes, the `objectHasOwn` polyfill semantics, and capture identity.                                                                |
 | 2    | The whole point — realm-fixity (A). A captured `const` cannot be re-resolved by global tampering.                                                                                  |
 | 3    | Tamper-immunity is the adversarial face of (A): reassigning `globalThis.Object.x` does not affect the export.                                                                      |
 | —    | (B) boundary-retyped signatures are a **type-level** contract — `pnpm run typecheck` is their gate, not a runtime suite. The spec records them so the typing intent is enumerable. |
@@ -99,8 +105,8 @@ closures `hasOwn`, `isFiniteNumber`, `isInteger`, `isSafeInteger`.
 ## (A) Realm-fixity — identity capture
 
 Every export is the module-load capture of its intrinsic, so at the current realm the
-export **is** the native reference (or, for the polyfill quartet in a runtime that
-provides the native, the native method — see (C)).
+export **is** the native reference (or, for `objectHasOwn` in a runtime that provides the
+native, the native method — see (C)).
 
 - `fix/A1` — identity: `objectIs === Object.is`, `objectKeys === Object.keys`,
   `getPrototypeOf === Object.getPrototypeOf`,
@@ -122,9 +128,9 @@ guarantee one realm up; the captured `const` is structurally immune either way.
 
 ## (C) Polyfill-fallback spec-equivalence
 
-Four exports pick native-when-callable, else a spec-matching polyfill. In this runtime
-(Node, modern) the native branch is taken, so each export is identity-equal to its native
-and exhibits native semantics.
+One export (`objectHasOwn`) picks native-when-callable, else a spec-matching polyfill. In
+this runtime (Node, modern) the native branch is taken, so the export is identity-equal to
+its native and exhibits native semantics.
 
 ### `objectHasOwn(o, key)`
 
@@ -137,42 +143,16 @@ and exhibits native semantics.
   (`ToObject` on nullish; both the native and the `hasOwnProperty.call` polyfill throw).
   This is the precondition behind `#utility`'s `?? {}` guard in `hasInertValue`.
 
-### `isFiniteNumberValue(value)` — also retyped `value is number`
+### Polyfill closure (direct) — the fallback path tested in isolation
 
-- `iFNV/A1` — `isFiniteNumberValue === Number.isFinite` (native branch).
-- `iFNV/A2` — `0`, `42`, `-3.5`, `Number.MAX_VALUE` → true.
-- `iFNV/R1` — `Infinity`, `-Infinity`, `NaN` → false.
-- `iFNV/R2` — `'5'`, `null`, `undefined`, `5n`, `{}` → false — **no coercion** (unlike the
-  global `isFinite('5') === true`); this is the spec distinction the capture preserves.
-
-### `isIntegerValue(value)` — also retyped `value is number`
-
-- `iIV/A1` — `isIntegerValue === Number.isInteger` (native branch).
-- `iIV/A2` — `0`, `42`, `-7`, `2 ** 53` → true (any integer-valued float, safe or not).
-- `iIV/R1` — `1.5`, `NaN`, `Infinity`, `'5'` → false.
-
-### `isSafeIntegerValue(value)` — also retyped `value is number`
-
-- `iSIV/A1` — `isSafeIntegerValue === Number.isSafeInteger` (native branch).
-- `iSIV/A2` — `0`, `Number.MAX_SAFE_INTEGER`, `-(2 ** 53 - 1)` → true.
-- `iSIV/R1` — `2 ** 53` (= `MAX_SAFE_INTEGER + 1`), `1.5`, `NaN`, `'5'` → false (the
-  lossless-round-trip bound; this is what `isValidPropertyKey` leans on).
-
-### Polyfill closures (direct) — the fallback path tested in isolation
-
-The four closures are exported so the fallback logic runs and is asserted regardless of
-which branch the selector takes in the host runtime. These vectors target the closure
-directly, so they are decidable even where the native shadows the selector. (Confirmed via
+The `hasOwn` closure is exported so the fallback logic runs and is asserted regardless of
+which branch the selector takes in the host runtime. The vector targets the closure
+directly, so it is decidable even where the native shadows the selector. (Confirmed via
 the `#index` barrel in the decidability run.)
 
 - `hasOwn/A1` — `hasOwn({ a: 1 }, 'a')` → true; `hasOwn({}, 'toString')` → false
   (own-only); `hasOwn({}, 'nope')` → false; `hasOwn(null, 'x')` → **throws** (`ToObject`,
   as `oHO/B1`).
-- `isFiniteNumber/A1` — `0`, `42`, `-3.5` → true; `Infinity`, `NaN`, `'5'`, `null`, `5n` →
-  false (the `isNumberValue` guard suppresses the global-`isFinite` coercion).
-- `isInteger/A1` — `0`, `7`, `2 ** 53` → true; `1.5`, `NaN`, `'5'` → false.
-- `isSafeInteger/A1` — `0`, `Number.MAX_SAFE_INTEGER` → true; `2 ** 53`, `1.5`, `'5'` →
-  false.
 
 ---
 
@@ -228,9 +208,10 @@ decidability run. The deviation from `typeof Object.X` is the deliverable.
 - `ret/T3` — `objectCreate` 3-overload (#034): `(null) => Record<PropertyKey, never>`,
   `(object) => object`, `(object | null, properties) => object`, with `ThisType<unknown>`
   over lib's `ThisType<any>`. Runtime face: `cap/A5`.
-- `ret/T4` — `isFiniteNumberValue` / `isIntegerValue` / `isSafeIntegerValue`:
-  `(value: unknown) => value is number` (#026) — replaces lib's non-narrowing `boolean`,
-  propagating the narrow at call sites. Runtime face: the `iFNV`/`iIV`/`iSIV` vectors.
+
+_(`ret/T4` — the `isFiniteNumberValue` / `isIntegerValue` / `isSafeIntegerValue`
+`value is number` retypes under #026 — relocated to `primitive` with the predicates
+themselves; see ADR #074 and `PRIMITIVE.spec.md`.)_
 
 ---
 
@@ -250,9 +231,21 @@ decidability run. The deviation from `typeof Object.X` is the deliverable.
    otherwise renders unreachable. Surface: 26 → 30 exports; no behavior change to the
    selectors.
 
+   _Update (2026-07-24, ADR #074):_ the three `Number.isXxx` selectors and their closures
+   (`isFiniteNumber` / `isInteger` / `isSafeInteger`) relocated to `primitive`; this
+   resolved item's export-for-testability pattern now applies in `config` only to
+   `objectHasOwn` / `hasOwn`. The below-floor `Number`-trio testability rationale moves
+   with them to `PRIMITIVE.spec.md`.
+
 ## Open items
 
-None. The decidability run covers dimensions (A `fix/*`, `cap/*`), (C — the `oHO`/`iFNV`/
-`iIV`/`iSIV` selectors plus the `hasOwn`/`isFiniteNumber`/`isInteger`/`isSafeInteger`
-closures), and the presets (`dpo/*`); dimension (B `ret/T*`) is covered by `typecheck` in
-the standard `pnpm run check`, not by the ephemeral decidability suite.
+**Deferred — config Round-2 retro-audit.** Six shipping exports are not yet inventoried or
+vector-covered above: `globalContext`, `objectFromEntries`, `defineProperties`,
+`BLANK_DICTIONARY`, `BLANK_TYPE`, `INSTANCE_LESS_CONSTRUCTOR` — pre-existing drift
+surfaced during the #074 relocation (2026-07-24). Taxonomy placement (are the `BLANK_*`
+sentinels and `INSTANCE_LESS_CONSTRUCTOR` a new group; is any of them boundary-retyped /
+dimension B?) is a design call for that audit.
+
+The decidability run covers dimensions (A `fix/*`, `cap/*`), (C — the `oHO` selector plus
+the `hasOwn` closure), and the presets (`dpo/*`); dimension (B `ret/T*`) is covered by
+`typecheck` in the standard `pnpm run check`, not by the ephemeral decidability suite.

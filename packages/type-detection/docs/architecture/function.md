@@ -156,20 +156,21 @@ The package closes these gaps at the `#config` boundary, not at the call sites. 
 primitives in `config/index.d.ts` are retyped to the spec-precise signature, and every
 consumer inherits the honest signature for free. See decisions #008 and #017.
 
-Five instances have landed so far:
+Three instances have landed so far:
 
 - `toFunctionString: (this: Callable) => string` — encodes the spec-required
   non-callable-throws constraint (decision #008).
 - `getPrototypeOf: (o: unknown) => object | null` — closes the `any` return cascade;
   runtime throw for nullish stays a precondition not modeled in the type, consistent with
   TypeScript's not modeling thrown errors elsewhere (decision #017).
-- `isFiniteNumberValue`, `isIntegerValue`, `isSafeIntegerValue` — three `Number.isXxx`
-  predicates retyped to value-narrowing type guards `(value: unknown) => value is number`,
-  replacing lib's non-narrowing `boolean` return (decision #026).
 - `objectCreate` — overload-precise return types replacing the `any` on both lib
   overloads; `objectCreate(null) → Record<PropertyKey, never>` (the prototype-less floor),
   prototyped forms yield `object`, with `ThisType<unknown>` over lib's `ThisType<any>`
   (decision #034).
+
+(The `Number.isXxx` retypes `isFiniteNumberValue` / `isIntegerValue` /
+`isSafeIntegerValue` under #026 relocated to `primitive` — ADR #074 — and are no longer
+`#config` boundary retypes.)
 
 The pattern generalizes. Any future cached `#config` primitive whose lib signature
 propagates `any` should be retyped at the boundary as a single edit, not laundered through
