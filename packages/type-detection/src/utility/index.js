@@ -23,10 +23,13 @@ import {
   getPrototypeOf as nativeGetPrototypeOf,
   objectHasOwn,
   toObjectString,
-  isFiniteNumberValue,
 } from '#config';
 
-import { isStringValue, unguardedIsUnregisteredSymbol } from '#primitive';
+import {
+  isStringValue,
+  isFiniteNumberValue,
+  unguardedIsUnregisteredSymbol,
+} from '#primitive';
 
 import { isCallable, isFunction, isNewableFunction } from '#function';
 

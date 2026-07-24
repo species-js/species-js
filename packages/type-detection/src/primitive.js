@@ -53,9 +53,10 @@
  * the runtime implementation with parallel JSDoc.
  */
 
-import { objectIs, getPrototypeOf } from '#config';
-import { getTypeSignature, getDefinedConstructorName, getTaggedType } from '#utility';
+import { globalContext, objectIs, getPrototypeOf } from '#config';
+import { getDefinedConstructorName, getTypeSignature, getTaggedType } from '#utility';
 
+import { isCallable } from '#function';
 import { isObject } from '#object';
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
@@ -87,12 +88,12 @@ import { isObject } from '#object';
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 
-const StringConstructor = String;
-const NumberConstructor = Number;
-const BooleanConstructor = Boolean;
+const StringConstructor = globalContext.String;
+const NumberConstructor = globalContext.Number;
+const BooleanConstructor = globalContext.Boolean;
 
-const SymbolFactory = Symbol;
-const BigIntFactory = BigInt;
+const SymbolFactory = globalContext.Symbol;
+const BigIntFactory = globalContext.BigInt;
 
 const stringPrototype = StringConstructor.prototype;
 const numberPrototype = NumberConstructor.prototype;
@@ -107,6 +108,7 @@ const symbolKeyFor = SymbolFactory.keyFor;
 const toSymbolValue = SymbolFactory.prototype.valueOf;
 const toBigIntValue = BigIntFactory.prototype.valueOf;
 
+/* @@throw-safe */
 /**
  * Whether `value` is a direct current-realm `String` instance — passes
  * `value instanceof StringConstructor` AND has `stringPrototype` as its
@@ -125,9 +127,17 @@ const toBigIntValue = BigIntFactory.prototype.valueOf;
  *  prototype-identity check hold; `false` otherwise
  * @internal
  */
-export function isCurrentRealmNativeString(value) {
-  return value instanceof StringConstructor && getPrototypeOf(value) === stringPrototype;
+export function isCurrentRealmNativeStringInstance(value) {
+  try {
+    return (
+      value instanceof StringConstructor && getPrototypeOf(value) === stringPrototype
+    );
+  } catch {
+    return false;
+  }
 }
+
+/* @@throw-safe */
 /**
  * Whether `value` is a direct current-realm `Number` instance — passes
  * `value instanceof NumberConstructor` AND has `numberPrototype` as its
@@ -146,9 +156,17 @@ export function isCurrentRealmNativeString(value) {
  *  prototype-identity check hold; `false` otherwise
  * @internal
  */
-export function isCurrentRealmNativeNumber(value) {
-  return value instanceof NumberConstructor && getPrototypeOf(value) === numberPrototype;
+export function isCurrentRealmNativeNumberInstance(value) {
+  try {
+    return (
+      value instanceof NumberConstructor && getPrototypeOf(value) === numberPrototype
+    );
+  } catch {
+    return false;
+  }
 }
+
+/* @@throw-safe */
 /**
  * Whether `value` is a direct current-realm `Boolean` instance — passes
  * `value instanceof BooleanConstructor` AND has `booleanPrototype` as
@@ -167,10 +185,14 @@ export function isCurrentRealmNativeNumber(value) {
  *  prototype-identity check hold; `false` otherwise
  * @internal
  */
-export function isCurrentRealmNativeBoolean(value) {
-  return (
-    value instanceof BooleanConstructor && getPrototypeOf(value) === booleanPrototype
-  );
+export function isCurrentRealmNativeBooleanInstance(value) {
+  try {
+    return (
+      value instanceof BooleanConstructor && getPrototypeOf(value) === booleanPrototype
+    );
+  } catch {
+    return false;
+  }
 }
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
@@ -179,6 +201,7 @@ export function isCurrentRealmNativeBoolean(value) {
 //
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 
+/* @@throw-safe */
 /**
  * Verifies that the boxed `String` value's `[[StringData]]` internal slot
  * is present and that its unboxed primitive value equals `String(value)`
@@ -203,6 +226,7 @@ export function doesHaveStrictUnboxedStringValueEquality(value) {
   }
 }
 
+/* @@throw-safe */
 /**
  *
  * Narrows a value to the primitive string form via
@@ -234,6 +258,7 @@ export function isStringValue(value) {
   return typeof value === 'string';
 }
 
+/* @@throw-safe */
 /**
  * Narrows a value to the boxed `String` wrapper-object form via the
  * {@link isObject} gate, a two-branch identity-check, and the
@@ -286,13 +311,14 @@ export function isStringValue(value) {
 export function isBoxedString(value) {
   return (
     isObject(value) &&
-    (isCurrentRealmNativeString(value) ||
+    (isCurrentRealmNativeStringInstance(value) ||
       (getTypeSignature(value) === '[object String]' &&
         getDefinedConstructorName(value) === 'String')) &&
     doesHaveStrictUnboxedStringValueEquality(value)
   );
 }
 
+/* @@throw-safe */
 /**
  * Narrows a value to either the primitive string form or the boxed
  * `String` wrapper-object form — the union {@link StringType}.
@@ -333,6 +359,7 @@ export function isString(value) {
 //
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 
+/* @@throw-safe */
 /**
  * Verifies that the boxed `Number` value's `[[NumberData]]` internal slot
  * is present and that its unboxed primitive value matches `Number(value)`
@@ -358,6 +385,7 @@ export function doesHaveStrictUnboxedNumberValueEquality(value) {
   }
 }
 
+/* @@throw-safe */
 /**
  * Narrows a value to the primitive number form via
  * `typeof value === 'number'`.
@@ -391,6 +419,7 @@ export function isNumberValue(value) {
   return typeof value === 'number';
 }
 
+/* @@throw-safe */
 /**
  * Narrows a value to the boxed `Number` wrapper-object form via the
  * {@link isObject} gate, a two-branch identity-check, and the
@@ -445,13 +474,14 @@ export function isNumberValue(value) {
 export function isBoxedNumber(value) {
   return (
     isObject(value) &&
-    (isCurrentRealmNativeNumber(value) ||
+    (isCurrentRealmNativeNumberInstance(value) ||
       (getTypeSignature(value) === '[object Number]' &&
         getDefinedConstructorName(value) === 'Number')) &&
     doesHaveStrictUnboxedNumberValueEquality(value)
   );
 }
 
+/* @@throw-safe */
 /**
  * Narrows a value to either the primitive number form or the boxed
  * `Number` wrapper-object form — the union {@link NumberType}.
@@ -488,10 +518,130 @@ export function isNumber(value) {
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 //
+//  Number Static-Method Predicates
+//
+// ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
+//
+// The `Number.isFinite` / `isInteger` / `isSafeInteger` mirrors, realm-fixed at
+// module-load with polyfill fallbacks. Relocated from `#config` (ADR #074): they
+// are Number-family type guards, not infrastructure, and the move drops config's
+// only DIRECT `#primitive` import.
+//
+// Intrinsics are read from config's `globalContext` capture at eval time. This is
+// safe because `config` is now a runtime leaf (zero internal imports): it can never
+// be re-entered mid-cycle, so its body always fully evaluates before any importer's
+// body runs, and `globalContext` is guaranteed initialized. (Before config became a
+// leaf this same eval-time read TDZ-crashed on a `./config` entry — see ADR #074.)
+
+const n = NumberConstructor;
+const m = globalContext.Math;
+
+const nativeIsFinite = globalContext.isFinite;
+const mathAbs = m.abs;
+const mathFloor = m.floor;
+
+const { MAX_SAFE_INTEGER } = n;
+
+/* @@throw-safe */
+/**
+ * The explicit polyfill behind {@link isFiniteNumberValue}, exported so the
+ * fallback path can be unit-tested in isolation. Composes the
+ * {@link isNumberValue} typeof guard with the captured global `isFinite`,
+ * reproducing `Number.isFinite` semantics — the leading typeof guard is what
+ * suppresses the coercion the bare global `isFinite` applies (`isFinite('5')`
+ * is `true`, but `isFiniteNumber('5')` is `false`).
+ *
+ * @param {unknown} value - the value to inspect
+ * @returns {value is number} `true` when the value is a finite number;
+ *  `false` otherwise
+ * @internal
+ */
+export function isFiniteNumber(value) {
+  return isNumberValue(value) && nativeIsFinite(value);
+}
+
+/* @@throw-safe */
+/**
+ * `Number.isFinite`, realm-fixed at module-load with a polyfill fallback
+ * for runtimes lacking it.
+ *
+ * The `.d.ts` retypes the lib's plain-boolean return to the type-guard
+ * `(value: unknown) => value is number` to propagate narrowing at
+ * consumer call sites. The runtime export is the native method when
+ * callable; otherwise it falls back to the {@link isFiniteNumber} polyfill.
+ */
+export const isFiniteNumberValue = isCallable(n.isFinite) ? n.isFinite : isFiniteNumber;
+
+/* @@throw-safe */
+/**
+ * The explicit polyfill behind {@link isIntegerValue}, exported so the
+ * fallback path can be unit-tested in isolation. Composes
+ * {@link isFiniteNumberValue} with a `Math.floor(value) === value`
+ * whole-number check.
+ *
+ * @param {unknown} value - the value to inspect
+ * @returns {value is number} `true` when the value is an integer (finite
+ *  number with no fractional part); `false` otherwise
+ * @internal
+ */
+export function isInteger(value) {
+  return isFiniteNumberValue(value) && mathFloor(/** @type {number} */ (value)) === value;
+}
+
+/* @@throw-safe */
+/**
+ * `Number.isInteger`, realm-fixed at module-load with a polyfill fallback
+ * for runtimes lacking it.
+ *
+ * The `.d.ts` retypes the lib's plain-boolean return to the type-guard
+ * `(value: unknown) => value is number` to propagate narrowing at
+ * consumer call sites. The runtime export is the native method when
+ * callable; otherwise it falls back to the {@link isInteger} polyfill.
+ */
+export const isIntegerValue = isCallable(n.isInteger) ? n.isInteger : isInteger;
+
+/* @@throw-safe */
+/**
+ * The explicit polyfill behind {@link isSafeIntegerValue}, exported so the
+ * fallback path can be unit-tested in isolation. Composes
+ * {@link isIntegerValue} with the absolute-value bound against
+ * `Number.MAX_SAFE_INTEGER`.
+ *
+ * @param {unknown} value - the value to inspect
+ * @returns {value is number} `true` when the value is a safe integer
+ *  (integer in the lossless-round-trip range `[-(2^53 - 1), 2^53 - 1]`);
+ *  `false` otherwise
+ * @internal
+ */
+export function isSafeInteger(value) {
+  return (
+    isIntegerValue(value) && mathAbs(/** @type {number} */ (value)) <= MAX_SAFE_INTEGER
+  );
+}
+
+/* @@throw-safe */
+/**
+ * `Number.isSafeInteger`, realm-fixed at module-load with a polyfill
+ * fallback for runtimes lacking it.
+ *
+ * Tests whether `value` is an integer in the range
+ * `[-(2^53 - 1), 2^53 - 1]`, where round-tripping is lossless. The
+ * `.d.ts` retypes the lib's plain-boolean return to the type-guard
+ * `(value: unknown) => value is number` to propagate narrowing. The runtime
+ * export is the native method when callable; otherwise it falls back to the
+ * {@link isSafeInteger} polyfill.
+ */
+export const isSafeIntegerValue = isCallable(n.isSafeInteger)
+  ? n.isSafeInteger
+  : isSafeInteger;
+
+// ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
+//
 //  Boolean Family
 //
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 
+/* @@throw-safe */
 /**
  * Verifies that the boxed `Boolean` value's `[[BooleanData]]` internal
  * slot is present and that its unboxed primitive value's string form
@@ -538,6 +688,7 @@ export function doesHaveStrictUnboxedBooleanValueEquality(value) {
   }
 }
 
+/* @@throw-safe */
 /**
  * Narrows a value to the primitive boolean form via
  * `typeof value === 'boolean'`.
@@ -569,6 +720,7 @@ export function isBooleanValue(value) {
   return typeof value === 'boolean';
 }
 
+/* @@throw-safe */
 /**
  * Narrows a value to the boxed `Boolean` wrapper-object form via the
  * {@link isObject} gate, a two-branch identity-check, and the
@@ -623,13 +775,14 @@ export function isBooleanValue(value) {
 export function isBoxedBoolean(value) {
   return (
     isObject(value) &&
-    (isCurrentRealmNativeBoolean(value) ||
+    (isCurrentRealmNativeBooleanInstance(value) ||
       (getTypeSignature(value) === '[object Boolean]' &&
         getDefinedConstructorName(value) === 'Boolean')) &&
     doesHaveStrictUnboxedBooleanValueEquality(value)
   );
 }
 
+/* @@throw-safe */
 /**
  * Narrows a value to either the primitive boolean form or the boxed
  * `Boolean` wrapper-object form — the union {@link BooleanType}.
@@ -669,6 +822,7 @@ export function isBoolean(value) {
 //
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 
+/* @@throw-safe */
 /**
  * Verifies that the boxed `Symbol` value's `[[SymbolData]]` internal slot
  * is present and that the unboxed primitive symbol's `description`
@@ -705,6 +859,7 @@ export function doesHaveStrictUnboxedSymbolValueEquality(value) {
   }
 }
 
+/* @@throw-safe */
 /**
  * Narrows a value to the primitive symbol form via
  * `typeof value === 'symbol'`.
@@ -735,6 +890,7 @@ export function isSymbolValue(value) {
   return typeof value === 'symbol';
 }
 
+/* @@throw-safe */
 /**
  * Narrows a value to the boxed `Symbol` wrapper-object form via four
  * cross-validating markers: the {@link isObject} gate, the `[[Class]]`
@@ -786,6 +942,7 @@ export function isBoxedSymbol(value) {
   );
 }
 
+/* @@throw-safe */
 /**
  * Narrows a value to either the primitive symbol form or the boxed
  * `Symbol` wrapper-object form — the union {@link SymbolType}.
@@ -838,6 +995,7 @@ export function unguardedIsUnregisteredSymbol(value) {
   return symbolKeyFor(value) === void 0;
 }
 
+/* @@throw-safe */
 /**
  * Whether `value` is a _registered_ symbol — a symbol obtained from the global
  * symbol registry via `Symbol.for`.
@@ -862,6 +1020,7 @@ export function isRegisteredSymbol(value) {
 //
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 
+/* @@throw-safe */
 /**
  * Verifies that the boxed `BigInt` value's `[[BigIntData]]` internal slot
  * is present and that its unboxed primitive value equals `BigInt(value)`
@@ -886,6 +1045,7 @@ export function doesHaveStrictUnboxedBigIntValueEquality(value) {
   }
 }
 
+/* @@throw-safe */
 /**
  * Narrows a value to the primitive bigint form via
  * `typeof value === 'bigint'`.
@@ -916,6 +1076,7 @@ export function isBigIntValue(value) {
   return typeof value === 'bigint';
 }
 
+/* @@throw-safe */
 /**
  * Narrows a value to the boxed `BigInt` wrapper-object form via four
  * cross-validating markers: the {@link isObject} gate, the `[[Class]]`
@@ -957,6 +1118,7 @@ export function isBoxedBigInt(value) {
   );
 }
 
+/* @@throw-safe */
 /**
  * Narrows a value to either the primitive bigint form or the boxed
  * `BigInt` wrapper-object form — the union {@link BigIntType}.
@@ -996,6 +1158,7 @@ export function isBigInt(value) {
 //
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 
+/* @@throw-safe */
 /**
  * Narrows a value to the nullish-primitive union {@link NullishPrimitive} —
  * `null` or `undefined`.
@@ -1032,6 +1195,8 @@ export function isNullishPrimitive(value = /** @type {T} */ (null)) {
 }
 
 const nonBoxableTypeSignatures = new Set(['undefined', 'function', 'object']);
+
+/* @@throw-safe */
 /**
  * Narrows a value to the boxable-primitive union {@link BoxablePrimitive} —
  * `'string'`, `'number'`, `'boolean'`, `'symbol'`, or `'bigint'`.
@@ -1080,6 +1245,7 @@ export function isBoxablePrimitive(value) {
   return !nonBoxableTypeSignatures.has(typeof value);
 }
 
+/* @@throw-safe */
 /**
  * Narrows a value to the full primitive union {@link PrimitiveValue} — any
  * of the seven ECMA-262 primitive types.
@@ -1129,6 +1295,7 @@ const unboxedPrimitiveValueEvaluations = new Map([
   ['Boolean', doesHaveStrictUnboxedBooleanValueEquality],
 ]);
 
+/* @@throw-safe */
 /**
  * Whether `value` resolves as a boxed primitive via the alien-realm
  * structural path — the resolved `[[Class]]` tag must match the walked
@@ -1161,6 +1328,7 @@ export function resolvedViaAlienRealmPrimitiveTypesEvaluation(value) {
   );
 }
 
+/* @@throw-safe */
 /**
  * Whether `value` resolves as a boxed primitive via the ES3 native
  * hot-path — the local-realm fast-path for the three ES3 wrapper
@@ -1183,14 +1351,16 @@ export function resolvedViaAlienRealmPrimitiveTypesEvaluation(value) {
  */
 export function resolvedViaES3NativePrimitiveTypesHotPaths(value) {
   return (
-    (isCurrentRealmNativeString(value) &&
+    (isCurrentRealmNativeStringInstance(value) &&
       doesHaveStrictUnboxedStringValueEquality(value)) ||
-    (isCurrentRealmNativeNumber(value) &&
+    (isCurrentRealmNativeNumberInstance(value) &&
       doesHaveStrictUnboxedNumberValueEquality(value)) ||
-    (isCurrentRealmNativeBoolean(value) &&
+    (isCurrentRealmNativeBooleanInstance(value) &&
       doesHaveStrictUnboxedBooleanValueEquality(value))
   );
 }
+
+/* @@throw-safe */
 /**
  * Narrows a value to the boxed-primitive union {@link BoxedPrimitive} —
  * any of the five boxed wrapper-object forms ({@link BoxedString},

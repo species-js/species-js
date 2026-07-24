@@ -16,11 +16,6 @@
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 
-import { isCallable } from '#function';
-import { isNumberValue } from '#primitive';
-
-// ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
-
 /** @typedef {typeof import('./index').objectHasOwn} objectHasOwnProperty */
 /** @typedef {typeof import('./index').objectCreate} createCustomType */
 
@@ -200,13 +195,13 @@ export function hasOwn(target, key) {
  * 16.9 and later, browsers since late 2021). Otherwise, falls back to the
  * {@link hasOwn} polyfill over the captured `Object.prototype.hasOwnProperty`.
  *
- * The native branch is gated by {@link isCallable} so a non-function
+ * The native branch is gated by a function-type check so a non-function
  * `hasOwn` cannot slip through. The call shape is `objectHasOwn(target,
  * key)` either way.
  * @type {objectHasOwnProperty}
  * @internal
  */
-export const objectHasOwn = isCallable(nativeHasOwn) ? nativeHasOwn : hasOwn;
+export const objectHasOwn = typeof nativeHasOwn === 'function' ? nativeHasOwn : hasOwn;
 
 /**
  * `Object.assign`, realm-fixed at module-load.
@@ -376,108 +371,3 @@ export const INSTANCE_LESS_CONSTRUCTOR = /** @type {NEVER_INVOKED_CONSTRUCTOR} *
     return void 0;
   }
 );
-
-// ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
-//
-//  Number Static Methods
-//
-// ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
-
-const nativeIsFinite = globalContext.isFinite;
-
-const n = globalContext.Number;
-const m = globalContext.Math;
-
-const mathAbs = m.abs;
-const mathFloor = m.floor;
-
-const { MAX_SAFE_INTEGER } = n;
-
-/**
- * The explicit polyfill behind {@link isFiniteNumberValue}, exported so the
- * fallback path can be unit-tested in isolation. Composes the
- * {@link isNumberValue} typeof guard with the captured global `isFinite`,
- * reproducing `Number.isFinite` semantics — the leading typeof guard is what
- * suppresses the coercion the bare global `isFinite` applies (`isFinite('5')`
- * is `true`, but `isFiniteNumber('5')` is `false`).
- *
- * @param {unknown} value - the value to inspect
- * @returns {value is number} `true` when the value is a finite number;
- *  `false` otherwise
- * @internal
- */
-export function isFiniteNumber(value) {
-  return isNumberValue(value) && nativeIsFinite(value);
-}
-
-/**
- * `Number.isFinite`, realm-fixed at module-load with a polyfill fallback
- * for runtimes lacking it.
- *
- * The `.d.ts` retypes the lib's plain-boolean return to the type-guard
- * `(value: unknown) => value is number` to propagate narrowing at
- * consumer call sites. The runtime export is the native method when
- * callable; otherwise it falls back to the {@link isFiniteNumber} polyfill.
- */
-export const isFiniteNumberValue = isCallable(n.isFinite) ? n.isFinite : isFiniteNumber;
-
-/**
- * The explicit polyfill behind {@link isIntegerValue}, exported so the
- * fallback path can be unit-tested in isolation. Composes
- * {@link isFiniteNumberValue} with a `Math.floor(value) === value`
- * whole-number check.
- *
- * @param {unknown} value - the value to inspect
- * @returns {value is number} `true` when the value is an integer (finite
- *  number with no fractional part); `false` otherwise
- * @internal
- */
-export function isInteger(value) {
-  return isFiniteNumberValue(value) && mathFloor(/** @type {number} */ (value)) === value;
-}
-
-/**
- * `Number.isInteger`, realm-fixed at module-load with a polyfill fallback
- * for runtimes lacking it.
- *
- * The `.d.ts` retypes the lib's plain-boolean return to the type-guard
- * `(value: unknown) => value is number` to propagate narrowing at
- * consumer call sites. The runtime export is the native method when
- * callable; otherwise it falls back to the {@link isInteger} polyfill.
- */
-export const isIntegerValue = isCallable(n.isInteger) ? n.isInteger : isInteger;
-
-/**
- * The explicit polyfill behind {@link isSafeIntegerValue}, exported so the
- * fallback path can be unit-tested in isolation. Composes
- * {@link isIntegerValue} with the absolute-value bound against
- * `Number.MAX_SAFE_INTEGER`.
- *
- * @param {unknown} value - the value to inspect
- * @returns {value is number} `true` when the value is a safe integer
- *  (integer in the lossless-round-trip range `[-(2^53 - 1), 2^53 - 1]`);
- *  `false` otherwise
- * @internal
- */
-export function isSafeInteger(value) {
-  return (
-    isIntegerValue(value) && mathAbs(/** @type {number} */ (value)) <= MAX_SAFE_INTEGER
-  );
-}
-
-/**
- * `Number.isSafeInteger`, realm-fixed at module-load with a polyfill
- * fallback for runtimes lacking it.
- *
- * Tests whether `value` is an integer in the range
- * `[-(2^53 - 1), 2^53 - 1]`, where round-tripping is lossless. The
- * `.d.ts` retypes the lib's plain-boolean return to the type-guard
- * `(value: unknown) => value is number` to propagate narrowing. The runtime
- * export is the native method when callable; otherwise it falls back to the
- * {@link isSafeInteger} polyfill.
- */
-export const isSafeIntegerValue = isCallable(n.isSafeInteger)
-  ? n.isSafeInteger
-  : isSafeInteger;
-
-// ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
