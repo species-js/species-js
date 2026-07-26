@@ -9,7 +9,7 @@
  * `boolean`, `symbol`, `bigint`) ships three predicates here: a
  * `typeof`-based value predicate, a boxed predicate, and a composite
  * predicate admitting either form. All boxed predicates share two
- * fixtures: the {@link isObject} gate from `#object` (truthiness +
+ * fixtures: the `isObject` gate from `#object` (truthiness +
  * `typeof === 'object'`) at the top for O(1) primitive-and-null
  * rejection, and the spec-precise `[[XData]]` internal-slot probe via
  * the captured `X.prototype.valueOf` at the bottom as the spoof-proof
@@ -400,7 +400,7 @@ export function isStringValue(value) {
 /* @@throw-safe */
 /**
  * Narrows a value to the boxed `String` wrapper-object form via the
- * {@link isObject} gate, a two-branch identity-check, and the
+ * `isObject` gate, a two-branch identity-check, and the
  * spec-precise `[[StringData]]` internal-slot probe via
  * {@link doesHaveStrictUnboxedStringValueEquality}.
  *
@@ -522,7 +522,7 @@ export function isNumberValue(value) {
 /* @@throw-safe */
 /**
  * Narrows a value to the boxed `Number` wrapper-object form via the
- * {@link isObject} gate, a two-branch identity-check, and the
+ * `isObject` gate, a two-branch identity-check, and the
  * spec-precise `[[NumberData]]` internal-slot probe via
  * {@link doesHaveStrictUnboxedNumberValueEquality}.
  *
@@ -764,7 +764,7 @@ export function isBooleanValue(value) {
 /* @@throw-safe */
 /**
  * Narrows a value to the boxed `Boolean` wrapper-object form via the
- * {@link isObject} gate, a two-branch identity-check, and the
+ * `isObject` gate, a two-branch identity-check, and the
  * spec-precise `[[BooleanData]]` internal-slot probe via
  * {@link doesHaveStrictUnboxedBooleanValueEquality}.
  *
@@ -885,7 +885,7 @@ export function isSymbolValue(value) {
 /* @@throw-safe */
 /**
  * Narrows a value to the boxed `Symbol` wrapper-object form via four
- * cross-validating markers: the {@link isObject} gate, the `[[Class]]`
+ * cross-validating markers: the `isObject` gate, the `[[Class]]`
  * tag `'[object Symbol]'`, the constructor-name `'Symbol'`, and the
  * spec-precise `[[SymbolData]]` internal-slot probe via
  * {@link doesHaveStrictUnboxedSymbolValueEquality}.
@@ -1037,7 +1037,7 @@ export function isBigIntValue(value) {
 /* @@throw-safe */
 /**
  * Narrows a value to the boxed `BigInt` wrapper-object form via four
- * cross-validating markers: the {@link isObject} gate, the `[[Class]]`
+ * cross-validating markers: the `isObject` gate, the `[[Class]]`
  * tag `'[object BigInt]'`, the constructor-name `'BigInt'`, and the
  * spec-precise `[[BigIntData]]` internal-slot probe via
  * {@link doesHaveStrictUnboxedBigIntValueEquality}.
@@ -1305,7 +1305,7 @@ export function resolvedViaES3NativePrimitiveTypesHotPaths(value) {
  * {@link BoxedNumber}, {@link BoxedBoolean}, {@link BoxedSymbol},
  * {@link BoxedBigInt}).
  *
- * Composes the {@link isObject} gate with a two-path resolution:
+ * Composes the `isObject` gate with a two-path resolution:
  *
  * 1. **ES3 native hot-path**. The local-realm fast-path for the three
  *    ES3 wrapper constructors. Tries `String`, `Number`, and `Boolean`

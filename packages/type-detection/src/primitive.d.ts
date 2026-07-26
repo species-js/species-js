@@ -521,7 +521,7 @@ export function isStringValue(value?: unknown): value is StringValue;
 /* @@throw-safe */
 /**
  * Narrows a value to the boxed `String` wrapper-object form via the
- * {@link isObject} gate, a two-branch identity-check, and the
+ * `isObject` gate, a two-branch identity-check, and the
  * spec-precise `[[StringData]]` internal-slot probe via
  * {@link doesHaveStrictUnboxedStringValueEquality}.
  *
