@@ -521,9 +521,9 @@ export function isStringValue(value?: unknown): value is StringValue;
 /* @@throw-safe */
 /**
  * Narrows a value to the boxed `String` wrapper-object form via the
- * `isObject` gate, a two-branch identity-check, and the
- * spec-precise `[[StringData]]` internal-slot probe via
- * {@link doesHaveStrictUnboxedStringValueEquality}.
+ * `isObject` gate from `#object`, a two-branch identity-check, and the
+ * spec-precise `[[StringData]]` internal-slot probe via the captured
+ * `String.prototype.valueOf`.
  *
  * The two-branch identity-check runs in cost-order, with the
  * less-expensive local-realm pair tried first and the structural
@@ -538,9 +538,7 @@ export function isStringValue(value?: unknown): value is StringValue;
  *   tampering of the global `String` binding.
  * - Cross-realm structural fallback: the `[[Class]]` tag
  *   `'[object String]'` paired with the resolved constructor-name
- *   `'String'`. Both work realm-independently — the tag-read through
- *   the realm-fixed `toObjectString.call` capture, the constructor-walk
- *   through the package's four-source resolver. Subclasses are again
+ *   `'String'` — both realm-independent. Subclasses are again
  *   rejected because their walked constructor-name is derived from
  *   the subclass itself.
  *
@@ -647,9 +645,7 @@ export function isNumberValue(value?: unknown): value is NumberValue;
  *   the global `Number` binding.
  * - Cross-realm structural fallback: the `[[Class]]` tag
  *   `'[object Number]'` paired with the resolved constructor-name
- *   `'Number'`. Both work realm-independently — the tag-read through
- *   the realm-fixed `toObjectString.call` capture, the constructor-walk
- *   through the package's four-source resolver. Subclasses are again
+ *   `'Number'` — both realm-independent. Subclasses are again
  *   rejected because their walked constructor-name is derived from
  *   the subclass itself.
  *
@@ -847,9 +843,7 @@ export function isBooleanValue(value?: unknown): value is BooleanValue;
  *   global `Boolean` binding.
  * - Cross-realm structural fallback: the `[[Class]]` tag
  *   `'[object Boolean]'` paired with the resolved constructor-name
- *   `'Boolean'`. Both work realm-independently — the tag-read through
- *   the realm-fixed `toObjectString.call` capture, the constructor-walk
- *   through the package's four-source resolver. Subclasses are again
+ *   `'Boolean'` — both realm-independent. Subclasses are again
  *   rejected because their walked constructor-name is derived from the
  *   subclass itself.
  *
