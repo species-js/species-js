@@ -337,8 +337,8 @@ export function isValidPropertyKey(value?: unknown): value is PropertyKey;
  * @param value - the value whose own keys to collect; nullish (or omitted)
  *  yields `[]`
  * @returns the own string and symbol keys; an empty array when there are none
- * @throws when a hostile `Proxy` `ownKeys` trap throws — the raw form leaves the
- *  enumeration unguarded; {@link getSafeOwnPropertyKeys} is the throw-safe twin
+ * @throws {unknown} when a hostile `Proxy` `ownKeys` trap throws — the raw form leaves
+ *  the enumeration unguarded; {@link getSafeOwnPropertyKeys} is the throw-safe twin
  */
 export function getOwnPropertyKeys(value?: unknown): (string | symbol)[];
 
@@ -358,6 +358,7 @@ export function getOwnPropertyKeys(value?: unknown): (string | symbol)[];
  * @param trustedData - call-site hint
  * @returns the first descriptor found while walking up the chain;
  *  `undefined` if none exists
+ * @throws {unknown} at a malicious `getOwnPropertyDescriptor` proxy-trap
  */
 export function getNextAvailablePropertyDescriptor(
   value: unknown,
