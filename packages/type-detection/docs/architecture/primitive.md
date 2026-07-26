@@ -163,10 +163,9 @@ it solves:
   legacy `document.all` quirk (`typeof === 'undefined'`) is rejected via the same arm.
 - **`isNullishPrimitive`** admits `null` and `undefined` via the
   parameter-default-to-`null` idiom (decision #025): `value = null` collapses `undefined`
-  to `null`, and the body reduces to `value === null`. Combined with the family-pattern
-  generic, the `.js` implementation needs a JSDoc cast (`/** @type {T} */ (null)`) on the
-  default to bridge the `T` parameter type and the `null` literal — the `.d.ts` contract
-  stays uniform.
+  to `null`, and the body reduces to `value === null`. With direct narrowing (decision
+  #077) the parameter is plain `unknown`, so the default is a bare `value = null` — the
+  `/** @type {T} */ (null)` cast the generic `T` form once required is no longer needed.
 - **`isPrimitiveValue`** composes `isNullishPrimitive(v) || isBoxablePrimitive(v)`,
   admitting the full ECMA-262 §4.4.4 primitive set — the seven primitive types.
 
@@ -192,18 +191,21 @@ the `[[XData]]` slot probe. Its two realm-resolution helpers are exported `@inte
 the cross-realm path is unit-testable with local-realm values (decision #053). See "The
 boxed-primitive discrimination chain" above and decisions #042 / #053.
 
-## Generic-typed predicates
+## Narrowing strategy — direct type guards
 
-All predicates follow the generic-typed family pattern
-(`<T = unknown>(value?: T): value is T & X`) shipped in commit `5c5dbe7` (decision #039)
-and extended to the floor predicates in decision #051. This includes the value-only
-predicates, which decision #036 had originally excluded — that exclusion is superseded
-here. The rationale for revisiting: literal-union callers benefit (`'on' | 'off' | number`
-narrows to `'on' | 'off'` after `isStringValue`), the boxed and composite predicates
-clearly benefit (they narrow to object-shape types), and internal consistency across the
-family matters. The pattern is now uniform across value-only, boxed-only, composite, and
-generic-floor predicates in `#primitive`, alongside `#function`, `#thenable`, `#evented`,
-and `#error`. See decision #039 for the full framing.
+Every predicate here narrows DIRECTLY to its precise target type (`value is X`), not
+through the generic `<T = unknown>(value?: T): value is T & X` form. For primitive
+detection direct narrowing is both simpler and more accurate: `X` is already the maximal,
+honest type the runtime proves — a native primitive or a declared union — and a plain
+type-guard already filters a caller's union to the exact passing members (a caller
+`'x' | 'y' | 42 | {…}` narrows to `'x' | 'y' | 42`), cleanly reduced. The generic `T & X`
+form yields the same members as an UNREDUCED intersection that is noisier and fails to
+assign to the clean precise type (field-tested against `tsc`). The generic pattern
+(decision #031) remains the preferred form where the target is a broad shape worth
+carrying the caller's subtype through — the `#function` family — but was never the sole
+rule. Decision #077 records this two-way strategy and revises decision #039's
+primitive-uniformity (which had superseded #036 and was framed by #038); direct narrowing
+now applies to every primitive predicate, value-only through the generic-union floor.
 
 ## Wrapper-object types
 

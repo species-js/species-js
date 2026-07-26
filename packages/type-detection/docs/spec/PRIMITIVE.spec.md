@@ -15,6 +15,14 @@
 > read the gate as 29 = 29; the true surface is 20 public predicates, gate 31 = 31).
 > Purely additive — new sections + inventory + corrected gate; no existing vector changes.
 > See the Open / resolved items.
+>
+> **Post-freeze amendment 2026-07-26 (ADR #077):** the predicate signatures shown below
+> are now DIRECT type guards — `isXValue(value?: unknown): value is XValue` (and the boxed
+> / composite forms) — not the generic `<T = unknown>(value?: T): value is T & X`.
+> Primitive narrows to its precise native/declared target directly; the generic pattern
+> (#031) stays preferred only for broad-shape predicates (the `#function` family). Two-way
+> strategy per ADR #077, revising #039's primitive-uniformity. Signature-only change;
+> every admit/reject vector below is unchanged.
 
 ## Module contract
 
@@ -117,9 +125,9 @@ helper).
 
 ## Value-predicate family — `isXValue`
 
-`isXValue<T = unknown>(value?: T): value is T & XValue` — composition
-`typeof value === '<x>'`. Realm-independent (`typeof` reads identically in every realm)
-and the cheapest predicates in the package.
+`isXValue(value?: unknown): value is XValue` — composition `typeof value === '<x>'`.
+Realm-independent (`typeof` reads identically in every realm) and the cheapest predicates
+in the package.
 
 | Family  | Predicate        | `typeof`    | primitive admits (examples)                         | boxed form rejected   |
 | ------- | ---------------- | ----------- | --------------------------------------------------- | --------------------- |
@@ -156,7 +164,7 @@ userland. These predicates have no spoof surface.
 
 ## Boxed-predicate family — `isBoxedX`
 
-`isBoxedX<T = unknown>(value?: T): value is T & BoxedX`. Two sub-shapes by family kind.
+`isBoxedX(value?: unknown): value is BoxedX`. Two sub-shapes by family kind.
 
 **Constructor-aware (`isBoxedString` / `isBoxedNumber` / `isBoxedBoolean`):**
 `isObject(v) && (isCurrentRealmNativeX(v) || (getTypeSignature(v) === '[object X]' && getDefinedConstructorName(v) === 'X')) && doesHaveStrictUnboxedXValueEquality(v)`
@@ -229,8 +237,8 @@ rejected by the description cross-check.
 
 ## Composite-predicate family — `isX`
 
-`isX<T = unknown>(value?: T): value is T & XType` — composition
-`isXValue(v) || isBoxedX(v)`, the cheaper `typeof` check first.
+`isX(value?: unknown): value is XType` — composition `isXValue(v) || isBoxedX(v)`, the
+cheaper `typeof` check first.
 
 - `isX/A1` — the primitive form → true.
 - `isX/A2` — the boxed form → true.
