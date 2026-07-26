@@ -2,6 +2,12 @@
 
 **Date:** 2026-07-23
 
+**Scope superseded by #076 (2026-07-26).** The `@@throw-safe` marker is **no longer
+utility-only** — the primitive round adopted it (the "second module" this ADR said to
+revisit for), so #076 re-scopes it to a package-wide convention. This ADR remains the
+canon for the marker's **form and rationale**; #076 owns its **scope**. The "utility-only"
+statements below are historical.
+
 **Context.** The utility module conflated two orthogonal safety properties under the
 single word "inert":
 
