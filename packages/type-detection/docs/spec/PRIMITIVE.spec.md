@@ -251,6 +251,23 @@ userland. These predicates have no spoof surface.
   cross-check diverges from the slot read; this residual tampering surface survives the
   slot probe alone).
 
+**Tampered-boxed rejection is uniform across the five families (the `R-descshadow`
+generalization).** Because every equality form cross-checks the engine-attested
+`[[XData]]` slot against a value that is _re-derived through the candidate's observable
+coercion_ (`String(v)` / `Number(v)` / `BigInt(v)` / stringified `valueOf` /
+`v.description`), a _genuine_ boxed `X` whose observable surface has been tampered — a
+lying or throwing own `toString` / `valueOf` / `Symbol.toPrimitive` (String / Number /
+Boolean / BigInt), or a shadowed `description` (Symbol) — is **rejected**, even though its
+`[[XData]]` slot is real. The `Spec trap closed` column's "none" for String / BigInt means
+only that the _untampered_ coercion mechanics carry no spec trap; the slot-vs-coercion
+cross-check still rejects a tampered instance. This is the conservative-narrowing posture
+applied to the residual tampering surface the slot probe alone would admit —
+`R-descshadow` is its one named instance; the analogous String / Number / Boolean / BigInt
+cases hold by the same mechanism (a throwing accessor is absorbed to `false` by the
+equality helper's `try/catch`, never propagated — throw-safety holds through the
+rejection). Surfaced by the hostile-probe 2026-07-27; recorded as prose rather than four
+parallel `R-` vectors (one uniform property, not five).
+
 **Cross-realm expectation (axis 2):** admit foreign-realm boxed `X` of every family via
 the structural arm (tag + ctor-name + slot, all realm-independent). The local-realm
 `instanceof` arm (constructor-aware families) is a fast-path only; its miss falls through
@@ -646,3 +663,16 @@ path where present); the two must agree on every vector.
    — not exercisable in the node test env, so it is asserted in the spec as a documented
    boundary but carries no runtime test (the env-unreachable exclusion class, as in the
    error round). Bidirectional diff otherwise empty both ways.
+7. **Ephemeral hostile-probe (2026-07-27) — RESOLVED.** A throwaway fuzzer (40 hostile
+   inputs — revoked / trap-throwing / prototype-lying Proxies, throwing
+   `toString`/`valueOf`/`toPrimitive`/`description` accessors, null-proto tag-spoofs,
+   cross-family tag confusion, foreign-realm values) exercised the shipped predicates
+   against the spec-free hard oracles: throw-safety (0 breaches), the structural
+   invariants (`isX ≡ isXValue∥isBoxedX`, umbrella ≡ OR-of-boxed, family
+   mutual-exclusivity, the `isPrimitiveValue` partition, `registered ⇒ symbolValue` — 0
+   violations), cross-realm symmetry (0 asymmetries), spoof-resistance (0 admitted), and
+   no double-admission. The implementation held on every oracle. It surfaced one
+   spec-completeness nuance (not a defect): the tampered-boxed rejection is uniform across
+   all five families, documented as the `R-descshadow`-generalization prose in the
+   "Per-family equality strategy" section (owner ruling: prose, not four parallel
+   vectors).

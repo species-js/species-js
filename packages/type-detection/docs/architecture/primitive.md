@@ -310,6 +310,19 @@ valueOf. The description cross-check catches that one residual tampering surface
 (shadowed) accessor chain, mismatch → reject. Conservative-narrowing posture applied to
 the tampering surface that survives the slot probe.
 
+The Symbol case is the salient _named_ instance of a property that in fact holds uniformly
+across all five families: because each equality form cross-checks the `[[XData]]` slot
+against a value re-derived through the candidate's own observable coercion (`String(v)`,
+`Number(v)`, `BigInt(v)`, the stringified `valueOf`, or `v.description`), a _genuine_
+boxed `X` whose observable surface has been tampered — a lying or throwing own `toString`
+/ `valueOf` / `Symbol.toPrimitive`, or a shadowed `description` — is rejected even though
+its slot is real. The `String` / `BigInt` "no spec trap" rows above refer only to the
+_untampered_ coercion mechanics; the cross-check still rejects a tampered instance, and a
+throwing accessor is absorbed to `false` by the helper's `try/catch` (throw-safety holds
+through the rejection). A hostile-probe of the shipped predicates (2026-07-27) confirmed
+the property is uniform and carries no throw or spoof leak; the behavioral spec records it
+as prose rather than four parallel `R-` vectors (one uniform property, not five).
+
 ## Realm-fixed captures: boundary-retyping vs pure capture
 
 `objectIs = Object.is` was added to `#config` to support the Number-family equality
