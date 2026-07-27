@@ -170,8 +170,24 @@ describe('primitive — spec/contract matrices', () => {
     }
   });
 
+  // CC/non-primitive-object — a plain object / array / function is rejected by
+  // every family's boxed and composite predicate (isBoxedX/R3, isX/R2).
+  describe('CC/non-primitive-object — isBoxedX/R3, isX/R2', () => {
+    it('a plain {}, an array, and a function are rejected by every family boxed + composite predicate', () => {
+      const nonPrimitives = [{}, [], () => undefined];
+      for (const input of nonPrimitives) {
+        for (const names of Object.values(FAMILY_PREDICATES)) {
+          // names = [isXValue, isBoxedX, isX]; sweep the boxed + composite arms.
+          for (const name of names.slice(1)) {
+            expect(predicateByName(name)(input), name).toBe(false);
+          }
+        }
+      }
+    });
+  });
+
   // CC/nullish — null / undefined / omitted are rejected by every predicate
-  // EXCEPT isNullishPrimitive and isPrimitiveValue (which admit them).
+  // EXCEPT isNullishPrimitive and isPrimitiveValue (isXValue/R3, isBoxedX/R2).
   describe('CC/nullish', () => {
     const nullishAdmitters = ['isNullishPrimitive', 'isPrimitiveValue'];
     const nullishRejectors = PUBLIC_PREDICATE_NAMES.filter(

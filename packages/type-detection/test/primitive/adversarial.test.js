@@ -95,19 +95,19 @@ const spoofCases = [
 describe('primitive — adversarial / spoof-resistance (axis 3)', () => {
   for (const { family, isBoxed, tagSpoof, protoGraft } of spoofCases) {
     describe(`boxed ${family} spoofs`, () => {
-      it(`isBoxed${family}/R-tagspoof: a Symbol.toStringTag spoof → false`, () => {
+      it(`isBoxedX/R-tagspoof (${family}): a Symbol.toStringTag spoof → false`, () => {
         expect(isBoxed(tagSpoof()), 'isBoxedX').toBe(false);
         expect(isBoxedPrimitive(tagSpoof()), 'isBoxedPrimitive').toBe(false);
       });
 
-      it(`isBoxed${family}/R-protograft: Object.create(${family}.prototype) → false (the slot-probe seal)`, () => {
+      it(`isBoxedX/R-protograft (${family}): Object.create(${family}.prototype) → false (the slot-probe seal)`, () => {
         expect(isBoxed(protoGraft()), 'isBoxedX').toBe(false);
         expect(isBoxedPrimitive(protoGraft()), 'isBoxedPrimitive').toBe(false);
       });
     });
   }
 
-  it('isBoxedString/R-ctorspoof: a userland `class String {}` instance → false (tag is `[object Object]`)', () => {
+  it('isBoxedX/R-ctorspoof: a userland `class String {}` instance → false (tag is `[object Object]`)', () => {
     expect(isBoxedString(ctorNameSpoofString()), 'isBoxedString').toBe(false);
     expect(isBoxedPrimitive(ctorNameSpoofString()), 'isBoxedPrimitive').toBe(false);
   });

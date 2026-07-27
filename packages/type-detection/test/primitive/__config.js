@@ -156,7 +156,7 @@ export const stringMatrix = {
     description: "the primitive `'x'`",
     make: primString,
     expected: { isStringValue: T, isBoxedString: F, isString: T },
-    vectors: ['isStringValue/A1', 'isBoxedString/R1', 'isString/A1'],
+    vectors: ['isXValue/A1', 'isBoxedX/R1', 'isX/A1'],
   },
   emptyString: {
     description: "the empty string `''`",
@@ -168,19 +168,19 @@ export const stringMatrix = {
     description: "a `new String('x')`",
     make: boxedString,
     expected: { isStringValue: F, isBoxedString: T, isString: T },
-    vectors: ['isStringValue/R1', 'isBoxedString/A1', 'isString/A2'],
+    vectors: ['isXValue/R1', 'isBoxedX/A1', 'isX/A2'],
   },
   objectString: {
     description: "an `Object('x')`",
     make: objectString,
     expected: { isStringValue: F, isBoxedString: T, isString: T },
-    vectors: ['isBoxedString/A1'],
+    vectors: ['isBoxedX/A1'],
   },
   stringSubclass: {
     description: 'a `class extends String {}` instance',
     make: stringSubclass,
     expected: { isStringValue: F, isBoxedString: F, isString: F },
-    vectors: ['isBoxedString/R-subclass'],
+    vectors: ['isBoxedX/R-subclass'],
   },
 };
 
@@ -190,7 +190,7 @@ export const numberMatrix = {
     description: 'the primitive `42`',
     make: primNumber,
     expected: { isNumberValue: T, isBoxedNumber: F, isNumber: T },
-    vectors: ['isNumberValue/A1', 'isBoxedNumber/R1', 'isNumber/A1'],
+    vectors: ['isXValue/A1', 'isBoxedX/R1', 'isX/A1'],
   },
   primNaN: {
     description: '`NaN`',
@@ -220,13 +220,13 @@ export const numberMatrix = {
     description: 'a `new Number(42)`',
     make: boxedNumber,
     expected: { isNumberValue: F, isBoxedNumber: T, isNumber: T },
-    vectors: ['isNumberValue/R1', 'isBoxedNumber/A1', 'isNumber/A2'],
+    vectors: ['isXValue/R1', 'isBoxedX/A1', 'isX/A2'],
   },
   objectNumber: {
     description: 'an `Object(42)`',
     make: objectNumber,
     expected: { isNumberValue: F, isBoxedNumber: T, isNumber: T },
-    vectors: ['isBoxedNumber/A1'],
+    vectors: ['isBoxedX/A1'],
   },
   boxedNumberNaN: {
     description: 'a `new Number(NaN)`',
@@ -238,7 +238,7 @@ export const numberMatrix = {
     description: 'a `class extends Number {}` instance',
     make: numberSubclass,
     expected: { isNumberValue: F, isBoxedNumber: F, isNumber: F },
-    vectors: ['isBoxedNumber/R-subclass'],
+    vectors: ['isBoxedX/R-subclass'],
   },
 };
 
@@ -248,19 +248,19 @@ export const booleanMatrix = {
     description: 'the primitive `true`',
     make: primTrue,
     expected: { isBooleanValue: T, isBoxedBoolean: F, isBoolean: T },
-    vectors: ['isBooleanValue/A1', 'isBoxedBoolean/R1', 'isBoolean/A1'],
+    vectors: ['isXValue/A1', 'isBoxedX/R1', 'isX/A1'],
   },
   primFalse: {
     description: 'the primitive `false`',
     make: primFalse,
     expected: { isBooleanValue: T, isBoxedBoolean: F, isBoolean: T },
-    vectors: ['isBooleanValue/A1'],
+    vectors: ['isXValue/A1'],
   },
   boxedBooleanTrue: {
     description: 'a `new Boolean(true)`',
     make: boxedBooleanTrue,
     expected: { isBooleanValue: F, isBoxedBoolean: T, isBoolean: T },
-    vectors: ['isBooleanValue/R1', 'isBoxedBoolean/A1', 'isBoolean/A2'],
+    vectors: ['isXValue/R1', 'isBoxedX/A1', 'isX/A2'],
   },
   boxedBooleanFalse: {
     description: 'a `new Boolean(false)`',
@@ -272,7 +272,7 @@ export const booleanMatrix = {
     description: 'a `class extends Boolean {}` instance',
     make: booleanSubclass,
     expected: { isBooleanValue: F, isBoxedBoolean: F, isBoolean: F },
-    vectors: ['isBoxedBoolean/R-subclass'],
+    vectors: ['isBoxedX/R-subclass'],
   },
 };
 
@@ -282,7 +282,7 @@ export const symbolMatrix = {
     description: "a `Symbol('x')`",
     make: primSymbol,
     expected: { isSymbolValue: T, isBoxedSymbol: F, isSymbol: T },
-    vectors: ['isSymbolValue/A1', 'isBoxedSymbol/R1', 'isSymbol/A1'],
+    vectors: ['isXValue/A1', 'isBoxedX/R1', 'isX/A1'],
   },
   wellKnownSymbol: {
     description: 'the well-known `Symbol.iterator`',
@@ -300,13 +300,13 @@ export const symbolMatrix = {
     description: "an `Object(Symbol('x'))`",
     make: boxedSymbol,
     expected: { isSymbolValue: F, isBoxedSymbol: T, isSymbol: T },
-    vectors: ['isSymbolValue/R1', 'isBoxedSymbol/A1', 'isSymbol/A2'],
+    vectors: ['isXValue/R1', 'isBoxedX/A1', 'isX/A2'],
   },
   boxedRegisteredSymbol: {
     description: 'an `Object(Symbol.for(...))`',
     make: boxedRegisteredSymbol,
     expected: { isSymbolValue: F, isBoxedSymbol: T, isSymbol: T },
-    vectors: ['isBoxedSymbol/A1'],
+    vectors: ['isBoxedX/A1'],
   },
 };
 
@@ -316,19 +316,19 @@ export const bigintMatrix = {
     description: 'the literal `1n`',
     make: primBigInt,
     expected: { isBigIntValue: T, isBoxedBigInt: F, isBigInt: T },
-    vectors: ['isBigIntValue/A1', 'isBoxedBigInt/R1', 'isBigInt/A1'],
+    vectors: ['isXValue/A1', 'isBoxedX/R1', 'isX/A1'],
   },
   bigintFromCall: {
     description: 'a `BigInt(1)`',
     make: bigintFromCall,
     expected: { isBigIntValue: T, isBoxedBigInt: F, isBigInt: T },
-    vectors: ['isBigIntValue/A1'],
+    vectors: ['isXValue/A1'],
   },
   boxedBigInt: {
     description: 'an `Object(1n)`',
     make: boxedBigInt,
     expected: { isBigIntValue: F, isBoxedBigInt: T, isBigInt: T },
-    vectors: ['isBigIntValue/R1', 'isBoxedBigInt/A1', 'isBigInt/A2'],
+    vectors: ['isXValue/R1', 'isBoxedX/A1', 'isX/A2'],
   },
 };
 
@@ -366,7 +366,7 @@ export const floorMatrix = {
       isPrimitiveValue: T,
       isBoxedPrimitive: F,
     },
-    vectors: ['isBoxablePrimitive/A1', 'isPrimitiveValue/A1'],
+    vectors: ['isBoxablePrimitive/A1', 'isPrimitiveValue/A1', 'isBoxedPrimitive/R1'],
   },
   primNumber: {
     description: 'the primitive `42`',
@@ -421,7 +421,12 @@ export const floorMatrix = {
       isPrimitiveValue: T,
       isBoxedPrimitive: F,
     },
-    vectors: ['isNullishPrimitive/A1', 'isBoxablePrimitive/R1', 'isPrimitiveValue/A1'],
+    vectors: [
+      'isNullishPrimitive/A1',
+      'isBoxablePrimitive/R1',
+      'isPrimitiveValue/A1',
+      'isBoxedPrimitive/R2',
+    ],
   },
   undefinedValue: {
     description: '`undefined`',

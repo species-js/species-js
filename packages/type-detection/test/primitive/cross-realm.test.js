@@ -111,7 +111,7 @@ const allBoxedPredicates = [
 describe('primitive — cross-realm (axis 2)', () => {
   for (const { family, make, isValue, isBoxed, isComposite } of foreignBoxedCases) {
     describe(`foreign boxed ${family}`, () => {
-      it(`isBoxed${family}/A-crossrealm: admitted via the alien structural arm`, () => {
+      it(`isBoxedX/A-crossrealm (${family}): admitted via the alien structural arm`, () => {
         expect(isBoxed(make())).toBe(true);
       });
 
