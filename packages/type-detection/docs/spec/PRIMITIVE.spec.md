@@ -35,6 +35,19 @@
 > `…Instance` suffix + export landed with the #074 relocation commit; the pre-rename short
 > names used below were reconciled here). Purely additive + a name reconciliation; no
 > existing behavioral vector changes.
+>
+> **Post-freeze amendment 2026-07-27 (ADR #079) — first behavioral-vector change:** the
+> two accept-`undefined` floor predicates `isNullishPrimitive` and `isPrimitiveValue` now
+> distinguish an OMITTED call from an explicit `undefined`. An omitted call returns
+> `false` (there is no value to classify); a provided `null` / `undefined` still returns
+> `true`. The implementation is arity-gated (`(...args)` with an `args.length` presence
+> check) and the `.d.ts` carries a `(): false` no-argument overload beside the
+> `(value: unknown): value is X` guard — carving out the parameter-default-to-`null` idiom
+> (#025) for accept-`undefined` predicates. Unlike every prior amendment, this CHANGES
+> vectors: `CC/nullish` splits provided-nullish from omitted, and the `isNullishPrimitive`
+> / `isPrimitiveValue` sections each gain an omitted → `false` boundary vector (`/B1`). A
+> stale "the authored `value?: unknown` predicates" characterization is also reconciled
+> (two predicates are now `(...args)`-overloaded).
 
 ## Module contract
 
@@ -100,8 +113,8 @@ symbol was obtained from the global registry via `Symbol.for`).
 `isFiniteNumberValue`, `isIntegerValue`, `isSafeIntegerValue` — the realm-fixed
 `Number.isFinite` / `isInteger` / `isSafeInteger` (native method when callable, else the
 polyfill), `.d.ts`-retyped to the type-guard `(value: unknown) => value is number`. Unlike
-the `value?: unknown` predicates, these are `const`-bound (native-or-polyfill), so their
-signature has no optional parameter and no argument default.
+the authored predicates, these are `const`-bound (native-or-polyfill), so their signature
+has no optional parameter and no argument default.
 
 **Exported `@internal` helpers (axis 4) — equality (slot) probes:**
 `doesHaveStrictUnboxedStringValueEquality`, `doesHaveStrictUnboxedNumberValueEquality`,
@@ -142,8 +155,10 @@ Number-static polyfills).
 
 ## Cross-cutting vectors
 
-- **CC/nullish** — `null`, `undefined`, omitted argument → rejected by every predicate
-  EXCEPT `isNullishPrimitive` and `isPrimitiveValue` (which admit them).
+- **CC/nullish** — a provided `null` or `undefined` → rejected by every predicate EXCEPT
+  `isNullishPrimitive` and `isPrimitiveValue` (which admit them). An OMITTED argument →
+  rejected by every predicate WITHOUT exception, including those two: they distinguish "no
+  value supplied" (→ `false`) from an explicit `undefined` (→ `true`) per #079.
 - **CC/value-vs-boxed** — for every family, the primitive form and the boxed form are
   mutually exclusive: `isXValue` admits only the primitive, `isBoxedX` admits only the
   boxed, `isX` admits both.
@@ -308,9 +323,8 @@ from `#config` by decision #074 (finite-number contract per #072). Each is `cons
 to the realm-fixed native method (`Number.isFinite` / `isInteger` / `isSafeInteger`,
 captured at module-load) when callable, else to its `@internal` polyfill closure — so the
 signature is `(value: unknown): value is number`, with **no** optional parameter and no
-argument default (unlike the authored `value?: unknown` predicates). The `.d.ts` retypes
-the lib's plain-boolean return to the type-guard form so narrowing propagates at the call
-site.
+argument default (unlike the authored predicates). The `.d.ts` retypes the lib's
+plain-boolean return to the type-guard form so narrowing propagates at the call site.
 
 All three operate only on the primitive number form: a leading `typeof === 'number'` gate
 (native semantics, mirrored by the polyfill's `isNumberValue` lead) rejects every
@@ -384,11 +398,15 @@ testability.
 
 ### `isNullishPrimitive`
 
-`isObject`-free; `value = null` default collapses `undefined` → `null`, body is
-`value === null` (decision #025).
+`isObject`-free; arity-gated `(...args)` —
+`args.length > 0 && (args[0] ?? null) === null`. A provided `null` / `undefined` is
+admitted; an omitted call is rejected (no value to classify). Supersedes the
+`value = null` default idiom (#025) for this predicate; see #079.
 
-- `isNullishPrimitive/A1` — `null`, `undefined`, omitted → true.
+- `isNullishPrimitive/A1` — provided `null`, `undefined` → true.
 - `isNullishPrimitive/R1` — `0`, `''`, `false`, `NaN`, `0n`, `Symbol()`, `{}` → false.
+- `isNullishPrimitive/B1` — omitted call `isNullishPrimitive()` → false (no argument,
+  `args.length === 0`), distinct from the admitted explicit `undefined` (#079).
 
 ### `isBoxablePrimitive`
 
@@ -408,11 +426,16 @@ rejected set is `{ 'undefined', 'function', 'object' }`.
 
 ### `isPrimitiveValue`
 
-`isNullishPrimitive(v) || isBoxablePrimitive(v)`.
+Arity-gated `(...args)` —
+`args.length > 0 && (isNullishPrimitive(args[0]) || isBoxablePrimitive(args[0]))`.
+`undefined` is in the accept-set, so an omitted call is rejected (no value supplied); see
+#079.
 
-- `isPrimitiveValue/A1` — all seven primitives: `'x'`, `42`, `true`, `Symbol('y')`, `1n`,
-  `null`, `undefined` → true.
+- `isPrimitiveValue/A1` — all seven primitives, provided: `'x'`, `42`, `true`,
+  `Symbol('y')`, `1n`, `null`, `undefined` → true.
 - `isPrimitiveValue/R1` — `{}`, `() => {}`, `[]`, any boxed form → false.
+- `isPrimitiveValue/B1` — omitted call `isPrimitiveValue()` → false (no argument,
+  `args.length === 0`), distinct from the admitted explicit `undefined` (#079).
 
 ### `isBoxedPrimitive`
 

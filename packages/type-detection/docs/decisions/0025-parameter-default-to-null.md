@@ -2,6 +2,13 @@
 
 **Date:** 2026-06-04
 
+**Carved out by #079** (2026-07-27) for predicates whose accept-set includes `undefined`:
+there, collapsing an omitted call and an explicit `undefined` to the same `null` is
+dishonest (a predicate must not classify a value that was never supplied). This idiom
+stands for the value-returning nullish-terminal helpers (`hasInertMethod`,
+`getNextAvailablePropertyDescriptor`), where omitted / `undefined` / `null` are one
+terminal.
+
 **Context.** During the `hasInertMethod` refactor (post-thenable round, commit `71dff73`),
 chasing the lint friction on a clean nullish guard surfaced the pattern. `value == null`
 is the canonical idiom for catching both `null` and `undefined` in one comparison, but it

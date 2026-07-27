@@ -161,13 +161,19 @@ it solves:
   admit any new primitive type; the exclusion shape admits it without code changes. The
   `typeof === 'object'` rejection covers `null` correctly via the historical bug, and the
   legacy `document.all` quirk (`typeof === 'undefined'`) is rejected via the same arm.
-- **`isNullishPrimitive`** admits `null` and `undefined` via the
-  parameter-default-to-`null` idiom (decision #025): `value = null` collapses `undefined`
-  to `null`, and the body reduces to `value === null`. With direct narrowing (decision
-  #077) the parameter is plain `unknown`, so the default is a bare `value = null` — the
-  `/** @type {T} */ (null)` cast the generic `T` form once required is no longer needed.
-- **`isPrimitiveValue`** composes `isNullishPrimitive(v) || isBoxablePrimitive(v)`,
-  admitting the full ECMA-262 §4.4.4 primitive set — the seven primitive types.
+- **`isNullishPrimitive`** admits a supplied `null` or `undefined`, and rejects an omitted
+  call — there is no value to classify (decision #079). Because `undefined` is in its
+  accept-set, presence is load-bearing: it takes a rest parameter and gates on
+  `args.length` before `(args[0] ?? null) === null` collapses both nullish forms to `null`
+  for a single strict-equality test. This carves out the former
+  parameter-default-to-`null` idiom (#025), which could not distinguish an omitted call
+  from an explicit `undefined`.
+- **`isPrimitiveValue`** composes
+  `isNullishPrimitive(args[0]) || isBoxablePrimitive(args[0])`, admitting the full
+  ECMA-262 §4.4.4 primitive set — the seven primitive types. `undefined` is in its
+  accept-set too, so it likewise gates on `args.length` first and rejects an omitted call
+  (decision #079); it forwards presence rather than funnelling a named `value`, which
+  would erase the omission at the boundary.
 
 The three `typeof`-floor predicates have **no spoof surface to seal**. Unlike the
 boxed-primitive predicates that need the engine-attested `[[XData]]` slot probe to close
@@ -175,9 +181,10 @@ boxed-primitive predicates that need the engine-attested `[[XData]]` slot probe 
 spoof-proof at the language level. `typeof` is a syntactic operator, not a method dispatch
 — user code cannot intercept or override its result. No slot probe, no constructor walk,
 no tag read; each predicate is structurally complete with the single `typeof` evaluation
-(and the `value === null` strict-equality for `isNullishPrimitive`). See decision #051 for
-the future-proofing rationale and the framing that distinguishes this floor surface from
-the per-family surface.
+(and the `args.length`-gated `(args[0] ?? null) === null` check for `isNullishPrimitive`).
+See decision #051 for the future-proofing rationale and the framing that distinguishes
+this floor surface from the per-family surface, and #079 for the omitted-argument honesty
+gate.
 
 `isBoxedPrimitive` is the boxed-side umbrella, NOT a `typeof`-floor predicate. It admits
 any of the five boxed wrapper-object forms (`BoxedString` … `BoxedBigInt`) via the

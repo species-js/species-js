@@ -130,6 +130,7 @@ Open architectural questions live in [open-questions.md](./open-questions.md).
 | [075](./0075-config-runtime-leaf-decouple-is-callable.md)                             | `config` becomes a true runtime leaf (inline `isCallable`, drop its last runtime import); config exports safe at eval time; amends #074                                        | 2026-07-24 |
 | [076](./0076-throw-safe-marker-generalized-beyond-utility.md)                         | `@@throw-safe` marker generalized beyond utility to a package-wide convention (primitive is the second module); re-scopes #073; retro-sweep sequenced                          | 2026-07-26 |
 | [077](./0077-direct-narrowing-primitive-predicates-two-way-strategy.md)               | Primitive predicates narrow DIRECTLY (`value is X`), not generic `T & X`; two-way strategy (generic stays for broad-shape/`#function`); revises #039                           | 2026-07-26 |
+| [079](./0079-omitted-argument-honesty-presence-gated-predicates.md)                   | Omitted-argument honesty: accept-`undefined` predicates (`isNullishPrimitive`, `isPrimitiveValue`) arity-gate an omitted call to `false`; carves out #025                      | 2026-07-27 |
 
 ## Decisions by date (chronological)
 
@@ -216,3 +217,4 @@ order with one-line summaries:
 | 2026-07-26 | [076](./0076-throw-safe-marker-generalized-beyond-utility.md)                         | `@@throw-safe` marker generalized beyond utility (package-wide); re-scopes #073; retro-sweep sequenced              |
 | 2026-07-26 | [077](./0077-direct-narrowing-primitive-predicates-two-way-strategy.md)               | Primitive predicates narrow directly (`value is X`); two-way strategy; revises #039                                 |
 | 2026-07-27 | [078](./0078-delivery-seam-cjs-type-masquerade-accepted-attw-publint-gate.md)         | Delivery-seam F3: CJS type-masquerade accepted; `attw` + `publint` publish gate; node10 dropped                     |
+| 2026-07-27 | [079](./0079-omitted-argument-honesty-presence-gated-predicates.md)                   | Omitted-argument honesty: accept-`undefined` predicates arity-gate an omitted call to `false`; carves out #025      |
