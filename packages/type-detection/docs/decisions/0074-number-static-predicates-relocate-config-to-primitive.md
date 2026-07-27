@@ -93,6 +93,9 @@ three `@internal` polyfills `isFiniteNumber` / `isInteger` / `isSafeInteger`
   `UTILITY.spec.md`'s `isValidPropertyKey` attribution updates `#config` → `#primitive`.
 - The three polyfills remain `@internal` (fallback-path unit-test hooks); whether the two
   internally-unused integer guards stay public or are pruned is left open (a separate
-  surface decision — this ADR only relocates).
+  surface decision — this ADR only relocates). _(Resolved 2026-07-27, owner ruling: all
+  three guards stay **public** — downstream packages are the intended consumers; the three
+  polyfills stay `@internal`. Recorded in `PRIMITIVE.spec.md` and
+  `architecture/primitive.md`.)_
 - Downstream consumers (none yet; species-js is pre-release) importing these from the
   `/config` subpath would move to `/primitive`.

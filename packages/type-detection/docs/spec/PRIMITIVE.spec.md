@@ -2,12 +2,12 @@
 
 > Spec format and the multi-axis model are defined in [`./README.md`](./README.md).
 > Vectors are reasoned from the canon (`primitive.d.ts`, `primitive.js`,
-> `architecture/primitive.md`, decisions #038, #039, #042, #043, #049, #050, #051, #053;
-> boxed-primitive memory). Status: **FROZEN 2026-06-18** — decidability check passed (23
-> cases over all 19 public predicates + the 10 exported helpers, run against the real
-> implementations through the `#index` barrel). The run corrected the equality-helper
-> behavior (they admit the same-family primitive too, not only the boxed form). Base for
-> the axis-1 suite; axes 2–4 derive alongside.
+> `architecture/primitive.md`, decisions #038, #039, #042, #043, #049, #050, #051, #053,
+> #072, #074, #077; boxed-primitive memory). Status: **FROZEN 2026-06-18** — decidability
+> check passed (23 cases over all 19 public predicates + the 10 exported helpers, run
+> against the real implementations through the `#index` barrel). The run corrected the
+> equality-helper behavior (they admit the same-family primitive too, not only the boxed
+> form). Base for the axis-1 suite; axes 2–4 derive alongside.
 >
 > **Post-freeze amendment 2026-07-01:** two symbol-registry exports omitted at freeze are
 > now covered — the public `isRegisteredSymbol` and its `@internal` helper
@@ -23,6 +23,18 @@
 > (#031) stays preferred only for broad-shape predicates (the `#function` family). Two-way
 > strategy per ADR #077, revising #039's primitive-uniformity. Signature-only change;
 > every admit/reject vector below is unchanged.
+>
+> **Post-freeze amendment 2026-07-27 (ADR #074):** the three Number static-method guards
+> (`isFiniteNumberValue` / `isIntegerValue` / `isSafeIntegerValue`) and their three
+> `@internal` polyfills (`isFiniteNumber` / `isInteger` / `isSafeInteger`) — relocated
+> into `primitive` from `#config` by #074 — are now specified in a new "Number
+> static-method predicates" section, with the polyfills added to the axis-4 helper
+> inventory. The re-confirmation gate rises to **37 = 37** (was 31; +6 relocated exports).
+> Additionally, the three realm-native helpers are named by their true exports —
+> `isCurrentRealmNativeStringInstance` / `NumberInstance` / `BooleanInstance` (the
+> `…Instance` suffix + export landed with the #074 relocation commit; the pre-rename short
+> names used below were reconciled here). Purely additive + a name reconciliation; no
+> existing behavioral vector changes.
 
 ## Module contract
 
@@ -43,6 +55,10 @@ Floor (cross-family):
   PrimitiveValue     (isPrimitiveValue)     — all seven ECMA-262 primitives
   BoxedPrimitive     (isBoxedPrimitive)     — any of the five boxed wrapper-object forms
 ```
+
+The Number family additionally carries three static-method refinement guards over the
+primitive form (`isFiniteNumberValue`, `isIntegerValue`, `isSafeIntegerValue` — relocated
+from `#config` by #074), specified in their own section below.
 
 Two structural axes govern the boxed predicates:
 
@@ -80,14 +96,21 @@ why `Promise` lacks one) is decision #052.
 **Public predicate — symbol-registry (axis 1):** `isRegisteredSymbol` (whether a primitive
 symbol was obtained from the global registry via `Symbol.for`).
 
+**Public predicates — Number static-method (axis 1; relocated from `#config` by #074):**
+`isFiniteNumberValue`, `isIntegerValue`, `isSafeIntegerValue` — the realm-fixed
+`Number.isFinite` / `isInteger` / `isSafeInteger` (native method when callable, else the
+polyfill), `.d.ts`-retyped to the type-guard `(value: unknown) => value is number`. Unlike
+the `value?: unknown` predicates, these are `const`-bound (native-or-polyfill), so their
+signature has no optional parameter and no argument default.
+
 **Exported `@internal` helpers (axis 4) — equality (slot) probes:**
 `doesHaveStrictUnboxedStringValueEquality`, `doesHaveStrictUnboxedNumberValueEquality`,
 `doesHaveStrictUnboxedBooleanValueEquality`, `doesHaveStrictUnboxedSymbolValueEquality`,
 `doesHaveStrictUnboxedBigIntValueEquality`.
 
 **Exported `@internal` helpers (axis 4) — realm-resolution machinery (exported for
-single-realm testability, decision #053):** `isCurrentRealmNativeString` /
-`isCurrentRealmNativeNumber` / `isCurrentRealmNativeBoolean` (the shared
+single-realm testability, decision #053):** `isCurrentRealmNativeStringInstance` /
+`isCurrentRealmNativeNumberInstance` / `isCurrentRealmNativeBooleanInstance` (the shared
 `instanceof + proto-identity` discriminators),
 `resolvedViaES3NativePrimitiveTypesHotPaths` (the current-realm path of
 `isBoxedPrimitive`), and `resolvedViaAlienRealmPrimitiveTypesEvaluation` (the alien-realm
@@ -98,6 +121,11 @@ realm).
 `unguardedIsUnregisteredSymbol` (the unguarded `Symbol.keyFor`-based unregistered-symbol
 check that `isRegisteredSymbol` gates and negates).
 
+**Exported `@internal` helpers (axis 4) — Number static-method polyfills (relocated by
+#074):** `isFiniteNumber`, `isInteger`, `isSafeInteger` — the explicit fallback closures
+behind the three public Number guards, exported so the polyfill path is unit-testable in
+isolation regardless of whether the runtime has the native method.
+
 **Module-local data (unexported — internal tables, covered transitively):** the
 `unboxedPrimitiveValueEvaluations` dispatch `Map` (exercised through
 `resolvedViaAlienRealmPrimitiveTypesEvaluation`) and the `nonBoxableTypeSignatures` `Set`
@@ -107,9 +135,10 @@ check that `isRegisteredSymbol` gates and negates).
 floor types (`NullishPrimitive`, `BoxablePrimitive`, `PrimitiveValue`, `BoxedPrimitive`) —
 type-only, verified by `tsc`, no runtime vector.
 
-Re-confirmation gate: 31 `.js` exports = 31 `.d.ts` declarations, no surface gap (20
-public predicates + 5 equality helpers + 5 realm-resolution helpers + 1 symbol-registry
-helper).
+Re-confirmation gate: 37 `.js` exports = 37 `.d.ts` declarations, no surface gap (23
+public predicates — the 20 family/floor/registry predicates plus the 3 Number-static
+guards — + 5 equality helpers + 5 realm-resolution helpers + 1 symbol-registry helper + 3
+Number-static polyfills).
 
 ## Cross-cutting vectors
 
@@ -250,6 +279,85 @@ realm-safe and spoof-proof.
 
 ---
 
+## Number static-method predicates — `isFiniteNumberValue` / `isIntegerValue` / `isSafeIntegerValue`
+
+Three Number-family refinement guards over the primitive form, relocated into `primitive`
+from `#config` by decision #074 (finite-number contract per #072). Each is `const`-bound
+to the realm-fixed native method (`Number.isFinite` / `isInteger` / `isSafeInteger`,
+captured at module-load) when callable, else to its `@internal` polyfill closure — so the
+signature is `(value: unknown): value is number`, with **no** optional parameter and no
+argument default (unlike the authored `value?: unknown` predicates). The `.d.ts` retypes
+the lib's plain-boolean return to the type-guard form so narrowing propagates at the call
+site.
+
+All three operate only on the primitive number form: a leading `typeof === 'number'` gate
+(native semantics, mirrored by the polyfill's `isNumberValue` lead) rejects every
+non-number — including numeric **strings** and boxed `Number` objects — before any
+arithmetic. This is the load-bearing distinction from the bare global `isFinite`, which
+coerces its argument.
+
+### `isFiniteNumberValue`
+
+`isNumberValue(v) && isFinite(v)` semantics (native or polyfill).
+
+- `isFiniteNumberValue/A1` — `0`, `-0`, `42`, `-1`, `3.14`, `Number.MAX_VALUE` → true.
+- `isFiniteNumberValue/R1` — `NaN`, `Infinity`, `-Infinity` → false (non-finite numbers).
+- `isFiniteNumberValue/R2` — `'42'` (numeric string) → false — the `typeof` gate
+  suppresses the coercion the bare global `isFinite('42') === true` would apply. The
+  load-bearing vector.
+- `isFiniteNumberValue/R3` — non-numbers: `{}`, `[]`, `null`, `undefined`, omitted,
+  `true`, `1n`, `Symbol()`, `new Number(42)` (boxed) → false.
+
+### `isIntegerValue`
+
+`isFiniteNumberValue(v) && Math.floor(v) === v` semantics.
+
+- `isIntegerValue/A1` — `0`, `42`, `-7`, `2 ** 53` → true (an integer, though not a _safe_
+  integer — see `isSafeIntegerValue`).
+- `isIntegerValue/R1` — `3.14`, `-0.5` → false (fractional part).
+- `isIntegerValue/R2` — `NaN`, `Infinity`, `-Infinity` → false (non-finite).
+- `isIntegerValue/R3` — `'42'` and all non-numbers (per `R3` above) → false.
+
+### `isSafeIntegerValue`
+
+`isIntegerValue(v) && Math.abs(v) <= Number.MAX_SAFE_INTEGER` semantics — the lossless
+round-trip range `[-(2^53 - 1), 2^53 - 1]`.
+
+- `isSafeIntegerValue/A1` — `0`, `42`, `-7`, `Number.MAX_SAFE_INTEGER` (`2^53 - 1`),
+  `-(Number.MAX_SAFE_INTEGER)` → true.
+- `isSafeIntegerValue/B1` — the range edge: `Number.MAX_SAFE_INTEGER` → true, but
+  `Number.MAX_SAFE_INTEGER + 1` (`2 ** 53`) → **false**. Pins exactly where safe-integer
+  admission stops.
+- `isSafeIntegerValue/R1` — `2 ** 53`, `2 ** 53 + 1` → false (integers outside the safe
+  range).
+- `isSafeIntegerValue/R2` — `3.14`, `NaN`, `Infinity` → false; `'42'` and all non-numbers
+  → false.
+
+**Cross-realm expectation (axis 2):** trivially realm-safe — they discriminate the
+primitive number form (no realm identity), and the native method is realm-fixed at
+module-load from `config`'s `globalContext`. No foreign-realm fixture required.
+
+**Spoof-resistance expectation (axis 3):** none — no method dispatch on the value. The
+native `Number.isX` never coerces and never throws; the polyfills gate on `typeof` /
+`isFiniteNumberValue` before any arithmetic, reading no property off the candidate. Marked
+`@@throw-safe` in both files.
+
+**Composition note (axis 4):** `isFiniteNumberValue` drives `isNumberValue` + the captured
+global `isFinite`; `isIntegerValue` drives `isFiniteNumberValue` + captured `Math.floor`;
+`isSafeIntegerValue` drives `isIntegerValue` + captured `Math.abs` +
+`Number.MAX_SAFE_INTEGER`. The three polyfills (`isFiniteNumber` / `isInteger` /
+`isSafeInteger`) are their exported fallback forms — see the axis-4 helper section.
+
+**Surface decision (resolved 2026-07-27, owner ruling — closes the #074 open item):** the
+two internally-unused integer guards (`isIntegerValue`, `isSafeIntegerValue`; post-#072
+only `isFiniteNumberValue` has an in-package consumer) **stay public** — they ship
+exported without `@internal`, and downstream packages are the intended consumers. Not
+pruned. The three `@internal` polyfill closures (`isFiniteNumber` / `isInteger` /
+`isSafeInteger`) stay `@internal` — implementation detail, exported only for fallback-path
+testability.
+
+---
+
 ## Floor predicates
 
 ### `isNullishPrimitive`
@@ -373,7 +481,7 @@ All five assume an object-typed receiver (the public predicates apply the `isObj
 first), so the vectors below pass objects only. Exported `@internal` for single-realm
 testability (decision #053).
 
-### `isCurrentRealmNativeString` / `Number` / `Boolean`
+### `isCurrentRealmNativeStringInstance` / `NumberInstance` / `BooleanInstance`
 
 `value instanceof X && getPrototypeOf(value) === X.prototype` — the subclass-rejection
 primitive; does NOT seal the slot.
@@ -441,6 +549,30 @@ is why the public `isRegisteredSymbol` gates with `isSymbolValue` first.
 
 ---
 
+## Helper specification (axis 4) — the Number static-method polyfills
+
+`isFiniteNumber` / `isInteger` / `isSafeInteger` — the explicit fallback closures behind
+the three public Number guards, each exported `@internal` so the polyfill path is
+unit-testable in isolation even on a runtime that has the native method (the public
+`const` would otherwise bind the native one, leaving the fallback unexercised). Each is
+itself a type guard `(value: unknown): value is number`.
+
+- `isFiniteNumber` — `isNumberValue(v) && isFinite(v)` (captured global `isFinite`). Same
+  admit/reject profile as `isFiniteNumberValue/A1..R3` — including `isFiniteNumber('42')`
+  → false (the leading `isNumberValue` gate is what suppresses the global-`isFinite`
+  coercion).
+- `isInteger` — `isFiniteNumberValue(v) && Math.floor(v) === v`. Same profile as
+  `isIntegerValue/A1..R3`.
+- `isSafeInteger` — `isIntegerValue(v) && Math.abs(v) <= Number.MAX_SAFE_INTEGER`. Same
+  profile as `isSafeIntegerValue/A1..R2`, including the `B1` range edge
+  (`MAX_SAFE_INTEGER` → true, `MAX_SAFE_INTEGER + 1` → false).
+
+Because the public guard and its polyfill share one behavioral profile, axis 4 tests the
+polyfill directly (the fallback path) while axis 1 tests the public export (the native
+path where present); the two must agree on every vector.
+
+---
+
 ## Open / resolved items
 
 1. **Architecture-doc naming drift (doc↔impl) — RESOLVED.** `architecture/primitive.md`
@@ -453,8 +585,8 @@ is why the public `isRegisteredSymbol` gates with `isSymbolValue` first.
    generic-predicates section, and a new `isBoxedPrimitive` umbrella paragraph). A
    `doc↔impl` drift the spec's re-confirmation gate surfaced, now closed.
 2. **Module-local realm helpers and axis-4 reach — RESOLVED (decision #053).** The five
-   realm-resolution helpers (`isCurrentRealmNativeString` / `Number` / `Boolean`,
-   `resolvedViaES3NativePrimitiveTypesHotPaths`,
+   realm-resolution helpers (`isCurrentRealmNativeStringInstance` / `NumberInstance` /
+   `BooleanInstance`, `resolvedViaES3NativePrimitiveTypesHotPaths`,
    `resolvedViaAlienRealmPrimitiveTypesEvaluation`) are now exported `@internal` with
    parallel `.d.ts` declarations, so axis 4 unit-tests each in isolation. The decisive
    factor: the alien-realm resolver's markers are realm-independent, so the cross-realm
@@ -474,3 +606,23 @@ is why the public `isRegisteredSymbol` gates with `isSymbolValue` first.
    #14, whose newer `eslint-plugin-jsdoc` flagged the two helpers' then-stub `.js` JSDoc
    (fixed in `4bdfa77` by mirroring the canonical `.d.ts` docs down). Purely additive; no
    existing behavioral vector changed.
+4. **Number static-method predicates relocated in but unspecified — RESOLVED (post-freeze
+   amendment 2026-07-27, ADR #074).** The `1ddb19f` relocation moved six exports from
+   `#config` into `primitive` — the three public guards `isFiniteNumberValue` /
+   `isIntegerValue` / `isSafeIntegerValue` and their three `@internal` polyfills
+   `isFiniteNumber` / `isInteger` / `isSafeInteger` — but this spec (and the gate)
+   predated the move. Now covered: the "Number static-method predicates" section (axis 1),
+   the "Number static-method polyfills" helper section (axis 4), the surface inventory,
+   and the corrected gate (31 → 37). ADR #074's **open** surface question — whether the
+   two internally-unused integer guards stay public or are pruned — was **resolved by
+   owner ruling 2026-07-27: they stay public** (downstream packages are the intended
+   consumers); the three polyfill closures stay `@internal`. Purely additive; no existing
+   behavioral vector changed.
+5. **Realm-native helper name drift (doc↔impl) — RESOLVED.** The same `1ddb19f` relocation
+   renamed and exported the three constructor-aware realm discriminators
+   `isCurrentRealmNativeString` / `Number` / `Boolean` → `…StringInstance` /
+   `…NumberInstance` / `…BooleanInstance`, but the spec's inventory, helper section, and
+   resolved-item 2 still carried the pre-rename short names (the `spec/README`
+   throw-safety text already used the `…Instance` form, confirming it canonical). All spec
+   references reconciled to the true exports; the `iCRNX` vector IDs are retained (stable,
+   append-only). A `doc↔impl` drift the re-confirmation gate surfaced, now closed.

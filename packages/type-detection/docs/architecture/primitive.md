@@ -88,7 +88,7 @@ below).
 Between the fixtures the families split:
 
 - **Constructor-aware families** run a **two-branch identity check**. The local-realm fast
-  path uses the named helper `isCurrentRealmNativeX` (which combines
+  path uses the named helper `isCurrentRealmNativeXInstance` (which combines
   `v instanceof XConstructor` with `getPrototypeOf(v) === xPrototype` for direct-instance
   discrimination). On miss, the cross-realm structural fallback pairs the `[[Class]]` tag
   with the resolved constructor-name. Both arms reject subclasses (proto-identity on the
@@ -238,9 +238,9 @@ shortcut is in play (decision #049):
 between the fixtures, markers in cost order:
 
 1. `isObject(value)` — top fixture; O(1) primitive-and-null rejection.
-2. Local-realm arm: `isCurrentRealmNativeX(value)` — `instanceof XConstructor` paired with
-   `getPrototypeOf(value) === xPrototype` for direct-instance discrimination in two O(1)
-   operations. Subclass-rejecting.
+2. Local-realm arm: `isCurrentRealmNativeXInstance(value)` — `instanceof XConstructor`
+   paired with `getPrototypeOf(value) === xPrototype` for direct-instance discrimination
+   in two O(1) operations. Subclass-rejecting.
 3. Cross-realm arm (if 2 fails): `getTypeSignature(value) === '[object X]'` paired with
    `getDefinedConstructorName(value) === 'X'` — `[[Class]]` tag from the realm-fixed
    `toObjectString.call` capture, constructor-name from the four-source walk. Both
@@ -343,6 +343,43 @@ primitive earns promotion to `#config` when a second module needs it. Module-loc
 default for first-use; promotion is the response to second-use. Today the
 prototype-valueOf captures are first-use; if `@species-js/type-identity` or a future
 module needs them, promotion is mechanical.
+
+## Number static-method predicates — native-or-polyfill guards
+
+The Number family carries three refinement guards over the primitive number form —
+`isFiniteNumberValue`, `isIntegerValue`, `isSafeIntegerValue` — relocated into `primitive`
+from `#config` by decision #074 (they are Number-family type guards, i.e. domain
+detection, not infrastructure; the move also dropped `config`'s only direct `#primitive`
+import). Each is `const`-bound to the realm-fixed native method (`Number.isFinite` /
+`isInteger` / `isSafeInteger`) when `isCallable` confirms it, else to an `@internal`
+polyfill closure — the standard native-or-polyfill selection (decision #032's family), so
+the guard behaves identically on runtimes that lack the native method. The polyfills are
+exported `@internal` so the fallback path is unit-testable even where the native method is
+present.
+
+The realm-fixed intrinsics they need (`Number`, `Math.abs`, `Math.floor`,
+`Number.MAX_SAFE_INTEGER`, and the global `isFinite`) are read at module-load from
+`config`'s `globalContext` capture. This eval-time read of a `config` export is safe only
+because #075 made `config` a runtime leaf (zero internal imports): a leaf can never be
+re-entered mid-cycle, so its body always fully evaluates before any importer's. At
+relocation time `config` was still in the load cycle and the same read TDZ-crashed on a
+`./config` entry — the workaround captured from `globalThis` directly until #075 removed
+the hazard (see decisions #074 / #075 and the `entry-arena.test.js` guard).
+
+The polyfills compose as a ladder: `isFiniteNumber` = `isNumberValue(v) && isFinite(v)`;
+`isInteger` = `isFiniteNumberValue(v) && Math.floor(v) === v`; `isSafeInteger` =
+`isIntegerValue(v) && Math.abs(v) <= Number.MAX_SAFE_INTEGER`. The load-bearing detail is
+the leading `isNumberValue` (`typeof === 'number'`) gate — it is what suppresses the
+coercion the bare global `isFinite` applies (`isFinite('5')` is `true`, but
+`isFiniteNumberValue('5')` is `false`). These guards have no spoof surface and cannot
+throw: they read no property off the candidate, only gate on `typeof` and then run
+arithmetic on a confirmed number — so all three are `@@throw-safe`.
+
+On the surface question ADR #074 left open — only `isFiniteNumberValue` has an in-package
+consumer (`utility/isValidPropertyKey`, post-#072), so whether the two internally-unused
+integer guards remain public was a separate call — the owner ruling (2026-07-27) keeps all
+three guards **public**: downstream packages are the intended consumers. The three
+polyfill closures remain `@internal` (fallback-path test hooks).
 
 ## Open architectural questions
 
