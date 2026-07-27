@@ -1143,29 +1143,30 @@ export function isBigInt(value?: unknown): value is BigIntType;
  * Narrows a value to the nullish-primitive union
  * {@link NullishPrimitive} — `null` or `undefined`.
  *
- * Uses the parameter-default-to-`null` idiom (decision #025) to
- * collapse both nullish forms to `null` for a single strict-equality
- * test. The three input cases:
+ * A supplied `null` or `undefined` narrows to {@link NullishPrimitive}. An
+ * omitted call answers `false` — there is no value to classify — so the
+ * predicate deliberately distinguishes an omitted argument from an explicit
+ * `undefined`, which is itself nullish.
  *
- * 1. `isNullishPrimitive()` and `isNullishPrimitive(undefined)` trigger
- *    the default and reach `value === null` as `true`.
- * 2. `isNullishPrimitive(null)` reaches the same comparison directly.
- * 3. Every non-nullish value suppresses the default and fails the
- *    comparison.
- *
- * @param value - the value to test; omitted is treated as `undefined`,
- *  which is a nullish primitive
+ * @param value - the value to test
  * @returns `true` when `value` is `null` or `undefined`, narrowing
  *  `value` to `NullishPrimitive`; `false` otherwise
  * @example
  * isNullishPrimitive(null);      // true
  * isNullishPrimitive(undefined); // true
- * isNullishPrimitive();          // true (default fires)
+ * isNullishPrimitive();          // false (omitted — no value to classify)
  * isNullishPrimitive(0);         // false
  * isNullishPrimitive('');        // false
  * isNullishPrimitive(false);     // false
  */
-export function isNullishPrimitive(value?: unknown): value is NullishPrimitive;
+export function isNullishPrimitive(value: unknown): value is NullishPrimitive;
+
+/**
+ * The no-argument overload. Answers `false` — an omitted call supplies no
+ * value to classify, distinct from an explicit `undefined` argument, which
+ * is nullish.
+ */
+export function isNullishPrimitive(): false;
 
 /* @@throw-safe */
 /**
@@ -1216,13 +1217,15 @@ export function isBoxablePrimitive(value?: unknown): value is BoxablePrimitive;
  * Narrows a value to the full primitive union {@link PrimitiveValue} — any
  * of the seven ECMA-262 primitive types.
  *
- * Composes `isNullishPrimitive || isBoxablePrimitive`. Short-circuit
- * `||` runs `isNullishPrimitive` first. For non-nullish inputs (the
- * common case) the cost is the leading function call plus
- * `isBoxablePrimitive`'s single `typeof` read and `Set.has` lookup.
+ * Composes `isNullishPrimitive || isBoxablePrimitive`. A supplied argument
+ * is admitted when it is any of the seven primitive types; an omitted call
+ * answers `false`, since `undefined` counts as a primitive only when it is
+ * actually supplied — there is otherwise no value to classify. Short-circuit
+ * `||` runs `isNullishPrimitive` first; for non-nullish inputs (the common
+ * case) the cost is that leading call plus `isBoxablePrimitive`'s single
+ * `typeof` read and `Set.has` lookup.
  *
- * @param value - the value to test; omitted is treated as `undefined`,
- *  which is a primitive
+ * @param value - the value to test
  * @returns `true` when the value is any of the seven primitive types,
  *  narrowing `value` to `PrimitiveValue`; `false` otherwise
  * @example
@@ -1231,11 +1234,19 @@ export function isBoxablePrimitive(value?: unknown): value is BoxablePrimitive;
  * isPrimitiveValue(Symbol('y'));     // true
  * isPrimitiveValue(null);            // true
  * isPrimitiveValue(undefined);       // true
+ * isPrimitiveValue();                // false (omitted — no value supplied)
  * isPrimitiveValue({});              // false
  * isPrimitiveValue(() => {});        // false
  * isPrimitiveValue(new String('x')); // false (boxed)
  */
-export function isPrimitiveValue(value?: unknown): value is PrimitiveValue;
+export function isPrimitiveValue(value: unknown): value is PrimitiveValue;
+
+/**
+ * The no-argument overload. Answers `false` — an omitted call supplies no
+ * value to classify, distinct from an explicit `undefined` argument, which
+ * is a primitive.
+ */
+export function isPrimitiveValue(): false;
 
 /* @@throw-safe */
 /**

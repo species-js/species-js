@@ -186,8 +186,10 @@ describe('primitive — spec/contract matrices', () => {
     });
   });
 
-  // CC/nullish — null / undefined / omitted are rejected by every predicate
-  // EXCEPT isNullishPrimitive and isPrimitiveValue (isXValue/R3, isBoxedX/R2).
+  // CC/nullish — a provided null / undefined is rejected by every predicate EXCEPT
+  // isNullishPrimitive and isPrimitiveValue (isXValue/R3, isBoxedX/R2). An OMITTED call is
+  // rejected by every predicate WITHOUT exception — those two distinguish "no value supplied"
+  // from an explicit `undefined` and answer false (#079; isNullishPrimitive/B1, isPrimitiveValue/B1).
   describe('CC/nullish', () => {
     const nullishAdmitters = ['isNullishPrimitive', 'isPrimitiveValue'];
     const nullishRejectors = PUBLIC_PREDICATE_NAMES.filter(
@@ -204,10 +206,10 @@ describe('primitive — spec/contract matrices', () => {
       }
     });
 
-    it('omitted argument → nullish/primitive admit, all else reject', () => {
-      expect(isNullishPrimitive()).toBe(true);
-      expect(isPrimitiveValue()).toBe(true);
-      for (const name of nullishRejectors) {
+    it('omitted argument → rejected by every predicate, including isNullishPrimitive + isPrimitiveValue (#079: /B1)', () => {
+      // an omitted call supplies no value to classify — the two accept-`undefined`
+      // predicates arity-gate it to false, distinct from an explicit `undefined`.
+      for (const name of PUBLIC_PREDICATE_NAMES) {
         expect(predicateByName(name)(), `${name}()`).toBe(false);
       }
     });

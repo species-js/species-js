@@ -390,7 +390,7 @@ export function doesHaveStrictUnboxedBigIntValueEquality(value) {
  * @example
  * isStringValue('x');              // true
  * isStringValue('');               // true (empty string is still a string)
- * isStringValue(new String('x'));  // false (boxed; typeof === 'object')
+ * isStringValue(new String('x'));  // false (already boxed)
  * isStringValue(42);               // false
  */
 export function isStringValue(value) {
@@ -1115,31 +1115,41 @@ export function isBigInt(value) {
  * Narrows a value to the nullish-primitive union {@link NullishPrimitive} —
  * `null` or `undefined`.
  *
- * Uses the parameter-default-to-`null` idiom (decision #025) to
- * collapse both nullish forms to `null` for a single strict-equality
- * test. The three input cases:
+ * Detects argument presence via `args.length` before classifying: an
+ * omitted call supplies no value to judge, so it answers `false` rather
+ * than claim a value that was never passed is nullish. Presence is a
+ * property of the call (its arity), which a defaulted named parameter
+ * would erase — so the rest parameter is load-bearing, not stylistic. For
+ * a supplied argument, `?? null` collapses both nullish forms to `null`
+ * for a single strict-equality test. The three input cases:
  *
- * 1. `isNullishPrimitive()` and `isNullishPrimitive(undefined)` trigger
- *    the default and reach `value === null` as `true`.
- * 2. `isNullishPrimitive(null)` reaches the same comparison directly.
- * 3. Every non-nullish value suppresses the default and fails the
- *    comparison.
+ * 1. `isNullishPrimitive()` — no argument; `args.length === 0`
+ *    short-circuits to `false` (there is no value to be nullish).
+ * 2. `isNullishPrimitive(null)` and `isNullishPrimitive(undefined)` — an
+ *    argument is present, so `?? null` collapses both to `null` and
+ *    `=== null` is `true`.
+ * 3. Every supplied non-nullish value survives `?? null` unchanged and
+ *    fails the comparison.
  *
- * @param {unknown} [value] - the value to test; omitted is treated as
- *  `undefined`, which is a nullish primitive
- * @returns {value is NullishPrimitive} `true` when `value` is `null`
- *  or `undefined`, narrowing `value` to `NullishPrimitive`; `false`
- *  otherwise
+ * This supersedes the former parameter-default-to-`null` idiom (decision
+ * #025), which could not distinguish an omitted call from an explicit
+ * `undefined`.
+ *
+ * @param {...unknown} args - the first argument (`args[0]`) is the value
+ *  to test; its presence is detected via `args.length`
+ * @returns {value is NullishPrimitive} `true` when an argument is present
+ *  and is `null` or `undefined`, narrowing it to `NullishPrimitive`;
+ *  `false` otherwise (an omitted call included)
  * @example
  * isNullishPrimitive(null);      // true
  * isNullishPrimitive(undefined); // true
- * isNullishPrimitive();          // true (default fires)
+ * isNullishPrimitive();          // false (omitted ... cannot be answered with `true`)
  * isNullishPrimitive(0);         // false
  * isNullishPrimitive('');        // false
  * isNullishPrimitive(false);     // false
  */
-export function isNullishPrimitive(value = null) {
-  return value === null;
+export function isNullishPrimitive(...args) {
+  return args.length > 0 && (args[0] ?? null) === null;
 }
 
 const nonBoxableTypeSignatures = new Set(['undefined', 'function', 'object']);
@@ -1179,11 +1189,11 @@ const nonBoxableTypeSignatures = new Set(['undefined', 'function', 'object']);
  * isBoxablePrimitive(true);            // true
  * isBoxablePrimitive(Symbol('y'));     // true
  * isBoxablePrimitive(1n);              // true
- * isBoxablePrimitive(null);            // false (typeof 'object')
+ * isBoxablePrimitive(null);            // false
  * isBoxablePrimitive(undefined);       // false
  * isBoxablePrimitive({});              // false
  * isBoxablePrimitive(() => {});        // false
- * isBoxablePrimitive(new String('x')); // false (typeof 'object', boxed)
+ * isBoxablePrimitive(new String('x')); // false (already boxed)
  */
 export function isBoxablePrimitive(value) {
   return !nonBoxableTypeSignatures.has(typeof value);
@@ -1194,28 +1204,33 @@ export function isBoxablePrimitive(value) {
  * Narrows a value to the full primitive union {@link PrimitiveValue} — any
  * of the seven ECMA-262 primitive types.
  *
- * Composes `isNullishPrimitive || isBoxablePrimitive`. Short-circuit
- * `||` runs `isNullishPrimitive` first. For non-nullish inputs (the
- * common case) the cost is the leading function call plus
+ * Detects argument presence via `args.length` first: `undefined` is a
+ * member of the accept-set — it is a primitive value — so an omitted call
+ * must answer `false` rather than admit a value that was never supplied.
+ * A present argument is then classified by composing
+ * `isNullishPrimitive(args[0]) || isBoxablePrimitive(args[0])`, with
+ * short-circuit `||` running the `isNullishPrimitive` check first. For
+ * non-nullish inputs (the common case) the cost is that leading call plus
  * `isBoxablePrimitive`'s single `typeof` read and `Set.has` lookup.
  *
- * @param {unknown} [value] - the value to test; omitted is treated as
- *  `undefined`, which is a primitive
- * @returns {value is PrimitiveValue} `true` when the value is any of the
- *  seven primitive types, narrowing `value` to `PrimitiveValue`; `false`
- *  otherwise
+ * @param {...unknown} args - the first argument (`args[0]`) is the value
+ *  to test; its presence is detected via `args.length`
+ * @returns {value is PrimitiveValue} `true` when an argument is present and
+ *  is any of the seven primitive types, narrowing it to `PrimitiveValue`;
+ *  `false` otherwise (an omitted call included)
  * @example
  * isPrimitiveValue('x');             // true
  * isPrimitiveValue(42);              // true
  * isPrimitiveValue(Symbol('y'));     // true
  * isPrimitiveValue(null);            // true
  * isPrimitiveValue(undefined);       // true
+ * isPrimitiveValue();                // false (omitted — no value supplied)
  * isPrimitiveValue({});              // false
  * isPrimitiveValue(() => {});        // false
- * isPrimitiveValue(new String('x')); // false (boxed)
+ * isPrimitiveValue(new String('x')); // false (already boxed)
  */
-export function isPrimitiveValue(value) {
-  return isNullishPrimitive(value) || isBoxablePrimitive(value);
+export function isPrimitiveValue(...args) {
+  return args.length > 0 && (isNullishPrimitive(args[0]) || isBoxablePrimitive(args[0]));
 }
 
 /**
