@@ -176,7 +176,8 @@ in the package.
 **Family-specific admits worth pinning:**
 
 - `isNumberValue/A-special` — `NaN`, `Infinity`, `-Infinity`, `-0` → true (all numeric
-  primitives; finiteness is a separate concern, `#config`).
+  primitives; finiteness is a separate concern — see the Number static-method predicates
+  section, relocated into this module by #074).
 - `isStringValue/A-empty` — `''` → true.
 - `isSymbolValue/A-wellknown` — `Symbol.iterator`, `Symbol.for('x')` → true (well-known +
   registered symbols).
@@ -196,7 +197,7 @@ userland. These predicates have no spoof surface.
 `isBoxedX(value?: unknown): value is BoxedX`. Two sub-shapes by family kind.
 
 **Constructor-aware (`isBoxedString` / `isBoxedNumber` / `isBoxedBoolean`):**
-`isObject(v) && (isCurrentRealmNativeX(v) || (getTypeSignature(v) === '[object X]' && getDefinedConstructorName(v) === 'X')) && doesHaveStrictUnboxedXValueEquality(v)`
+`isObject(v) && (isCurrentRealmNativeXInstance(v) || (getTypeSignature(v) === '[object X]' && getDefinedConstructorName(v) === 'X')) && doesHaveStrictUnboxedXValueEquality(v)`
 
 **Factory-function (`isBoxedSymbol` / `isBoxedBigInt`):**
 `isObject(v) && getTypeSignature(v) === '[object X]' && getDefinedConstructorName(v) === 'X' && doesHaveStrictUnboxedXValueEquality(v)`
@@ -217,6 +218,10 @@ userland. These predicates have no spoof surface.
 - `isBoxedX/R-protograft` — `Object.create(X.prototype)` → **false** — the slot probe
   rejects it (`valueOf` throws; no `[[XData]]`). **The contrast with `isPromise/B2`: the
   engine-attested seal closes the prototype-graft surface here.**
+- `isBoxedX/R-ctorspoof` — a userland class literally named `X` (e.g. `class String {}`) →
+  false. The instance's `[[Class]]` tag is `'[object Object]'`, so the tag check fails
+  before the constructor-name even matters (the ctor-name-spoof-alone case: a matching
+  name cannot survive the tag marker). Exercised on `String` (`adversarial.test.js`).
 
 **Constructor-aware-only vector:**
 
@@ -258,7 +263,7 @@ rejected by the `[[XData]]` slot probe (unforgeable). Proto-graft
 rejected by the description cross-check.
 
 **Composition note (axis 4):** drives `isObject` (`#object`), the module-local
-`isCurrentRealmNativeX` (constructor-aware families), `getTypeSignature` +
+`isCurrentRealmNativeXInstance` (constructor-aware families), `getTypeSignature` +
 `getDefinedConstructorName` (`#utility`), and the exported
 `doesHaveStrictUnboxedXValueEquality`.
 
@@ -462,13 +467,10 @@ what excludes the primitive, not the helper.
   → true (`valueOf` returns the primitive receiver; `=== X(value)` holds).
 - `dHSUXVE/R1` — a value that is neither a boxed `X` nor an `X` primitive (`{}`, `null`, a
   different family's primitive or boxed value) → false (`valueOf` throws → `catch`).
-- `doesHaveStrictUnboxedNumberValueEquality/A-NaN` — `new Number(NaN)` and `NaN` → true
-  (`Object.is`).
-- `doesHaveStrictUnboxedBooleanValueEquality/A-false` — `new Boolean(false)` and `false` →
-  true (stringified compare).
-- `doesHaveStrictUnboxedSymbolValueEquality/R-descshadow` — description-shadowed boxed
-  `Symbol` → false; `Object(Symbol())` / `Symbol()` (no description) → true
-  (`undefined === undefined`).
+- `dHSUNumberVE/A-NaN` — `new Number(NaN)` and `NaN` → true (`Object.is`).
+- `dHSUBooleanVE/A-false` — `new Boolean(false)` and `false` → true (stringified compare).
+- `dHSUSymbolVE/R-descshadow` — description-shadowed boxed `Symbol` → false;
+  `Object(Symbol())` / `Symbol()` (no description) → true (`undefined === undefined`).
 
 These five are also reachable directly (exported `@internal`), so axis 4 unit-tests them
 in isolation in addition to their composition inside the boxed predicates.
@@ -488,7 +490,7 @@ primitive; does NOT seal the slot.
 
 - `iCRNX/A1` — `new X(...)` / `Object(prim)` for the family → true.
 - `iCRNX/R1` — a direct instance of a _different_ family (e.g.
-  `isCurrentRealmNativeString(new Number(1))`) → false.
+  `isCurrentRealmNativeStringInstance(new Number(1))`) → false.
 - `iCRNX/R2` — a subclass instance (`new (class extends X {})(...)`) → false
   (proto-identity; bare `instanceof` would admit it).
 - `iCRNX/R3` — a plain `{}` → false.
@@ -499,7 +501,7 @@ primitive; does NOT seal the slot.
 ### `resolvedViaES3NativePrimitiveTypesHotPaths`
 
 The current-realm path of `isBoxedPrimitive`:
-`(isCurrentRealmNativeString && slotString) || (…Number…) || (…Boolean…)`.
+`(isCurrentRealmNativeStringInstance && slotString) || (…Number…) || (…Boolean…)`.
 
 - `rVE3/A1` — `new String('x')`, `new Number(42)`, `new Boolean(true)`, `Object('x')`,
   `new Number(NaN)` → true.
@@ -626,3 +628,21 @@ path where present); the two must agree on every vector.
    throw-safety text already used the `…Instance` form, confirming it canonical). All spec
    references reconciled to the true exports; the `iCRNX` vector IDs are retained (stable,
    append-only). A `doc↔impl` drift the re-confirmation gate surfaced, now closed.
+6. **Test-round gauntlet reconciliation (2026-07-27) — RESOLVED.** The axis-1–4 suites
+   landed and the finalization gauntlet ran (bidirectional spec↔test vector-ID diff +
+   cross-artifact semantic audit). It closed: (a) the test suites' vector-ID citations now
+   use the spec's frozen ID space — X-placeholder for family-shared vectors (`isXValue/*`,
+   `isBoxedX/*`, `isX/*`), concrete for family-specific / floor / Number-static /
+   registry; template-interpolated it-names were deliteralized so every ID is greppable.
+   (b) A new additive vector `isBoxedX/R-ctorspoof` (a userland `class String {}` → false
+   via the tag marker) — the ctor-name-spoof-alone case the prose already described. (c)
+   The three family-specific equality-helper vector IDs were normalized from the full
+   helper name to the `dHSU{X}VE` abbreviation the shared vectors + tests already use
+   (label-only, no behavioral change). (d) Two more `#config`→`#primitive` /
+   short-`…Instance` stale spots the earlier amendment missed (resolved-item 5's
+   completeness claim now holds), plus ADR forward-pointer hygiene (#039 / #051 ← #077;
+   #026 ← #074; the decisions index). **One accepted exclusion:** `isBoxablePrimitive/B1`
+   (the `document.all` future-proof boundary) is `typeof 'undefined'` legacy, browser-only
+   — not exercisable in the node test env, so it is asserted in the spec as a documented
+   boundary but carries no runtime test (the env-unreachable exclusion class, as in the
+   error round). Bidirectional diff otherwise empty both ways.

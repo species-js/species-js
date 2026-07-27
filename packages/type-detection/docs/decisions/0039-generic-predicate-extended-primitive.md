@@ -2,6 +2,13 @@
 
 **Date:** 2026-06-07
 
+**Revised by #077 (2026-07-26).** The primitive-uniformity established here (the generic
+`<T = unknown>(value?: T): value is T & X` form across the primitive family) is revised by
+#077's two-way narrowing strategy: primitive predicates now narrow DIRECTLY (`value is X`)
+because their target is already maximal, while the generic pattern is retained only for
+broad-shape predicates whose caller subtype is worth carrying (the `#function` family).
+See #077.
+
 **Context.** Decision #036 swept the generic predicate pattern
 (`<T = unknown>(value?: T): value is T & X`) across `thenable`, `evented`, and `error`
 families. The decision's closing exclusion read: _"Primitive predicates (`isStringValue`,

@@ -87,15 +87,15 @@ Open architectural questions live in [open-questions.md](./open-questions.md).
 
 ### type-detection / primitive
 
-| #                                                           | Title                                                                        | Date       |
-| ----------------------------------------------------------- | ---------------------------------------------------------------------------- | ---------- |
-| [038](./0038-primitive-module-migration.md)                 | Primitive module migration: full surface across five families                | 2026-06-07 |
-| [039](./0039-generic-predicate-extended-primitive.md)       | Generic-predicate pattern extended to the primitive family                   | 2026-06-07 |
-| [042](./0042-four-marker-boxed-primitive-discrimination.md) | Four-marker boxed-primitive discrimination via `[[XData]]` slot probe        | 2026-06-07 |
-| [043](./0043-per-family-equality-and-object-is-capture.md)  | Per-family equality strategies and `objectIs` capture                        | 2026-06-07 |
-| [049](./0049-instanceof-shortcut-predicate-entry-points.md) | Local-realm `instanceof` at predicate entry points, per-case shape           | 2026-06-14 |
-| [051](./0051-generic-primitive-future-proof-exclusion.md)   | Generic-primitive predicates with future-proof exclusion shape               | 2026-06-16 |
-| [053](./0053-export-boxed-primitive-resolution-helpers.md)  | Export boxed-primitive realm-resolution helpers for single-realm testability | 2026-06-18 |
+| #                                                           | Title                                                                                            | Date       |
+| ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------ | ---------- |
+| [038](./0038-primitive-module-migration.md)                 | Primitive module migration: full surface across five families                                    | 2026-06-07 |
+| [039](./0039-generic-predicate-extended-primitive.md)       | Generic-predicate pattern extended to the primitive family (revised by #077)                     | 2026-06-07 |
+| [042](./0042-four-marker-boxed-primitive-discrimination.md) | Four-marker boxed-primitive discrimination via `[[XData]]` slot probe                            | 2026-06-07 |
+| [043](./0043-per-family-equality-and-object-is-capture.md)  | Per-family equality strategies and `objectIs` capture                                            | 2026-06-07 |
+| [049](./0049-instanceof-shortcut-predicate-entry-points.md) | Local-realm `instanceof` at predicate entry points, per-case shape                               | 2026-06-14 |
+| [051](./0051-generic-primitive-future-proof-exclusion.md)   | Generic-primitive predicates with future-proof exclusion shape (floor narrowing revised by #077) | 2026-06-16 |
+| [053](./0053-export-boxed-primitive-resolution-helpers.md)  | Export boxed-primitive realm-resolution helpers for single-realm testability                     | 2026-06-18 |
 
 ### type-detection / object
 
@@ -110,25 +110,25 @@ Open architectural questions live in [open-questions.md](./open-questions.md).
 
 ### type-detection / utility
 
-| #                                                                                     | Title                                                                                                                                                 | Date       |
-| ------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- | ---------- |
-| [008](./0008-boundary-retyping-to-function-string.md)                                 | Boundary-retyping at `@/config` for `toFunctionString`                                                                                                | 2026-06-01 |
-| [017](./0017-boundary-retyping-get-prototype-of.md)                                   | Boundary-retyping at `@/config` for `getPrototypeOf`                                                                                                  | 2026-06-03 |
-| [026](./0026-is-valid-property-key-tightened.md)                                      | `isValidPropertyKey` tightened to safe-integer + three new `Number` type-guards (the `isValidPropertyKey` aspect superseded by #072)                  | 2026-06-04 |
-| [034](./0034-boundary-retyping-object-create.md)                                      | Boundary-retyping at `@/config` for `objectCreate`                                                                                                    | 2026-06-05 |
-| [047](./0047-get-defined-constructor-pivot-and-walk.md)                               | `getDefinedConstructor` rewritten as inert pivot-and-walk                                                                                             | 2026-06-09 |
-| [048](./0048-resolve-type-two-axis-dispatch.md)                                       | `resolveType` lowercase-name precedence (two-axis dispatch)                                                                                           | 2026-06-13 |
-| [055](./0055-constructor-registries-per-interpretation-keying.md)                     | Constructor registries keyed by `(value, assumePrototype)`; #054 deferral overturned                                                                  | 2026-06-23 |
-| [056](./0056-get-defined-constructor-throw-safe-via-inert-descriptor.md)              | `getDefinedConstructor` routed through `getInertDescriptor`; honest-throw retracted                                                                   | 2026-06-23 |
-| [057](./0057-drop-prototype-registry-guarded-get-prototype-of-throw-safe-only.md)     | `prototypeRegistry` dropped (benchmark-driven); `getSafePrototypeOf` throw-safe-only                                                                  | 2026-06-23 |
-| [058](./0058-descriptor-batching-and-descriptor-memo-rejected.md)                     | Descriptor-batching and descriptor-memoization rejected (benchmark-driven)                                                                            | 2026-06-24 |
-| [059](./0059-drop-constructor-registries-thread-constructor-get-verified-own-name.md) | Constructor registries dropped (benchmark-driven); intra-call constructor threading + `getVerifiedOwnName`; `isValidWeakKey` kept as public candidate | 2026-06-25 |
-| [072](./0072-is-valid-property-key-finite-numbers-supersedes-026.md)                  | `isValidPropertyKey` admits finite numbers (not safe-integers), excludes `bigint`; supersedes #026 in part                                            | 2026-07-23 |
-| [073](./0073-utility-throw-safe-vocabulary-marker-and-public-surface.md)              | Utility `Inert`/`Safe` vocabulary disentanglement; the `@@throw-safe` marker; settled public surface; `hasOwnNonWritablePrototype`                    | 2026-07-23 |
-| [074](./0074-number-static-predicates-relocate-config-to-primitive.md)                | Relocate the Number static-method predicates (`isFiniteNumberValue` / `isIntegerValue` / `isSafeIntegerValue`) from `config` to `primitive`           | 2026-07-24 |
-| [075](./0075-config-runtime-leaf-decouple-is-callable.md)                             | `config` becomes a true runtime leaf (inline `isCallable`, drop its last runtime import); config exports safe at eval time; amends #074               | 2026-07-24 |
-| [076](./0076-throw-safe-marker-generalized-beyond-utility.md)                         | `@@throw-safe` marker generalized beyond utility to a package-wide convention (primitive is the second module); re-scopes #073; retro-sweep sequenced | 2026-07-26 |
-| [077](./0077-direct-narrowing-primitive-predicates-two-way-strategy.md)               | Primitive predicates narrow DIRECTLY (`value is X`), not generic `T & X`; two-way strategy (generic stays for broad-shape/`#function`); revises #039  | 2026-07-26 |
+| #                                                                                     | Title                                                                                                                                                                          | Date       |
+| ------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------- |
+| [008](./0008-boundary-retyping-to-function-string.md)                                 | Boundary-retyping at `@/config` for `toFunctionString`                                                                                                                         | 2026-06-01 |
+| [017](./0017-boundary-retyping-get-prototype-of.md)                                   | Boundary-retyping at `@/config` for `getPrototypeOf`                                                                                                                           | 2026-06-03 |
+| [026](./0026-is-valid-property-key-tightened.md)                                      | `isValidPropertyKey` tightened to safe-integer + three new `Number` type-guards (the `isValidPropertyKey` aspect superseded by #072; Number-guard location superseded by #074) | 2026-06-04 |
+| [034](./0034-boundary-retyping-object-create.md)                                      | Boundary-retyping at `@/config` for `objectCreate`                                                                                                                             | 2026-06-05 |
+| [047](./0047-get-defined-constructor-pivot-and-walk.md)                               | `getDefinedConstructor` rewritten as inert pivot-and-walk                                                                                                                      | 2026-06-09 |
+| [048](./0048-resolve-type-two-axis-dispatch.md)                                       | `resolveType` lowercase-name precedence (two-axis dispatch)                                                                                                                    | 2026-06-13 |
+| [055](./0055-constructor-registries-per-interpretation-keying.md)                     | Constructor registries keyed by `(value, assumePrototype)`; #054 deferral overturned                                                                                           | 2026-06-23 |
+| [056](./0056-get-defined-constructor-throw-safe-via-inert-descriptor.md)              | `getDefinedConstructor` routed through `getInertDescriptor`; honest-throw retracted                                                                                            | 2026-06-23 |
+| [057](./0057-drop-prototype-registry-guarded-get-prototype-of-throw-safe-only.md)     | `prototypeRegistry` dropped (benchmark-driven); `getSafePrototypeOf` throw-safe-only                                                                                           | 2026-06-23 |
+| [058](./0058-descriptor-batching-and-descriptor-memo-rejected.md)                     | Descriptor-batching and descriptor-memoization rejected (benchmark-driven)                                                                                                     | 2026-06-24 |
+| [059](./0059-drop-constructor-registries-thread-constructor-get-verified-own-name.md) | Constructor registries dropped (benchmark-driven); intra-call constructor threading + `getVerifiedOwnName`; `isValidWeakKey` kept as public candidate                          | 2026-06-25 |
+| [072](./0072-is-valid-property-key-finite-numbers-supersedes-026.md)                  | `isValidPropertyKey` admits finite numbers (not safe-integers), excludes `bigint`; supersedes #026 in part                                                                     | 2026-07-23 |
+| [073](./0073-utility-throw-safe-vocabulary-marker-and-public-surface.md)              | Utility `Inert`/`Safe` vocabulary disentanglement; the `@@throw-safe` marker; settled public surface; `hasOwnNonWritablePrototype`                                             | 2026-07-23 |
+| [074](./0074-number-static-predicates-relocate-config-to-primitive.md)                | Relocate the Number static-method predicates (`isFiniteNumberValue` / `isIntegerValue` / `isSafeIntegerValue`) from `config` to `primitive`                                    | 2026-07-24 |
+| [075](./0075-config-runtime-leaf-decouple-is-callable.md)                             | `config` becomes a true runtime leaf (inline `isCallable`, drop its last runtime import); config exports safe at eval time; amends #074                                        | 2026-07-24 |
+| [076](./0076-throw-safe-marker-generalized-beyond-utility.md)                         | `@@throw-safe` marker generalized beyond utility to a package-wide convention (primitive is the second module); re-scopes #073; retro-sweep sequenced                          | 2026-07-26 |
+| [077](./0077-direct-narrowing-primitive-predicates-two-way-strategy.md)               | Primitive predicates narrow DIRECTLY (`value is X`), not generic `T & X`; two-way strategy (generic stays for broad-shape/`#function`); revises #039                           | 2026-07-26 |
 
 ## Decisions by date (chronological)
 

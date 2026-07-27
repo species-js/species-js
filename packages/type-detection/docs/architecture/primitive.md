@@ -65,11 +65,11 @@ intrinsic is a true constructor or a factory function.
 **Constructor-aware boxed predicates** (`isBoxedString`, `isBoxedNumber`,
 `isBoxedBoolean`):
 
-| Predicate  | Composition                                                                                                                                                               |
-| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `isXValue` | `typeof v === 'x'`                                                                                                                                                        |
-| `isBoxedX` | `isObject(v) && (isCurrentRealmNativeX(v) \|\| (getTypeSignature(v) === '[object X]' && getDefinedConstructorName(v) === 'X')) && doesHaveStrictUnboxedXValueEquality(v)` |
-| `isX`      | `isXValue(v) \|\| isBoxedX(v)`                                                                                                                                            |
+| Predicate  | Composition                                                                                                                                                                       |
+| ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `isXValue` | `typeof v === 'x'`                                                                                                                                                                |
+| `isBoxedX` | `isObject(v) && (isCurrentRealmNativeXInstance(v) \|\| (getTypeSignature(v) === '[object X]' && getDefinedConstructorName(v) === 'X')) && doesHaveStrictUnboxedXValueEquality(v)` |
+| `isX`      | `isXValue(v) \|\| isBoxedX(v)`                                                                                                                                                    |
 
 **Factory-function boxed predicates** (`isBoxedSymbol`, `isBoxedBigInt`):
 

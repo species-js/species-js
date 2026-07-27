@@ -7,7 +7,9 @@
 non-integer floats (`1.5`) and unsafe integers (`2 ** 53`) are admitted as the valid
 string keys they coerce to. The three `Number` type-guards this ADR adds to `#config`
 (`isFiniteNumberValue` / `isIntegerValue` / `isSafeIntegerValue`) remain canonical; only
-the `isValidPropertyKey` composition changed.
+the `isValidPropertyKey` composition changed. Their **location is superseded by #074**
+(2026-07-24) — the three guards (and their polyfills) relocated from `#config` to
+`#primitive` as Number-family type guards; behavior and contract unchanged, only the home.
 
 **Context.** The previous `isValidPropertyKey` accepted `isStringValue`, `isSymbolValue`,
 and `isNumberValue && Number.isFinite` — any finite number, including non-integer floats

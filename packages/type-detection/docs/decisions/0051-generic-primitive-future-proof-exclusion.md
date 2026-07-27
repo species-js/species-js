@@ -2,6 +2,12 @@
 
 **Date:** 2026-06-16
 
+**Revised by #077 (2026-07-26).** The floor predicates introduced here now narrow DIRECTLY
+(`value is X`) under #077's two-way narrowing strategy (which revises #039's
+primitive-uniformity). Only the narrowing form changed — the future-proof `typeof`-result
+EXCLUSION shape of `isBoxablePrimitive` is unchanged and remains the point of this ADR.
+See #077.
+
 **Context.** ECMA-262 §4.4.4 defines seven primitive types — Undefined, Null, Boolean,
 Number, BigInt, Symbol, String. Five of them (the **wrappable primitives**: Boolean,
 String, Number, BigInt, Symbol) carry constructor/wrapper-object duality — each has an
