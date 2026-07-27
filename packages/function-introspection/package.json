@@ -4,9 +4,12 @@
   "description": "Function classification and structural introspection for JavaScript callables.",
   "type": "module",
   "license": "MIT",
+  "engines": {
+    "node": ">=18"
+  },
   "repository": {
     "type": "git",
-    "url": "https://github.com/species-js/species-js.git",
+    "url": "git+https://github.com/species-js/species-js.git",
     "directory": "packages/function-introspection"
   },
   "publishConfig": {

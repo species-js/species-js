@@ -4,9 +4,12 @@
   "description": "Customizable prototype-less namespace objects for sealed method grouping.",
   "type": "module",
   "license": "MIT",
+  "engines": {
+    "node": ">=18"
+  },
   "repository": {
     "type": "git",
-    "url": "https://github.com/species-js/species-js.git",
+    "url": "git+https://github.com/species-js/species-js.git",
     "directory": "packages/custom-domain"
   },
   "publishConfig": {

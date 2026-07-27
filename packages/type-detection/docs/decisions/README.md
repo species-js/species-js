@@ -15,16 +15,17 @@ Open architectural questions live in [open-questions.md](./open-questions.md).
 
 ### Foundational
 
-| #                                                                      | Title                                                                          | Date       |
-| ---------------------------------------------------------------------- | ------------------------------------------------------------------------------ | ---------- |
-| [001](./0001-branding-rejected-for-type-name-strings.md)               | Branding rejected for type-name string aliases                                 | 2026-05-29 |
-| [002](./0002-tier-s-documentation-style.md)                            | Tier-S documentation style established + codified package-wide                 | 2026-05-29 |
-| [018](./0018-prose-voice-refinement.md)                                | Prose-voice refinement of the documentation style                              | 2026-06-03 |
-| [020](./0020-spec-shape-determines-access-path.md)                     | Spec-shape determines the access path                                          | 2026-06-03 |
-| [021](./0021-spec-shape-rule-predicate-over-inherited.md)              | Spec-shape rule extended — descriptor-walk for inspection without invocation   | 2026-06-04 |
-| [025](./0025-parameter-default-to-null.md)                             | Parameter-default-to-`null` for strict-equality nullish unification            | 2026-06-04 |
-| [070](./0070-foundation-leaf-module-load-order-tdz-dissolution.md)     | `foundation` leaf module; load-order TDZ dissolution on direct subpath entry   | 2026-07-16 |
-| [071](./0071-at-alias-to-hash-subpath-imports-consumer-deliverable.md) | `@/` path alias → `#` Node subpath imports; consumer-deliverable shipped types | 2026-07-16 |
+| #                                                                             | Title                                                                                           | Date       |
+| ----------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- | ---------- |
+| [001](./0001-branding-rejected-for-type-name-strings.md)                      | Branding rejected for type-name string aliases                                                  | 2026-05-29 |
+| [002](./0002-tier-s-documentation-style.md)                                   | Tier-S documentation style established + codified package-wide                                  | 2026-05-29 |
+| [018](./0018-prose-voice-refinement.md)                                       | Prose-voice refinement of the documentation style                                               | 2026-06-03 |
+| [020](./0020-spec-shape-determines-access-path.md)                            | Spec-shape determines the access path                                                           | 2026-06-03 |
+| [021](./0021-spec-shape-rule-predicate-over-inherited.md)                     | Spec-shape rule extended — descriptor-walk for inspection without invocation                    | 2026-06-04 |
+| [025](./0025-parameter-default-to-null.md)                                    | Parameter-default-to-`null` for strict-equality nullish unification                             | 2026-06-04 |
+| [070](./0070-foundation-leaf-module-load-order-tdz-dissolution.md)            | `foundation` leaf module; load-order TDZ dissolution on direct subpath entry                    | 2026-07-16 |
+| [071](./0071-at-alias-to-hash-subpath-imports-consumer-deliverable.md)        | `@/` path alias → `#` Node subpath imports; consumer-deliverable shipped types                  | 2026-07-16 |
+| [078](./0078-delivery-seam-cjs-type-masquerade-accepted-attw-publint-gate.md) | Delivery-seam F3: CJS type-masquerade accepted; `attw` + `publint` publish gate; node10 dropped | 2026-07-27 |
 
 ### type-detection / function
 
@@ -214,3 +215,4 @@ order with one-line summaries:
 | 2026-07-24 | [075](./0075-config-runtime-leaf-decouple-is-callable.md)                             | `config` becomes a true runtime leaf; last runtime import (`isCallable`) inlined; amends #074                       |
 | 2026-07-26 | [076](./0076-throw-safe-marker-generalized-beyond-utility.md)                         | `@@throw-safe` marker generalized beyond utility (package-wide); re-scopes #073; retro-sweep sequenced              |
 | 2026-07-26 | [077](./0077-direct-narrowing-primitive-predicates-two-way-strategy.md)               | Primitive predicates narrow directly (`value is X`); two-way strategy; revises #039                                 |
+| 2026-07-27 | [078](./0078-delivery-seam-cjs-type-masquerade-accepted-attw-publint-gate.md)         | Delivery-seam F3: CJS type-masquerade accepted; `attw` + `publint` publish gate; node10 dropped                     |

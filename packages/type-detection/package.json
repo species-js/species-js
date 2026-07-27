@@ -4,9 +4,12 @@
   "description": "Runtime type detection with cross-realm safety for JavaScript values.",
   "type": "module",
   "license": "MIT",
+  "engines": {
+    "node": ">=18"
+  },
   "repository": {
     "type": "git",
-    "url": "https://github.com/species-js/species-js.git",
+    "url": "git+https://github.com/species-js/species-js.git",
     "directory": "packages/type-detection"
   },
   "publishConfig": {
