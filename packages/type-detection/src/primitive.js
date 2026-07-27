@@ -496,9 +496,11 @@ export function isString(value) {
  *
  * Matches every numeric primitive — `NaN`, `±Infinity`, and finite
  * numbers alike. Finiteness, integrality, and safe-integer-range
- * checks are caller's concerns. Reach for `isFiniteNumberValue`,
- * `isIntegerValue`, or `isSafeIntegerValue` in `#config` for those
- * (decision #026). Boxed `Number` objects, such as `new Number(42)`,
+ * checks are caller's concerns. Reach for {@link isFiniteNumberValue},
+ * {@link isIntegerValue}, or {@link isSafeIntegerValue} — the
+ * Number static-method guards in this module (relocated here from
+ * `#config` by decision #074; finite-number contract per #072). Boxed
+ * `Number` objects, such as `new Number(42)`,
  * report `typeof === 'object'` and are deliberately excluded. Admitting
  * both forms requires {@link isNumber}. Discriminating the boxed form
  * requires {@link isBoxedNumber}.

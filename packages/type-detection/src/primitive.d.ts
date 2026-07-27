@@ -167,8 +167,9 @@ export type StringType = StringValue | BoxedString;
  * The primitive `'number'` value type — an alias for the built-in
  * primitive. Includes `NaN` and `±Infinity`. Finiteness and integrality
  * are separate concerns the caller layers on (e.g., via
- * `isFiniteNumberValue` / `isIntegerValue` / `isSafeIntegerValue` in
- * `#config`).
+ * {@link isFiniteNumberValue} / {@link isIntegerValue} /
+ * {@link isSafeIntegerValue}, the Number static-method guards this
+ * module exposes).
  */
 export type NumberValue = number;
 /**
@@ -605,9 +606,11 @@ export function isString(value?: unknown): value is StringType;
  *
  * Matches every numeric primitive — `NaN`, `±Infinity`, and finite
  * numbers alike. Finiteness, integrality, and safe-integer-range
- * checks are caller's concerns. Reach for `isFiniteNumberValue`,
- * `isIntegerValue`, or `isSafeIntegerValue` in `#config` for those
- * (decision #026). Boxed `Number` objects, such as `new Number(42)`,
+ * checks are caller's concerns. Reach for {@link isFiniteNumberValue},
+ * {@link isIntegerValue}, or {@link isSafeIntegerValue} — the Number
+ * static-method guards this module exposes (relocated from `#config` by
+ * decision #074; finite-number contract per #072). Boxed `Number`
+ * objects, such as `new Number(42)`,
  * report `typeof === 'object'` and are deliberately excluded. Admitting
  * both forms requires {@link isNumber}. Discriminating the boxed form
  * requires {@link isBoxedNumber}.
