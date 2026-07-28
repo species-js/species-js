@@ -12,16 +12,23 @@ meta-constructor steps stay on direct access (inherited per spec; the engine's
 prototype-chain walk is the spec-correct resolution). See decision #020 for the framing
 and the broader rule.
 
-## Q.002 — Public-predicate bound-admission policy now that bound detection is cheap
+## Q.002 — Public-predicate bound-admission policy (RESOLVED 2026-07-28 by decision #081)
 
 The fingerprint matrix from decision #009 shows that bound detection is closed-form via
 `own_proto: false` plus `name.value.startsWith('bound ')`. The strict/lenient asymmetry
 that motivated decision #005's bound-admission rule is no longer load-bearing — every
-species now has cheap bound and unbound discrimination from the same primitives. What
-remains is the _policy_ question: which public predicates should be strict-bound (reject
-bound) versus lenient-bound (admit bound) now that both flavors cost roughly the same? The
-current shipped behavior is preserved (newable strict, non-newable lenient). Revisiting is
-the user's call.
+species has cheap bound and unbound discrimination from the same primitives. What remained
+was the _policy_ question: which public predicates should be strict-bound (reject bound)
+versus lenient-bound (admit bound) now that both flavors cost roughly the same?
+
+Resolved by decision #081 in favor of the shipped asymmetry (newable strict, non-newable
+lenient). The cheap bound tell (`name.startsWith('bound ')`) is **spoofable** — `name` is
+a writable own property, forgeable on any non-bound function — hence unreliable, and
+unreliable classification signals do not belong in a reliability-first type-detection
+library. They belong to the more forgiving `function-introspection` toolkit
+(`isBoundFunction`, Q.003). So no predicate reads the tell, and the asymmetry is the free
+residue of each predicate's spec-invariant discriminator. See ADR #081 and
+`FUNCTION.spec.md` Resolved items #6.
 
 ## Q.003 — `@species-js/function-introspection` scope
 
