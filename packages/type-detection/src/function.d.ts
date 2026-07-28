@@ -704,6 +704,9 @@ export function isFunction<T = unknown>(value?: T): value is T & VerifiedFunctio
  * whether the slot returns or throws. `Math.max` and `parseInt`, by
  * contrast, carry no slot at all and cannot be wrapped.
  *
+ * Each call allocates a `Proxy` and runs a `new` inside a `try`/`catch` —
+ * worth knowing when placing this guard on a hot path.
+ *
  * @param value - the value to probe; omitted is treated as `undefined`, which
  *  carries no `[[Construct]]`
  * @returns `true` when the value carries `[[Construct]]`; `false` otherwise
@@ -917,11 +920,6 @@ export function hasAsyncFunctionPrototypeSurface(value: unknown): boolean;
  * passes here, but `instanceof` against the captured intrinsic accepts
  * such a value as well, so the result stays consistent across both code
  * paths.
- *
- * The proto-side check uses set membership rather than full-set equality.
- * A prototype with extra own keys is admitted, provided `'constructor'` is
- * present and `'prototype'` is absent. The spec promises the keys
- * `%AsyncFunction.prototype%` exhibits, not that those are the only keys.
  *
  * Paired with {@link isCurrentRealmAsyncFunctionInstance} — the same-realm
  * `instanceof` fast path — under {@link isAsyncFunction}. The signature is

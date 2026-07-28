@@ -463,11 +463,6 @@ export function hasAsyncFunctionPrototypeSurface(value) {
  * such a value as well, so the result stays consistent across both code
  * paths.
  *
- * The proto-side check uses set membership rather than full-set equality.
- * A prototype with extra own keys is admitted, provided `'constructor'` is
- * present and `'prototype'` is absent. The spec promises the keys
- * `%AsyncFunction.prototype%` exhibits, not that those are the only keys.
- *
  * Narrowing at the public API belongs to {@link isAsyncFunction}, which runs
  * the same-realm `instanceof` fast path before falling back to this
  * structural check; this arm is paired with

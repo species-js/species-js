@@ -95,25 +95,29 @@ package names them honestly:
   read: `name.value.startsWith('bound ')`. Spoof-trivial, but bounded enough for an
   introspection-tier helper. See decision #013.
 
-## Predicate composition: orchestrator + helper + sub-helpers
+## Predicate composition: orchestrator + realm arms + sub-helpers
 
 Every non-newable predicate is built from a layered composition. From outside in:
 
-1. **Orchestrator** (e.g. `isAsyncFunction`) — the public narrowing predicate. Runs three
-   phases: the `isFunction` gate (short-circuits non-callables); the same-realm
-   `instanceof` fast path against the captured intrinsic (lands the common case in a
-   single prototype walk); and the realm-independent fallback delegating to the shape
-   helper.
-2. **Shape helper** (e.g. `hasAsyncFunctionShape`) — `@internal`, exported for
-   testability. Returns plain `boolean`; runs the structural-marker chain in isolation,
-   with no narrowing.
+1. **Orchestrator** (e.g. `isAsyncFunction`) — the public narrowing predicate. Runs the
+   `isFunction` gate (short-circuits non-callables), then a disjunction of two realm arms:
+   the same-realm fast path first, the realm-independent structural fallback second.
+2. **Realm arms** — the two-arm realm decomposition (decision #080), both `@internal`,
+   exported for testability, both generic guards (`value is T & X`):
+   - **Same-realm arm** (`isCurrentRealm<X>Instance`, e.g.
+     `isCurrentRealmAsyncFunctionInstance`) — a `try`/`catch`-wrapped `instanceof` against
+     the captured intrinsic. Lands the common case in a single prototype walk, and is
+     throw-safe against a hostile `getPrototypeOf`.
+   - **Alien-realm arm** (`isAlienRealm<X>`, e.g. `isAlienRealmAsyncFunction`) — runs the
+     structural-marker chain in isolation, admitting the foreign-realm values `instanceof`
+     cannot see.
 3. **Sub-helpers** — also `@internal` and exported. Group the markers by semantic role:
    `hasXxxIdentitySignal` reads the two identity labels (tag + resolved constructor name)
    the value carries, and `hasXxxPrototypeSurface` reads the proto-side own-key surface
    via the `Set<string>` primitive. The generator family shares a single
    `hasAnyGeneratorFunctionPrototypeSurface` rather than per-species duplicates, because
-   the proto-side rule is a family-level invariant. See decisions #006, #014, #015, and
-   #016.
+   the proto-side rule is a family-level invariant. See decisions #006, #014, #015, #016,
+   and #080.
 
 The chain of `&&` links is ordered so runtime safety becomes structural. The proto-side
 helper is always the last link, because by then the upstream identity-signal check has
