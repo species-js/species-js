@@ -88,6 +88,41 @@ export const NARROWING_PREDICATE_NAMES = PUBLIC_PREDICATE_NAMES.filter(
   (name) => name !== 'hasConstructSlot',
 );
 
+/**
+ * The 24 `@@throw-safe`-marked exports — the axis-5 completeness oracle (spec
+ * `## Throw-safety (axis 5)`, Open item #1; ADRs #073/#076). The 12 public
+ * predicates PLUS the 12 `@internal` helpers, in the spec's enumeration order.
+ * `throw-safety.test.js` cross-checks this list BOTH against the markers parsed
+ * out of `src/function.js` (source drift) AND against the imported function set
+ * (test drift), then scores every one against the hostile-trap matrix.
+ */
+export const THROW_SAFE_MARKED = [
+  'getFunctionSource',
+  'isCallable',
+  'isFunction',
+  'hasConstructSlot',
+  'isNewableFunction',
+  'isES3Function',
+  'isClass',
+  'isCustomClass',
+  'isBuiltInClass',
+  'hasAsyncFunctionIdentitySignal',
+  'hasAsyncFunctionPrototypeSurface',
+  'isAlienRealmAsyncFunction',
+  'isCurrentRealmAsyncFunctionInstance',
+  'isAsyncFunction',
+  'hasGeneratorFunctionIdentitySignal',
+  'hasAsyncGeneratorFunctionIdentitySignal',
+  'hasAnyGeneratorFunctionPrototypeSurface',
+  'isAlienRealmGeneratorFunction',
+  'isAlienRealmAsyncGeneratorFunction',
+  'isCurrentRealmGeneratorFunctionInstance',
+  'isCurrentRealmAsyncGeneratorFunctionInstance',
+  'isGeneratorFunction',
+  'isAsyncGeneratorFunction',
+  'isAnyGeneratorFunction',
+];
+
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 //
 //  Candidate factories (fresh, genuine value per call)

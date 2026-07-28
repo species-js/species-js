@@ -14,16 +14,29 @@
 > (its `prototype` descriptor read now routes through `getNextAvailableSafeDescriptor`);
 > surfaced by the `#object` round, no behavioral verdict changed — see Resolved items #3.
 >
-> **AMENDED 2026-07-28 — re-decidability pending the function test round.** Reconciled
-> with three hardening waves the freeze predates: the realm decomposition (ADR #080 — the
-> three `has*Shape` structural arms renamed to `isAlienRealm*`, three
-> `isCurrentRealm*Instance` same-realm arms added), the throw-safety model (ADRs #073/#076
-> — `getFunctionSource` and the `hasOwn*` trio wrapped, `isFunction` wrapped, 24
-> `@@throw-safe` markers), and the Q.002 closure (ADR #081). The `@internal` helper
-> surface grew 9 → 12; `isFunction` gained a throw-safety guarantee and
+> **AMENDED 2026-07-28 — re-decidability RESOLVED 2026-07-28 (see the RE-DECIDED note
+> below).** Reconciled with three hardening waves the freeze predates: the realm
+> decomposition (ADR #080 — the three `has*Shape` structural arms renamed to
+> `isAlienRealm*`, three `isCurrentRealm*Instance` same-realm arms added), the
+> throw-safety model (ADRs #073/#076 — `getFunctionSource` and the `hasOwn*` trio wrapped,
+> `isFunction` wrapped, 24 `@@throw-safe` markers), and the Q.002 closure (ADR #081). The
+> `@internal` helper surface grew 9 → 12; `isFunction` gained a throw-safety guarantee and
 > `getFunctionSource`'s `gFS/B1` flipped from _throws_ → `undefined`. The 45-suite
 > decidability guarantee predates these deltas — the re-run is owed to the function test
 > round. See Resolved items #4–#6 and Open items #1.
+>
+> **RE-DECIDED 2026-07-28 — function test round complete.** The six-file suite (`spec` /
+> `cross-realm` / `adversarial` / `throw-safety` / `_internal/helpers`, 375 assertions,
+> driven through the `#index` barrel over a single realm plus a `vm` foreign realm) re-ran
+> the decidability check across all 12 public predicates and the 12 `@internal` helpers
+> and confirmed every amended vector — including the standalone-arm surprises flagged for
+> this run: `hAFPS/A2` (a plain function's proto-surface passes the async check),
+> `iCR<Species>FI/B1` (a get-trap `Proxy` isolates to `true` on the same-realm arm while
+> the orchestrator returns `false` via the `isFunction` gate), and the `gFS/B1` /
+> `isFunction/B1` / `isClass/B1` absorbed-hostile sentinels. Open item #1 (the axis-5
+> `hostile × marked-export` matrix) is now authored and green — the 24 `@@throw-safe`
+> markers are verified for non-propagation and cross-checked against the markers parsed
+> from `src/function.js`. The freeze's decidability guarantee is restored.
 
 ## Module contract
 
@@ -770,10 +783,14 @@ test round builds must score exactly this set:
 
 ## Open items
 
-1. **Throw-safety `hostile × predicate` matrix (axis 5).** The 24 `@@throw-safe` exports
-   above claim non-propagation; the matrix that verifies each against the hostile-trap
-   vectors is authored in the function test round (needs the `vm`/fixture harness). The
-   marked set is the completeness oracle. Not yet written.
+1. **Throw-safety `hostile × predicate` matrix (axis 5) — RESOLVED 2026-07-28 (function
+   test round).** The 24 `@@throw-safe` exports above claim non-propagation; the matrix
+   verifying each against the hostile-trap vectors is now authored in
+   `test/function/throw-safety.test.js` — every marked export × six hostile-trap rows
+   asserts a returned sentinel (never a throw), and a completeness guard cross-checks the
+   scored set BOTH against the `@@throw-safe` markers parsed from `src/function.js`
+   (source drift) AND the imported function set (test drift). The marked set is the
+   completeness oracle; source, oracle, and tests are triple-locked.
 
 ## Policy flags
 

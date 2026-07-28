@@ -3,8 +3,10 @@
 /**
  * @module test/function/adversarial
  *
- * Axis 3 — adversarial / spoof-resistance (the NON-throwing surface; the throwing
- * surface is the universal-invariant matrix in `throw-safety.test.js`). function's
+ * Axis 3 — adversarial / spoof-resistance. Two surfaces: the structural spoofs
+ * (non-throwing) and the absorbed-hostile ORCHESTRATOR verdicts (the throwing-trap
+ * inputs whose public verdict is pinned here; the completeness non-propagation
+ * matrix over all 24 marked exports lives in `throw-safety.test.js`). function's
  * discriminators are structural — the `[[Construct]]` slot probe, the realm-fixed
  * source capture, the `isCallable`-first gate — and each closes a specific spoof:
  *
@@ -20,9 +22,18 @@
  *     still admitted by `isCustomClass`; the `class` source prefix is read through
  *     the realm-fixed capture, immune to instance-level tampering.
  *
+ * The B-vector block pins the absorbed-hostile verdicts the re-decidability run
+ * must confirm: `isFunction/B1` and `isClass/B1` return `false` (not thrown), and
+ * — the crux of the realm decomposition — the species orchestrator returns
+ * `false` on a get-trap Proxy over a genuine species EVEN THOUGH the same-realm
+ * `instanceof` arm answers `true` on it in isolation (`iCR<Species>FI/B1`, pinned
+ * in `_internal/helpers.test.js`). The upstream `isFunction` gate is what rejects
+ * it, so the orchestrator and its arm stay consistent.
+ *
  * Mirrors the "Spoof (axis 3)" notes of `docs/spec/FUNCTION.spec.md`
- * (`isFunction/R1`, `isFunction/R2`, the `hasConstructSlot` unspoofable-slot
- * invariant, `isCustomClass`'s realm-fixed source read).
+ * (`isFunction/R1`, `isFunction/R2`, `isFunction/B1`, `isClass/B1`, the
+ * `hasConstructSlot` unspoofable-slot invariant, `isCustomClass`'s realm-fixed
+ * source read).
  */
 
 import { describe, it, expect } from 'vitest';
@@ -47,6 +58,8 @@ import {
   arrowWithSpoofedPrototype,
   shadowedBindFunction,
   classWithTamperedInstanceToString,
+  asyncArrow,
+  customClass,
 } from './__config.js';
 
 describe('function — adversarial / spoof-resistance (axis 3)', () => {
@@ -97,5 +110,50 @@ describe('function — adversarial / spoof-resistance (axis 3)', () => {
     const tampered = classWithTamperedInstanceToString();
     expect(isClass(tampered), 'isClass').toBe(true);
     expect(isCustomClass(tampered), 'isCustomClass').toBe(true);
+  });
+
+  // ----- absorbed-hostile verdicts (B-vectors, re-decidability confirmation) -----
+  describe('absorbed-hostile verdicts (B-vectors)', () => {
+    /** A callable Proxy whose `get` trap throws (the `.bind`/`.call`/`.apply` reads). */
+    const getTrapCallable = () =>
+      new Proxy(asyncArrow(), {
+        get() {
+          throw new Error('get-trap');
+        },
+      });
+
+    it('isFunction/B1: a get-trap callable Proxy → false, not thrown', () => {
+      // typeof admits the Proxy (isCallable true), then reading `.bind` fires the
+      // trap; isFunction's try/catch absorbs it → false. Every downstream marker
+      // rests on this.
+      let verdict;
+      expect(() => {
+        verdict = isFunction(getTrapCallable());
+      }, 'isFunction threw').not.toThrow();
+      expect(verdict).toBe(false);
+    });
+
+    it('isClass/B1: a getOwnPropertyDescriptor-trap newable Proxy → false, not thrown', () => {
+      // the `prototype` descriptor read routes through the throw-safe
+      // hasOwnNonWritablePrototype, so a hostile trap yields false, not a throw.
+      const hostileNewable = new Proxy(customClass(), {
+        getOwnPropertyDescriptor() {
+          throw new Error('descriptor-trap');
+        },
+      });
+      let verdict;
+      expect(() => {
+        verdict = isClass(hostileNewable);
+      }, 'isClass threw').not.toThrow();
+      expect(verdict).toBe(false);
+    });
+
+    it('the species orchestrator returns false on a get-trap Proxy — even though its same-realm arm returns true in isolation (iCR<Species>FI/B1)', () => {
+      // the crux of the realm decomposition: isCurrentRealmAsyncFunctionInstance
+      // answers true on this Proxy (instanceof never fires the get trap — pinned
+      // in helpers.test.js), but the upstream isFunction gate rejects it, so the
+      // public orchestrator stays consistent at false.
+      expect(isAsyncFunction(getTrapCallable())).toBe(false);
+    });
   });
 });
