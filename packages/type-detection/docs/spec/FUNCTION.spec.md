@@ -2,17 +2,28 @@
 
 > Spec format and the multi-axis model are defined in [`./README.md`](./README.md).
 > Vectors are reasoned from the canon (`function.d.ts`, `function.js`,
-> `architecture/function.md`, decisions #003–#007, #009–#016, #019, #031, #049). Status:
-> **FROZEN 2026-06-19** — decidability check passed (45 suites over all 11 public
-> predicates + `hasConstructSlot` + the 9 exported `@internal` helpers, via the `#index`
-> barrel, single realm). The run surfaced that `Symbol`/`BigInt` classify as built-in
-> classes (they carry a throwing `[[Construct]]` slot); the design owner ruled the
-> implementation correct — newability is slot presence, orthogonal to throw-on-`new` — and
-> the spec vectors were corrected to admit them (see Resolved items #1). One neutral
+> `architecture/function.md`, decisions #003–#007, #009–#016, #019, #031, #049, #073,
+> #076, #080, #081). Status: **FROZEN 2026-06-19** — decidability check passed (45 suites
+> over all 11 public predicates + `hasConstructSlot` + the 9 exported `@internal` helpers,
+> via the `#index` barrel, single realm). The run surfaced that `Symbol`/`BigInt` classify
+> as built-in classes (they carry a throwing `[[Construct]]` slot); the design owner ruled
+> the implementation correct — newability is slot presence, orthogonal to throw-on-`new` —
+> and the spec vectors were corrected to admit them (see Resolved items #1). One neutral
 > clarifying note was added to `hasConstructSlot`'s doc-comment. Base for the axis-1
 > suite; axes 2–4 derive alongside. Amended 2026-06-25 — `isClass` throw-safety root-fix
 > (its `prototype` descriptor read now routes through `getNextAvailableSafeDescriptor`);
 > surfaced by the `#object` round, no behavioral verdict changed — see Resolved items #3.
+>
+> **AMENDED 2026-07-28 — re-decidability pending the function test round.** Reconciled
+> with three hardening waves the freeze predates: the realm decomposition (ADR #080 — the
+> three `has*Shape` structural arms renamed to `isAlienRealm*`, three
+> `isCurrentRealm*Instance` same-realm arms added), the throw-safety model (ADRs #073/#076
+> — `getFunctionSource` and the `hasOwn*` trio wrapped, `isFunction` wrapped, 24
+> `@@throw-safe` markers), and the Q.002 closure (ADR #081). The `@internal` helper
+> surface grew 9 → 12; `isFunction` gained a throw-safety guarantee and
+> `getFunctionSource`'s `gFS/B1` flipped from _throws_ → `undefined`. The 45-suite
+> decidability guarantee predates these deltas — the re-run is owed to the function test
+> round. See Resolved items #4–#6 and Open items #1.
 
 ## Module contract
 
@@ -44,15 +55,20 @@ non-newable side, and the spec gives each a different discriminator:
   resolved through the chain, the resolved constructor name, and the proto-side own-key
   surface (`constructor` only for async; `constructor` + `prototype` for the generators).
 
-**The bound-admission asymmetry (decision #005, policy-flagged Q.002).** `bind` strips a
-function's own slots while preserving its `[[Prototype]]`. The newable side's
-discriminators (own-prototype descriptors) are stripped, so the strict newable predicates
+**The bound-admission asymmetry (decisions #005, #081).** `bind` strips a function's own
+slots while preserving its `[[Prototype]]`. The newable side's discriminators
+(own-prototype descriptors) are stripped, so the strict newable predicates
 (`isES3Function`, `isClass`) **reject** bound variants for free. The non-newable side's
 discriminators (prototype-chain tag + proto-surface) survive, so the species predicates
 (`isAsyncFunction`, `isGeneratorFunction`, `isAsyncGeneratorFunction`) **admit** bound
-variants for free. This asymmetry is forced by spec mechanics, not chosen; it is the
-current SHIPPED behavior. Re-balancing it is a policy call (Q.002), not a spec change —
-vectors that turn on it are tagged `[Q.002]` so a later flip is a findable diff.
+variants for free. No predicate reads a bound-specific tell: the asymmetry is the free
+residue of each predicate's spec-invariant discriminator. **SETTLED (Q.002 closed by
+#081):** bound detection is cheap (`name.startsWith('bound ')`, #009) but that tell is
+spoofable, hence unreliable — so a reliability-first type-detection library declines it,
+and the species predicates admit bound because refusing would require importing that
+unreliable signal, which belongs to introspection (`isBoundFunction`, Q.003). Vectors that
+turn on the asymmetry stay tagged `[Q.002]` as findable cross-refs to the settled
+decision.
 
 ## Surface inventory
 
@@ -69,31 +85,39 @@ of it. (Contrast `getFunctionSource`, which is `@internal`.) It is the package's
 standalone `[[Construct]]`-presence probe — axis 1, returning a plain `boolean` rather
 than narrowing.
 
-**Exported `@internal` helpers (axis 4) — 9:**
+**Exported `@internal` helpers (axis 4) — 12:**
 
-- `getFunctionSource(value: Callable): string` — trimmed source via the realm-fixed
-  `toFunctionString.call`; preserves `[native code]` markers. Precondition: `value` must
-  be `Callable` (a non-callable receiver throws — see `gFS/B1`).
+- `getFunctionSource(value: Callable): string | undefined` — trimmed source via the
+  realm-fixed `toFunctionString.call`, wrapped in `try`/`catch`; preserves `[native code]`
+  markers. Throw-safe: a non-callable receiver yields `undefined` rather than throwing
+  (see `gFS/B1`).
 - Async family: `hasAsyncFunctionIdentitySignal`, `hasAsyncFunctionPrototypeSurface`,
-  `hasAsyncFunctionShape`.
+  `isAlienRealmAsyncFunction` (the cross-realm structural arm; was
+  `hasAsyncFunctionShape`), `isCurrentRealmAsyncFunctionInstance` (the same-realm
+  `instanceof` arm).
 - Generator family: `hasGeneratorFunctionIdentitySignal`,
   `hasAsyncGeneratorFunctionIdentitySignal`, `hasAnyGeneratorFunctionPrototypeSurface`
   (family-shared — both generator species share one proto-surface check),
-  `hasGeneratorFunctionShape`, `hasAsyncGeneratorFunctionShape`.
+  `isAlienRealmGeneratorFunction` / `isAlienRealmAsyncGeneratorFunction` (the cross-realm
+  structural arms; were `has{,Async}GeneratorFunctionShape`),
+  `isCurrentRealmGeneratorFunctionInstance` /
+  `isCurrentRealmAsyncGeneratorFunctionInstance` (the same-realm `instanceof` arms).
 
-Exporting the shape/sub-helpers is what makes the cross-realm structural arm unit-testable
-on **local** values (the helpers carry no same-realm `instanceof` fast-path — that lives
-in the orchestrators — so they run the realm-independent logic directly, no `vm` realm
-needed; ADR #015, #053).
+Exporting the realm arms and sub-helpers makes both realm paths unit-testable on **local**
+values: the `isCurrentRealm*Instance` arms exercise the same-realm `instanceof` against
+the captured intrinsic, and the `isAlienRealm*` arms + sub-helpers run the
+realm-independent structural logic directly — no `vm` realm needed (ADR #015, #053, #080).
+Per #080 every realm arm is a generic guard (`value is T & X`), not a plain `boolean`.
 
 **Exported types without a predicate (12):** `Callable`, `CallableOrNewable`,
 `VerifiedFunction`, `ES3Function`, `ClassConstructor`, `NewableFunction`, `AsyncFunction`,
 `Generator`, `AsyncGenerator`, `GeneratorFunction`, `AsyncGeneratorFunction`,
 `AnyGeneratorFunction`.
 
-Re-confirmation gate: 21 `.js` value exports = 21 `.d.ts` declarations; 12 type exports
-match; `architecture/function.md` matches the code (no drift). The three captured
-intrinsic constructors (`AsyncFunctionConstructor`, `GeneratorFunctionConstructor`,
+Re-confirmation gate: 24 `.js` value exports = 24 `.d.ts` declarations (21 + the three
+`isCurrentRealm*Instance` arms, #080); 12 type exports match; `architecture/function.md`
+matches the code (no drift). The three captured intrinsic constructors
+(`AsyncFunctionConstructor`, `GeneratorFunctionConstructor`,
 `AsyncGeneratorFunctionConstructor`) are module-local `const`s, not exports — no #053
 action.
 
@@ -147,7 +171,8 @@ throws).
 ## `isFunction`
 
 `isFunction<T = unknown>(value?: T): value is T & VerifiedFunction` —
-`isCallable(value) && isCallable(value.bind) && isCallable(value.call) && isCallable(value.apply)`.
+`isCallable(value) && isCallable(value.bind) && isCallable(value.call) && isCallable(value.apply)`,
+the whole chain wrapped in `try`/`catch` → throw-safe (`@@throw-safe`, #073/#076).
 
 - `isFunction/A1` — `function () {}`, `() => {}`, `({ m() {} }).m` → true.
 - `isFunction/A2` — `class C {}`, `Array`, `Map` → true (classes inherit callable
@@ -161,6 +186,11 @@ throws).
 - `isFunction/R2` — a function whose own `bind` is shadowed with a non-callable
   (`Object.defineProperty(fn, 'bind', { value: 123 })`) → false (the
   `isCallable(value.bind)` link fails).
+- `isFunction/B1` — a callable `Proxy` whose `get` trap throws
+  (`new Proxy(() => {}, { get() { throw new Error(); } })`) → **false, not thrown**.
+  `typeof` admits the Proxy (`isCallable` true), then reading `.bind` fires the trap; the
+  `try`/`catch` wrap absorbs it → `false`. This is the guarantee every downstream
+  predicate's `@@throw-safe` marker rests on (added post-freeze; #073/#076).
 - (plus CC vectors.)
 
 **Refuses to claim:** strict _identity_ of the three methods — it is observational, not
@@ -169,7 +199,8 @@ not that they are the genuine `Function.prototype.*` members. **Cross-realm (axi
 realm-safe — reads observable callability of own/inherited members, no intrinsic identity.
 **Spoof (axis 3):** the per-member `isCallable` checks close the shadowed-to-non-callable
 spoof (`R2`); a member replaced with a _different callable_ is admitted by design (the
-contract is observational). **Composition note (axis 4):** four `isCallable` calls.
+contract is observational). **Composition note (axis 4):** four `isCallable` calls,
+wrapped in `try`/`catch` (throw-safe).
 
 ---
 
@@ -267,11 +298,12 @@ spec). **Composition note (axis 4):** `isNewableFunction` → `hasOwnWritablePro
 ## `isClass`
 
 `isClass<T = unknown>(value?: T): value is T & ClassConstructor` —
-`isNewableFunction(value) && getNextAvailableSafeDescriptor(value, 'prototype')?.writable === false`.
-The strict class shape: a newable with an own **readonly** `prototype` descriptor. Covers
-both custom (`class`-syntax) and built-in class constructors. The `prototype` descriptor
-read routes through the throw-safe `getNextAvailableSafeDescriptor` (amended 2026-06-25 —
-see Resolved items #2), so a hostile constructor cannot make the read throw.
+`isNewableFunction(value) && hasOwnNonWritablePrototype(value)`. The strict class shape: a
+newable with an own **readonly** `prototype` descriptor. Covers both custom
+(`class`-syntax) and built-in class constructors. The `prototype` descriptor read routes
+through the throw-safe `hasOwnNonWritablePrototype` (`#utility`; wraps
+`getNextAvailableSafeDescriptor`, #073), so a hostile constructor cannot make the read
+throw — see Resolved items #3.
 
 - `isClass/A1` — `class C {}`, `class Foo extends Array {}` → true (custom).
 - `isClass/A2` — `Array`, `Map`, `Date`, `Number`, `Object` → true (built-in classes; own
@@ -284,15 +316,15 @@ see Resolved items #2), so a hostile constructor cannot make the read throw.
 - `isClass/R1` — `function () {}` → false (own `prototype` is writable — that is
   `isES3Function`).
 - `isClass/R2` — `(class C {}).bind(null)` → false — bound class lost its own `prototype`
-  slot; the descriptor read returns `undefined` and `undefined?.writable === false`
-  short-circuits to `false`. `[Q.002]`
+  slot, so `hasOwnNonWritablePrototype` finds no own `prototype` descriptor and returns
+  `false`. `[Q.002]`
 - `isClass/R3` — `() => {}`, `async function () {}`, `function* () {}` → false (not
   newable, or no own readonly `prototype`).
 - `isClass/R4` — `Math.max`, `parseInt` → false (no `[[Construct]]` slot at all — not
   newable; contrast `Symbol`/`BigInt` in `A3`).
 - `isClass/B1` — a `Proxy` (newable target) whose `getOwnPropertyDescriptor` trap throws →
   false, **not thrown** — the `prototype` descriptor read routes through the throw-safe
-  `getNextAvailableSafeDescriptor` (amended 2026-06-25, decision-aligned with #056).
+  `hasOwnNonWritablePrototype` (#073, wrapping `getNextAvailableSafeDescriptor` #056).
   Exercised by the `#object` cross-realm round (a hostile constructor reached through the
   plain-object contract walk); to be covered directly in the `function` round.
 - (plus CC vectors.)
@@ -301,16 +333,16 @@ see Resolved items #2), so a hostile constructor cannot make the read throw.
 realm-safe — the own-`prototype`-readonly descriptor read is realm-independent; built-in
 classes from a foreign realm still expose a readonly own `prototype`. **Spoof (axis 3):**
 the `writable === false` own-descriptor read is the only spec-given class/ES3
-discriminator; routed through the throw-safe `getNextAvailableSafeDescriptor` so a hostile
+discriminator; routed through the throw-safe `hasOwnNonWritablePrototype` so a hostile
 constructor yields `false`, not a throw. **Composition note (axis 4):**
-`isNewableFunction` → `getNextAvailableSafeDescriptor` (`#utility`).
+`isNewableFunction` → `hasOwnNonWritablePrototype` (`#utility`).
 
 ---
 
 ## `isCustomClass`
 
 `isCustomClass<T = unknown>(value?: T): value is T & ClassConstructor` —
-`isClass(value) && getFunctionSource(value).startsWith('class')`.
+`isClass(value) && (getFunctionSource(value) ?? '').startsWith('class')`.
 
 - `isCustomClass/A1` — `class C {}`, `class Foo extends Array {}` → true (source starts
   with the `class` keyword).
@@ -333,7 +365,7 @@ instance `toString` tampering; reconstructing a function whose source literally 
 ## `isBuiltInClass`
 
 `isBuiltInClass<T = unknown>(value?: T): value is T & ClassConstructor` —
-`isClass(value) && !getFunctionSource(value).startsWith('class')`. The dual of
+`isClass(value) && !(getFunctionSource(value) ?? '').startsWith('class')`. The dual of
 `isCustomClass`; together they partition `isClass`.
 
 - `isBuiltInClass/A1` — `Array`, `Map`, `Date`, `Number`, `Object`, `Error` → true
@@ -357,7 +389,7 @@ instance `toString` tampering; reconstructing a function whose source literally 
 ## `isAsyncFunction`
 
 `isAsyncFunction<T = unknown>(value?: T): value is T & AsyncFunction` —
-`isFunction(value) && (value instanceof %AsyncFunction% || hasAsyncFunctionShape(value))`.
+`isFunction(value) && (isCurrentRealmAsyncFunctionInstance(value) || isAlienRealmAsyncFunction(value))`.
 
 - `isAsyncFunction/A1` — `async function () {}`, `async function name() {}` → true.
 - `isAsyncFunction/A2` — `async () => {}`, `({ async m() {} }).m` → true (async arrow +
@@ -378,14 +410,15 @@ instance `toString` tampering; reconstructing a function whose source literally 
 
 **Refuses to claim:** the four async source-forms apart (decl / expr / arrow / concise) —
 structurally identical; distinguishing them is introspection (Q.003). **Cross-realm (axis
-2):** admits foreign-realm async functions via `hasAsyncFunctionShape` (the `instanceof`
-fast path fails cross-realm; the structural arm carries it). **Spoof (axis 3):** the
-identity signal (tag + constructor name) rejects single-label tampering; the proto-surface
-cross-validator rejects a value that spoofs `Symbol.toStringTag` but leaves its
-`[[Prototype]]` unmodified. Coordinated tag+proto tampering passes here, but `instanceof`
-accepts such a value too, so both code paths stay consistent. **Composition note (axis
-4):** `isFunction` gate → same-realm `instanceof %AsyncFunction%` →
-`hasAsyncFunctionShape` (→ `hasAsyncFunctionIdentitySignal` +
+2):** admits foreign-realm async functions via `isAlienRealmAsyncFunction` (the same-realm
+`isCurrentRealmAsyncFunctionInstance` fails cross-realm; the structural arm carries it).
+**Spoof (axis 3):** the identity signal (tag + constructor name) rejects single-label
+tampering; the proto-surface cross-validator rejects a value that spoofs
+`Symbol.toStringTag` but leaves its `[[Prototype]]` unmodified. Coordinated tag+proto
+tampering passes here, but `instanceof` accepts such a value too, so both code paths stay
+consistent. **Composition note (axis 4):** `isFunction` gate →
+`isCurrentRealmAsyncFunctionInstance` (same-realm `instanceof`) →
+`isAlienRealmAsyncFunction` (→ `hasAsyncFunctionIdentitySignal` +
 `hasAsyncFunctionPrototypeSurface`).
 
 ---
@@ -393,7 +426,7 @@ accepts such a value too, so both code paths stay consistent. **Composition note
 ## `isGeneratorFunction`
 
 `isGeneratorFunction<T = unknown>(value?: T): value is T & GeneratorFunction` —
-`isFunction(value) && (value instanceof %GeneratorFunction% || hasGeneratorFunctionShape(value))`.
+`isFunction(value) && (isCurrentRealmGeneratorFunctionInstance(value) || isAlienRealmGeneratorFunction(value))`.
 
 - `isGeneratorFunction/A1` — `function* () {}`, `function* name() {}` → true.
 - `isGeneratorFunction/A2` — `({ *m() {} }).m` (concise generator method) → true.
@@ -408,10 +441,11 @@ accepts such a value too, so both code paths stay consistent. **Composition note
 - (plus CC vectors.)
 
 **Cross-realm (axis 2):** admits foreign-realm sync generator functions via
-`hasGeneratorFunctionShape`. **Spoof (axis 3):** tag + constructor-name identity signal
-plus the family-shared proto-surface (`constructor` + `prototype` both present) cross-
-validator. **Composition note (axis 4):** `isFunction` → `instanceof %GeneratorFunction%`
-→ `hasGeneratorFunctionShape` (→ `hasGeneratorFunctionIdentitySignal` +
+`isAlienRealmGeneratorFunction`. **Spoof (axis 3):** tag + constructor-name identity
+signal plus the family-shared proto-surface (`constructor` + `prototype` both present)
+cross- validator. **Composition note (axis 4):** `isFunction` →
+`isCurrentRealmGeneratorFunctionInstance` (same-realm `instanceof`) →
+`isAlienRealmGeneratorFunction` (→ `hasGeneratorFunctionIdentitySignal` +
 `hasAnyGeneratorFunctionPrototypeSurface`).
 
 ---
@@ -419,7 +453,7 @@ validator. **Composition note (axis 4):** `isFunction` → `instanceof %Generato
 ## `isAsyncGeneratorFunction`
 
 `isAsyncGeneratorFunction<T = unknown>(value?: T): value is T & AsyncGeneratorFunction` —
-`isFunction(value) && (value instanceof %AsyncGeneratorFunction% || hasAsyncGeneratorFunctionShape(value))`.
+`isFunction(value) && (isCurrentRealmAsyncGeneratorFunctionInstance(value) || isAlienRealmAsyncGeneratorFunction(value))`.
 
 - `isAsyncGeneratorFunction/A1` — `async function* () {}`, `async function* name() {}` →
   true.
@@ -436,21 +470,23 @@ validator. **Composition note (axis 4):** `isFunction` → `instanceof %Generato
 - (plus CC vectors.)
 
 **Cross-realm (axis 2):** admits foreign-realm async generator functions via
-`hasAsyncGeneratorFunctionShape`. **Spoof (axis 3):** as the sync generator, with the
+`isAlienRealmAsyncGeneratorFunction`. **Spoof (axis 3):** as the sync generator, with the
 `AsyncGeneratorFunction` tag as the per-species discriminator over the shared
 proto-surface. **Composition note (axis 4):** `isFunction` →
-`instanceof %AsyncGeneratorFunction%` → `hasAsyncGeneratorFunctionShape` (→
-`hasAsyncGeneratorFunctionIdentitySignal` + `hasAnyGeneratorFunctionPrototypeSurface`).
+`isCurrentRealmAsyncGeneratorFunctionInstance` (same-realm `instanceof`) →
+`isAlienRealmAsyncGeneratorFunction` (→ `hasAsyncGeneratorFunctionIdentitySignal` +
+`hasAnyGeneratorFunctionPrototypeSurface`).
 
 ---
 
 ## `isAnyGeneratorFunction`
 
 `isAnyGeneratorFunction<T = unknown>(value?: T): value is T & AnyGeneratorFunction` — one
-shared `isFunction` gate, then four inlined disjuncts: `instanceof %GeneratorFunction%`,
-`instanceof %AsyncGeneratorFunction%`, `hasGeneratorFunctionShape`, or
-`hasAsyncGeneratorFunctionShape`. There is no `hasAnyGeneratorFunctionShape` helper — the
-inlined union is the codified pattern (composing the orchestrators would double-gate).
+shared `isFunction` gate, then four inlined disjuncts:
+`isCurrentRealmGeneratorFunctionInstance`, `isCurrentRealmAsyncGeneratorFunctionInstance`,
+`isAlienRealmGeneratorFunction`, or `isAlienRealmAsyncGeneratorFunction`. There is no
+`isAnyGeneratorFunction*` arm — the inlined union is the codified pattern (composing the
+orchestrators would double-gate).
 
 - `isAnyGeneratorFunction/A1` — `function* () {}` → true (sync).
 - `isAnyGeneratorFunction/A2` — `async function* () {}` → true (async).
@@ -465,15 +501,17 @@ inlined union is the codified pattern (composing the orchestrators would double-
 `isAsyncGeneratorFunction` before calling, since the call-result types differ (`Generator`
 vs. `AsyncGenerator`). **Cross-realm / spoof (axes 2, 3):** inherits from the two species
 predicates it unions. **Composition note (axis 4):** the inlined four-disjunct union over
-both shape helpers and both fast paths.
+both same-realm arms (`isCurrentRealm{Generator,AsyncGenerator}FunctionInstance`) and both
+alien-realm arms (`isAlienRealm{Generator,AsyncGenerator}Function`).
 
 ---
 
 ## Helper specification (axis 4)
 
-### `getFunctionSource(value: Callable)` — `@internal`
+### `getFunctionSource(value: Callable): string | undefined` — `@internal`
 
-`toFunctionString.call(value).trim()`.
+`try { toFunctionString.call(value).trim() } catch { undefined }` — throw-safe
+(`@@throw-safe`, #073).
 
 - `gFS/A1` — `function f() {}` → a string starting `'function'`.
 - `gFS/A2` — `class C {}` → a string starting `'class'` (the `isCustomClass` basis).
@@ -481,9 +519,11 @@ both shape helpers and both fast paths.
   preserved — the load-bearing native-vs-authored tell).
 - `gFS/A4` — a function whose instance `toString` is deleted/replaced → still its real
   source (read goes through the realm-fixed capture, not the instance method).
-- `gFS/B1` — a non-callable receiver (`null`, `{}`) → **throws** (precondition: typed
-  `Callable`; `toFunctionString.call` throws on a non-callable `this`). Callers gate with
-  `isClass` upstream, so the throw is unreachable in production paths.
+- `gFS/B1` — a non-callable receiver (`null`, `{}`) → **`undefined`, not thrown**
+  (throw-safe; the `try`/`catch` wrap absorbs the non-callable-`this` `TypeError`).
+  Callers still gate with `isClass` upstream, so this path is unreachable in production
+  anyway. **Flipped from _throws_ post-freeze (#073) — the reason the return type widened
+  `string` → `string | undefined`.**
 
 ### `hasAsyncFunctionIdentitySignal(value)` — `@internal`
 
@@ -506,8 +546,8 @@ both shape helpers and both fast paths.
 - `hAFPS/A2` — `function () {}`, `() => {}` → **true** — their `[[Prototype]]` is
   `%Function.prototype%`, whose own keys include `'constructor'` but **not**
   `'prototype'`. The proto-surface check alone does not separate plain functions from
-  async; the full `hasAsyncFunctionShape` gates with the identity signal first. (Pin this
-  — it is a surprising standalone-helper result the decidability run must confirm.)
+  async; the full `isAlienRealmAsyncFunction` gates with the identity signal first. (Pin
+  this — it is a surprising standalone-helper result the decidability run must confirm.)
 - `hAFPS/R1` — `function* () {}`, `async function* () {}` → false (generator proto carries
   an own `'prototype'` key → `!has('prototype')` fails).
 
@@ -540,47 +580,98 @@ and `'prototype'`.
   `'prototype'`). This is the structural discriminator the async-family proto-surface
   inverts.
 
-### `hasAsyncFunctionShape(value?)` — `@internal` (cross-realm structural arm; runs on local values)
+### `isAlienRealmAsyncFunction(value?)` — `@internal` (cross-realm structural arm; runs on local values)
 
 `!hasOwnPrototype(value) && !hasConstructSlot(value) && hasAsyncFunctionIdentitySignal(value) && hasAsyncFunctionPrototypeSurface(value)`.
+Was `hasAsyncFunctionShape` (renamed #080); now narrows `value is T & AsyncFunction`.
 
-- `hAFShape/A1` — `async function () {}`, `async () => {}`, `({ async m() {} }).m` → true.
-- `hAFShape/A2` — `(async function () {}).bind(null)` → true (no own `prototype`, no
+- `iARAF/A1` — `async function () {}`, `async () => {}`, `({ async m() {} }).m` → true.
+- `iARAF/A2` — `(async function () {}).bind(null)` → true (no own `prototype`, no
   `[[Construct]]`, tag + proto-surface inherited). `[Q.002]`
-- `hAFShape/R1` — `function () {}` → false (has own `prototype` → `!hasOwnPrototype`
-  fails; also has `[[Construct]]`).
-- `hAFShape/R2` — `async function* () {}` → false (has own writable `prototype`; tag
+- `iARAF/R1` — `function () {}` → false (has own `prototype` → `!hasOwnPrototype` fails;
+  also has `[[Construct]]`).
+- `iARAF/R2` — `async function* () {}` → false (has own writable `prototype`; tag
   mismatch).
-- `hAFShape/R3` — `() => {}`, `function* () {}` → false (tag mismatch at the identity
+- `iARAF/R3` — `() => {}`, `function* () {}` → false (tag mismatch at the identity
   signal).
-- `hAFShape/R4` — `null`, `{}`, `42` → false (non-callables flow through and fail the
+- `iARAF/R4` — `null`, `{}`, `42` → false (non-callables flow through and fail the
   identity signal).
 
-### `hasGeneratorFunctionShape(value?)` — `@internal`
+### `isAlienRealmGeneratorFunction(value?)` — `@internal`
 
 `!hasConstructSlot(value) && hasGeneratorFunctionIdentitySignal(value) && hasAnyGeneratorFunctionPrototypeSurface(value)`.
+Was `hasGeneratorFunctionShape` (renamed #080); now narrows
+`value is T & GeneratorFunction`.
 
-- `hGFShape/A1` — `function* () {}`, `({ *m() {} }).m` → true.
-- `hGFShape/A2` — `(function* () {}).bind(null)` → true — no `!hasOwnPrototype`
-  self-check, so bound (no own prototype) and unbound (own writable prototype) both admit.
-  `[Q.002]`
-- `hGFShape/R1` — `async function* () {}` → false (tag mismatch).
-- `hGFShape/R2` — `function () {}` → false (`hasConstructSlot` true → `!hasConstructSlot`
+- `iARGF/A1` — `function* () {}`, `({ *m() {} }).m` → true.
+- `iARGF/A2` — `(function* () {}).bind(null)` → true — no `!hasOwnPrototype` self-check,
+  so bound (no own prototype) and unbound (own writable prototype) both admit. `[Q.002]`
+- `iARGF/R1` — `async function* () {}` → false (tag mismatch).
+- `iARGF/R2` — `function () {}` → false (`hasConstructSlot` true → `!hasConstructSlot`
   fails).
-- `hGFShape/R3` — `async function () {}`, `() => {}` → false (tag mismatch / proto-surface
+- `iARGF/R3` — `async function () {}`, `() => {}` → false (tag mismatch / proto-surface
   lacks `prototype`).
-- `hGFShape/R4` — `null`, `{}` → false.
+- `iARGF/R4` — `null`, `{}` → false.
 
-### `hasAsyncGeneratorFunctionShape(value?)` — `@internal`
+### `isAlienRealmAsyncGeneratorFunction(value?)` — `@internal`
 
 `!hasConstructSlot(value) && hasAsyncGeneratorFunctionIdentitySignal(value) && hasAnyGeneratorFunctionPrototypeSurface(value)`.
+Was `hasAsyncGeneratorFunctionShape` (renamed #080); now narrows
+`value is T & AsyncGeneratorFunction`.
 
-- `hAGFShape/A1` — `async function* () {}`, `({ async *m() {} }).m` → true.
-- `hAGFShape/A2` — `(async function* () {}).bind(null)` → true (same self-check omission).
+- `iARAGF/A1` — `async function* () {}`, `({ async *m() {} }).m` → true.
+- `iARAGF/A2` — `(async function* () {}).bind(null)` → true (same self-check omission).
   `[Q.002]`
-- `hAGFShape/R1` — `function* () {}` → false (tag mismatch).
-- `hAGFShape/R2` — `function () {}`, `async function () {}`, `() => {}` → false.
-- `hAGFShape/R3` — `null`, `{}` → false.
+- `iARAGF/R1` — `function* () {}` → false (tag mismatch).
+- `iARAGF/R2` — `function () {}`, `async function () {}`, `() => {}` → false.
+- `iARAGF/R3` — `null`, `{}` → false.
+
+### `isCurrentRealmAsyncFunctionInstance(value?)` — `@internal` (same-realm `instanceof` arm)
+
+`try { value instanceof %AsyncFunction% } catch { false }` — throw-safe (`@@throw-safe`).
+New (#080); narrows `value is T & AsyncFunction`.
+
+- `iCRAFI/A1` — `async function () {}`, `async () => {}`, `(async () => {}).bind(null)` →
+  true (the `[[Prototype]]` chain traces to the local `%AsyncFunction.prototype%`; `bind`
+  preserves it). `[Q.002]`
+- `iCRAFI/R1` — a cross-realm async function (fixture) → false — its `[[Prototype]]`
+  traces to the _foreign_ realm's `%AsyncFunction.prototype%`; this is exactly why the
+  alien-realm arm exists.
+- `iCRAFI/R2` — `function () {}`, `function* () {}`, `class C {}` → false.
+- `iCRAFI/B1` — `new Proxy(async () => {}, { get() { throw new Error(); } })` → **true,
+  not thrown**. `instanceof` walks `[[GetPrototypeOf]]` and never fires the `get` trap,
+  and the target's chain still traces to `%AsyncFunction%`. A surprising standalone-arm
+  result the decidability run must confirm — in production the `isFunction` gate
+  (`isFunction/B1`) rejects this hostile `Proxy` upstream, so the orchestrator returns
+  `false`. (Pin this.)
+- `iCRAFI/B2` — a `Proxy` whose `getPrototypeOf` trap throws → false, _not thrown_ (the
+  `instanceof` is wrapped).
+
+### `isCurrentRealmGeneratorFunctionInstance(value?)` — `@internal` (same-realm `instanceof` arm)
+
+`try { value instanceof %GeneratorFunction% } catch { false }` — throw-safe. New (#080);
+narrows `value is T & GeneratorFunction`.
+
+- `iCRGFI/A1` — `function* () {}`, `(function* () {}).bind(null)` → true. `[Q.002]`
+- `iCRGFI/R1` — a cross-realm sync generator function (fixture) → false (foreign
+  `%GeneratorFunction.prototype%`).
+- `iCRGFI/R2` — `async function* () {}`, `async function () {}`, `class C {}` → false.
+- `iCRGFI/B1` — `new Proxy(function* () {}, { get() { throw new Error(); } })` → **true,
+  not thrown** (as `iCRAFI/B1`; gated upstream in production). (Pin this.)
+- `iCRGFI/B2` — a `Proxy` whose `getPrototypeOf` trap throws → false, not thrown.
+
+### `isCurrentRealmAsyncGeneratorFunctionInstance(value?)` — `@internal` (same-realm `instanceof` arm)
+
+`try { value instanceof %AsyncGeneratorFunction% } catch { false }` — throw-safe. New
+(#080); narrows `value is T & AsyncGeneratorFunction`.
+
+- `iCRAGFI/A1` — `async function* () {}`, `(async function* () {}).bind(null)` → true.
+  `[Q.002]`
+- `iCRAGFI/R1` — a cross-realm async generator function (fixture) → false.
+- `iCRAGFI/R2` — `function* () {}`, `async function () {}` → false.
+- `iCRAGFI/B1` — `new Proxy(async function* () {}, { get() { throw new Error(); } })` →
+  **true, not thrown** (as `iCRAFI/B1`). (Pin this.)
+- `iCRAGFI/B2` — a `Proxy` whose `getPrototypeOf` trap throws → false, not thrown.
 
 ---
 
@@ -629,20 +720,73 @@ and `'prototype'`.
    `function` round:** the sibling `#utility` helpers `hasOwnPrototype` /
    `hasOwnWritablePrototype` (feeding `isES3Function` etc.) carry the same
    raw-`getOwnPropertyDescriptor` surface and want the same treatment. Decision-aligned
-   with #056/#029 (no new ADR).
+   with #056/#029 (no new ADR). **CLOSED 2026-07-28 (ADR #073):** the `hasOwn*` trio moved
+   to `try`/`catch`, and `hasOwnNonWritablePrototype` was added as the named class/ES3
+   discriminator; `isClass` now delegates to it (formula + `isClass/B1` updated above).
+
+4. **Realm decomposition of the species arms — RECONCILED 2026-07-28 (ADR #080).** The
+   three `has*Shape` structural arms were renamed to `isAlienRealm*` and gained
+   generic-guard returns (`value is T & X`); the same-realm `instanceof` fast path,
+   previously inlined in each orchestrator, was extracted into three new `@internal` arms
+   (`isCurrentRealm*Instance`), also generic guards, also `try`/`catch`-wrapped. The
+   orchestrator formulas, the surface inventory (9 → 12 helpers, 21 → 24 value exports),
+   the helper specs (renamed + three new sections with vectors), and
+   `architecture/function.md` were amended to match. No public predicate behavior changed.
+   New standalone-arm result pinned: `isCurrentRealm*Instance` returns **true** on a
+   hostile `get`-trap `Proxy` over a genuine local function (`iCRAFI/B1` etc.) —
+   `instanceof` never fires the trap.
+
+5. **Throw-safety reconciliation — RECONCILED 2026-07-28 (ADRs #073, #076).** The freeze
+   predates the throw-safety model. Corrections: `getFunctionSource` returns
+   `string | undefined` and its `gFS/B1` flipped _throws_ → `undefined`; `isFunction` is
+   now `try`/`catch`-wrapped (throw-safe against a hostile `get`-trap `Proxy`,
+   `isFunction/B1` added); the module carries 24 `@@throw-safe` markers. The
+   `hostile × predicate` completeness matrix that verifies the markers is owed to the
+   function test round — see Open items #1.
+
+6. **Bound-admission asymmetry — SETTLED 2026-07-28 (ADR #081, closes Q.002).** The
+   `[Q.002]` policy question is closed in favor of the shipped asymmetry: bound detection
+   is inexpensive (`name.startsWith('bound ')`, #009) but spoofable, hence unreliable, so
+   a reliability-first type-detection library declines it; forcing symmetry would require
+   importing that unreliable signal, which belongs to introspection (`isBoundFunction`,
+   Q.003). The `[Q.002]` tags are retained as findable cross-refs to the settled decision.
+
+## Throw-safety (axis 5) — completeness oracle
+
+The module marks **24** exports `@@throw-safe` (ADRs #073, #076): each must not propagate
+on hostile input (a `Proxy` trap that throws), yielding a sentinel (`false` / `undefined`)
+instead. The marked set is the completeness oracle — the `hostile × predicate` matrix the
+test round builds must score exactly this set:
+
+`getFunctionSource`, `isCallable`, `isFunction`, `hasConstructSlot`, `isNewableFunction`,
+`isES3Function`, `isClass`, `isCustomClass`, `isBuiltInClass`,
+`hasAsyncFunctionIdentitySignal`, `hasAsyncFunctionPrototypeSurface`,
+`isAlienRealmAsyncFunction`, `isCurrentRealmAsyncFunctionInstance`, `isAsyncFunction`,
+`hasGeneratorFunctionIdentitySignal`, `hasAsyncGeneratorFunctionIdentitySignal`,
+`hasAnyGeneratorFunctionPrototypeSurface`, `isAlienRealmGeneratorFunction`,
+`isAlienRealmAsyncGeneratorFunction`, `isCurrentRealmGeneratorFunctionInstance`,
+`isCurrentRealmAsyncGeneratorFunctionInstance`, `isGeneratorFunction`,
+`isAsyncGeneratorFunction`, `isAnyGeneratorFunction`.
 
 ## Open items
 
-None.
+1. **Throw-safety `hostile × predicate` matrix (axis 5).** The 24 `@@throw-safe` exports
+   above claim non-propagation; the matrix that verifies each against the hostile-trap
+   vectors is authored in the function test round (needs the `vm`/fixture harness). The
+   marked set is the completeness oracle. Not yet written.
 
 ## Policy flags
 
-- **Q.002 — bound-admission asymmetry.** All `[Q.002]`-tagged vectors encode the current
-  SHIPPED behavior: the strict newable predicates (`isES3Function`, `isClass`) reject
-  bound variants; the species predicates (`isAsyncFunction`, `isGeneratorFunction`,
+- **Q.002 — bound-admission asymmetry — SETTLED (ADR #081).** All `[Q.002]`-tagged vectors
+  encode the SHIPPED behavior: the strict newable predicates (`isES3Function`, `isClass`)
+  reject bound variants; the species predicates (`isAsyncFunction`, `isGeneratorFunction`,
   `isAsyncGeneratorFunction`, `isAnyGeneratorFunction`) and `isNewableFunction` /
-  `hasConstructSlot` admit them. Re-balancing is the design owner's call; the tags make a
-  later flip a findable diff.
+  `hasConstructSlot` admit them. Closed in favor of the asymmetry: the inexpensive bound
+  tell (`name.startsWith('bound ')`, #009) is spoofable, hence unreliable — a
+  reliability-first type-detection library declines it, so no predicate reads it and the
+  asymmetry is the free residue of each predicate's spec-invariant discriminator. The tags
+  now cross-ref a settled decision rather than a pending flip. See Resolved items #6 and
+  ADR #081.
 - **Q.003 — introspection-tier discriminations.** Two distinctions the structural schema
   deliberately cannot resolve and that no predicate here claims: arrow vs. concise method
   (descriptor-identical; `[[HomeObject]]` is the only tell), and bound vs. unbound within
