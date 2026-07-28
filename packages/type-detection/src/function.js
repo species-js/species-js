@@ -12,7 +12,7 @@
  * generator, or class.
  */
 
-import { toFunctionString } from '#config';
+import { globalContext, toFunctionString } from '#config';
 import {
   hasOwnNonWritablePrototype,
   hasOwnWritablePrototype,
@@ -40,10 +40,11 @@ import {
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 //
-//  Internal Helpers
+//  Predicate Helper(s)
 //
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 
+/* @@throw-safe */
 /**
  * Returns a function's source string with surrounding whitespace trimmed.
  *
@@ -77,10 +78,11 @@ export function getFunctionSource(value) {
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 //
-//  Callable vs. Function-Interface Types and Predicates
+//  Callable Type vs. Function Type Predicates
 //
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 
+/* @@throw-safe */
 /**
  * Narrows an unknown value to {@link Callable} via the minimal callability
  * test, `typeof value === 'function'`.
@@ -113,6 +115,7 @@ export function isCallable(value) {
   return typeof value === 'function';
 }
 
+/* @@throw-safe */
 /**
  * Narrows a value to {@link VerifiedFunction}.
  *
@@ -142,12 +145,16 @@ export function isCallable(value) {
  * isFunction(null);                 // false
  */
 export function isFunction(value) {
-  return (
-    isCallable(value) &&
-    isCallable(value.bind) &&
-    isCallable(value.call) &&
-    isCallable(value.apply)
-  );
+  try {
+    return (
+      isCallable(value) &&
+      isCallable(/** @type {import('#function').CallableWith<'bind'>} */ (value).bind) &&
+      isCallable(/** @type {import('#function').CallableWith<'call'>} */ (value).call) &&
+      isCallable(/** @type {import('#function').CallableWith<'apply'>} */ (value).apply)
+    );
+  } catch {
+    return false;
+  }
 }
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
@@ -156,6 +163,7 @@ export function isFunction(value) {
 //
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 
+/* @@throw-safe */
 /**
  * Probes the value's `[[Construct]]` internal method without invoking the
  * value itself.
@@ -204,6 +212,7 @@ export function hasConstructSlot(value) {
   }
 }
 
+/* @@throw-safe */
 /**
  * Narrows a value to the lenient {@link NewableFunction} gate.
  *
@@ -227,6 +236,7 @@ export function isNewableFunction(value) {
   return isFunction(value) && hasConstructSlot(value);
 }
 
+/* @@throw-safe */
 /**
  * Narrows a value to {@link ES3Function}, the strict ES3-function shape.
  *
@@ -252,6 +262,7 @@ export function isES3Function(value) {
   return isNewableFunction(value) && hasOwnWritablePrototype(value);
 }
 
+/* @@throw-safe */
 /**
  * Narrows a value to {@link ClassConstructor}, the strict class shape.
  *
@@ -293,6 +304,7 @@ export function isClass(value) {
   return isNewableFunction(value) && hasOwnNonWritablePrototype(value);
 }
 
+/* @@throw-safe */
 /**
  * Narrows a value to a custom (`class`-syntax) constructor.
  *
@@ -321,6 +333,7 @@ export function isCustomClass(value) {
   return isClass(value) && (getFunctionSource(value) ?? '').startsWith('class');
 }
 
+/* @@throw-safe */
 /**
  * Narrows a value to a built-in class constructor.
  *
@@ -350,17 +363,18 @@ export function isBuiltInClass(value) {
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 //
-//  Async Function Family
+//  Async Function Family Predicates
 //
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 
 const PromiseConstructor = /** @type {typeof Promise | null} */ (
-  isCallable(Promise) ? Promise : null
+  isCallable(globalContext.Promise) ? globalContext.Promise : null
 );
 const AsyncFunctionConstructor = /** @type {NewableFunction} */ (
   getDefinedConstructor(async () => PromiseConstructor?.resolve() ?? null)
 );
 
+/* @@throw-safe */
 /**
  * Tests the two identity-signal labels an `%AsyncFunction%` value carries.
  *
@@ -372,7 +386,7 @@ const AsyncFunctionConstructor = /** @type {NewableFunction} */ (
  * realm-independent identity signal for any genuine `%AsyncFunction%`, so
  * tampering with one label without matching the other is rejected.
  *
- * Called as the third link of {@link hasAsyncFunctionShape}'s `&&` chain,
+ * Called as the third link of {@link isAlienRealmAsyncFunction}'s `&&` chain,
  * after the descriptor-presence floor (`!hasOwnPrototype`,
  * `!hasConstructSlot`) and before the proto-side membership check
  * ({@link hasAsyncFunctionPrototypeSurface}).
@@ -388,6 +402,7 @@ export function hasAsyncFunctionIdentitySignal(value) {
   );
 }
 
+/* @@throw-safe */
 /**
  * Tests whether the value's `[[Prototype]]` matches the own-key structure
  * of `%AsyncFunction.prototype%`: `'constructor'` present and `'prototype'`
@@ -403,7 +418,7 @@ export function hasAsyncFunctionIdentitySignal(value) {
  * `getPrototypeOf` / `ownKeys` Proxy-trap, yielding an empty key set (→
  * `false`) rather than propagating.
  *
- * Called only as the last link of {@link hasAsyncFunctionShape}'s `&&`
+ * Called only as the last link of {@link isAlienRealmAsyncFunction}'s `&&`
  * chain, so by the time `getSafePrototypeOf` runs the upstream `[[Class]]`
  * check has already rejected `null` and `undefined`.
  *
@@ -417,6 +432,7 @@ export function hasAsyncFunctionPrototypeSurface(value) {
   return set.has('constructor') && !set.has('prototype');
 }
 
+/* @@throw-safe */
 /**
  * Detects whether a value has the runtime shape of an `%AsyncFunction%`.
  *
@@ -452,17 +468,23 @@ export function hasAsyncFunctionPrototypeSurface(value) {
  * present and `'prototype'` is absent. The spec promises the keys
  * `%AsyncFunction.prototype%` exhibits, not that those are the only keys.
  *
- * Returns a plain boolean. Narrowing is handled by {@link isAsyncFunction},
- * which runs the same-realm `instanceof` fast path before falling back to
- * this structural check. The signature is standalone by design so that
- * each marker can be tested in isolation. Any value can be passed, and
- * non-callables flow through the marker chain and return `false`.
+ * Narrowing at the public API belongs to {@link isAsyncFunction}, which runs
+ * the same-realm `instanceof` fast path before falling back to this
+ * structural check; this arm is paired with
+ * {@link isCurrentRealmAsyncFunctionInstance}. The signature is standalone by
+ * design so that each marker can be tested in isolation. Any value can be
+ * passed, and non-callables flow through the marker chain and return `false`.
  *
- * @param {unknown} [value] - the value to inspect
- * @returns {boolean} `true` when all six markers hold; `false` otherwise
+ * @template [T=unknown]
+ * @param {T} [value] - the value to inspect; its sole internal caller
+ *  ({@link isAsyncFunction}) has already gated through {@link isFunction},
+ *  so `value` is a {@link VerifiedFunction} in practice, though any `T` is
+ *  accepted
+ * @returns {value is T & AsyncFunction} `true` when all six markers hold;
+ *  `false` otherwise
  * @internal
  */
-export function hasAsyncFunctionShape(value) {
+export function isAlienRealmAsyncFunction(value) {
   return (
     !hasOwnPrototype(value) &&
     !hasConstructSlot(value) &&
@@ -471,6 +493,42 @@ export function hasAsyncFunctionShape(value) {
   );
 }
 
+/* @@throw-safe */
+/**
+ * The same-realm fast path for {@link isAsyncFunction}: tests
+ * `value instanceof %AsyncFunction%` against the captured local intrinsic.
+ *
+ * A positive `instanceof` traces the value's `[[Prototype]]` chain to this
+ * realm's `%AsyncFunction.prototype%`, so it admits every locally-authored
+ * async function and its bound variants — `bind` preserves the chain. The
+ * check is identity-based, not structural: subtyping of `%AsyncFunction%`
+ * is not modeled, and — unlike {@link isAlienRealmAsyncFunction} — no
+ * proto-side or key-set cross-validation runs. A value from a foreign realm
+ * carries a different `%AsyncFunction%` identity and fails here; admitting
+ * it is the alien-realm arm's job.
+ *
+ * Throw-safe: the `instanceof` is wrapped, so a hostile `[[Prototype]]`
+ * (a `getPrototypeOf` Proxy-trap that throws) yields `false` rather than
+ * propagating.
+ *
+ * @template [T=unknown]
+ * @param {T} [value] - the value to inspect; its sole internal caller
+ *  ({@link isAsyncFunction}) has already gated through {@link isFunction},
+ *  so `value` is a {@link VerifiedFunction} in practice, though any `T` is
+ *  accepted
+ * @returns {value is T & AsyncFunction} `true` when the value is an instance
+ *  of the current realm's `%AsyncFunction%`; `false` otherwise
+ * @internal
+ */
+export function isCurrentRealmAsyncFunctionInstance(value) {
+  try {
+    return value instanceof AsyncFunctionConstructor;
+  } catch {
+    return false;
+  }
+}
+
+/* @@throw-safe */
 /**
  * Narrows a value to {@link AsyncFunction}.
  *
@@ -482,7 +540,7 @@ export function hasAsyncFunctionShape(value) {
  *    inheritance traces to the local realm's `%AsyncFunction.prototype%`,
  *    including bound variants — `bind` preserves the chain.
  * 3. The realm-independent fallback delegates to
- *    {@link hasAsyncFunctionShape}, which verifies the six spec-derived
+ *    {@link isAlienRealmAsyncFunction}, which verifies the six spec-derived
  *    markers (four spec-invariant plus two proto-side key-set
  *    cross-validators). This is the cross-realm code path. Foreign-realm
  *    async functions have a different `%AsyncFunction%` identity but the
@@ -522,13 +580,13 @@ export function hasAsyncFunctionShape(value) {
 export function isAsyncFunction(value) {
   return (
     isFunction(value) &&
-    (value instanceof AsyncFunctionConstructor || hasAsyncFunctionShape(value))
+    (isCurrentRealmAsyncFunctionInstance(value) || isAlienRealmAsyncFunction(value))
   );
 }
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 //
-//  Generator Function Family
+//  Generator Function Family Predicates
 //
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 
@@ -544,6 +602,7 @@ const AsyncGeneratorFunctionConstructor = /** @type {NewableFunction} */ (
   })
 );
 
+/* @@throw-safe */
 /**
  * Tests the two identity-signal labels a `%GeneratorFunction%` value carries.
  *
@@ -555,7 +614,7 @@ const AsyncGeneratorFunctionConstructor = /** @type {NewableFunction} */ (
  * realm-independent identity signal for any genuine `%GeneratorFunction%`.
  *
  * Mirrors the async-family pattern. See: {@link hasAsyncFunctionIdentitySignal}.
- * Called as the second link of {@link hasGeneratorFunctionShape}'s `&&`
+ * Called as the second link of {@link isAlienRealmGeneratorFunction}'s `&&`
  * chain, after `!hasConstructSlot` and before
  * {@link hasAnyGeneratorFunctionPrototypeSurface}.
  *
@@ -570,6 +629,7 @@ export function hasGeneratorFunctionIdentitySignal(value) {
   );
 }
 
+/* @@throw-safe */
 /**
  * Tests the two identity-signal labels an `%AsyncGeneratorFunction%` value
  * carries.
@@ -583,7 +643,7 @@ export function hasGeneratorFunctionIdentitySignal(value) {
  * `%AsyncGeneratorFunction%`.
  *
  * Mirrors {@link hasGeneratorFunctionIdentitySignal}. Called as the second
- * link of {@link hasAsyncGeneratorFunctionShape}'s `&&` chain, after
+ * link of {@link isAlienRealmAsyncGeneratorFunction}'s `&&` chain, after
  * `!hasConstructSlot` and before
  * {@link hasAnyGeneratorFunctionPrototypeSurface}.
  *
@@ -598,6 +658,7 @@ export function hasAsyncGeneratorFunctionIdentitySignal(value) {
   );
 }
 
+/* @@throw-safe */
 /**
  * Tests whether the value's `[[Prototype]]` matches the generator family's
  * shared own-key structure: `'constructor'` present and `'prototype'`
@@ -618,8 +679,8 @@ export function hasAsyncGeneratorFunctionIdentitySignal(value) {
  * `getPrototypeOf` / `ownKeys` Proxy-trap, yielding an empty key set (→
  * `false`) rather than propagating.
  *
- * Shared by {@link hasGeneratorFunctionShape} and
- * {@link hasAsyncGeneratorFunctionShape}. Both species exhibit the same
+ * Shared by {@link isAlienRealmGeneratorFunction} and
+ * {@link isAlienRealmAsyncGeneratorFunction}. Both species exhibit the same
  * proto-side structure, so the proto-surface check is the family-level
  * invariant. The `[[Class]]` tag, carried via each species'
  * identity-signal link, is the per-species discriminator.
@@ -630,8 +691,8 @@ export function hasAsyncGeneratorFunctionIdentitySignal(value) {
  * `'prototype'` absent while this helper asserts it present.
  *
  * Called only as the last link of both
- * {@link hasGeneratorFunctionShape}'s and
- * {@link hasAsyncGeneratorFunctionShape}'s `&&` chains, so by the time
+ * {@link isAlienRealmGeneratorFunction}'s and
+ * {@link isAlienRealmAsyncGeneratorFunction}'s `&&` chains, so by the time
  * `getSafePrototypeOf` runs the upstream `[[Class]]` check has already
  * rejected `null` and `undefined`.
  *
@@ -645,6 +706,7 @@ export function hasAnyGeneratorFunctionPrototypeSurface(value) {
   return set.has('constructor') && set.has('prototype');
 }
 
+/* @@throw-safe */
 /**
  * Detects whether a value has the runtime shape of a `%GeneratorFunction%`.
  *
@@ -674,7 +736,7 @@ export function hasAnyGeneratorFunctionPrototypeSurface(value) {
  * {@link hasAnyGeneratorFunctionPrototypeSurface}.
  *
  * No `!hasOwnPrototype` or `hasOwnWritablePrototype` self-side check,
- * unlike {@link hasAsyncFunctionShape}. The reason is the bound-vs-unbound
+ * unlike {@link isAlienRealmAsyncFunction}. The reason is the bound-vs-unbound
  * asymmetry: unbound generator functions carry an own writable `prototype`
  * holding the {@link Generator} instance proto; bound ones do not, since
  * `bind` strips own slots. Either check would split bound from unbound,
@@ -682,16 +744,22 @@ export function hasAnyGeneratorFunctionPrototypeSurface(value) {
  * `bind` preserves the prototype-chain, so the tag, constructor-name, and
  * proto-surface remain inherited intact.
  *
- * Returns a plain boolean. Narrowing belongs to {@link isGeneratorFunction}.
- * The signature is standalone by design so that each marker can be tested
- * in isolation. Any value can be passed, and non-callables flow through
- * the marker chain and return `false`.
+ * Narrowing at the public API belongs to {@link isGeneratorFunction}; this
+ * arm is paired with {@link isCurrentRealmGeneratorFunctionInstance}, the
+ * same-realm `instanceof` fast path. The signature is standalone by design
+ * so that each marker can be tested in isolation. Any value can be passed,
+ * and non-callables flow through the marker chain and return `false`.
  *
- * @param {unknown} [value] - the value to inspect
- * @returns {boolean} `true` when all five markers hold; `false` otherwise
+ * @template [T=unknown]
+ * @param {T} [value] - the value to inspect; its internal callers
+ *  ({@link isGeneratorFunction}, {@link isAnyGeneratorFunction}) have
+ *  already gated through {@link isFunction}, so `value` is a
+ *  {@link VerifiedFunction} in practice, though any `T` is accepted
+ * @returns {value is T & GeneratorFunction} `true` when all five markers
+ *  hold; `false` otherwise
  * @internal
  */
-export function hasGeneratorFunctionShape(value) {
+export function isAlienRealmGeneratorFunction(value) {
   return (
     !hasConstructSlot(value) &&
     hasGeneratorFunctionIdentitySignal(value) &&
@@ -699,6 +767,7 @@ export function hasGeneratorFunctionShape(value) {
   );
 }
 
+/* @@throw-safe */
 /**
  * Detects whether a value has the runtime shape of an
  * `%AsyncGeneratorFunction%`.
@@ -729,22 +798,28 @@ export function hasGeneratorFunctionShape(value) {
  * The `[[Class]]` tag is the per-species discriminator within that
  * shared structure.
  *
- * Same self-side-check omission as {@link hasGeneratorFunctionShape}:
+ * Same self-side-check omission as {@link isAlienRealmGeneratorFunction}:
  * Both `!hasOwnPrototype` and `hasOwnWritablePrototype` checks are skipped
  * because of the bound-vs-unbound asymmetry. Unbound async-generator
  * functions carry an own writable `prototype`, bound ones do not, and
  * admitting both requires omitting both checks.
  *
- * Returns a plain boolean. Narrowing belongs to
- * {@link isAsyncGeneratorFunction}. The signature is standalone by design
- * so that each marker can be tested in isolation. Any value can be passed,
- * and non-callables flow through the marker chain and return `false`.
+ * Narrowing at the public API belongs to {@link isAsyncGeneratorFunction};
+ * this arm is paired with {@link isCurrentRealmAsyncGeneratorFunctionInstance},
+ * the same-realm `instanceof` fast path. The signature is standalone by
+ * design so that each marker can be tested in isolation. Any value can be
+ * passed, and non-callables flow through the marker chain and return `false`.
  *
- * @param {unknown} [value] - the value to inspect
- * @returns {boolean} `true` when all five markers hold; `false` otherwise
+ * @template [T=unknown]
+ * @param {T} [value] - the value to inspect; its internal callers
+ *  ({@link isAsyncGeneratorFunction}, {@link isAnyGeneratorFunction}) have
+ *  already gated through {@link isFunction}, so `value` is a
+ *  {@link VerifiedFunction} in practice, though any `T` is accepted
+ * @returns {value is T & AsyncGeneratorFunction} `true` when all five markers
+ *  hold; `false` otherwise
  * @internal
  */
-export function hasAsyncGeneratorFunctionShape(value) {
+export function isAlienRealmAsyncGeneratorFunction(value) {
   return (
     !hasConstructSlot(value) &&
     hasAsyncGeneratorFunctionIdentitySignal(value) &&
@@ -752,6 +827,82 @@ export function hasAsyncGeneratorFunctionShape(value) {
   );
 }
 
+/* @@throw-safe */
+/**
+ * The same-realm fast path for {@link isGeneratorFunction}: tests
+ * `value instanceof %GeneratorFunction%` against the captured local
+ * intrinsic.
+ *
+ * A positive `instanceof` traces the value's `[[Prototype]]` chain to this
+ * realm's `%GeneratorFunction.prototype%`, so it admits every
+ * locally-authored generator function and its bound variants — `bind`
+ * preserves the chain. The check is identity-based, not structural:
+ * subtyping of `%GeneratorFunction%` is not modeled, and — unlike
+ * {@link isAlienRealmGeneratorFunction} — no proto-side or key-set
+ * cross-validation runs. A value from a foreign realm carries a different
+ * `%GeneratorFunction%` identity and fails here; admitting it is the
+ * alien-realm arm's job.
+ *
+ * Throw-safe: the `instanceof` is wrapped, so a hostile `[[Prototype]]`
+ * (a `getPrototypeOf` Proxy-trap that throws) yields `false` rather than
+ * propagating.
+ *
+ * @template [T=unknown]
+ * @param {T} [value] - the value to inspect; its internal callers
+ *  ({@link isGeneratorFunction}, {@link isAnyGeneratorFunction}) have
+ *  already gated through {@link isFunction}, so `value` is a
+ *  {@link VerifiedFunction} in practice, though any `T` is accepted
+ * @returns {value is T & GeneratorFunction} `true` when the value is an
+ *  instance of the current realm's `%GeneratorFunction%`; `false` otherwise
+ * @internal
+ */
+export function isCurrentRealmGeneratorFunctionInstance(value) {
+  try {
+    return value instanceof GeneratorFunctionConstructor;
+  } catch {
+    return false;
+  }
+}
+
+/* @@throw-safe */
+/**
+ * The same-realm fast path for {@link isAsyncGeneratorFunction}: tests
+ * `value instanceof %AsyncGeneratorFunction%` against the captured local
+ * intrinsic.
+ *
+ * A positive `instanceof` traces the value's `[[Prototype]]` chain to this
+ * realm's `%AsyncGeneratorFunction.prototype%`, so it admits every
+ * locally-authored async-generator function and its bound variants — `bind`
+ * preserves the chain. The check is identity-based, not structural:
+ * subtyping of `%AsyncGeneratorFunction%` is not modeled, and — unlike
+ * {@link isAlienRealmAsyncGeneratorFunction} — no proto-side or key-set
+ * cross-validation runs. A value from a foreign realm carries a different
+ * `%AsyncGeneratorFunction%` identity and fails here; admitting it is the
+ * alien-realm arm's job.
+ *
+ * Throw-safe: the `instanceof` is wrapped, so a hostile `[[Prototype]]`
+ * (a `getPrototypeOf` Proxy-trap that throws) yields `false` rather than
+ * propagating.
+ *
+ * @template [T=unknown]
+ * @param {T} [value] - the value to inspect; its internal callers
+ *  ({@link isAsyncGeneratorFunction}, {@link isAnyGeneratorFunction}) have
+ *  already gated through {@link isFunction}, so `value` is a
+ *  {@link VerifiedFunction} in practice, though any `T` is accepted
+ * @returns {value is T & AsyncGeneratorFunction} `true` when the value is an
+ *  instance of the current realm's `%AsyncGeneratorFunction%`; `false`
+ *  otherwise
+ * @internal
+ */
+export function isCurrentRealmAsyncGeneratorFunctionInstance(value) {
+  try {
+    return value instanceof AsyncGeneratorFunctionConstructor;
+  } catch {
+    return false;
+  }
+}
+
+/* @@throw-safe */
 /**
  * Narrows a value to {@link GeneratorFunction}.
  *
@@ -763,7 +914,7 @@ export function hasAsyncGeneratorFunctionShape(value) {
  *    inheritance traces to the local realm's `%GeneratorFunction.prototype%`,
  *    including bound variants — `bind` preserves the chain.
  * 3. The realm-independent fallback delegates to
- *    {@link hasGeneratorFunctionShape}, which verifies the five spec-derived
+ *    {@link isAlienRealmGeneratorFunction}, which verifies the five spec-derived
  *    markers (three spec-invariant plus two proto-side key-set cross-validators).
  *    This is the cross-realm code path. Foreign-realm generator functions have
  *    a different `%GeneratorFunction%` identity but the same observable markers.
@@ -795,10 +946,12 @@ export function hasAsyncGeneratorFunctionShape(value) {
 export function isGeneratorFunction(value) {
   return (
     isFunction(value) &&
-    (value instanceof GeneratorFunctionConstructor || hasGeneratorFunctionShape(value))
+    (isCurrentRealmGeneratorFunctionInstance(value) ||
+      isAlienRealmGeneratorFunction(value))
   );
 }
 
+/* @@throw-safe */
 /**
  * Narrows a value to {@link AsyncGeneratorFunction}.
  *
@@ -810,7 +963,7 @@ export function isGeneratorFunction(value) {
  *    inheritance traces to the local realm's `%AsyncGeneratorFunction.prototype%`,
  *    including bound variants — `bind` preserves the chain.
  * 3. The realm-independent fallback delegates to
- *    {@link hasAsyncGeneratorFunctionShape}, which verifies the five spec-derived
+ *    {@link isAlienRealmAsyncGeneratorFunction}, which verifies the five spec-derived
  *    markers (three spec-invariant plus two proto-side key-set cross-validators).
  *    This is the cross-realm code path. Foreign-realm async-generator functions
  *    have a different `%AsyncGeneratorFunction%` identity but the same
@@ -842,11 +995,12 @@ export function isGeneratorFunction(value) {
 export function isAsyncGeneratorFunction(value) {
   return (
     isFunction(value) &&
-    (value instanceof AsyncGeneratorFunctionConstructor ||
-      hasAsyncGeneratorFunctionShape(value))
+    (isCurrentRealmAsyncGeneratorFunctionInstance(value) ||
+      isAlienRealmAsyncGeneratorFunction(value))
   );
 }
 
+/* @@throw-safe */
 /**
  * Narrows a value to {@link AnyGeneratorFunction}, the umbrella over both
  * sync and async generator-function species.
@@ -857,7 +1011,7 @@ export function isAsyncGeneratorFunction(value) {
  * The value then passes if any of four disjuncts holds: the same-realm
  * `instanceof` fast path against either `%GeneratorFunction%` or
  * `%AsyncGeneratorFunction%`, or the cross-realm fallback via
- * {@link hasGeneratorFunctionShape} or {@link hasAsyncGeneratorFunctionShape}.
+ * {@link isAlienRealmGeneratorFunction} or {@link isAlienRealmAsyncGeneratorFunction}.
  *
  * There is no dedicated `hasAnyGeneratorFunctionShape` helper. The
  * umbrella's job is exactly this union of fast paths and shape helpers,
@@ -884,10 +1038,10 @@ export function isAsyncGeneratorFunction(value) {
 export function isAnyGeneratorFunction(value) {
   return (
     isFunction(value) &&
-    (value instanceof GeneratorFunctionConstructor ||
-      value instanceof AsyncGeneratorFunctionConstructor ||
-      hasGeneratorFunctionShape(value) ||
-      hasAsyncGeneratorFunctionShape(value))
+    (isCurrentRealmGeneratorFunctionInstance(value) ||
+      isCurrentRealmAsyncGeneratorFunctionInstance(value) ||
+      isAlienRealmGeneratorFunction(value) ||
+      isAlienRealmAsyncGeneratorFunction(value))
   );
 }
 
