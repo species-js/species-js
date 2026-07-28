@@ -20,9 +20,10 @@
 import { TRUSTED_DATA_CONFIRMATION } from '#foundation';
 
 import {
+  globalContext,
+  INSTANCE_LESS_CONSTRUCTOR,
   getOwnPropertyDescriptors,
   getOwnPropertyNames,
-  INSTANCE_LESS_CONSTRUCTOR,
 } from '#config';
 
 import {
@@ -54,7 +55,7 @@ import { isCallable, isClass } from '#function';
 const [PromiseConstructorFunction, promisePrototype] =
   /** @type {[PromiseConstructor, object | null] | [NEVER_INVOKED_CONSTRUCTOR, BlankDictionary]} */ (
     getValidatedStandardConstructorAndPrototypeTuple(
-      Promise,
+      globalContext.Promise,
       isPromisePrototypeEquivalent,
     )
   );
