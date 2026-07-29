@@ -38,7 +38,11 @@
 > that #059 gave the seam its own resolve-once logic); and object's realm-asymmetry ruling
 > gained a forward cross-reference to #063 (which reconciled the behavioral half of the
 > asymmetry for the spec-pinned strict predicates and left `isPlainObject` deliberately
-> out of scope). No admit/reject verdict changed — see Resolved items #6.
+> out of scope). No admit/reject verdict changed — see Resolved items #6. Back-sweep Phase
+> 2 (2026-07-29): a new axis-5 completeness-oracle section for the 9 `@@throw-safe`
+> markers; the R2 cross-artifact pass found the canon already truthful (no
+> mechanism-drift) — no admit/reject vector changed, the **FROZEN 2026-06-18** oracle
+> stands; see Resolved items #7.
 
 ## Module contract
 
@@ -494,6 +498,35 @@ resolve-once logic into it.
 
 ---
 
+## Throw-safety (axis 5) — completeness oracle
+
+The module marks **9** exports `@@throw-safe` (ADRs #073, #076): each must answer a
+boolean on every hostile input and never propagate a throw, yielding its sentinel
+(`false`) instead. This is the module surface's realization of the universal throw-safety
+invariant (see the Module contract's _Throw-safety_ paragraph). The marked set is the
+completeness oracle — the axis-5 `hostile × marked-export` matrix the test round builds
+must score exactly this set (source order): the 4 public predicates PLUS the 5 exported
+`@internal` helpers.
+
+`isObject`, `doesImplementObjectPrototypeContract`, `hasPlainObjectIdentitySignal`,
+`hasDictionaryObjectIdentitySignal`, `isObjectPrototypeEquivalent`,
+`isAlienRealmPlainObject`, `isPlainObject`, `isDictionaryObject`,
+`isPlainOrDictionaryObject`.
+
+The four public predicates additionally carry the honest by-contract verdict per hostile
+class (the `isObject` floor admits an object-typed hostile `Proxy`; a throwing-tag plain
+object splits by realm — local fast-path admits, foreign structural arm rejects) — the
+axis-3 `hostile × predicate` matrix (`throw-safety.test.js`). Axis-5 extends that suite to
+the five `@internal` helpers, routing the hostile value into each export's own read
+surface (several gate on a threaded `constructor` / `name`, so a naive single-value call
+would short-circuit before the hostile value reached the throwing read), and triple-locks
+the scored set against BOTH the `@@throw-safe` markers parsed from `src/object.js` (source
+drift) AND the imported set (test drift). Source, oracle, and tests are triple-locked. The
+member-surface `ownKeys` trap stays additionally pinned as the helper-level `dIOPC/B1`
+boundary (the predicate path fails marker 1 before marker 6 runs).
+
+---
+
 ## Resolved items
 
 1. **`isDictionaryObject` doc-comment inaccuracy (doc↔impl) — RESOLVED.** The decidability
@@ -665,5 +698,18 @@ resolve-once logic into it.
 
    Decision-aligned with #053 + #063 (no new ADR — applies existing decisions; the export
    completes #053's uniform application, prompted by #059).
+
+7. **Back-sweep Phase 2 (docs + tests, 2026-07-29) — RESOLVED.** Finalizing `object` under
+   the standards invented after it shipped (the back-sweep). The cross-artifact R2 pass
+   found the module's canon already truthful — no stale mechanism-descriptions (unlike
+   `thenable`'s item-#8 stragglers): the 6 resolved items above kept
+   spec/`.js`/`.d.ts`/architecture aligned, and the config round already reconciled the
+   `BLANK_TYPE`→`BLANK_DICTIONARY` carrier refs. The one owed item was the **axis-5
+   completeness-oracle section** (above), documenting the 9 `@@throw-safe` marked exports
+   (`62756ea`) as the triple-locked oracle the upgraded `throw-safety.test.js` scores —
+   the parallel to `FUNCTION.spec.md`'s 24-marker and `THENABLE.spec.md`'s 10-marker
+   sections. No admit/reject verdict changed; the FROZEN oracle stands. No ADR
+   (mechanical + the package-wide #076 marker convention applied to a module that predated
+   it).
 
 No open items.
