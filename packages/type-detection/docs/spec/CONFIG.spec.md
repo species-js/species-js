@@ -24,10 +24,26 @@
 > last runtime import and is now a true leaf (#075). **Export count is unchanged at 30** —
 > a coincidence: the six relocated Number exports are offset by six exports the original
 > inventory never listed (`globalContext`, `objectFromEntries`, `defineProperties`,
-> `BLANK_DICTIONARY`, `BLANK_TYPE`, `INSTANCE_LESS_CONSTRUCTOR`). Those six are
-> **pre-existing drift, deferred to the config Round-2 retro-audit** — not inventoried
-> here. The FROZEN status above records the 2026-06-19 run (Number trio then present); the
+> `BLANK_DICTIONARY`, `BLANK_TYPE`, `INSTANCE_LESS_CONSTRUCTOR`). Those six were
+> **pre-existing drift, deferred to the config Round-2 retro-audit** — RESOLVED 2026-07-29
+> (see the next banner: five inventoried + vector-covered, `BLANK_TYPE` removed, count →
+> 29). The FROZEN status above records the 2026-06-19 run (Number trio then present); the
 > inventory and axis sections below reflect the post-relocation surface.
+
+> **Amended 2026-07-29 (config round — the deferred Round-2 reconciliation).** The
+> deferred six-export drift is resolved. `globalContext`, `objectFromEntries`,
+> `defineProperties`, `BLANK_DICTIONARY`, and `INSTANCE_LESS_CONSTRUCTOR` are now
+> inventoried and vector-covered (`fix/A3`, the extended `fix/A1`, and the new
+> `(sentinels)` section `blank/*` + `ilc/*`); `BLANK_TYPE` was **removed** as an
+> unconsumed `@internal` export (Resolved items #2). **Export count 30 → 29 values + 2
+> exported types** (`BlankType` / `BlankDictionary`, visibility parked — Open items #1).
+> The founding "no public surface / all `@internal`" framing is corrected to the real
+> two-tier surface — a curated public API (the four presets, `objectHasOwn`,
+> `objectCreate`) over the `@internal` primitives (the `@internal` toggling shipped in
+> `f161805` alongside the typedoc docs-visibility fix). `getPrototypeOf` corrected
+> `object | null` → `object | Callable | null` (`ret/T2`, `cap/A4`). **Status: AMENDED —
+> the vectors added this round (`fix/A3`, `blank/*`, `ilc/*`) await the config test
+> round's decidability run.**
 
 ## Module contract
 
@@ -38,9 +54,18 @@ presets) so every predicate reaches for a load-time-fixed reference instead of `
 at each call site. This shields the package from later tampering with the global `Object`.
 
 **What makes this spec different from the seven behavioral modules.** Config exports **no
-predicates** and **no public surface** — all 30 exports are `@internal`, surfaced via the
-subpath only for downstream packages needing the same building blocks. So there are almost
-no admit/reject vectors. The contract instead has **three dimensions**:
+predicates** — it is a capture/retype layer, not a discrimination domain — so there are
+almost no admit/reject vectors. What it exposes splits into two tiers:
+
+- a **curated public surface** — the four descriptor presets, `objectHasOwn`,
+  `objectCreate`, and the `BlankType` / `BlankDictionary` shape types — the value-added
+  building blocks a downstream package is meant to reach for directly, and the only
+  exports present in the generated API docs;
+- a larger body of **`@internal` realm-fixed primitives** — the raw `Object` /
+  `Function.prototype` captures, the polyfill closure, and the `#060` sentinels —
+  importable via the subpath but omitted from the public API docs.
+
+The contract has **three dimensions**, cutting across both tiers:
 
 - **(A) Realm-fixity** — each export is the load-time capture of its intrinsic, held in a
   module `const`, so it cannot be re-resolved by post-load mutation of the global. This is
@@ -62,25 +87,37 @@ real work is typing and identity, not behavior.
 
 ## Surface inventory
 
-All 30 exports are `@internal`; zero exported types. Re-confirmation gate: 30 `.js`
-exports (29 `const` + 1 `function`) = 30 `.d.ts` declarations (29 `declare const` + 1
-`declare function`); parity verified. (Six of the 30 — `globalContext`,
-`objectFromEntries`, `defineProperties`, `BLANK_DICTIONARY`, `BLANK_TYPE`,
-`INSTANCE_LESS_CONSTRUCTOR` — are shipping but not yet sectioned below: pre-existing drift
-deferred to the config Round-2 retro-audit, per the amendment banner.)
+**29 value exports** (6 public + 23 `@internal`) **plus 2 exported types** (`BlankType`,
+`BlankDictionary`, currently public). Re-confirmation gate: 29 `.js` exports (28 `const` +
+1 `function`) = 29 `.d.ts` value declarations (28 `declare const` + 1 `declare function`)
+plus 2 `type` declarations; parity verified.
 
-**Descriptor presets (4) — plain data objects:** `defaultDescriptorOptions`,
+**Public value surface (6):** the four descriptor presets, `objectHasOwn` (the floor-safe
+own-property selector), and `objectCreate` (the 3-overload retype). The remaining 23 value
+exports are `@internal` realm-fixed primitives, grouped below.
+
+_(This config-round reconciliation folds in the previously un-sectioned exports —
+`globalContext`, `objectFromEntries`, `defineProperties`, `BLANK_DICTIONARY`,
+`INSTANCE_LESS_CONSTRUCTOR`; `BLANK_TYPE` was removed as an unconsumed export. The former
+"zero exported types" claim was itself drift — `BlankType` / `BlankDictionary` have been
+exported since #0064.)_
+
+**Realm capture (1) — `@internal`:** `globalContext` (`globalThis`, the root global-object
+capture from which the `Object` / `Function.prototype` members below are read).
+
+**Descriptor presets (4) — public, plain data objects:** `defaultDescriptorOptions`,
 `restrictedDescriptorOptions`, `restrictedAccessorOptions`, `sealedDescriptorOptions`.
 
-**Prototype-method captures (3):** `objectPrototype` (`Object.prototype`),
+**Prototype-method captures (3) — `@internal`:** `objectPrototype` (`Object.prototype`),
 `toObjectString` (`Object.prototype.toString`, for `.call(value)`), `toFunctionString`
 (`Function.prototype.toString`, **retyped** `(this: Callable) => string` — #008).
 
-**Object static captures (16):** `objectHasOwn` (**polyfill**), `objectAssign`,
-`objectIs`, `objectCreate` (**retyped** 3-overload — #034), `objectFreeze`, `objectSeal`,
-`objectKeys`, `objectValues`, `objectEntries`, `getOwnPropertyNames`,
-`getOwnPropertySymbols`, `getPrototypeOf` (**retyped** `(o: unknown) => object | null` —
-#017), `setPrototypeOf`, `defineProperty`, `getOwnPropertyDescriptor`,
+**Object static captures (18):** two **public** — `objectHasOwn` (**polyfill selector**)
+and `objectCreate` (**retyped** 3-overload — #034); sixteen **`@internal`** —
+`objectAssign`, `objectIs`, `objectFreeze`, `objectSeal`, `objectKeys`, `objectValues`,
+`objectEntries`, `objectFromEntries`, `getOwnPropertyNames`, `getOwnPropertySymbols`,
+`getPrototypeOf` (**retyped** `(o: unknown) => object | Callable | null` — #017),
+`setPrototypeOf`, `defineProperty`, `defineProperties`, `getOwnPropertyDescriptor`,
 `getOwnPropertyDescriptors`.
 
 **Polyfill closure (1) — `@internal`, exported for isolated fallback-path testing
@@ -88,17 +125,30 @@ deferred to the config Round-2 retro-audit, per the amendment banner.)
 `objectHasOwn`). It is a function declaration; consuming code uses the selector, which
 prefers native.
 
+**Object- & function-shape sentinels (2) — `@internal`:** `BLANK_DICTIONARY` (the
+never-mutated `objectCreate(null)`, typed `BlankDictionary`; the absent-global capture
+surrogate and, paired with the next, the failure surrogate of `#utility`'s
+`getValidatedStandardConstructorAndPrototypeTuple` — #060) and `INSTANCE_LESS_CONSTRUCTOR`
+(a never-invoked function statement cast to `NewableFunction`; its untouched `prototype`
+makes `x instanceof INSTANCE_LESS_CONSTRUCTOR` uniformly `false` without throwing — #060).
+
+**Exported types (2) — public:** `BlankType` (`Record<PropertyKey, never>`, the empty
+ordinary object shape — now type-only, its `BLANK_TYPE` carrier removed this round) and
+`BlankDictionary` (`BlankType & { constructor?: never }`, the never-mutated
+`Object.create(null)` shape, carried by `BLANK_DICTIONARY`); the object-shape vocabulary
+from #0064.
+
 Boundary-retyped set (B): `toFunctionString`, `objectCreate`, `getPrototypeOf`.
 Polyfilled-selector set (C): `objectHasOwn`; its closure `hasOwn`.
 
 ## Axis mapping for this module
 
-| Axis | How it applies to config                                                                                                                                                           |
-| ---- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1    | Thin — the only runtime behavior is the preset shapes, the `objectHasOwn` polyfill semantics, and capture identity.                                                                |
-| 2    | The whole point — realm-fixity (A). A captured `const` cannot be re-resolved by global tampering.                                                                                  |
-| 3    | Tamper-immunity is the adversarial face of (A): reassigning `globalThis.Object.x` does not affect the export.                                                                      |
-| —    | (B) boundary-retyped signatures are a **type-level** contract — `pnpm run typecheck` is their gate, not a runtime suite. The spec records them so the typing intent is enumerable. |
+| Axis | How it applies to config                                                                                                                                                                                                                                                                              |
+| ---- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1    | Thin — the preset shapes (`dpo/*`), `objectHasOwn` semantics (`oHO/*`), `objectCreate` overloads (`cap/A5`), the sentinel contracts (`blank/*`, `ilc/*`), and capture identity/behavior (`fix/*`, `cap/*`). The presets, `objectHasOwn`, and `objectCreate` are also the module's public API surface. |
+| 2    | The whole point — realm-fixity (A). A captured `const` cannot be re-resolved by global tampering.                                                                                                                                                                                                     |
+| 3    | Tamper-immunity is the adversarial face of (A): reassigning `globalThis.Object.x` does not affect the export.                                                                                                                                                                                         |
+| —    | (B) boundary-retyped signatures are a **type-level** contract — `pnpm run typecheck` is their gate, not a runtime suite. The spec records them so the typing intent is enumerable.                                                                                                                    |
 
 ---
 
@@ -111,14 +161,18 @@ native, the native method — see (C)).
 - `fix/A1` — identity: `objectIs === Object.is`, `objectKeys === Object.keys`,
   `getPrototypeOf === Object.getPrototypeOf`,
   `getOwnPropertyDescriptor === Object.getOwnPropertyDescriptor`,
-  `objectCreate === Object.create`, `toObjectString === Object.prototype.toString`,
-  `objectPrototype === Object.prototype` (representative set; the same holds for every
-  non-polyfilled capture).
+  `objectCreate === Object.create`, `objectFromEntries === Object.fromEntries`,
+  `defineProperties === Object.defineProperties`,
+  `toObjectString === Object.prototype.toString`, `objectPrototype === Object.prototype`
+  (representative set; the same holds for every non-polyfilled capture).
 - `fix/A2` — tamper-immunity (the consequence of the `const` capture): after
   `Object.is = () => 'evil'`, `objectIs` still references the original `Object.is` and
   `objectIs(1, 1) === true`. Restored after the check. One representative export stands in
   for all — re-resolution immunity is a language guarantee of `const` binding, not a
   per-export behavior.
+- `fix/A3` — `globalContext === globalThis` — the realm-capture root. Every `Object.X` /
+  `Function.prototype.X` capture in `fix/A1` is read from it, so its fixity underwrites
+  the whole set. A `const` binding to `globalThis`, tamper-immune like the rest.
 
 **Note:** `fix/A1` is the runtime-decidable form of realm-fixity within a single realm.
 True cross-realm fixity (an iframe/worker/vm reassigning its own `Object`) is the same
@@ -173,8 +227,10 @@ re-defines `Object`'s behavior):
   ±0 distinction `===` cannot express — the reason `#primitive` uses `objectIs` for
   `BoxedNumber` equality).
 - `cap/A4` — `getPrototypeOf([])` → `Array.prototype`;
-  `getPrototypeOf(Object.create(null))` → `null` (the `object | null` return the #017
-  retype promises).
+  `getPrototypeOf(Object.create(null))` → `null`;
+  `getPrototypeOf(class X extends Array {})` → `Array` — a **callable** prototype (a
+  class's parent), exercising the `Callable` arm of the `object | Callable | null` #017
+  retype. The three cases cover all three arms of the return.
 - `cap/A5` — `objectCreate(null)` → an object with `getPrototypeOf(...) === null`;
   `objectCreate(Array.prototype)` → an object whose prototype is `Array.prototype` (the
   three-overload #034 retype; runtime is the native `Object.create`).
@@ -196,6 +252,32 @@ assert the exact own-key/value shape.
 
 ---
 
+## (sentinels) Object- & function-shape constants
+
+Two module-constructed `@internal` constants, paired in `#utility`'s failure-surrogate
+tuple (#060). Their contracts are structural, asserted directly.
+
+### `BLANK_DICTIONARY` — the never-mutated `objectCreate(null)`
+
+- `blank/A1` — prototype-less + empty: `getPrototypeOf(BLANK_DICTIONARY) === null`;
+  `getOwnPropertyNames(BLANK_DICTIONARY).length === 0` and
+  `getOwnPropertySymbols(BLANK_DICTIONARY).length === 0` (no own key of either kind).
+- `blank/A2` — stable module singleton: the same reference across reads, compared by
+  identity as the absent-global capture surrogate and never read for keys — its
+  never-mutated emptiness is the whole contract.
+
+### `INSTANCE_LESS_CONSTRUCTOR` — the inert `instanceof` stand-in
+
+- `ilc/A1` — `typeof INSTANCE_LESS_CONSTRUCTOR === 'function'` (a genuine function
+  statement, cast to `NewableFunction` for the tuple's constructor slot).
+- `ilc/A2` — `x instanceof INSTANCE_LESS_CONSTRUCTOR` → **false** for every representative
+  `x` (`{}`, `[]`, `new Date()`, the constructor itself) and **never throws**: nothing is
+  ever constructed from it, and its `prototype` is a normal object, so the `instanceof`
+  walk is well-formed and empty. This is the contract that lets callers run
+  `value instanceof INSTANCE_LESS_CONSTRUCTOR` unguarded (#060).
+
+---
+
 ## (B) Boundary-retyped signatures — type-level contract (typecheck-gated, not runtime)
 
 Recorded for enumerability; each is enforced by `pnpm run typecheck`, not by the
@@ -203,8 +285,10 @@ decidability run. The deviation from `typeof Object.X` is the deliverable.
 
 - `ret/T1` — `toFunctionString: (this: Callable) => string` (#008) — encodes the
   non-callable-throws precondition lib omits. Runtime face: `cap/B1`.
-- `ret/T2` — `getPrototypeOf: (o: unknown) => object | null` (#017) — replaces lib's
-  `(o: any) => any`, closing the `any`-return cascade. Runtime face: `cap/A4`.
+- `ret/T2` — `getPrototypeOf: (o: unknown) => object | Callable | null` (#017) — replaces
+  lib's `(o: any) => any`, closing the `any`-return cascade. The `Callable` arm keeps a
+  function-valued `[[Prototype]]` (a class's parent, `Function.prototype`)
+  narrow-and-callable rather than collapsing to a bare `object`. Runtime face: `cap/A4`.
 - `ret/T3` — `objectCreate` 3-overload (#034): `(null) => Record<PropertyKey, never>`,
   `(object) => object`, `(object | null, properties) => object`, with `ThisType<unknown>`
   over lib's `ThisType<any>`. Runtime face: `cap/A5`.
@@ -237,15 +321,31 @@ themselves; see ADR #074 and `PRIMITIVE.spec.md`.)_
    `objectHasOwn` / `hasOwn`. The below-floor `Number`-trio testability rationale moves
    with them to `PRIMITIVE.spec.md`.
 
+2. **`BLANK_TYPE` removed — unconsumed export (config round, 2026-07-29).** The #0064
+   carrier constant for the `BlankType` shape had zero consumers anywhere in the package
+   (`@internal`, never imported) — aspirational symmetry with `BLANK_DICTIONARY` that
+   nothing used. Removed, per "an export earns its keep." `BlankType` the _type_ remains
+   (it composes `BlankDictionary`), now carrier-less; #0064 was fronted with a
+   supersession pointer, and the `#object` architecture docs updated. Surface: 30 → 29
+   value exports.
+
 ## Open items
 
-**Deferred — config Round-2 retro-audit.** Six shipping exports are not yet inventoried or
-vector-covered above: `globalContext`, `objectFromEntries`, `defineProperties`,
-`BLANK_DICTIONARY`, `BLANK_TYPE`, `INSTANCE_LESS_CONSTRUCTOR` — pre-existing drift
-surfaced during the #074 relocation (2026-07-24). Taxonomy placement (are the `BLANK_*`
-sentinels and `INSTANCE_LESS_CONSTRUCTOR` a new group; is any of them boundary-retyped /
-dimension B?) is a design call for that audit.
+1. **`BlankType` / `BlankDictionary` type visibility — parked (config round,
+   2026-07-29).** Both types are currently public (exported, present in the API docs), but
+   neither appears in a public runtime signature (`objectCreate(null)` returns `#object`'s
+   `DictionaryObject`), and `BlankType`'s value carrier is now gone. Whether they should
+   stay public (reusable downstream shape vocabulary) or go `@internal` to match their
+   carriers is a deliberately-deferred design call.
 
-The decidability run covers dimensions (A `fix/*`, `cap/*`), (C — the `oHO` selector plus
-the `hasOwn` closure), and the presets (`dpo/*`); dimension (B `ret/T*`) is covered by
-`typecheck` in the standard `pnpm run check`, not by the ephemeral decidability suite.
+_(The 2026-07-24 "config Round-2 retro-audit" deferral is RESOLVED by this round — the six
+drifted exports are inventoried, `BLANK_TYPE` removed; see Resolved items #2 and the
+2026-07-29 banner. Taxonomy settled: `BLANK_DICTIONARY` / `INSTANCE_LESS_CONSTRUCTOR` form
+the new `(sentinels)` group; their narrowing casts are dimension-A shape notes, not
+dimension B — which stays the three lib-gap retypes.)_
+
+The 2026-06-19 decidability run covers dimensions (A `fix/A1`–`A2`, `cap/*`), (C — the
+`oHO` selector plus the `hasOwn` closure), and the presets (`dpo/*`); dimension (B
+`ret/T*`) is `typecheck`-gated. The vectors added this round (`fix/A3`, `blank/*`,
+`ilc/*`) are new and **await the config test round's decidability run** — not yet
+executed.

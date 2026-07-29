@@ -296,15 +296,16 @@ does reconcile).
 `DictionaryObject` (this module) is one of three prototype-shape carriers, distinguished
 along two axes — whether a prototype-chain exists, and whether own keys may be present.
 `DictionaryObject` lives here (beside its predicate `isDictionaryObject` and its
-`extends AnyObject` base); `BlankType` and `BlankDictionary` live in `#config`, beside the
-`BLANK_TYPE` / `BLANK_DICTIONARY` constants that carry them:
+`extends AnyObject` base); `BlankType` and `BlankDictionary` live in `#config`
+(`BlankDictionary` carried by the `BLANK_DICTIONARY` constant; `BlankType` is a type-only
+shape with no value carrier):
 
 - **`DictionaryObject`** (`#object`) — prototype-less, constructor-less, own keys OPEN.
   `AnyObject` extended with the `constructor?: never` discriminator; the honest return of
   `#config`'s `objectCreate(null)` and the narrow target of `isDictionaryObject`.
 - **`BlankType`** (`#config`) — a real `Object` (so it carries `Object.prototype` and the
   `Object` constructor) with no own key: the empty ordinary object `{}`.
-  `Record<PropertyKey, never>`. Carrier: `BLANK_TYPE`.
+  `Record<PropertyKey, never>`. (Type-only — no value carrier.)
 - **`BlankDictionary`** (`#config`) — prototype-less, constructor-less, AND empty: the
   never-mutated `Object.create(null)`, the intersection
   `BlankType & { constructor?: never }`. Carrier: `BLANK_DICTIONARY` — the sentinel behind

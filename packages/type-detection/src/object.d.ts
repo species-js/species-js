@@ -62,8 +62,8 @@
  * distinguished along two axes — whether a prototype-chain exists, and whether
  * own keys may be present. `DictionaryObject` lives here in `#object` (beside
  * its predicate {@link isDictionaryObject}); `BlankType` and `BlankDictionary`
- * live in `#config`, beside the `BLANK_TYPE` / `BLANK_DICTIONARY` constants that
- * carry them:
+ * live in `#config` (`BlankDictionary` carried by the `BLANK_DICTIONARY`
+ * constant; `BlankType` is a type-only shape with no value carrier):
  *
  * - `DictionaryObject` (`#object`) — prototype-less, constructor-less, own keys
  *   OPEN; the narrow target of {@link isDictionaryObject} and the honest return
@@ -71,8 +71,7 @@
  *   with the `constructor?: never` discriminator.
  * - `BlankType` (`#config`) — a real `Object` (carrying `Object.prototype` and
  *   the `Object` constructor) with no own key; the empty ordinary object `{}`.
- *   Modelled as `Record<PropertyKey, never>`. Its realm-fixed carrier is
- *   `BLANK_TYPE`.
+ *   Modelled as `Record<PropertyKey, never>`.
  * - `BlankDictionary` (`#config`) — prototype-less, constructor-less, AND empty;
  *   the never-mutated `Object.create(null)`. The intersection of the other two,
  *   and the type of `BLANK_DICTIONARY` — the sentinel behind `#error`'s legacy

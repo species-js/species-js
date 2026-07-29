@@ -7,9 +7,10 @@
  * Capturing `Object` and `Function.prototype` members once at module-load,
  * rather than reaching for `Object.x` at each call site, fixes their
  * identity to this realm and shields the predicates from later tampering
- * with the global `Object`. Every export is an internal primitive that also
- * gets surfaced for downstream packages which need the same cross-realm-safe
- * building blocks.
+ * with the global `Object`. The documented surface is a small set of public
+ * building blocks — the descriptor presets, `objectHasOwn`, `objectCreate`, and
+ * the `Blank*` shape types; the remaining realm-fixed primitives are `@internal`
+ * (importable by downstream, but omitted from these docs).
  */
 
 import type { Callable, NewableFunction } from '#function';
@@ -79,7 +80,9 @@ export declare const restrictedAccessorOptions: {
  * Descriptor preset for a sealed property.
  *
  * Non-configurable, so the property can be neither redefined nor deleted
- * once set.
+ * once set. Omits `writable` so the preset fits both data and accessor
+ * properties; on a data property `writable` then defaults to `false`, so a
+ * sealed data property is also read-only.
  */
 export declare const sealedDescriptorOptions: {
   enumerable: false;
@@ -147,8 +150,7 @@ export declare const toFunctionString: (this: Callable) => string;
 /**
  * A real `Object` instance carrying no own property key — the empty ordinary
  * object `{}` / `new Object()`. Modeled as `Record<PropertyKey, never>`, which
- * makes every key statically unreachable. The realm-fixed carrier is
- * `BLANK_TYPE`.
+ * makes every key statically unreachable.
  *
  * Distinct from {@link DictionaryObject} and {@link BlankDictionary}: a
  * `BlankType` value is a full-fledged `Object`, so it DOES have a
@@ -310,10 +312,13 @@ export declare const getOwnPropertySymbols: typeof Object.getOwnPropertySymbols;
  * `Object.getPrototypeOf`, realm-fixed at module-load.
  *
  * Retyped from `typeof Object.getPrototypeOf`, which is `(o: any) => any`
- * per `lib.es5.d.ts`, to `(o: unknown) => object | null`. The lib's `any`
- * return forces an `@typescript-eslint/no-unsafe-assignment` cascade at
- * every consumer. The spec-precise return is `object | null`, the
- * `[[Prototype]]` slot of any non-nullish object.
+ * per `lib.es5.d.ts`, to `(o: unknown) => object | Callable | null`. The lib's
+ * `any` return forces an `@typescript-eslint/no-unsafe-assignment` cascade at
+ * every consumer. The spec-precise return is `object | Callable | null` — the
+ * `[[Prototype]]` slot of any non-nullish object, which may itself be callable
+ * (a class's parent constructor, or `Function.prototype`), so the `Callable`
+ * arm lets a caller narrow-and-invoke it instead of collapsing to a bare
+ * `object`.
  *
  * The `unknown` parameter accepts what callers actually pass. The runtime
  * throw for `null` and `undefined` is a precondition not modeled in the
@@ -370,16 +375,6 @@ export declare const getOwnPropertyDescriptors: typeof Object.getOwnPropertyDesc
  * @internal
  */
 export declare const BLANK_DICTIONARY: BlankDictionary;
-
-/**
- * The realm-fixed blank object — a never-mutated empty `Object` (`{}`) captured
- * once at module load, typed {@link BlankType}: a real `Object` carrying
- * `Object.prototype` and the `Object` constructor, but no own property key. It is
- * surfaced as a downstream-facing primitive alongside `BLANK_DICTIONARY`,
- * from which it differs by having a prototype-chain.
- * @internal
- */
-export declare const BLANK_TYPE: BlankType;
 
 /**
  * A never-invoked, never-newed function statement used as the inert stand-in for

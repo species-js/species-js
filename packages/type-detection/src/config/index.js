@@ -9,9 +9,11 @@
  * Capturing `Object` and `Function.prototype` members once at module-load,
  * rather than reaching for `Object.x` at each call site, fixes their
  * identity to this realm and shields the predicates from later tampering
- * with the global `Object`. Every export is an internal primitive that is
- * also surfaced for downstream packages needing the same cross-realm-safe
- * building blocks.
+ * with the global `Object`. Most exports are internal realm-fixed primitives
+ * (`@internal` — importable by downstream, hidden from the public API docs); a
+ * curated few are public building blocks a downstream package reaches for
+ * directly: the descriptor presets, `objectHasOwn`, `objectCreate`, and the
+ * `Blank*` shape types.
  */
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
@@ -27,7 +29,6 @@
 /** @typedef {import('#object').DictionaryObject} DictionaryObject */
 
 /** @typedef {import('./index').BlankDictionary} BlankDictionary */
-/** @typedef {import('./index').BlankType} BlankType */
 
 /** @typedef {typeof import('./index').INSTANCE_LESS_CONSTRUCTOR} NEVER_INVOKED_CONSTRUCTOR */
 
@@ -98,7 +99,9 @@ export const restrictedAccessorOptions = {
  * Descriptor preset for a sealed property.
  *
  * Non-configurable, so the property can be neither redefined nor deleted
- * once set.
+ * once set. Omits `writable` so the preset fits both data and accessor
+ * properties; on a data property `writable` then defaults to `false`, so a
+ * sealed data property is also read-only.
  * @type {sealedDescriptorOptionsType}
  */
 export const sealedDescriptorOptions = {
@@ -145,8 +148,8 @@ const hasOwnProperty = objectPrototype.hasOwnProperty;
 export const toObjectString = objectPrototype.toString;
 
 /**
- * `Function.prototype.toString`, captured at module-load and retyped
- * with `this: Callable`.
+ * `Function.prototype.toString`, captured at module-load; the `.d.ts` retypes
+ * it with `this: Callable`.
  *
  * The retyping encodes the spec-required constraint: calling
  * `Function.prototype.toString` on a non-callable receiver throws
@@ -286,8 +289,10 @@ export const getOwnPropertySymbols = o.getOwnPropertySymbols;
  * `Object.getPrototypeOf`, realm-fixed at module-load.
  *
  * The `.d.ts` retypes the lib's `(o: any) => any` to
- * `(o: unknown) => object | null` to close the `any`-return cascade at
- * consumer call sites. The runtime export is the unwrapped native method.
+ * `(o: unknown) => object | Callable | null` to close the `any`-return cascade
+ * at consumer call sites — the `Callable` arm because a `[[Prototype]]` may
+ * itself be a function (a class's parent, `Function.prototype`). The runtime
+ * export is the unwrapped native method.
  * @internal
  */
 export const getPrototypeOf = o.getPrototypeOf;
@@ -340,17 +345,6 @@ export const getOwnPropertyDescriptors = o.getOwnPropertyDescriptors;
  * @internal
  */
 export const BLANK_DICTIONARY = /** @type {BlankDictionary} */ (objectCreate(null));
-
-/**
- * The realm-fixed blank object — an empty `Object` literal captured once at
- * module load and never mutated: a real `Object` carrying `Object.prototype` and
- * the `Object` constructor, but no own property key. It is surfaced as a
- * downstream-facing primitive alongside `BLANK_DICTIONARY`, from which it differs
- * by having a prototype-chain. The inline cast types it `BlankType` (the empty
- * literal's own surface carries no reachable key).
- * @internal
- */
-export const BLANK_TYPE = /** @type {BlankType} */ ({});
 
 /**
  * A never-invoked, never-newed function statement — the inert stand-in for an
