@@ -246,6 +246,7 @@ export type PlainOrDictionaryObject = PlainObject | DictionaryObject;
 //
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 
+/* @@throw-safe */
 /**
  * Narrows a value to {@link AnyObject} — any non-null, non-function
  * object — via `!!value && typeof value === 'object'`.
@@ -285,6 +286,7 @@ export function isObject<T = unknown>(value?: T): value is T & AnyObject;
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 
+/* @@throw-safe */
 /**
  * The member-surface marker of the cross-realm Plain Object contract:
  * confirms that `value` carries, as its own non-enumerable callable
@@ -317,6 +319,7 @@ export function isObject<T = unknown>(value?: T): value is T & AnyObject;
  */
 export function doesImplementObjectPrototypeContract(prototype: unknown): boolean;
 
+/* @@throw-safe */
 /**
  * Probes the two inexpensive string-shape markers that suggest a value
  * is a plain `Object` instance — the `[[Class]]` tag
@@ -344,6 +347,7 @@ export function hasPlainObjectIdentitySignal(
   name: string | undefined,
 ): boolean;
 
+/* @@throw-safe */
 /**
  * Probes the two markers that suggest a value is a prototype-less
  * Dictionary Object — the `[[Class]]` tag (`'[object Object]'`) and the
@@ -366,6 +370,7 @@ export function hasPlainObjectIdentitySignal(
  */
 export function hasDictionaryObjectIdentitySignal(value: unknown): boolean;
 
+/* @@throw-safe */
 /**
  * Verifies the structural anchor for cross-realm Plain Object
  * discrimination: a six-marker chain over a value's already-resolved
@@ -429,6 +434,7 @@ export function isObjectPrototypeEquivalent(
   name: string | undefined,
 ): boolean;
 
+/* @@throw-safe */
 /**
  * The cross-realm Plain Object fallback: the inexpensive
  * `hasPlainObjectIdentitySignal` front-gate AND the load-bearing
@@ -452,6 +458,7 @@ export function isObjectPrototypeEquivalent(
  */
 export function isAlienRealmPlainObject(value: object, prototype: object): boolean;
 
+/* @@throw-safe */
 /**
  * Narrows a value to {@link PlainObject} — an AnyObject whose direct
  * constructor is the built-in `Object`.
@@ -545,6 +552,7 @@ export function isAlienRealmPlainObject(value: object, prototype: object): boole
  */
 export function isPlainObject<T = unknown>(value?: T): value is T & PlainObject;
 
+/* @@throw-safe */
 /**
  * Narrows a value to {@link DictionaryObject} — an AnyObject with no
  * prototype-chain. Typically created via `Object.create(null)` for
@@ -602,6 +610,7 @@ export function isPlainObject<T = unknown>(value?: T): value is T & PlainObject;
  */
 export function isDictionaryObject<T = unknown>(value?: T): value is T & DictionaryObject;
 
+/* @@throw-safe */
 /**
  * Narrows a value to {@link PlainOrDictionaryObject} — either a
  * {@link PlainObject} (prototype-bearing, constructor === Object) or a

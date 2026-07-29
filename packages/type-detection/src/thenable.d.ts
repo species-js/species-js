@@ -301,6 +301,7 @@ export interface AbortableThenable<out T> extends Thenable<T> {
 //
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 
+/* @@throw-safe */
 /**
  * Whether `value` leaves the inherited `Promise` surface unshadowed at its own
  * level: it owns no property whose name is in the reserved denylist (the
@@ -333,6 +334,7 @@ export interface AbortableThenable<out T> extends Thenable<T> {
  */
 export function doesNotShadowPromiseContract(value: object): boolean;
 
+/* @@throw-safe */
 /**
  * Verifies that the value matches the `Promise.prototype` method
  * contract — callable `then`, `catch`, and `finally` data properties
@@ -364,6 +366,7 @@ export function doesNotShadowPromiseContract(value: object): boolean;
  */
 export function doesImplementPromiseContract(value: unknown): boolean;
 
+/* @@throw-safe */
 /**
  * The member-surface marker of the cross-realm `Promise` contract: confirms
  * that `prototype` carries `then`, `catch`, and `finally` as its own callable
@@ -390,6 +393,7 @@ export function doesImplementPromiseContract(value: unknown): boolean;
  */
 export function doesImplementPromisePrototypeContract(prototype: unknown): boolean;
 
+/* @@throw-safe */
 /**
  * Verifies the structural anchor for cross-realm `Promise` discrimination over a
  * value's already-resolved `[[Prototype]]` — a four-marker chain, short-circuited
@@ -429,6 +433,7 @@ export function isPromisePrototypeEquivalent(
   constructor: unknown,
 ): boolean;
 
+/* @@throw-safe */
 /**
  * Whether the value carries both of `Promise`'s string-shape identity
  * markers — the `[[Class]]` tag `'Promise'` and the resolved constructor-name
@@ -447,6 +452,7 @@ export function hasPromiseIdentitySignal(
   name: string | undefined,
 ): boolean;
 
+/* @@throw-safe */
 /**
  * The cross-realm `Promise` fallback, composed: the inexpensive
  * `hasPromiseIdentitySignal` front-gate (the value's `[[Class]]` tag and
@@ -473,6 +479,7 @@ export function hasPromiseIdentitySignal(
  */
 export function isAlienRealmPromise(value: object, prototype: object): boolean;
 
+/* @@throw-safe */
 /**
  * Whether `value` is an instance of the realm-fixed `Promise` intrinsic captured
  * at module load, or of any subclass.
@@ -507,6 +514,7 @@ export function isCurrentRealmPromiseInstance<T = unknown>(
   value: T,
 ): value is T & PromiseLike<unknown>;
 
+/* @@throw-safe */
 /**
  * Narrows a value to `PromiseLike<unknown>` via either local-realm
  * `Promise` identity or the structural `Promise.prototype` method
@@ -547,6 +555,7 @@ export function isCurrentRealmPromiseInstance<T = unknown>(
  */
 export function isPromiseLike<T = unknown>(value?: T): value is T & PromiseLike<unknown>;
 
+/* @@throw-safe */
 /**
  * Narrows a value to `Promise<unknown>` via a two-branch identity check.
  *
@@ -617,6 +626,7 @@ export function isPromise(value?: unknown): value is Promise<unknown>;
 //
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 
+/* @@throw-safe */
 /**
  * Narrows a value to `Thenable<unknown>` by verifying that `then` is a
  * callable data property reachable through the value's prototype-chain.

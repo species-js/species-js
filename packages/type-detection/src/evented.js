@@ -110,6 +110,7 @@ const [EventTargetConstructor, eventTargetPrototype] =
 //
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 
+/* @@throw-safe */
 /**
  * Whether `value` is an instance of the realm-fixed `EventTarget`
  * capture (or any subclass — `Element`, `Document`, `Window`,
@@ -147,6 +148,7 @@ export function isCurrentRealmEventTargetInstance(value) {
   }
 }
 
+/* @@throw-safe */
 /**
  * Whether `value` carries both of `EventTarget`'s string-shape identity markers
  * — the `[[Class]]` tag `'[object EventTarget]'` and the caller-threaded
@@ -185,6 +187,7 @@ const disallowedEventTargetContractShadowKeys = new Set([
   'when',
 ]);
 
+/* @@throw-safe */
 /**
  * Whether `value` leaves the inherited `EventTarget` surface unshadowed at its
  * own level: it owns no property whose name is in the reserved denylist
@@ -225,6 +228,7 @@ export function doesNotShadowEventTargetContract(value) {
   }
 }
 
+/* @@throw-safe */
 /**
  * Verifies that the value matches the `EventTarget` method contract —
  * callable `dispatchEvent`, `addEventListener`, and `removeEventListener`
@@ -273,6 +277,7 @@ export function doesImplementEventTargetContract(value) {
   );
 }
 
+/* @@throw-safe */
 /**
  * Whether `prototype` carries `EventTarget.prototype`'s own member surface —
  * the three DOM WHATWG methods `dispatchEvent`, `addEventListener`, and
@@ -315,6 +320,7 @@ export function doesImplementEventTargetPrototypeContract(prototype) {
   }
 }
 
+/* @@throw-safe */
 /**
  * Whether `prototype` is structurally equivalent to the realm's
  * `EventTarget.prototype` — a four-marker chain: `constructor` is a class,
@@ -342,6 +348,7 @@ export function isEventTargetPrototypeEquivalent(prototype, constructor) {
   );
 }
 
+/* @@throw-safe */
 /**
  * The cross-realm `EventTarget` identity arm, composed: the inexpensive
  * {@link hasEventTargetIdentitySignal} front-gate (tag + constructor-name)
@@ -367,6 +374,7 @@ export function isAlienRealmEventTarget(value, prototype) {
   );
 }
 
+/* @@throw-safe */
 /**
  * Narrows a value to `EventTargetLike` via either local-realm
  * `EventTarget` identity or the structural `EventTarget` method
@@ -416,6 +424,7 @@ export function isEventTargetLike(value) {
   );
 }
 
+/* @@throw-safe */
 /**
  * Narrows a value to `EventTarget` via a two-axis identity dispatch.
  *
@@ -480,6 +489,7 @@ export function isEventTarget(value) {
 //
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 
+/* @@throw-safe */
 /**
  * Whether `value` is an instance of the realm-fixed `AbortSignal`
  * capture (or any subclass).
@@ -516,6 +526,7 @@ export function isCurrentRealmAbortSignalInstance(value) {
   }
 }
 
+/* @@throw-safe */
 /**
  * Whether `value` carries both of `AbortSignal`'s string-shape identity markers
  * — the `[[Class]]` tag `'[object AbortSignal]'` and the caller-threaded
@@ -552,6 +563,7 @@ const disallowedAbortSignalContractShadowKeys = new Set([
   ...disallowedEventTargetContractShadowKeys,
 ]);
 
+/* @@throw-safe */
 /**
  * Whether `value` leaves the inherited `AbortSignal` surface unshadowed at its
  * own level: it owns no property whose name is in the reserved denylist
@@ -591,6 +603,7 @@ export function doesNotShadowAbortSignalContract(value) {
   }
 }
 
+/* @@throw-safe */
 /**
  * Verifies that the value matches the `AbortSignal` method contract —
  * `EventTargetLike` plus a boolean `aborted` and a callable
@@ -656,6 +669,7 @@ export function doesImplementAbortSignalContract(value) {
   }
 }
 
+/* @@throw-safe */
 /**
  * Whether `prototype` carries `AbortSignal.prototype`'s own member surface —
  * the spec-defined accessors and method of DOM WHATWG `AbortSignal`:
@@ -698,6 +712,7 @@ export function doesImplementAbortSignalPrototypeContract(prototype, value) {
   }
 }
 
+/* @@throw-safe */
 /**
  * Whether `prototype` is structurally equivalent to the realm's
  * `AbortSignal.prototype` — a four-marker chain: `constructor` is a class,
@@ -727,6 +742,7 @@ export function isAbortSignalPrototypeEquivalent(prototype, constructor, value) 
   );
 }
 
+/* @@throw-safe */
 /**
  * The cross-realm `AbortSignal` identity arm, composed: the inexpensive
  * {@link hasAbortSignalIdentitySignal} front-gate (tag + constructor-name)
@@ -752,6 +768,7 @@ export function isAlienRealmAbortSignal(value, prototype) {
   );
 }
 
+/* @@throw-safe */
 /**
  * Narrows a value to `AbortSignalLike` via either local-realm
  * `AbortSignal` identity or the structural `AbortSignal` method
@@ -794,6 +811,7 @@ export function isAbortSignalLike(value) {
   );
 }
 
+/* @@throw-safe */
 /**
  * Narrows a value to `AbortSignal` via a two-axis identity dispatch.
  *

@@ -94,7 +94,7 @@ import { isStringValue } from '#primitive';
 const [GenericErrorConstructor, genericErrorPrototype] =
   /** @type {[typeof Error, object | null] | [NEVER_INVOKED_CONSTRUCTOR, BlankDictionary]} */ (
     getValidatedStandardConstructorAndPrototypeTuple(
-      Error,
+      globalContext.Error,
       isGenericErrorPrototypeEquivalent,
     )
   );
@@ -134,6 +134,7 @@ const [DOMExceptionConstructor /*, domExceptionPrototype*/] =
     )
   );
 
+/* @@throw-safe */
 /**
  * Reads a value's `stack` string, or `undefined` when none is reachable.
  * The access strategy is fixed once at module-load from how the realm's
@@ -259,6 +260,7 @@ export const ERROR_STACK_CAPABLE = ((GenericError) => {
 //   }
 // }
 
+/* @@throw-safe */
 /**
  * Whether a value exposes a `stack` string reachable through
  * {@link retrieveErrorStack} — the realm's fixed access strategy, so an
@@ -273,6 +275,7 @@ export function hasReachableErrorStack(value) {
   return isStringValue(retrieveErrorStack(value));
 }
 
+/* @@throw-safe */
 /**
  * The stack-graft filter — the gate that separates a genuine error from an
  * `Object.create(Error.prototype)` graft. In an environment that does not
@@ -293,6 +296,7 @@ export function doesPassErrorGraftFilter(value) {
   return !ERROR_STACK_CAPABLE || hasReachableErrorStack(value);
 }
 
+/* @@throw-safe */
 /**
  * The minimum error duck-type — `name` and `message` both present as
  * strings. The floor shared by every `Error` and `DOMException` across
@@ -313,6 +317,7 @@ export function doesImplementMinimumErrorContract(value) {
   }
 }
 
+/* @@throw-safe */
 /**
  * The generic-error structural contract — the stack-graft filter
  * ({@link doesPassErrorGraftFilter}) AND the minimum duck-type
@@ -334,6 +339,7 @@ export function doesImplementGenericErrorContract(value) {
   return doesPassErrorGraftFilter(value) && doesImplementMinimumErrorContract(value);
 }
 
+/* @@throw-safe */
 /**
  * The `DOMException` structural contract — `name` and `message` both
  * present as inert getters. Reading the descriptor shape (an accessor,
@@ -357,6 +363,7 @@ export function doesImplementDOMExceptionContract(value) {
   );
 }
 
+/* @@throw-safe */
 /**
  * Whether a prototype IS the genuine root `Error.prototype` — identified
  * by its own descriptors: an own callable `toString`, string `name` and
@@ -396,6 +403,7 @@ export function doesImplementGenericErrorPrototypeContract(prototype) {
   }
 }
 
+/* @@throw-safe */
 /**
  * Whether a prototype exposes the `DOMException` accessor shape — `name`
  * and `message` each a getter with no setter, both yielding strings when
@@ -445,6 +453,7 @@ export function doesImplementDOMExceptionPrototypeContract(prototype, value) {
 //
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 
+/* @@throw-safe */
 /**
  * Whether a `(prototype, constructor)` pair IS the realm's genuine `Error`
  * / `Error.prototype` pairing. Four identity markers, in load-bearing
@@ -478,6 +487,7 @@ export function isGenericErrorPrototypeEquivalent(prototype, constructor) {
   );
 }
 
+/* @@throw-safe */
 /**
  * Whether a `(prototype, constructor, value)` triple IS the realm's
  * genuine `DOMException` / `DOMException.prototype` pairing. The same four
@@ -513,6 +523,7 @@ export function isDOMExceptionPrototypeEquivalent(prototype, constructor, value)
   );
 }
 
+/* @@throw-safe */
 /**
  * Whether a value is a foreign-realm `Error` that is not a `DOMException`.
  * The path taken when the local-realm `instanceof` fast-path misses — a
@@ -586,6 +597,7 @@ export function isAlienRealmGenericError(value) {
   return result;
 }
 
+/* @@throw-safe */
 /**
  * Whether a value is a foreign-realm `DOMException`. The path taken when
  * the local-realm `instanceof DOMException` fast-path misses.
@@ -653,6 +665,7 @@ export function isAlienRealmDOMException(value) {
 //
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 
+/* @@throw-safe */
 /**
  * Whether a value is an `instanceof` the captured current-realm `Error`
  * constructor. The inexpensive local-realm fast-path — a single prototype-chain
@@ -680,6 +693,7 @@ export function isCurrentRealmGenericErrorInstance(value) {
   }
 }
 
+/* @@throw-safe */
 /**
  * Whether a value is an `instanceof` the captured current-realm
  * `DOMException` constructor — the inexpensive local-realm fast-path for
@@ -708,6 +722,7 @@ export function isCurrentRealmDOMExceptionInstance(value) {
 //
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 
+/* @@throw-safe */
 /**
  * Narrows a value to a generic `Error` — one that is not a `DOMException`.
  *
@@ -769,6 +784,7 @@ export function isGenericError(value) {
   return isAlienRealmGenericError(value);
 }
 
+/* @@throw-safe */
 /**
  * Narrows a value to {@link DOMException}.
  *
@@ -793,6 +809,7 @@ export function isDOMException(value) {
     : isAlienRealmDOMException(value);
 }
 
+/* @@throw-safe */
 /**
  * Narrows a value to {@link AnyError} — an `Error` or a `DOMException`.
  * The {@link isError} polyfill body, used when the runtime lacks native
@@ -844,6 +861,7 @@ const nativeIsError = /** @type {import('#error').isError | undefined} */ (
     : void 0
 );
 
+/* @@throw-safe */
 /**
  * Narrows a value to {@link AnyError} — the public Error predicate.
  *
@@ -887,6 +905,7 @@ export const isError = /** @type {import('#error').isError} */ (
 //
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 
+/* @@throw-safe */
 /**
  * Narrows a value to {@link AbortError} — a {@link AnyError} whose
  * `name` ends with the `'AbortError'` suffix.
@@ -944,7 +963,13 @@ export const isError = /** @type {import('#error').isError} */ (
  * isAbortError(null);                                      // false
  */
 export function isAbortError(value) {
-  return isError(value) && isStringValue(value.name) && value.name.endsWith('AbortError');
+  try {
+    return (
+      isError(value) && isStringValue(value.name) && value.name.endsWith('AbortError')
+    );
+  } catch {
+    return false;
+  }
 }
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----

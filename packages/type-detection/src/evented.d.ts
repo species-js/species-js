@@ -185,6 +185,7 @@ export interface AbortSignalLike extends EventTargetLike {
 //
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 
+/* @@throw-safe */
 /**
  * Whether `value` is an instance of the realm-fixed `EventTarget` intrinsic
  * captured at module load (or any subclass — `Element`, `Document`,
@@ -217,6 +218,7 @@ export function isCurrentRealmEventTargetInstance<T = unknown>(
   value: T,
 ): value is T & EventTargetLike;
 
+/* @@throw-safe */
 /**
  * Whether `value` is an instance of the realm-fixed `AbortSignal` intrinsic
  * captured at module load (or any subclass).
@@ -254,6 +256,7 @@ export function isCurrentRealmAbortSignalInstance<T = unknown>(
 //
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 
+/* @@throw-safe */
 /**
  * Whether `value` carries both of `EventTarget`'s string-shape identity markers
  * — the `[[Class]]` tag `'[object EventTarget]'` and the caller-threaded
@@ -274,6 +277,7 @@ export function hasEventTargetIdentitySignal(
   name: string | undefined,
 ): boolean;
 
+/* @@throw-safe */
 /**
  * Whether `value` leaves the `EventTarget` method contract unshadowed at its own
  * level: it owns no property named `dispatchEvent`, `addEventListener`,
@@ -300,6 +304,7 @@ export function hasEventTargetIdentitySignal(
  */
 export function doesNotShadowEventTargetContract(value: object): boolean;
 
+/* @@throw-safe */
 /**
  * Verifies that the value matches the `EventTarget` method contract —
  * callable `dispatchEvent`, `addEventListener`, and `removeEventListener`
@@ -342,6 +347,7 @@ export function doesNotShadowEventTargetContract(value: object): boolean;
  */
 export function doesImplementEventTargetContract(value: unknown): boolean;
 
+/* @@throw-safe */
 /**
  * Whether `prototype` carries `EventTarget.prototype`'s own member surface —
  * the three DOM WHATWG methods `dispatchEvent`, `addEventListener`, and
@@ -367,6 +373,7 @@ export function doesImplementEventTargetContract(value: unknown): boolean;
  */
 export function doesImplementEventTargetPrototypeContract(prototype: object): boolean;
 
+/* @@throw-safe */
 /**
  * Whether `prototype` is structurally equivalent to the realm's
  * `EventTarget.prototype` — a four-marker chain: `constructor` is a class,
@@ -389,6 +396,7 @@ export function isEventTargetPrototypeEquivalent(
   constructor: import('#function').NewableFunction | undefined,
 ): boolean;
 
+/* @@throw-safe */
 /**
  * The cross-realm `EventTarget` identity arm, composed: the inexpensive
  * {@link hasEventTargetIdentitySignal} front-gate (tag + constructor-name)
@@ -406,6 +414,7 @@ export function isEventTargetPrototypeEquivalent(
  */
 export function isAlienRealmEventTarget(value: object, prototype: object): boolean;
 
+/* @@throw-safe */
 /**
  * Narrows a value to `EventTargetLike` via either local-realm
  * `EventTarget` identity or the structural `EventTarget` method
@@ -449,6 +458,7 @@ export function isAlienRealmEventTarget(value: object, prototype: object): boole
  */
 export function isEventTargetLike<T = unknown>(value?: T): value is T & EventTargetLike;
 
+/* @@throw-safe */
 /**
  * Narrows a value to `EventTarget` via a two-axis identity dispatch.
  *
@@ -500,6 +510,7 @@ export function isEventTarget(value?: unknown): value is EventTarget;
 //
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 
+/* @@throw-safe */
 /**
  * Whether `value` carries both of `AbortSignal`'s string-shape identity markers
  * — the `[[Class]]` tag `'[object AbortSignal]'` and the caller-threaded
@@ -520,6 +531,7 @@ export function hasAbortSignalIdentitySignal(
   name: string | undefined,
 ): boolean;
 
+/* @@throw-safe */
 /**
  * Whether `value` leaves the inherited `AbortSignal` surface unshadowed at its
  * own level: it owns no property named `aborted`, `reason`, `onabort`,
@@ -548,6 +560,7 @@ export function hasAbortSignalIdentitySignal(
  */
 export function doesNotShadowAbortSignalContract(value: object): boolean;
 
+/* @@throw-safe */
 /**
  * Verifies that the value matches the `AbortSignal` method contract —
  * `EventTargetLike` plus a boolean `aborted` and a callable
@@ -597,6 +610,7 @@ export function doesNotShadowAbortSignalContract(value: object): boolean;
  */
 export function doesImplementAbortSignalContract(value: unknown): boolean;
 
+/* @@throw-safe */
 /**
  * Whether `prototype` carries `AbortSignal.prototype`'s own member surface —
  * the spec-defined accessors and method of DOM WHATWG `AbortSignal`:
@@ -621,6 +635,7 @@ export function doesImplementAbortSignalPrototypeContract(
   value: object,
 ): boolean;
 
+/* @@throw-safe */
 /**
  * Whether `prototype` is structurally equivalent to the realm's
  * `AbortSignal.prototype` — a four-marker chain: `constructor` is a class,
@@ -646,6 +661,7 @@ export function isAbortSignalPrototypeEquivalent(
   value: object,
 ): boolean;
 
+/* @@throw-safe */
 /**
  * The cross-realm `AbortSignal` identity arm, composed: the inexpensive
  * {@link hasAbortSignalIdentitySignal} front-gate (tag + constructor-name)
@@ -663,6 +679,7 @@ export function isAbortSignalPrototypeEquivalent(
  */
 export function isAlienRealmAbortSignal(value: object, prototype: object): boolean;
 
+/* @@throw-safe */
 /**
  * Narrows a value to `AbortSignalLike` via either local-realm
  * `AbortSignal` identity or the structural `AbortSignal` method
@@ -700,6 +717,7 @@ export function isAlienRealmAbortSignal(value: object, prototype: object): boole
  */
 export function isAbortSignalLike<T = unknown>(value?: T): value is T & AbortSignalLike;
 
+/* @@throw-safe */
 /**
  * Narrows a value to `AbortSignal` via a two-axis identity dispatch.
  *

@@ -217,6 +217,7 @@ export type AbortError = AnyError & {
 //
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 
+/* @@throw-safe */
 /**
  * Reads a value's `stack` string, or `undefined` when none is reachable.
  * The access strategy is fixed once at module-load from how the realm's
@@ -258,6 +259,7 @@ export const ERROR_STACK_CAPABLE: boolean;
 //
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 
+/* @@throw-safe */
 /**
  * Whether a value exposes a `stack` string reachable through
  * {@link retrieveErrorStack} — the realm's fixed access strategy, so an
@@ -269,6 +271,7 @@ export const ERROR_STACK_CAPABLE: boolean;
  */
 export function hasReachableErrorStack(value: object): boolean;
 
+/* @@throw-safe */
 /**
  * The stack-graft filter — the gate that separates a genuine error from an
  * `Object.create(Error.prototype)` graft. Where the environment does not
@@ -286,6 +289,7 @@ export function hasReachableErrorStack(value: object): boolean;
  */
 export function doesPassErrorGraftFilter(value: object): boolean;
 
+/* @@throw-safe */
 /**
  * The minimum error duck-type — `name` and `message` both present as
  * strings. The floor shared by every `Error` and `DOMException` across
@@ -304,6 +308,7 @@ export function doesImplementMinimumErrorContract(value: {
   name?: unknown;
 }): boolean;
 
+/* @@throw-safe */
 /**
  * The generic-error structural contract — the stack-graft filter
  * ({@link doesPassErrorGraftFilter}) AND the minimum duck-type
@@ -322,6 +327,7 @@ export function doesImplementMinimumErrorContract(value: {
  */
 export function doesImplementGenericErrorContract(value: object): boolean;
 
+/* @@throw-safe */
 /**
  * The `DOMException` structural contract — `name` and `message` both present
  * as inert getters. The descriptor shape (an accessor, never invoked) is the
@@ -338,6 +344,7 @@ export function doesImplementGenericErrorContract(value: object): boolean;
  */
 export function doesImplementDOMExceptionContract(value: object): boolean;
 
+/* @@throw-safe */
 /**
  * Whether a prototype is the genuine root `Error.prototype` — identified by
  * its own descriptors: an own callable `toString`, string `name` and
@@ -355,6 +362,7 @@ export function doesImplementDOMExceptionContract(value: object): boolean;
  */
 export function doesImplementGenericErrorPrototypeContract(prototype: object): boolean;
 
+/* @@throw-safe */
 /**
  * Whether a prototype exposes the `DOMException` accessor shape — `name` and
  * `message` each a getter with no setter, both yielding strings when invoked
@@ -383,6 +391,7 @@ export function doesImplementDOMExceptionPrototypeContract(
 //
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 
+/* @@throw-safe */
 /**
  * Whether a `(prototype, constructor)` pair is the realm's genuine `Error` /
  * `Error.prototype` pairing. Four identity markers, in load-bearing order —
@@ -408,6 +417,7 @@ export function isGenericErrorPrototypeEquivalent(
   constructor: unknown,
 ): boolean;
 
+/* @@throw-safe */
 /**
  * Whether a `(prototype, constructor, value)` triple is the realm's genuine
  * `DOMException` / `DOMException.prototype` pairing. The same four identity
@@ -437,6 +447,7 @@ export function isDOMExceptionPrototypeEquivalent(
   value: object,
 ): boolean;
 
+/* @@throw-safe */
 /**
  * Whether a value is a foreign-realm `Error` that is not a `DOMException` —
  * the path taken when the local-realm `instanceof` fast-path misses (a value
@@ -461,6 +472,7 @@ export function isDOMExceptionPrototypeEquivalent(
  */
 export function isAlienRealmGenericError<T = unknown>(value: T): value is T & Error;
 
+/* @@throw-safe */
 /**
  * Whether a value is a foreign-realm `DOMException` — the path taken when the
  * local-realm `instanceof DOMException` fast-path misses.
@@ -489,6 +501,7 @@ export function isAlienRealmDOMException<T = unknown>(
 //
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 
+/* @@throw-safe */
 /**
  * Whether a value is an `instanceof` the captured current-realm `Error`
  * constructor — the inexpensive local-realm fast-path. Admits current-realm
@@ -508,6 +521,7 @@ export function isCurrentRealmGenericErrorInstance<T = unknown>(
   value: T,
 ): value is T & Error;
 
+/* @@throw-safe */
 /**
  * Whether a value is an `instanceof` the captured current-realm
  * `DOMException` constructor — the inexpensive local-realm fast-path for
@@ -531,6 +545,7 @@ export function isCurrentRealmDOMExceptionInstance<T = unknown>(
 //
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 
+/* @@throw-safe */
 /**
  * Narrows a value to a generic `Error` — one that is not a `DOMException`.
  *
@@ -567,6 +582,7 @@ export function isCurrentRealmDOMExceptionInstance<T = unknown>(
  */
 export function isGenericError<T = unknown>(value?: T): value is T & Error;
 
+/* @@throw-safe */
 /**
  * Narrows a value to {@link DOMException}.
  *
@@ -588,6 +604,7 @@ export function isGenericError<T = unknown>(value?: T): value is T & Error;
  */
 export function isDOMException<T = unknown>(value?: T): value is T & DOMException;
 
+/* @@throw-safe */
 /**
  * Narrows a value to {@link AnyError} — an `Error` or a `DOMException`. The
  * {@link isError} polyfill body, used when the runtime lacks native
@@ -619,6 +636,7 @@ export function isDOMException<T = unknown>(value?: T): value is T & DOMExceptio
  */
 export function isAnyError<T = unknown>(value?: T): value is T & AnyError;
 
+/* @@throw-safe */
 /**
  * Narrows a value to {@link AnyError} — the public Error predicate.
  *
@@ -661,6 +679,7 @@ export function isError<T = unknown>(value?: T): value is T & AnyError;
 //
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 
+/* @@throw-safe */
 /**
  * Narrows a value to {@link AbortError} — a {@link AnyError} whose
  * `name` ends with the `'AbortError'` suffix.
