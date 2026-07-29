@@ -11,6 +11,7 @@
  * constant at another module's load time regardless of which subpath is
  * entered first, without risking a temporal-dead-zone crash from the
  * `config ↔ function ↔ utility` import cycle (ADR #070).
+ * @internal
  */
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
@@ -22,5 +23,6 @@
  * hot path, trading signature width for the skip (#058).
  *
  * A bare `true`; its literal type is the whole contract.
+ * @internal
  */
 export const TRUSTED_DATA_CONFIRMATION = /** @type {true} */ (true);

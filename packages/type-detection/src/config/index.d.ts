@@ -16,10 +16,6 @@ import type { Callable, NewableFunction } from '#function';
 import type { DictionaryObject } from '#object';
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
-//
-//  Property Descriptor Options
-//
-// ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 
 /**
  * The realm's global object, captured once at module-load.
@@ -39,12 +35,17 @@ import type { DictionaryObject } from '#object';
  */
 export declare const globalContext: typeof globalThis;
 
+// ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
+//
+//  Property Descriptor Options
+//
+// ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
+
 /**
  * Descriptor preset for a hidden-but-mutable property.
  *
  * The default shape for defining internal properties that may still be
  * reassigned.
- * @internal
  */
 export declare const defaultDescriptorOptions: {
   enumerable: false;
@@ -57,7 +58,6 @@ export declare const defaultDescriptorOptions: {
  *
  * Configurable despite being non-writable, so the property can still be
  * redefined or deleted.
- * @internal
  */
 export declare const restrictedDescriptorOptions: {
   enumerable: false;
@@ -69,7 +69,6 @@ export declare const restrictedDescriptorOptions: {
  * Descriptor preset for a hidden accessor (get/set) property.
  *
  * Omits `writable`, which is invalid on accessor descriptors.
- * @internal
  */
 export declare const restrictedAccessorOptions: {
   enumerable: false;
@@ -81,7 +80,6 @@ export declare const restrictedAccessorOptions: {
  *
  * Non-configurable, so the property can be neither redefined nor deleted
  * once set.
- * @internal
  */
 export declare const sealedDescriptorOptions: {
   enumerable: false;
@@ -107,7 +105,7 @@ export declare const sealedDescriptorOptions: {
  *
  * Used as the local-realm fast-path target in `#object`'s
  * `isPlainObject` and `isPlainOrDictionaryObject`, and as the root
- * from which {@link toObjectString} and the module-local
+ * from which `toObjectString` and the module-local
  * `hasOwnProperty` chain are extracted.
  * @internal
  */
@@ -150,7 +148,7 @@ export declare const toFunctionString: (this: Callable) => string;
  * A real `Object` instance carrying no own property key — the empty ordinary
  * object `{}` / `new Object()`. Modeled as `Record<PropertyKey, never>`, which
  * makes every key statically unreachable. The realm-fixed carrier is
- * {@link BLANK_TYPE}.
+ * `BLANK_TYPE`.
  *
  * Distinct from {@link DictionaryObject} and {@link BlankDictionary}: a
  * `BlankType` value is a full-fledged `Object`, so it DOES have a
@@ -167,7 +165,7 @@ export type BlankType = Record<PropertyKey, never>;
  * reads `undefined`) object that ALSO carries no own property key — the
  * intersection of {@link DictionaryObject} (prototype-less) and
  * {@link BlankType} (empty): the never-mutated `Object.create(null)`. The
- * realm-fixed carrier is {@link BLANK_DICTIONARY}.
+ * realm-fixed carrier is `BLANK_DICTIONARY`.
  *
  * `BlankType & { constructor?: never }` composes the empty own-key surface with
  * the prototype-less discriminator. As with its siblings, the prototype-less-ness
@@ -203,11 +201,10 @@ export declare function hasOwn(target: object, key: PropertyKey): boolean;
  *
  * Uses the native `Object.hasOwn` when the runtime provides it (Node
  * 16.9 and later, browsers since late 2021). Otherwise, falls back to the
- * {@link hasOwn} polyfill over the captured `Object.prototype.hasOwnProperty`.
+ * `hasOwn` polyfill over the captured `Object.prototype.hasOwnProperty`.
  *
  * The call shape is `objectHasOwn(target, key)`. The reference is
  * realm-fixed at module-load.
- * @internal
  */
 export declare const objectHasOwn: (o: object, v: PropertyKey) => boolean;
 
@@ -237,7 +234,7 @@ export declare const objectIs: typeof Object.is;
  * - `objectCreate(null)` returns {@link DictionaryObject} — a prototype-less,
  *   constructor-less object whose own keys are open, mirroring the runtime
  *   characteristic that no prototype-chain exists to inherit from. The
- *   never-mutated singleton {@link BLANK_DICTIONARY} narrows this to
+ *   never-mutated singleton `BLANK_DICTIONARY` narrows this to
  *   {@link BlankDictionary}.
  * - `objectCreate(prototype)` returns `object` — an instance whose
  *   `[[Prototype]]` is `prototype`.
@@ -249,12 +246,11 @@ export declare const objectIs: typeof Object.is;
  * `Object.create(null)` for a sentinel or lookup-table object. The
  * spec-precise return closes the cascade once, here, so consumers
  * inherit honest typing for free. Same lib-gap pattern as
- * {@link getPrototypeOf} and {@link toFunctionString}.
+ * `getPrototypeOf` and `toFunctionString`.
  *
  * `ThisType<unknown>` replaces lib's `ThisType<any>` on the
  * property-bearing overload, matching the package's `unknown`-over-`any`
  * discipline for the inferred `this` context inside descriptor methods.
- * @internal
  */
 export declare const objectCreate: {
   (o: null): DictionaryObject;
@@ -322,7 +318,7 @@ export declare const getOwnPropertySymbols: typeof Object.getOwnPropertySymbols;
  * The `unknown` parameter accepts what callers actually pass. The runtime
  * throw for `null` and `undefined` is a precondition not modeled in the
  * type, consistent with TypeScript's not modeling thrown errors elsewhere.
- * Same lib-gap pattern as {@link toFunctionString} above.
+ * Same lib-gap pattern as `toFunctionString` above.
  * @internal
  */
 export declare const getPrototypeOf: (o: unknown) => object | Callable | null;
@@ -379,7 +375,7 @@ export declare const BLANK_DICTIONARY: BlankDictionary;
  * The realm-fixed blank object — a never-mutated empty `Object` (`{}`) captured
  * once at module load, typed {@link BlankType}: a real `Object` carrying
  * `Object.prototype` and the `Object` constructor, but no own property key. It is
- * surfaced as a downstream-facing primitive alongside {@link BLANK_DICTIONARY},
+ * surfaced as a downstream-facing primitive alongside `BLANK_DICTIONARY`,
  * from which it differs by having a prototype-chain.
  * @internal
  */

@@ -410,8 +410,8 @@ export function doesImplementPromisePrototypeContract(prototype: unknown): boole
  * chain-depth marker: `Promise.prototype`'s `[[Prototype]]` is `Object.prototype`,
  * not `null`, so a top-level check would wrongly reject every genuine
  * `Promise.prototype`. The value's constructor-name identity is verified
- * separately by the caller {@link isAlienRealmPromise} via
- * {@link hasPromiseIdentitySignal}.
+ * separately by the caller `isAlienRealmPromise` via
+ * `hasPromiseIdentitySignal`.
  *
  * Throw-safe end to end: each read absorbs a hostile Proxy-trap, failing the
  * contract rather than propagating; `isClass` is likewise throw-safe at its own
@@ -449,9 +449,9 @@ export function hasPromiseIdentitySignal(
 
 /**
  * The cross-realm `Promise` fallback, composed: the inexpensive
- * {@link hasPromiseIdentitySignal} front-gate (the value's `[[Class]]` tag and
+ * `hasPromiseIdentitySignal` front-gate (the value's `[[Class]]` tag and
  * resolved constructor-name) AND the load-bearing
- * {@link isPromisePrototypeEquivalent} structural contract. A foreign-realm
+ * `isPromisePrototypeEquivalent` structural contract. A foreign-realm
  * `Promise` fails the local-realm `instanceof` + `=== Promise.prototype`
  * fast-path but matches this structural contract in every realm.
  *
@@ -559,9 +559,9 @@ export function isPromiseLike<T = unknown>(value?: T): value is T & PromiseLike<
  * are realm-fixed at module-load.
  *
  * On miss, falls back to the cross-realm structural seam
- * {@link isAlienRealmPromise}: the {@link hasPromiseIdentitySignal} front-gate
+ * `isAlienRealmPromise`: the `hasPromiseIdentitySignal` front-gate
  * (the `[[Class]]` tag `'Promise'` and the constructor-name `'Promise'` resolved
- * once from the threaded prototype) AND the {@link isPromisePrototypeEquivalent}
+ * once from the threaded prototype) AND the `isPromisePrototypeEquivalent`
  * anchor (the constructor is a newable class, the prototype's own tag is
  * `'Promise'`, its constructor round-trips back to it, and it carries the
  * `then`/`catch`/`finally` contract as own members). Every marker reads
@@ -585,7 +585,7 @@ export function isPromiseLike<T = unknown>(value?: T): value is T & PromiseLike<
  * Consumers needing subclass admission should compose with a
  * constructor-chain walk on top of this predicate.
  *
- * The local-realm pair is further gated by {@link doesNotShadowPromiseContract}:
+ * The local-realm pair is further gated by `doesNotShadowPromiseContract`:
  * a value that overrides an inherited contract method (or the `constructor`) at
  * its OWN level — `Object.create(Promise.prototype, { then })` — is an
  * instance-level subclass layer, demoted to merely `PromiseLike` (decision #063).

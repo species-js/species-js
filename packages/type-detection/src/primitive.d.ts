@@ -737,7 +737,7 @@ export function isFiniteNumber(value: unknown): value is number;
  * `(value: unknown) => value is number`. The lib's plain-boolean return
  * does not propagate narrowing at the call site; the retyped signature
  * carries the narrow. The runtime export is the native method when callable;
- * otherwise it falls back to the {@link isFiniteNumber} polyfill.
+ * otherwise it falls back to the `isFiniteNumber` polyfill.
  */
 export const isFiniteNumberValue: (value: unknown) => value is number;
 
@@ -762,7 +762,7 @@ export function isInteger(value: unknown): value is number;
  * Retyped to `(value: unknown) => value is number` for the same lib-gap
  * reason as {@link isFiniteNumberValue} above. The runtime export is the
  * native method when callable; otherwise it falls back to the
- * {@link isInteger} polyfill.
+ * `isInteger` polyfill.
  */
 export const isIntegerValue: (value: unknown) => value is number;
 
@@ -790,7 +790,7 @@ export function isSafeInteger(value: unknown): value is number;
  * `number` representation is lossless. Retyped to
  * `(value: unknown) => value is number` for the same lib-gap reason as
  * {@link isFiniteNumberValue} above. The runtime export is the native method
- * when callable; otherwise it falls back to the {@link isSafeInteger}
+ * when callable; otherwise it falls back to the `isSafeInteger`
  * polyfill.
  */
 export const isSafeIntegerValue: (value: unknown) => value is number;
@@ -1030,7 +1030,7 @@ export function unguardedIsUnregisteredSymbol(value: symbol): boolean;
  * Whether `value` is a _registered_ symbol — a symbol obtained from the global
  * symbol registry via `Symbol.for`.
  *
- * The guarded public counterpart of {@link unguardedIsUnregisteredSymbol}:
+ * The guarded public counterpart of `unguardedIsUnregisteredSymbol`:
  * confirms `value` is a primitive symbol, then that `Symbol.keyFor` resolves a
  * registry key for it. Registered symbols are notable for being rejected as
  * `WeakMap` / `WeakSet` keys by the engine.

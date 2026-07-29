@@ -16,6 +16,11 @@
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 
+/** @typedef {typeof import('./index').defaultDescriptorOptions} defaultDescriptorOptionsType */
+/** @typedef {typeof import('./index').restrictedDescriptorOptions} restrictedDescriptorOptionsType */
+/** @typedef {typeof import('./index').restrictedAccessorOptions} restrictedAccessorOptionsType */
+/** @typedef {typeof import('./index').sealedDescriptorOptions} sealedDescriptorOptionsType */
+
 /** @typedef {typeof import('./index').objectHasOwn} objectHasOwnProperty */
 /** @typedef {typeof import('./index').objectCreate} createCustomType */
 
@@ -57,8 +62,7 @@ export const globalContext = globalThis;
  *
  * The default shape for defining internal properties that may still be
  * reassigned.
- * @type {{ enumerable: false, writable: true, configurable: true }}
- * @internal
+ * @type {defaultDescriptorOptionsType}
  */
 export const defaultDescriptorOptions = {
   enumerable: false,
@@ -71,8 +75,7 @@ export const defaultDescriptorOptions = {
  *
  * Configurable despite being non-writable, so the property can still be
  * redefined or deleted.
- * @type {{ enumerable: false, writable: false, configurable: true }}
- * @internal
+ * @type {restrictedDescriptorOptionsType}
  */
 export const restrictedDescriptorOptions = {
   enumerable: false,
@@ -84,8 +87,7 @@ export const restrictedDescriptorOptions = {
  * Descriptor preset for a hidden accessor (get/set) property.
  *
  * Omits `writable`, which is invalid on accessor descriptors.
- * @type {{ enumerable: false, configurable: true }}
- * @internal
+ * @type {restrictedAccessorOptionsType}
  */
 export const restrictedAccessorOptions = {
   enumerable: false,
@@ -97,8 +99,7 @@ export const restrictedAccessorOptions = {
  *
  * Non-configurable, so the property can be neither redefined nor deleted
  * once set.
- * @type {{ enumerable: false, configurable: false }}
- * @internal
+ * @type {sealedDescriptorOptionsType}
  */
 export const sealedDescriptorOptions = {
   enumerable: false,
@@ -199,7 +200,6 @@ export function hasOwn(target, key) {
  * `hasOwn` cannot slip through. The call shape is `objectHasOwn(target,
  * key)` either way.
  * @type {objectHasOwnProperty}
- * @internal
  */
 export const objectHasOwn = typeof nativeHasOwn === 'function' ? nativeHasOwn : hasOwn;
 
@@ -231,7 +231,6 @@ export const objectIs = o.is;
  * closes the `@typescript-eslint/no-unsafe-assignment` cascade here as well as
  * at external consumer sites. The runtime export is the unwrapped native method.
  * @type {createCustomType}
- * @internal
  */
 export const objectCreate = o.create;
 
@@ -371,3 +370,5 @@ export const INSTANCE_LESS_CONSTRUCTOR = /** @type {NEVER_INVOKED_CONSTRUCTOR} *
     return void 0;
   }
 );
+
+// ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----

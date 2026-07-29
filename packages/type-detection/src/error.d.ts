@@ -12,7 +12,7 @@
  * constructor, a foreign-realm value by a throw-safe prototype walk that
  * matches the spec-defined shape. {@link isError} prefers native ECMA-262
  * `Error.isError` when the runtime provides it (Node 23+, modern browsers)
- * and falls back to the {@link isAnyError} polyfill otherwise.
+ * and falls back to the `isAnyError` polyfill otherwise.
  *
  * The polyfill's structural gate pairs a minimum duck-type (`name` and
  * `message` strings) with a stack-graft filter that rejects error-shaped
@@ -134,7 +134,7 @@ export interface DOMException extends DOMExceptionLegacyCodes {
 /**
  * The union of everything the error predicates accept — an `Error` or a
  * {@link DOMException}. The narrow target of {@link isError} and
- * {@link isAnyError}.
+ * `isAnyError`.
  *
  * The `Error` arm covers every value carrying the internal `[[ErrorData]]`
  * slot: the built-in subclasses (`TypeError`, `SyntaxError`, `RangeError`,
@@ -272,7 +272,7 @@ export function hasReachableErrorStack(value: object): boolean;
 /**
  * The stack-graft filter — the gate that separates a genuine error from an
  * `Object.create(Error.prototype)` graft. Where the environment does not
- * populate stacks ({@link ERROR_STACK_CAPABLE} is `false`) the filter is
+ * populate stacks (`ERROR_STACK_CAPABLE` is `false`) the filter is
  * disabled and every value passes, since a missing `stack` proves nothing
  * there. Where stacks are guaranteed, a value passes only when it carries a
  * reachable `stack` — the grafted shell, which never ran an `Error`
@@ -605,7 +605,7 @@ export function isDOMException<T = unknown>(value?: T): value is T & DOMExceptio
  * regardless of the runtime's native `Error.isError`. The polyfill is NOT a
  * widening superset of the native check: its stack-graft filter rejects
  * `Object.create(Error.prototype)` grafts wherever the environment guarantees
- * stacks ({@link ERROR_STACK_CAPABLE}), converging on the native
+ * stacks (`ERROR_STACK_CAPABLE`), converging on the native
  * `[[ErrorData]]` verdict rather than widening past it; only where no stacks
  * are populated — the filter disabled — does it admit grafts native would
  * reject.
@@ -624,7 +624,7 @@ export function isAnyError<T = unknown>(value?: T): value is T & AnyError;
  *
  * Bound once at module-load: native ECMA-262 `Error.isError` when the
  * captured realm provides it (ES2025+ — Node 23+, modern browsers), the
- * {@link isAnyError} polyfill otherwise. The binding is realm-fixed — it does
+ * `isAnyError` polyfill otherwise. The binding is realm-fixed — it does
  * not re-read `globalThis.Error` at each call, so later tampering with the
  * global `Error.isError` does not reach it.
  *
@@ -634,7 +634,7 @@ export function isAnyError<T = unknown>(value?: T): value is T & AnyError;
  * the two admit the same set in well-behaved code, and the polyfill's
  * stack-graft filter keeps them convergent on the legacy
  * `Object.create(Error.prototype)` graft — both reject it wherever the
- * environment guarantees stacks ({@link ERROR_STACK_CAPABLE}) — rather than
+ * environment guarantees stacks (`ERROR_STACK_CAPABLE`) — rather than
  * widening; only where no stacks are populated does the filter stand down and
  * the polyfill admit grafts native would reject. The generic `T` surface is
  * applied even though the captured native method is non-generic per its ES2025

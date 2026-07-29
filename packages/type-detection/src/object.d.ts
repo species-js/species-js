@@ -293,7 +293,7 @@ export function isObject<T = unknown>(value?: T): value is T & AnyObject;
  * ES members plus whichever Annex-B accessor helpers the host realm
  * carries, calibrated once at module load).
  *
- * This is the one marker of {@link isObjectPrototypeEquivalent} that
+ * This is the one marker of `isObjectPrototypeEquivalent` that
  * inspects the prototype's actual members rather than its identity
  * claims. The five identity markers are all satisfiable by a hollow
  * `class extends null` whose `name` was redefined to `'Object'`; this
@@ -328,7 +328,7 @@ export function doesImplementObjectPrototypeContract(prototype: unknown): boolea
  *
  * Used as the front-half of the cross-realm Plain Object fallback in
  * {@link isPlainObject}: if either marker fails, the more expensive
- * {@link isObjectPrototypeEquivalent} walk is skipped.
+ * `isObjectPrototypeEquivalent` walk is skipped.
  * Also reused by the fused {@link isPlainOrDictionaryObject} dispatch
  * on its cross-realm branch.
  *
@@ -353,7 +353,7 @@ export function hasPlainObjectIdentitySignal(
  * `toObjectString.call` capture and the constructor-walk's
  * descriptor-discipline.
  *
- * The dictionary counterpart to {@link hasPlainObjectIdentitySignal}:
+ * The dictionary counterpart to `hasPlainObjectIdentitySignal`:
  * where the plain signal expects the constructor name to read
  * `'Object'`, this one expects no defined constructor at all. Reused by
  * {@link isDictionaryObject} and by the `prototype === null` branch of
@@ -432,8 +432,8 @@ export function isObjectPrototypeEquivalent(
 
 /**
  * The cross-realm Plain Object fallback: the inexpensive
- * {@link hasPlainObjectIdentitySignal} front-gate AND the load-bearing
- * {@link isObjectPrototypeEquivalent} structural contract. A foreign
+ * `hasPlainObjectIdentitySignal` front-gate AND the load-bearing
+ * `isObjectPrototypeEquivalent` structural contract. A foreign
  * `Object.prototype` fails the local-realm `=== Object.prototype`
  * fast-path but matches this structural contract in every realm.
  *
@@ -460,8 +460,8 @@ export function isAlienRealmPlainObject(value: object, prototype: object): boole
  * Composes two complementary checks: the local-realm fast-path
  * `getPrototypeOf(value) === Object.prototype` (an O(1) reference
  * comparison) and a cross-realm-safe structural anchor formed by
- * {@link hasPlainObjectIdentitySignal} (two inexpensive string-shape
- * signal markers) AND {@link isObjectPrototypeEquivalent} (the
+ * `hasPlainObjectIdentitySignal` (two inexpensive string-shape
+ * signal markers) AND `isObjectPrototypeEquivalent` (the
  * six-marker prototype contract):
  *
  * - Signal markers (inexpensive, front-loaded): `[[Class]]` tag
@@ -616,11 +616,11 @@ export function isDictionaryObject<T = unknown>(value?: T): value is T & Diction
  *   accept immediately (fast-path).
  * - `prototype === null` → `DictionaryObject` candidate, verify the two
  *   non-prototype cross-validators via
- *   {@link hasDictionaryObjectIdentitySignal} (`getDefinedConstructor ===
+ *   `hasDictionaryObjectIdentitySignal` (`getDefinedConstructor ===
  *   undefined` and `getTypeSignature === '[object Object]'`).
  * - otherwise → cross-realm `PlainObject` fallback via
- *   {@link isObjectPrototypeEquivalent} (the six-marker prototype
- *   contract) behind the {@link hasPlainObjectIdentitySignal} gate.
+ *   `isObjectPrototypeEquivalent` (the six-marker prototype
+ *   contract) behind the `hasPlainObjectIdentitySignal` gate.
  *
  * The fused form avoids the redundant gate, prototype-read, tag-computation,
  * and constructor-walk that a naive `isPlainObject(v) || isDictionaryObject(v)`

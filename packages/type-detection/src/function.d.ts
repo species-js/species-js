@@ -861,7 +861,7 @@ export function isBuiltInClass<T = unknown>(value?: T): value is T & ClassConstr
  * `%AsyncFunction%`, so tampering with one label without matching the
  * other is rejected.
  *
- * Called as the third link of {@link isAlienRealmAsyncFunction}'s `&&` chain,
+ * Called as the third link of `isAlienRealmAsyncFunction`'s `&&` chain,
  * after the descriptor-presence floor (`!hasOwnPrototype`,
  * `!hasConstructSlot`) and before the proto-side membership check
  * ({@link hasAsyncFunctionPrototypeSurface}).
@@ -883,7 +883,7 @@ export function hasAsyncFunctionIdentitySignal(value: unknown): boolean;
  * promises which keys `%AsyncFunction.prototype%` exhibits, not that
  * those are the only keys.
  *
- * Called only as the last link of {@link isAlienRealmAsyncFunction}'s `&&`
+ * Called only as the last link of `isAlienRealmAsyncFunction`'s `&&`
  * chain, so by the time `getPrototypeOf` runs the upstream `[[Class]]`
  * check has already rejected `null` and `undefined`.
  *
@@ -948,7 +948,7 @@ export function isAlienRealmAsyncFunction<T = unknown>(
  * realm's `%AsyncFunction.prototype%`, so it admits every locally-authored
  * async function and its bound variants — `bind` preserves the chain. The
  * check is identity-based, not structural: subtyping of `%AsyncFunction%`
- * is not modeled, and — unlike {@link isAlienRealmAsyncFunction} — no
+ * is not modeled, and — unlike `isAlienRealmAsyncFunction` — no
  * proto-side or key-set cross-validation runs. A value from a foreign realm
  * carries a different `%AsyncFunction%` identity and fails here; admitting
  * it is the alien-realm arm's job.
@@ -982,7 +982,7 @@ export function isCurrentRealmAsyncFunctionInstance<T = unknown>(
  *    inheritance traces to the local realm's `%AsyncFunction.prototype%`,
  *    including bound variants — `bind` preserves the chain.
  * 3. The realm-independent fallback delegates to
- *    {@link isAlienRealmAsyncFunction}, which verifies the six spec-derived
+ *    `isAlienRealmAsyncFunction`, which verifies the six spec-derived
  *    markers (four spec-invariant plus two proto-side key-set
  *    cross-validators). This is the cross-realm code path. Foreign-realm
  *    async functions have a different `%AsyncFunction%` identity but the
@@ -1036,7 +1036,7 @@ export function isAsyncFunction<T = unknown>(value?: T): value is T & AsyncFunct
  *
  * Mirrors the async-family pattern. See:
  * {@link hasAsyncFunctionIdentitySignal}. Called as the second link of
- * {@link isAlienRealmGeneratorFunction}'s `&&` chain, after `!hasConstructSlot`
+ * `isAlienRealmGeneratorFunction`'s `&&` chain, after `!hasConstructSlot`
  * and before {@link hasAnyGeneratorFunctionPrototypeSurface}.
  *
  * @param value - the value whose identity-labels should be read
@@ -1058,7 +1058,7 @@ export function hasGeneratorFunctionIdentitySignal(value: unknown): boolean;
  * `%AsyncGeneratorFunction%`.
  *
  * Mirrors {@link hasGeneratorFunctionIdentitySignal}. Called as the second
- * link of {@link isAlienRealmAsyncGeneratorFunction}'s `&&` chain, after
+ * link of `isAlienRealmAsyncGeneratorFunction`'s `&&` chain, after
  * `!hasConstructSlot` and before
  * {@link hasAnyGeneratorFunctionPrototypeSurface}.
  *
@@ -1083,8 +1083,8 @@ export function hasAsyncGeneratorFunctionIdentitySignal(value: unknown): boolean
  * The proto-side check uses set-membership semantics, so a prototype with
  * extra own keys is admitted as long as both required keys are present.
  *
- * Shared by {@link isAlienRealmGeneratorFunction} and
- * {@link isAlienRealmAsyncGeneratorFunction}. Both species exhibit the same
+ * Shared by `isAlienRealmGeneratorFunction` and
+ * `isAlienRealmAsyncGeneratorFunction`. Both species exhibit the same
  * proto-side structure, so the proto-surface check is the family-level
  * invariant. The `[[Class]]` tag, carried via each species' identity-signal
  * link, is the per-species discriminator.
@@ -1095,8 +1095,8 @@ export function hasAsyncGeneratorFunctionIdentitySignal(value: unknown): boolean
  * `'prototype'` absent while this helper asserts it present.
  *
  * Called only as the last link of both
- * {@link isAlienRealmGeneratorFunction}'s and
- * {@link isAlienRealmAsyncGeneratorFunction}'s `&&` chains, so by the time
+ * `isAlienRealmGeneratorFunction`'s and
+ * `isAlienRealmAsyncGeneratorFunction`'s `&&` chains, so by the time
  * `getPrototypeOf` runs the upstream `[[Class]]` check has already
  * rejected `null` and `undefined`.
  *
@@ -1131,7 +1131,7 @@ export function hasAnyGeneratorFunctionPrototypeSurface(value: unknown): boolean
  * proto-surface requirement of `%GeneratorFunction.prototype%` is shared by
  * the generator family. See: {@link hasAnyGeneratorFunctionPrototypeSurface}.
  *
- * Unlike with {@link isAlienRealmAsyncFunction}, neither the `!hasOwnPrototype`
+ * Unlike with `isAlienRealmAsyncFunction`, neither the `!hasOwnPrototype`
  * nor the `hasOwnWritablePrototype` self-side check are getting applied.
  * The reason is the bound-vs-unbound asymmetry: unbound generator-functions
  * carry an own writable `prototype`, holding the {@link Generator}-instance's
@@ -1186,7 +1186,7 @@ export function isAlienRealmGeneratorFunction<T = unknown>(
  * The `[[Class]]` tag is the per-species discriminator within that
  * shared structure.
  *
- * Same self-side-check omission as {@link isAlienRealmGeneratorFunction}:
+ * Same self-side-check omission as `isAlienRealmGeneratorFunction`:
  * Both `!hasOwnPrototype` and `hasOwnWritablePrototype` checks are skipped
  * because of the bound-vs-unbound asymmetry. Unbound async-generator
  * functions carry an own writable `prototype`, bound ones do not, and
@@ -1221,7 +1221,7 @@ export function isAlienRealmAsyncGeneratorFunction<T = unknown>(
  * locally-authored generator function and its bound variants — `bind`
  * preserves the chain. The check is identity-based, not structural:
  * subtyping of `%GeneratorFunction%` is not modeled, and — unlike
- * {@link isAlienRealmGeneratorFunction} — no proto-side or key-set
+ * `isAlienRealmGeneratorFunction` — no proto-side or key-set
  * cross-validation runs. A value from a foreign realm carries a different
  * `%GeneratorFunction%` identity and fails here; admitting it is the
  * alien-realm arm's job.
@@ -1254,7 +1254,7 @@ export function isCurrentRealmGeneratorFunctionInstance<T = unknown>(
  * locally-authored async-generator function and its bound variants — `bind`
  * preserves the chain. The check is identity-based, not structural:
  * subtyping of `%AsyncGeneratorFunction%` is not modeled, and — unlike
- * {@link isAlienRealmAsyncGeneratorFunction} — no proto-side or key-set
+ * `isAlienRealmAsyncGeneratorFunction` — no proto-side or key-set
  * cross-validation runs. A value from a foreign realm carries a different
  * `%AsyncGeneratorFunction%` identity and fails here; admitting it is the
  * alien-realm arm's job.
@@ -1288,7 +1288,7 @@ export function isCurrentRealmAsyncGeneratorFunctionInstance<T = unknown>(
  *    inheritance traces to the local realm's `%GeneratorFunction.prototype%`,
  *    including bound variants — `bind` preserves the chain.
  * 3. The realm-independent fallback delegates to
- *    {@link isAlienRealmGeneratorFunction}, which verifies the five spec-derived
+ *    `isAlienRealmGeneratorFunction`, which verifies the five spec-derived
  *    markers (three spec-invariant plus two proto-side key-set cross-validators).
  *    This is the cross-realm code path. Foreign-realm generator functions have
  *    a different `%GeneratorFunction%` identity but the same observable markers.
@@ -1334,7 +1334,7 @@ export function isGeneratorFunction<T = unknown>(
  *    inheritance traces to the local realm's `%AsyncGeneratorFunction.prototype%`,
  *    including bound variants — `bind` preserves the chain.
  * 3. The realm-independent fallback delegates to
- *    {@link isAlienRealmAsyncGeneratorFunction}, which verifies the five spec-derived
+ *    `isAlienRealmAsyncGeneratorFunction`, which verifies the five spec-derived
  *    markers (three spec-invariant plus two proto-side key-set cross-validators).
  *    This is the cross-realm code path. Foreign-realm async-generator functions
  *    have a different `%AsyncGeneratorFunction%` identity but the same
@@ -1379,7 +1379,7 @@ export function isAsyncGeneratorFunction<T = unknown>(
  * The value then passes if any of four disjuncts holds: the same-realm
  * `instanceof` fast path against either `%GeneratorFunction%` or
  * `%AsyncGeneratorFunction%`, or the cross-realm fallback via
- * {@link isAlienRealmGeneratorFunction} or {@link isAlienRealmAsyncGeneratorFunction}.
+ * `isAlienRealmGeneratorFunction` or `isAlienRealmAsyncGeneratorFunction`.
  *
  * There is no dedicated `hasAnyGeneratorFunctionShape` helper. The
  * umbrella's job is exactly this union of fast paths and shape helpers,

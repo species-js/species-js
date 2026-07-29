@@ -461,12 +461,12 @@ export function isEventTargetLike<T = unknown>(value?: T): value is T & EventTar
  * with `prototype === eventTargetPrototype`. The pair admits only direct
  * `EventTarget` instances; subclasses (`Element`, `Document`, `Window`,
  * `XMLHttpRequest`, …) pass `instanceof` but fail the prototype identity-check
- * in O(1). The pair is further gated by {@link doesNotShadowEventTargetContract}:
+ * in O(1). The pair is further gated by `doesNotShadowEventTargetContract`:
  * a value that overrides an inherited contract method at its OWN level
  * (`Object.create(EventTarget.prototype, { dispatchEvent })`) is an
  * instance-level subclass layer, demoted to merely `EventTargetLike` — the #028
  * subclass rejection applied to the own layer. On miss, the cross-realm arm runs
- * {@link isAlienRealmEventTarget} (the tag + constructor-name signal gate plus
+ * `isAlienRealmEventTarget` (the tag + constructor-name signal gate plus
  * the prototype-contract walk), but only when the realm actually has a global
  * `EventTarget`.
  *
@@ -524,7 +524,7 @@ export function hasAbortSignalIdentitySignal(
  * Whether `value` leaves the inherited `AbortSignal` surface unshadowed at its
  * own level: it owns no property named `aborted`, `reason`, `onabort`,
  * `throwIfAborted`, a reserved `EventTarget` method, or `constructor`. This is
- * the `AbortSignal` counterpart of {@link doesNotShadowEventTargetContract} (its
+ * the `AbortSignal` counterpart of `doesNotShadowEventTargetContract` (its
  * denylist is a superset — an `AbortSignal` is-an `EventTarget`); it gates the
  * strict local {@link isAbortSignal} fast path onto its
  * `prototype === abortSignalPrototype` identity check.
@@ -712,11 +712,11 @@ export function isAbortSignalLike<T = unknown>(value?: T): value is T & AbortSig
  * with `prototype === abortSignalPrototype`. The pair admits only direct
  * `AbortSignal` instances; subclasses pass `instanceof` but fail the prototype
  * identity-check in O(1). The pair is further gated by
- * {@link doesNotShadowAbortSignalContract}: a value that overrides an inherited
+ * `doesNotShadowAbortSignalContract`: a value that overrides an inherited
  * abort accessor or contract method at its OWN level is an instance-level
  * subclass layer, demoted to merely `AbortSignalLike` — the #028 subclass
  * rejection applied to the own layer. On miss, the cross-realm arm runs
- * {@link isAlienRealmAbortSignal} (the tag + constructor-name signal gate plus
+ * `isAlienRealmAbortSignal` (the tag + constructor-name signal gate plus
  * the prototype-contract walk), but only when the realm actually has a global
  * `AbortSignal`.
  *
