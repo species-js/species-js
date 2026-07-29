@@ -42,8 +42,8 @@
 > `objectCreate`) over the `@internal` primitives (the `@internal` toggling shipped in
 > `f161805` alongside the typedoc docs-visibility fix). `getPrototypeOf` corrected
 > `object | null` → `object | Callable | null` (`ret/T2`, `cap/A4`). **Status: AMENDED —
-> the vectors added this round (`fix/A3`, `blank/*`, `ilc/*`) await the config test
-> round's decidability run.**
+> the vectors added this round (`fix/A3`, `blank/*`, `ilc/*`) are now driven by the
+> standing config suite (`test/config/spec.test.js`, 21 vectors green, mutation-probed).**
 
 ## Module contract
 
@@ -347,5 +347,5 @@ dimension B — which stays the three lib-gap retypes.)_
 The 2026-06-19 decidability run covers dimensions (A `fix/A1`–`A2`, `cap/*`), (C — the
 `oHO` selector plus the `hasOwn` closure), and the presets (`dpo/*`); dimension (B
 `ret/T*`) is `typecheck`-gated. The vectors added this round (`fix/A3`, `blank/*`,
-`ilc/*`) are new and **await the config test round's decidability run** — not yet
-executed.
+`ilc/*`) are now driven by `test/config/spec.test.js` (21 vectors, green; mutation-probed)
+— decidability confirmed.
