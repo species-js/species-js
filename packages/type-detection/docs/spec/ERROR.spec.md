@@ -34,6 +34,11 @@
 > regime), `iCRDEI/B1` (the no-`DOMException`-realm sentinel), `isError/B2` (native
 > `Error.isError`, absent here), and `isAbortError/B1` (refuses-to-claim — abort-channel
 > mechanics).
+>
+> **Back-sweep Phase 2 (2026-07-29):** a new axis-5 completeness-oracle section for the 19
+> `@@throw-safe` markers; the R2 cross-artifact pass found the canon already truthful (no
+> mechanism-drift). No admit/reject vector changed, the **FROZEN 2026-07-10** oracle
+> stands; see Open/resolved item #6.
 
 ## Module contract
 
@@ -655,6 +660,48 @@ more specific arm must win); admits both arms, so no cross-exclusion.
 
 ---
 
+## Throw-safety (axis 5) — completeness oracle
+
+The module marks **19** exports `@@throw-safe` (ADRs #073, #076): each must answer its
+sentinel (`undefined` for the `retrieveErrorStack` reader, `false` for the boolean probes)
+on every hostile input and never propagate a throw. This is the module surface's
+realization of the universal throw-safety invariant (see the Module contract's
+_Throw-safety_ paragraph). The marked set is the completeness oracle — the axis-5
+`hostile × marked-export` matrix the test round builds must score exactly this set (source
+order):
+
+`retrieveErrorStack`, `hasReachableErrorStack`, `doesPassErrorGraftFilter`,
+`doesImplementMinimumErrorContract`, `doesImplementGenericErrorContract`,
+`doesImplementDOMExceptionContract`, `doesImplementGenericErrorPrototypeContract`,
+`doesImplementDOMExceptionPrototypeContract`, `isGenericErrorPrototypeEquivalent`,
+`isDOMExceptionPrototypeEquivalent`, `isAlienRealmGenericError`,
+`isAlienRealmDOMException`, `isCurrentRealmGenericErrorInstance`,
+`isCurrentRealmDOMExceptionInstance`, `isGenericError`, `isDOMException`, `isAnyError`,
+`isError`, `isAbortError`.
+
+The marked set is **19 of the 21 runtime exports** — the 4 public predicates PLUS 15 of
+the 17 `@internal` helpers. The two omitted are the load-time value constants
+`errorStackMode` (`'gated-slot' | 'plain-data'`) and `ERROR_STACK_CAPABLE` (`boolean`):
+plain probed values, not per-input readers, so they carry no throw surface to mark (they
+are asserted against the running engine — the axis-5 / environment concern, see the helper
+spec). Two of the marked exports are `export const` bindings, not `export function` —
+`retrieveErrorStack` (a reader carrying its own `.mode`) and `isError` (native-or-polyfill
+bound at load) — so the source marker parse matches `export (function|const)`.
+
+The four public predicates additionally carry the honest by-contract verdict per hostile
+class (the axis-3 `hostile × predicate` matrix, `throw-safety.test.js`). Axis-5 extends
+that suite to the 15 marked `@internal` helpers, routing the hostile value into each
+export's own read surface (several gate on a threaded `isClass` constructor / receiver, so
+a naive single-value call would short-circuit before the hostile value reached the
+throwing read), and triple-locks the scored set against BOTH the `@@throw-safe` markers
+parsed from `src/error.js` (source drift) AND the imported set (test drift). Source,
+oracle, and tests are triple-locked. The `ownKeys` trap and `tag-getter-throw` classes
+stay additionally pinned as the helper-level `dIGEPC/R3`, `dIGEPC/R4`, `dIDEPC/R2`
+boundaries (the public path fails the graft-filter / getter-presence gate before the
+prototype-contract walk runs).
+
+---
+
 ## Open / resolved items
 
 1. **Own-shadow guard NOT applied to `isDOMException` — RESOLVED.** #063 rejects a
@@ -695,7 +742,20 @@ more specific arm must win); admits both arms, so no cross-exclusion.
      the full canon (ADRs + architecture + this spec + the re-documented `.d.ts`/`.js`) is
      internally consistent.
 
+6. **Back-sweep Phase 2 (docs + tests, 2026-07-29) — RESOLVED.** Finalizing `error` under
+   the standards invented after it shipped (the back-sweep). The cross-artifact R2 pass
+   found the canon already truthful — no stale mechanism-descriptions (unlike `thenable` /
+   `evented`): the ADR cluster + the 2026-07-10 architecture rewrite kept
+   spec/`.js`/`.d.ts`/architecture aligned (verified the Error/DOMException capture
+   descriptions and the composition tables against the shipped code). The one owed item
+   was the **axis-5 completeness-oracle section** (above), documenting the 19
+   `@@throw-safe` marked exports as the triple-locked oracle the upgraded
+   `throw-safety.test.js` scores — the parallel to the function/thenable/object/evented
+   sections. No admit/reject verdict changed; the FROZEN oracle stands. No ADR
+   (mechanical + the package-wide #076 marker convention on a module that predated it).
+   Items 3–4 remain open owner policy flags.
+
 FROZEN 2026-07-10 — decidability run passed (see the header) and owner design review
 complete. Items 3–4 remain open policy flags that bind no behavioral vector (item 3
-environment-dependent, item 4 a nominal type-symmetry call); item 5 resolved. Base for the
-axis-1 suite; axes 2–4 derive alongside.
+environment-dependent, item 4 a nominal type-symmetry call); items 5–6 resolved. Base for
+the axis-1 suite; axes 2–4 derive alongside.
