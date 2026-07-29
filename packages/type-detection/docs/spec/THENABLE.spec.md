@@ -21,7 +21,12 @@
 > dropped its `<T=unknown>` generic (decision #062 — strict identity to one intrinsic);
 > (c) the realm-asymmetry on a tag-tampered graft was formalized (`isPromise/A4` + a
 > subsection). Surface 5→6 helpers. **The one prior public verdict change:** a tampered
-> graft that WAS admitted is now rejected — see Resolved items #7.
+> graft that WAS admitted is now rejected — see Resolved items #7. Docs-only
+> reconciliation 2026-07-29 (back-sweep Phase 2): two verdict-neutral
+> mechanism-description strays from the item-#8 harmonization fixed (`iCRPI`
+> presence-guard, the capture-snippet validator) plus a new axis-5 completeness-oracle
+> section for the 10 `@@throw-safe` markers — no admit/reject vector changed, so the
+> **FROZEN 2026-06-18** oracle stands; see Resolved items #9.
 
 ## Module contract
 
@@ -489,9 +494,15 @@ white-box counterparts of the public `isPromise` cross-realm vectors.
 
 ### `isCurrentRealmPromiseInstance(value)` — `@internal` (declared in both `.js` and `.d.ts`)
 
-`!!PromiseConstructor && value instanceof PromiseConstructor`. Assumes a truthy `value`
-(the public callers guard with `!!value` first). Subclass-admitting — no proto-identity
-narrowing (that is layered on by `isPromise`'s ternary).
+`try { return value instanceof PromiseConstructorFunction; } catch { return false; }` —
+throw-safe (`@@throw-safe`, #029 extended to the `instanceof` read): a hostile
+`getPrototypeOf` trap yields `false`, not a propagated throw. Assumes a truthy `value`
+(the public callers guard with `!!value` first). No presence guard: the realm-fixed
+capture is a TOTAL binding — when the runtime lacks a global `Promise`,
+`PromiseConstructorFunction` is the `INSTANCE_LESS_CONSTRUCTOR` sentinel, against which
+`instanceof` is uniformly `false` without throwing (the decision #059 total-tuple upgrade,
+Resolved item #8). Subclass-admitting — no proto-identity narrowing (that is layered on by
+`isPromise`'s ternary).
 
 - `iCRPI/A1` — `Promise.resolve()` → true.
 - `iCRPI/A2` — a `Promise` subclass instance → true (subclass-admitting).
@@ -499,8 +510,10 @@ narrowing (that is layered on by `isPromise`'s ternary).
   capture.
 - `iCRPI/R2` — `{ then() {} }` → false — not a `Promise` instance.
 - `iCRPI/B1` — when the runtime has no global `Promise`, returns `false` for every input
-  via the `!!PromiseConstructor` guard (hard to exercise in a normal test environment;
-  documents the embedding-safety branch — a coverage-axis concern).
+  because `PromiseConstructorFunction` is the never-instantiated
+  `INSTANCE_LESS_CONSTRUCTOR` sentinel (uniformly-`false` `instanceof`, no presence guard
+  needed; hard to exercise in a normal test environment — documents the embedding-safety
+  branch, a coverage-axis concern).
 
 ### `doesNotShadowPromiseContract(value)` — `@internal` (the #063 own-surface integrity gate)
 
@@ -528,10 +541,37 @@ invisible to `getOwnPropertyNames`; cosmetic once proto-identity holds). ANDed o
 
 ---
 
+## Throw-safety (axis 5) — completeness oracle
+
+The module marks **10** exports `@@throw-safe` (ADRs #073, #076): each must answer a
+boolean on every hostile input and never propagate a throw, yielding a sentinel (`false` /
+`undefined`) instead. This is the module surface's realization of the universal
+throw-safety invariant (see the Module contract's _Throw-safety_ paragraph). The marked
+set is the completeness oracle — the axis-5 `hostile × marked-export` matrix the test
+round builds must score exactly this set (source order):
+
+`doesNotShadowPromiseContract`, `doesImplementPromiseContract`,
+`doesImplementPromisePrototypeContract`, `isPromisePrototypeEquivalent`,
+`hasPromiseIdentitySignal`, `isAlienRealmPromise`, `isCurrentRealmPromiseInstance`,
+`isPromiseLike`, `isPromise`, `isThenable`.
+
+The three public predicates additionally carry the honest by-contract verdict per hostile
+class (a throwing-tag value with a real method contract is admitted by `isThenable` /
+`isPromiseLike`, rejected by `isPromise`) — the axis-3 `hostile × predicate` matrix
+(`throw-safety.test.js`). Axis-5 extends that suite to the seven `@internal` helpers,
+scoring each marked export × the hostile-trap rows for non-propagation, and triple-locks
+the scored set against BOTH the `@@throw-safe` markers parsed from `src/thenable.js`
+(source drift) AND the imported set (test drift). Source, oracle, and tests are
+triple-locked.
+
+---
+
 ## Resolved items
 
-All items surfaced while drafting this spec have been resolved; none remain open. One
-post-freeze amendment is recorded below (item 4).
+All items surfaced while drafting this spec have been resolved; none remain open. Six
+post-freeze amendments are recorded below (items 4, 5, 6, 7, 8, and the docs-only
+reconciliation of item 9) — none altered a public admit/reject verdict except item 7 (a
+documented hardening), so the FROZEN oracle stands throughout.
 
 1. **`isCurrentRealmPromiseInstance` typed-surface asymmetry.** Was exported from
    `thenable.js` with `@internal` but undeclared in `thenable.d.ts`. **Resolution:**
@@ -660,3 +700,25 @@ post-freeze amendment is recorded below (item 4).
    harmonization to the object-round precedent); a future ADR may record the family-wide
    `isAlienRealm{X}` convention. Verified: the axis-4 helper suite green (40 tests),
    typecheck clean but for the `_bench` harness (tracked separately).
+9. **Back-sweep Phase 2 reconciliation (docs only, 2026-07-29) — RESOLVED.** The
+   back-sweep's cross-artifact R2 pass over `thenable` (finalizing it under the standards
+   invented after it shipped: `@@throw-safe` markers, mutation-test, standing invariants)
+   surfaced two stale mechanism-descriptions left by the 2026-07-03 item-#8 harmonization
+   — verdict-neutral drift, no admit/reject vector changed:
+   - **`isCurrentRealmPromiseInstance` axis-4 spec** described a `!!PromiseConstructor`
+     presence guard (composition formula + `iCRPI/B1` rationale) that item #8 itself
+     removed. Reconciled to the shipped
+     `try { value instanceof PromiseConstructorFunction }` form resting on the
+     `INSTANCE_LESS_CONSTRUCTOR` total binding — matching `thenable.js`, `thenable.d.ts`
+     (already correct), and `architecture/thenable.md`.
+   - **`architecture/thenable.md` capture snippet** showed
+     `getValidatedStandardConstructorAndPrototypeTuple(Promise, doesImplementPromiseContract)`;
+     the shipped capture injects `(globalContext.Promise, isPromisePrototypeEquivalent)` —
+     the four-marker prototype-equivalence validator, not the chain-walk contract (a
+     pre-item-#8 straggler). Reconciled in place.
+
+   Plus a **new axis-5 completeness-oracle section** (above), documenting the 10
+   `@@throw-safe` marked exports as the triple-locked oracle the back-sweep's upgraded
+   `throw-safety.test.js` scores — the parallel to `FUNCTION.spec.md`'s 24-marker section.
+   No ADR (mechanical reconciliation + the package-wide #076 marker convention applied to
+   a module that predated it).

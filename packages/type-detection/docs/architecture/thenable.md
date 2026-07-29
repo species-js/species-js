@@ -113,13 +113,14 @@ composing identity and structure rather than choosing one:
   ternary; see "Two-axis dispatch on `isPromise`" below.
 
 The
-`const [PromiseConstructorFunction, promisePrototype] = getValidatedStandardConstructorAndPrototypeTuple(Promise, doesImplementPromiseContract);`
+`const [PromiseConstructorFunction, promisePrototype] = getValidatedStandardConstructorAndPrototypeTuple(globalContext.Promise, isPromisePrototypeEquivalent);`
 capture in `thenable.js` is the module-load realm-fixed source for the `instanceof` fast
 path and the proto-identity comparison. The shared `#utility` capture helper confirms
 `Promise` is newable, reads its own `prototype` descriptor inertly, and accepts the pair
-only when the prototype satisfies the injected contract AND back-references the
-constructor (`prototype.constructor === Promise`) — the tamper-resistant identity check.
-On any failure it returns the TOTAL inert surrogate
+only when the prototype satisfies the injected four-marker `isPromisePrototypeEquivalent`
+contract AND reciprocally back-references the constructor
+(`prototype.constructor === Promise`) — the tamper-resistant identity check. On any
+failure it returns the TOTAL inert surrogate
 `[INSTANCE_LESS_CONSTRUCTOR, BLANK_DICTIONARY]`: a never-instantiated function against
 which `instanceof` is uniformly `false`, paired with an empty prototype-less dictionary.
 Because both slots are always present, every caller destructures and uses
