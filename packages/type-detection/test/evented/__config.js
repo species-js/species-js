@@ -476,6 +476,37 @@ export const crossCuttingRejections = {
   ],
 };
 
+// ----- axis-5 completeness oracle: the `@@throw-safe`-marked exports -----
+/**
+ * The 18 `@@throw-safe`-marked exports — the axis-5 completeness oracle
+ * (EVENTED.spec.md `## Throw-safety (axis 5)`; ADRs #073/#076), in source order:
+ * the 4 public predicates PLUS the 14 exported `@internal` helpers (seven per
+ * family). `throw-safety.test.js` cross-checks this list BOTH against the markers
+ * parsed out of `src/evented.js` (source drift) AND against the imported evented
+ * set (test drift), then routes a hostile value into each export's own read surface
+ * and asserts non-propagation.
+ */
+export const THROW_SAFE_MARKED = [
+  'isCurrentRealmEventTargetInstance',
+  'hasEventTargetIdentitySignal',
+  'doesNotShadowEventTargetContract',
+  'doesImplementEventTargetContract',
+  'doesImplementEventTargetPrototypeContract',
+  'isEventTargetPrototypeEquivalent',
+  'isAlienRealmEventTarget',
+  'isEventTargetLike',
+  'isEventTarget',
+  'isCurrentRealmAbortSignalInstance',
+  'hasAbortSignalIdentitySignal',
+  'doesNotShadowAbortSignalContract',
+  'doesImplementAbortSignalContract',
+  'doesImplementAbortSignalPrototypeContract',
+  'isAbortSignalPrototypeEquivalent',
+  'isAlienRealmAbortSignal',
+  'isAbortSignalLike',
+  'isAbortSignal',
+];
+
 // ----- throw-safety matrix (hostile-input-class × predicate) -----
 // The universal invariant (docs/spec/README.md → "Throw-safety — the universal
 // invariant"; EVENTED.spec.md Module-contract Throw-safety paragraph): every
