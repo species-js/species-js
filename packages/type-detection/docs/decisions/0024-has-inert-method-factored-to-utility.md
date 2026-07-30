@@ -27,5 +27,4 @@ descriptor terminology.
 **Consequences.** `hasInertMethod` ships in `@/utility` as a public export. Used by
 `isThenable` and `doesImplementPromiseContract` in the thenable module. Composes naturally
 for any future method-contract predicate. The descriptor-walk pattern it embodies is
-captured in decision #021 (the spec-shape rule's third pattern); the contract vocabulary
-it enables is captured in [[design-rulings]] via the contract-vocabulary ruling.
+captured in decision #021 (the spec-shape rule's third pattern).

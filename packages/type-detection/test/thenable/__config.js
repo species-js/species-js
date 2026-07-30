@@ -334,6 +334,28 @@ export const crossCuttingRejections = {
   truthyPrimitive: [42, 'x', true, 1n, Symbol('s')],
 };
 
+// ----- axis-5 completeness oracle: the `@@throw-safe`-marked exports -----
+/**
+ * The 10 `@@throw-safe`-marked exports — the axis-5 completeness oracle
+ * (THENABLE.spec.md `## Throw-safety (axis 5)`; ADRs #073/#076), in source order:
+ * the 7 `@internal` helpers PLUS the 3 public predicates. `throw-safety.test.js`
+ * cross-checks this list BOTH against the markers parsed out of `src/thenable.js`
+ * (source drift) AND against the imported thenable set (test drift), then routes a
+ * hostile value into each export's own read surface and asserts non-propagation.
+ */
+export const THROW_SAFE_MARKED = [
+  'doesNotShadowPromiseContract',
+  'doesImplementPromiseContract',
+  'doesImplementPromisePrototypeContract',
+  'isPromisePrototypeEquivalent',
+  'hasPromiseIdentitySignal',
+  'isAlienRealmPromise',
+  'isCurrentRealmPromiseInstance',
+  'isPromiseLike',
+  'isPromise',
+  'isThenable',
+];
+
 // ----- throw-safety matrix (axis 3): hostile-input-class × predicate -----
 // The universal invariant (docs/spec/README.md → "Throw-safety — the universal
 // invariant"; THENABLE.spec.md Module-contract Throw-safety paragraph): every

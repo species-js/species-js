@@ -30,21 +30,26 @@
  * - `@species-js/type-detection/thenable` — `Thenable`, `PromiseLike`,
  *   and `Promise` structural lattices.
  *
- * Re-export order below is driven by ESM module-load semantics rather
- * than documentation framing: `#function` is re-exported first so that
- * its hoisted `export function isCallable` declaration is reachable
- * when `#config` then evaluates and needs it for the
- * `isCallable(nativeHasOwn)` gate. With this order the
- * `config ↔ function` cycle resolves cleanly; reversing it would leave
- * `config`'s `const` exports in TDZ when `function`'s top-level
- * intrinsic captures fire mid-cycle.
+ * The re-export order below is load-bearing in exactly one respect: `#function`
+ * must be re-exported FIRST; the remaining seven may then be ordered freely (for
+ * readability / aesthetics). At module-load `#function` captures
+ * `AsyncFunctionConstructor` by calling `#utility`'s `getDefinedConstructor`
+ * (which itself reads `#function`'s `isCallable`) — an eval-time
+ * `function ↔ utility` cycle. Placing `#function` first forces that
+ * interdependent cluster (`function` / `utility` / `primitive` / `object`) to
+ * evaluate fully before any later line runs; entering the cluster through any
+ * other member first fires the capture against a binding still in its temporal
+ * dead zone. The vite transform (vitest and the browser build) enforces this;
+ * native Node ESM happens to tolerate it, so the constraint is invisible to a
+ * plain `node` import and real only for the shipped artifact. `test/index.test.js`
+ * is the guard. Recorded in ADR #083.
  */
 
 export * from '#function';
 export * from '#config';
 export * from '#utility';
 export * from '#primitive';
-export * from '#error';
 export * from '#object';
+export * from '#error';
 export * from '#evented';
 export * from '#thenable';

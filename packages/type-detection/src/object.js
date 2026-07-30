@@ -55,6 +55,7 @@ import { isCallable, isClass } from '#function';
 //
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 
+/* @@throw-safe */
 /**
  * Narrows a value to {@link AnyObject} — any non-null, non-function
  * object — via `!!value && typeof value === 'object'`.
@@ -183,6 +184,7 @@ function getObjectPrototypeDescriptorNames() {
   return calibratedObjectPrototypeDescriptorNames;
 }
 
+/* @@throw-safe */
 /**
  * The member-surface marker of the cross-realm Plain Object contract:
  * confirms that `value` carries, as its own non-enumerable callable
@@ -237,6 +239,7 @@ export function doesImplementObjectPrototypeContract(prototype) {
   }
 }
 
+/* @@throw-safe */
 /**
  * Probes the two inexpensive string-shape markers that suggest a value
  * is a plain `Object` instance — the `[[Class]]` tag
@@ -262,6 +265,7 @@ export function hasPlainObjectIdentitySignal(value, name) {
   return name === 'Object' && getTypeSignature(value) === '[object Object]';
 }
 
+/* @@throw-safe */
 /**
  * Probes the two markers that suggest a value is a prototype-less
  * Dictionary Object — the `[[Class]]` tag (`'[object Object]'`) and the
@@ -289,6 +293,7 @@ export function hasDictionaryObjectIdentitySignal(value) {
   );
 }
 
+/* @@throw-safe */
 /**
  * Verifies the structural anchor for cross-realm Plain Object
  * discrimination: a six-marker chain over a value's already-resolved
@@ -363,6 +368,7 @@ export function isObjectPrototypeEquivalent(prototype, constructor, name) {
   );
 }
 
+/* @@throw-safe */
 /**
  * The cross-realm Plain Object fallback, composed: the inexpensive
  * {@link hasPlainObjectIdentitySignal} front-gate AND the load-bearing
@@ -408,6 +414,7 @@ export function isAlienRealmPlainObject(value, prototype) {
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 
+/* @@throw-safe */
 /**
  * Narrows a value to {@link PlainObject} — an AnyObject whose direct
  * constructor is the built-in `Object`.
@@ -520,6 +527,7 @@ export function isPlainObject(value) {
   );
 }
 
+/* @@throw-safe */
 /**
  * Narrows a value to {@link DictionaryObject} — an AnyObject with no
  * prototype-chain. Typically created via `Object.create(null)` for
@@ -585,6 +593,7 @@ export function isDictionaryObject(value) {
   );
 }
 
+/* @@throw-safe */
 /**
  * Narrows a value to {@link PlainOrDictionaryObject} — either a
  * {@link PlainObject} (prototype-bearing, constructor === Object) or a

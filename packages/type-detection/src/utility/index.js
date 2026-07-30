@@ -703,7 +703,7 @@ export function getTypeSignature(...args) {
  *
  * Calls {@link getTypeSignature} and slices `[object ` and `]` off the
  * result. The `isStringValue` check short-circuits both cases where
- * `getTypeSignature` returned `undefined` — a no-argument call and a value
+ * {@link getTypeSignature} returned `undefined` — a no-argument call and a value
  * whose `Symbol.toStringTag` getter threw — so the tag read stays throw-safe.
  *
  * @param {...unknown} args - forwarded as-is to {@link getTypeSignature};

@@ -99,7 +99,7 @@ export interface DefinedConstructorAccessorOptions {
  * alias, because the narrowed target `X` differs per guard. `PredicateFunction`
  * is the right type for a predicate passed as a value — e.g. the
  * `doesPassAsConstructorPrototype` callback injected into
- * {@link getValidatedStandardConstructorAndPrototypeTuple}.
+ * `getValidatedStandardConstructorAndPrototypeTuple`.
  *
  * @typeParam T - the argument tuple; defaults to `unknown[]`, i.e. any arity of
  *  `unknown`-typed arguments
@@ -428,7 +428,7 @@ export function getSafeOwnPropertyKeys(value?: unknown): (string | symbol)[];
  * {@link getDefinedConstructor} routes through it too, so the whole
  * constructor-resolution layer is throw-safe (decision #056). The raw
  * {@link getNextAvailablePropertyDescriptor} remains for callers that supply
- * their own guarding (e.g. {@link getValidatedStandardConstructorAndPrototypeTuple},
+ * their own guarding (e.g. `getValidatedStandardConstructorAndPrototypeTuple`,
  * which wraps its walk in a `try/catch`).
  *
  * @param type - the value to inspect

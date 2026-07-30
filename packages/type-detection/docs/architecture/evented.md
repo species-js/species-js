@@ -86,16 +86,20 @@ each surface:
   reads the `aborted` VALUE (§ "The `aborted` accessor exception"), and
   `AbortSignal.prototype` carries no `[[AbortSignalState]]`, so that read throws on the
   bare prototype (it would fail the capture for every real `AbortSignal`). Its capture
-  instead injects a closure over the STRICT
-  `doesImplementAbortSignalPrototypeContract(prototype, value)`, threading a manufactured
-  LIVE receiver as `value` — `createInertAbortSignal()` returns
-  `new AbortController().signal` (or a plain `{}` when the realm has no `AbortController`,
-  which fails the getter-invocation closed → the whole capture collapses to the
-  surrogate). So the module-load validation actually invokes the spec `aborted` getter
-  against a real signal, confirming the captured prototype end to end.
-  `createInertAbortSignal` is a module-local bootstrap helper (not exported — it carries
-  no discrimination logic, and the 135-test suite covers it indirectly: a bad receiver
-  would collapse every `AbortSignal` verdict).
+  instead injects an inline closure that manufactures a LIVE receiver and runs the full
+  strict prototype-equivalence chain against it —
+  `isAbortSignalPrototypeEquivalent(prototype, constructor, receiver)`, whose fourth
+  marker `doesImplementAbortSignalPrototypeContract` invokes the spec `aborted` getter
+  with that real receiver (the earlier markers — `isClass`, the tag, the
+  `constructor.prototype` round-trip — re-confirm identity, harmlessly overlapping the
+  tuple helper's own checks). The receiver is built inline as
+  `new AbortController().signal`, falling back to a plain `{}` (via a non-constructing
+  stub) when the realm has no `AbortController` — which fails the getter-invocation closed
+  → the whole capture collapses to the surrogate. So the module-load validation actually
+  invokes the spec `aborted` getter against a real signal, confirming the captured
+  prototype end to end. This receiver manufacture is inline bootstrap plumbing — no named
+  helper, unexported, carrying no discrimination logic; the suite covers it indirectly (a
+  bad receiver would collapse every `AbortSignal` verdict).
 
 Two consequences of the sentinel constructor slot:
 

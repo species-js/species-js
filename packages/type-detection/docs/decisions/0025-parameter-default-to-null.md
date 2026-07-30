@@ -37,7 +37,7 @@ callable and inherited from `Number.prototype`).
 `getNextAvailablePropertyDescriptor(value = null, key)` — the latter widened from `object`
 to `unknown` to make the cast at the only `hasInertMethod` call site vanish. The pattern
 composes — apply at each helper signature so the normalization happens once at the
-outermost binding, and inner helpers can assume non-null without rechecking. Codified in
-[[design-rulings]] as a forward-applicable rule. The bug fix it carries is real: the
-previous `(value || null) && ...` form rejected `(0).toString` because `0` short-circuited
-the falsy guard despite being a legitimate auto-boxed receiver of the inherited method.
+outermost binding, and inner helpers can assume non-null without rechecking. This is a
+forward-applicable rule. The bug fix it carries is real: the previous
+`(value || null) && ...` form rejected `(0).toString` because `0` short-circuited the
+falsy guard despite being a legitimate auto-boxed receiver of the inherited method.

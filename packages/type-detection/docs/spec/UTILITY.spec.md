@@ -23,6 +23,11 @@
 > functions are untouched. Earlier history: decidability check passed 2026-06-19 (44
 > suites); inert-probe siblings promoted to public (Resolved #1); throw-safety hardening
 > (Resolved #2/#3); property-key helper retirement + safe own-key family (Resolved #4).
+>
+> **Back-sweep finish 2026-07-29 (tests only):** the throw-safety completeness guard was
+> strengthened from a hardcoded list to a source-locked triple-lock, and a determinism
+> standing-invariant added (`invariants.test.js`); no spec section changed and no vector
+> moved — see Resolved item #7.
 
 ## Module contract
 
@@ -703,6 +708,23 @@ allocation-free vs a per-call closure.
    note reverses). Separately, `getTaggedType` and `resolveType` value overloads widened
    to `| undefined` — a hostile `Symbol.toStringTag` getter makes both return `undefined`
    at runtime (`gTT/B2`, `rT/B2`), matching `getTypeSignature`.
+
+7. **Back-sweep finish (tests only, 2026-07-29) — RESOLVED.** utility's back-sweep
+   deliverables were the mutation-test (3 solo source breaks → 6/2/2 attributable reds,
+   reverted) plus a promoted standing-invariant suite. NO spec or architecture change was
+   owed: the 2026-07-23 re-sweep (item #5) already documents the `@@throw-safe` set as the
+   oracle ("the flagged set must equal the tested set") and re-confirmed architecture↔code
+   alignment. The new `invariants.test.js` STRENGTHENS that guard — the tested-function
+   list in `throw-safety.test.js` was hardcoded; it is now a source-locked TRIPLE-LOCK:
+   the top-level `@@throw-safe` markers parsed from `src/utility/index.js` (a line-start
+   `^` anchor excludes the two INDENTED inner-closure markers in `isValidWeakKey`'s
+   branches, which annotate nested closures, not exports) ⟺ the canonical
+   `THROW_SAFE_MARKED` list ⟺ the imported set, so a marker added or removed without
+   updating the oracle now fails. It also adds a DETERMINISM law — a reader is a pure
+   function of its input, guarding the #059 registry-drop (a reader that cached or leaked
+   state would break it). The oracle is the 21-mark set: the 20 public functions above
+   PLUS the sole `@internal` `getValidatedStandardConstructorAndPrototypeTuple`. No
+   behavioral vector changed.
 
 ## Open items
 

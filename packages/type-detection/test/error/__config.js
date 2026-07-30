@@ -358,6 +358,42 @@ export const crossCuttingRejections = {
   ],
 };
 
+// ----- axis-5 completeness oracle: the `@@throw-safe`-marked exports -----
+/**
+ * The 19 `@@throw-safe`-marked exports — the axis-5 completeness oracle
+ * (ERROR.spec.md `## Throw-safety (axis 5)`; ADRs #073/#076), in source order: the
+ * 4 public predicates PLUS 15 of the 17 `@internal` helpers. The two omitted
+ * internal exports are the load-time value constants `errorStackMode` /
+ * `ERROR_STACK_CAPABLE` (probed values, no per-input throw surface). Two marked
+ * exports are `export const`, not `export function` — `retrieveErrorStack` and
+ * `isError` — so the source marker parse in `throw-safety.test.js` matches
+ * `export (function|const)`. That test cross-checks this list BOTH against the
+ * markers parsed out of `src/error.js` (source drift) AND against the imported
+ * error set (test drift), then routes a hostile value into each export's own read
+ * surface and asserts non-propagation.
+ */
+export const THROW_SAFE_MARKED = [
+  'retrieveErrorStack',
+  'hasReachableErrorStack',
+  'doesPassErrorGraftFilter',
+  'doesImplementMinimumErrorContract',
+  'doesImplementGenericErrorContract',
+  'doesImplementDOMExceptionContract',
+  'doesImplementGenericErrorPrototypeContract',
+  'doesImplementDOMExceptionPrototypeContract',
+  'isGenericErrorPrototypeEquivalent',
+  'isDOMExceptionPrototypeEquivalent',
+  'isAlienRealmGenericError',
+  'isAlienRealmDOMException',
+  'isCurrentRealmGenericErrorInstance',
+  'isCurrentRealmDOMExceptionInstance',
+  'isGenericError',
+  'isDOMException',
+  'isAnyError',
+  'isError',
+  'isAbortError',
+];
+
 // ----- throw-safety matrix (hostile-input-class × predicate) -----
 // The universal invariant (docs/spec/README.md → "Throw-safety"; ERROR.spec.md
 // Module-contract Throw-safety paragraph): every public predicate answers a

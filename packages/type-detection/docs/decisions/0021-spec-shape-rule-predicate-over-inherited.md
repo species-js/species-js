@@ -33,6 +33,4 @@ getter, the predicate's defense is gone.
 package, factored as a `@/utility` primitive (see decision #024). The rule generalizes to
 any future predicate that inspects inherited properties without firing accessors —
 Iterator protocol predicates, EventTarget interface predicates, Error-invariants
-predicates. Codified in [[design-rulings]] as a third pattern alongside the existing two;
-the design-rulings entry carries the forward-applicable framing, this entry carries the
-chronological capture.
+predicates. This is a third pattern alongside the existing two.

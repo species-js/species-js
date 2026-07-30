@@ -176,12 +176,14 @@ spec-writing phase (the test-green close comes later, at axis-1 generation).
 - Test files (test round): TBD with the spec owner — expected `test/<module>.test.js` per
   module, mirroring the source layout, so the axis suites can fan out per module.
 - Axis suites import predicates through the `#index` barrel, not the module file directly
-  — the barrel is the curated public surface. A direct `#<module>` import once tripped the
-  `config ↔ function` load-order cycle at init
-  (`getOwnPropertyDescriptor is not a function`); that cycle is dissolved (ADR #070) and
-  every published subpath is proven to load clean as its own entry by
-  `test/entry-arena.test.js`, so the barrel convention is no longer crash-avoidance. The
-  delivery-seam fixtures load subpaths directly by design.
+  — the barrel is the curated public surface. Direct `#<module>` subpath entry was once
+  crash-prone at init (a load-order temporal-dead-zone); that subpath seam is dissolved by
+  the `foundation` leaf (ADR #070) and every published subpath is proven to load clean as
+  its own entry by `test/entry-arena.test.js`, so the barrel-import convention is no
+  longer crash-avoidance. (Distinct concern: the barrel's export _order_ is still
+  load-bearing — the `function ↔ utility` eval-time cycle, ADR #083 — but that constrains
+  the barrel file itself, not which entry a suite imports.) The delivery-seam fixtures
+  load subpaths directly by design.
 
 ## Status
 

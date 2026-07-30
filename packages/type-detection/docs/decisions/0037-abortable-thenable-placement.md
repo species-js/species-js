@@ -55,7 +55,7 @@ existing precision).
   PromiseLike producer without forcing the abort channel.
 - **Placement in `thenable.d.ts`** keeps the lattice together as a single conceptual unit.
   The interface is type-only — there is no runtime predicate to extract — so the "sibling
-  pair vs subfolder" question of [[package-structure]] is moot; the file pair stays as-is.
+  pair vs subfolder" question of package layout is moot; the file pair stays as-is.
 - **No predicate** matches the realistic ceiling on runtime discrimination. The equip-js
   source also shipped no predicate for the same reason; that choice is preserved.
 

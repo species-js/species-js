@@ -2,6 +2,13 @@
 
 **Date:** 2026-07-05
 
+> **Partially superseded 2026-07-29 (config round).** The `BLANK_TYPE` carrier constant
+> introduced by this decision was removed as an unconsumed export — `@internal`, with zero
+> consumers anywhere in the package. `BlankType` the _type_ remains (it composes
+> `BlankDictionary`); it simply no longer has a value carrier, so the `BlankType` row's
+> "carrier" column below now reads `—`. The three-shape TYPE taxonomy is otherwise intact.
+> Rationale in the config-round `CONFIG.spec.md` reconciliation.
+
 **Context.** A cleanup pass — "unify the basic object and function shapes and constants
 that are essential at config-level" — surfaced how scattered and imprecise the
 prototype-less-object types and their constants had become:

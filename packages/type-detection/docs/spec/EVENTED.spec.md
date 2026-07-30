@@ -15,6 +15,14 @@
 > helper mechanics, and axis-4 helper inventory are amended in place, and the new
 > strict-arm helpers + stricter-reject vectors are appended. See the "Post-freeze
 > amendment" Resolved item.
+>
+> **Back-sweep Phase 2 (2026-07-29):** a new axis-5 completeness-oracle section for the 18
+> `@@throw-safe` markers, plus an R2 reconciliation of one verdict-neutral stale
+> mechanism-description — the AbortSignal module-load capture (item 5's
+> `createInertAbortSignal` / `doesImplementAbortSignalPrototypeContract` naming was
+> superseded by the `75e378e` refactor, which inlines the receiver and injects the full
+> `isAbortSignalPrototypeEquivalent`). No admit/reject vector changed; the **FROZEN
+> 2026-06-18** oracle stands. See Resolved items #6.
 
 ## Module contract
 
@@ -526,6 +534,40 @@ Resolves the constructor once and threads it (#059).
 
 ---
 
+## Throw-safety (axis 5) — completeness oracle
+
+The module marks **18** exports `@@throw-safe` (ADRs #073, #076) — the entire public +
+`@internal` surface: each must answer a boolean on every hostile input and never propagate
+a throw, yielding its sentinel (`false`) instead. This is the module surface's realization
+of the universal throw-safety invariant (see the Module contract's _Throw-safety_
+paragraph). The marked set is the completeness oracle — the axis-5
+`hostile × marked-export` matrix the test round builds must score exactly this set (source
+order): the 4 public predicates PLUS the 14 exported `@internal` helpers.
+
+`isCurrentRealmEventTargetInstance`, `hasEventTargetIdentitySignal`,
+`doesNotShadowEventTargetContract`, `doesImplementEventTargetContract`,
+`doesImplementEventTargetPrototypeContract`, `isEventTargetPrototypeEquivalent`,
+`isAlienRealmEventTarget`, `isEventTargetLike`, `isEventTarget`,
+`isCurrentRealmAbortSignalInstance`, `hasAbortSignalIdentitySignal`,
+`doesNotShadowAbortSignalContract`, `doesImplementAbortSignalContract`,
+`doesImplementAbortSignalPrototypeContract`, `isAbortSignalPrototypeEquivalent`,
+`isAlienRealmAbortSignal`, `isAbortSignalLike`, `isAbortSignal`.
+
+The four public predicates additionally carry the honest by-contract verdict per hostile
+class (the axis-3 `hostile × predicate` matrix, `throw-safety.test.js`), including the
+honest ASYMMETRIC row — a userland EventTarget whose `aborted` getter throws is admitted
+by `isEventTargetLike` (never reads `aborted`) and rejected by the AbortSignal tier.
+Axis-5 extends that suite to the 14 `@internal` helpers, routing the hostile value into
+each export's own read surface (several gate on a threaded `name` / `isClass` constructor
+/ receiver, so a naive single-value call would short-circuit before the hostile value
+reached the throwing read), and triple-locks the scored set against BOTH the
+`@@throw-safe` markers parsed from `src/evented.js` (source drift) AND the imported set
+(test drift). Source, oracle, and tests are triple-locked. The member-surface `ownKeys`
+trap stays additionally pinned as the helper-level `dIETPC/R2` / `dIASPC/R4` boundaries
+(the public path fails the signal gate before the prototype-contract walk runs).
+
+---
+
 ## Resolved items
 
 1. **`isCurrentRealm{EventTarget,AbortSignal}Instance` exported `@internal` for
@@ -615,5 +657,25 @@ Resolves the constructor once and threads it (#059).
    indirectly — a bad receiver would collapse every `AbortSignal` verdict). No new ADR (a
    mechanical harmonization to the `#thenable` / object-round precedent, part of the same
    2026-07-03 cross-realm pass; cf. THENABLE spec item 8).
+
+6. **Back-sweep Phase 2 (docs + tests, 2026-07-29) — RESOLVED.** Finalizing `evented`
+   under the standards invented after it shipped (the back-sweep). Two parts, no
+   admit/reject verdict changed (the FROZEN oracle stands):
+   - **Axis-5 completeness-oracle section** (above) documenting the 18 `@@throw-safe`
+     marked exports (`62756ea`) as the triple-locked oracle the upgraded
+     `throw-safety.test.js` scores — the parallel to the function/thenable/object
+     sections.
+   - **Capture-mechanism reconciliation (R2).** The cross-artifact R2 pass found item 5's
+     description of the AbortSignal module-load capture STALE against the shipped code:
+     the `75e378e` "globalContext + prototype-equivalence gate" refactor inlined the
+     receiver manufacture (there is NO named `createInertAbortSignal()` helper — it is an
+     inline closure) and injects the FULL
+     `isAbortSignalPrototypeEquivalent(prototype, constructor, receiver)` (the four-marker
+     chain), not the bare `doesImplementAbortSignalPrototypeContract` marker 4 that item 5
+     names. `architecture/evented.md` § "Realm-fixed capture" is reconciled to the shipped
+     mechanism; item 5's behavioral conclusion (no vector changed, surface still 18 = 18,
+     the receiver helper unexported) remains true — only the named mechanism was
+     superseded by `75e378e`. No ADR (mechanical reconciliation + the package-wide #076
+     marker convention on a module that predated it).
 
 No open items.

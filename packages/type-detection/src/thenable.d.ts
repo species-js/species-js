@@ -301,6 +301,7 @@ export interface AbortableThenable<out T> extends Thenable<T> {
 //
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 
+/* @@throw-safe */
 /**
  * Whether `value` leaves the inherited `Promise` surface unshadowed at its own
  * level: it owns no property whose name is in the reserved denylist (the
@@ -333,6 +334,7 @@ export interface AbortableThenable<out T> extends Thenable<T> {
  */
 export function doesNotShadowPromiseContract(value: object): boolean;
 
+/* @@throw-safe */
 /**
  * Verifies that the value matches the `Promise.prototype` method
  * contract — callable `then`, `catch`, and `finally` data properties
@@ -364,6 +366,7 @@ export function doesNotShadowPromiseContract(value: object): boolean;
  */
 export function doesImplementPromiseContract(value: unknown): boolean;
 
+/* @@throw-safe */
 /**
  * The member-surface marker of the cross-realm `Promise` contract: confirms
  * that `prototype` carries `then`, `catch`, and `finally` as its own callable
@@ -390,6 +393,7 @@ export function doesImplementPromiseContract(value: unknown): boolean;
  */
 export function doesImplementPromisePrototypeContract(prototype: unknown): boolean;
 
+/* @@throw-safe */
 /**
  * Verifies the structural anchor for cross-realm `Promise` discrimination over a
  * value's already-resolved `[[Prototype]]` — a four-marker chain, short-circuited
@@ -410,8 +414,8 @@ export function doesImplementPromisePrototypeContract(prototype: unknown): boole
  * chain-depth marker: `Promise.prototype`'s `[[Prototype]]` is `Object.prototype`,
  * not `null`, so a top-level check would wrongly reject every genuine
  * `Promise.prototype`. The value's constructor-name identity is verified
- * separately by the caller {@link isAlienRealmPromise} via
- * {@link hasPromiseIdentitySignal}.
+ * separately by the caller `isAlienRealmPromise` via
+ * `hasPromiseIdentitySignal`.
  *
  * Throw-safe end to end: each read absorbs a hostile Proxy-trap, failing the
  * contract rather than propagating; `isClass` is likewise throw-safe at its own
@@ -429,6 +433,7 @@ export function isPromisePrototypeEquivalent(
   constructor: unknown,
 ): boolean;
 
+/* @@throw-safe */
 /**
  * Whether the value carries both of `Promise`'s string-shape identity
  * markers — the `[[Class]]` tag `'Promise'` and the resolved constructor-name
@@ -447,11 +452,12 @@ export function hasPromiseIdentitySignal(
   name: string | undefined,
 ): boolean;
 
+/* @@throw-safe */
 /**
  * The cross-realm `Promise` fallback, composed: the inexpensive
- * {@link hasPromiseIdentitySignal} front-gate (the value's `[[Class]]` tag and
+ * `hasPromiseIdentitySignal` front-gate (the value's `[[Class]]` tag and
  * resolved constructor-name) AND the load-bearing
- * {@link isPromisePrototypeEquivalent} structural contract. A foreign-realm
+ * `isPromisePrototypeEquivalent` structural contract. A foreign-realm
  * `Promise` fails the local-realm `instanceof` + `=== Promise.prototype`
  * fast-path but matches this structural contract in every realm.
  *
@@ -473,6 +479,7 @@ export function hasPromiseIdentitySignal(
  */
 export function isAlienRealmPromise(value: object, prototype: object): boolean;
 
+/* @@throw-safe */
 /**
  * Whether `value` is an instance of the realm-fixed `Promise` intrinsic captured
  * at module load, or of any subclass.
@@ -507,6 +514,7 @@ export function isCurrentRealmPromiseInstance<T = unknown>(
   value: T,
 ): value is T & PromiseLike<unknown>;
 
+/* @@throw-safe */
 /**
  * Narrows a value to `PromiseLike<unknown>` via either local-realm
  * `Promise` identity or the structural `Promise.prototype` method
@@ -547,6 +555,7 @@ export function isCurrentRealmPromiseInstance<T = unknown>(
  */
 export function isPromiseLike<T = unknown>(value?: T): value is T & PromiseLike<unknown>;
 
+/* @@throw-safe */
 /**
  * Narrows a value to `Promise<unknown>` via a two-branch identity check.
  *
@@ -559,9 +568,9 @@ export function isPromiseLike<T = unknown>(value?: T): value is T & PromiseLike<
  * are realm-fixed at module-load.
  *
  * On miss, falls back to the cross-realm structural seam
- * {@link isAlienRealmPromise}: the {@link hasPromiseIdentitySignal} front-gate
+ * `isAlienRealmPromise`: the `hasPromiseIdentitySignal` front-gate
  * (the `[[Class]]` tag `'Promise'` and the constructor-name `'Promise'` resolved
- * once from the threaded prototype) AND the {@link isPromisePrototypeEquivalent}
+ * once from the threaded prototype) AND the `isPromisePrototypeEquivalent`
  * anchor (the constructor is a newable class, the prototype's own tag is
  * `'Promise'`, its constructor round-trips back to it, and it carries the
  * `then`/`catch`/`finally` contract as own members). Every marker reads
@@ -585,7 +594,7 @@ export function isPromiseLike<T = unknown>(value?: T): value is T & PromiseLike<
  * Consumers needing subclass admission should compose with a
  * constructor-chain walk on top of this predicate.
  *
- * The local-realm pair is further gated by {@link doesNotShadowPromiseContract}:
+ * The local-realm pair is further gated by `doesNotShadowPromiseContract`:
  * a value that overrides an inherited contract method (or the `constructor`) at
  * its OWN level — `Object.create(Promise.prototype, { then })` — is an
  * instance-level subclass layer, demoted to merely `PromiseLike` (decision #063).
@@ -617,6 +626,7 @@ export function isPromise(value?: unknown): value is Promise<unknown>;
 //
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 
+/* @@throw-safe */
 /**
  * Narrows a value to `Thenable<unknown>` by verifying that `then` is a
  * callable data property reachable through the value's prototype-chain.

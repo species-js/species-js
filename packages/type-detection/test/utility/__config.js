@@ -802,6 +802,41 @@ export const TS_SENTINEL = Object.freeze({
   PROTOTYPE: /** @type {const} */ ('→ a live prototype object'),
 });
 
+// ----- axis-5 completeness oracle: the `@@throw-safe`-marked exports -----
+/**
+ * The 21 `@@throw-safe`-marked exports of `src/utility/index.js` — the completeness
+ * oracle (ADRs #073/#076), in source order: 20 public readers/probes PLUS the sole
+ * `@internal` helper `getValidatedStandardConstructorAndPrototypeTuple` (scored in
+ * `_internal/helpers.test.js`, the 20 public ones in `throw-safety.test.js`).
+ * `invariants.test.js` cross-checks this list BOTH against the top-level markers
+ * parsed out of the source (source drift) AND against the imported set (test drift).
+ * The two INDENTED inner-closure markers (inside `retrieveErrorStack`-style factory
+ * bodies) are excluded by the line-start `^` anchor — they are not export markers.
+ */
+export const THROW_SAFE_MARKED = [
+  'isValidWeakKey',
+  'getSafePrototypeOf',
+  'hasOwnPrototype',
+  'hasOwnWritablePrototype',
+  'hasOwnNonWritablePrototype',
+  'isValidPropertyKey',
+  'getSafeOwnPropertyNames',
+  'getSafeOwnPropertySymbols',
+  'getSafeOwnPropertyKeys',
+  'getNextAvailableSafeDescriptor',
+  'hasInertMethod',
+  'hasInertGetter',
+  'hasInertSetter',
+  'hasInertValue',
+  'getVerifiedOwnName',
+  'getTypeSignature',
+  'getTaggedType',
+  'getDefinedConstructor',
+  'getDefinedConstructorName',
+  'resolveType',
+  'getValidatedStandardConstructorAndPrototypeTuple',
+];
+
 // Columns shared verbatim by every hostile row (the mechanism never reaches these
 // functions' reads, or reaches an absorbing `try/catch` regardless of mechanism).
 const invariantColumns = {

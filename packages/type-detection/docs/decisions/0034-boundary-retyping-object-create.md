@@ -40,6 +40,5 @@ predicates). The pattern is now consistently applied to every cached `@/config` 
 whose lib type would otherwise propagate `any` downstream. Discovered during the
 error-migration debugging round — not during the function, thenable, or evented rounds —
 which suggests there may be other cached primitives whose lib types deserve scrutiny. A
-future sweep through `@/config` for remaining `any`-leaks is worth a pass. Codified in
-[[design-rulings]] alongside the meta-observation about TS lib types being _conservative
-simplifications_ that benefit from boundary closure.
+future sweep through `@/config` for remaining `any`-leaks is worth a pass. TS lib types
+are conservative simplifications that benefit from boundary closure.

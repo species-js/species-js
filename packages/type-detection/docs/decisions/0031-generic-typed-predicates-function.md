@@ -43,5 +43,4 @@ narrow yields `typeof Constructor & Callable`, which remains assignable to the o
 `typeof Constructor | null` cast — no consumer changes needed. The pattern generalizes
 beyond the function family — see decision #036 for the follow-up sweep across `thenable`,
 `evented`, and `error`. Primitive predicates (`isStringValue`, `isNumberValue`, etc.)
-don't benefit — primitives have no richer shape to preserve — and stay as-is. Codified in
-[[generic-predicate-pattern]] memory.
+don't benefit — primitives have no richer shape to preserve — and stay as-is.

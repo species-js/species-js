@@ -62,8 +62,8 @@
  * distinguished along two axes — whether a prototype-chain exists, and whether
  * own keys may be present. `DictionaryObject` lives here in `#object` (beside
  * its predicate {@link isDictionaryObject}); `BlankType` and `BlankDictionary`
- * live in `#config`, beside the `BLANK_TYPE` / `BLANK_DICTIONARY` constants that
- * carry them:
+ * live in `#config` (`BlankDictionary` carried by the `BLANK_DICTIONARY`
+ * constant; `BlankType` is a type-only shape with no value carrier):
  *
  * - `DictionaryObject` (`#object`) — prototype-less, constructor-less, own keys
  *   OPEN; the narrow target of {@link isDictionaryObject} and the honest return
@@ -71,8 +71,7 @@
  *   with the `constructor?: never` discriminator.
  * - `BlankType` (`#config`) — a real `Object` (carrying `Object.prototype` and
  *   the `Object` constructor) with no own key; the empty ordinary object `{}`.
- *   Modelled as `Record<PropertyKey, never>`. Its realm-fixed carrier is
- *   `BLANK_TYPE`.
+ *   Modelled as `Record<PropertyKey, never>`.
  * - `BlankDictionary` (`#config`) — prototype-less, constructor-less, AND empty;
  *   the never-mutated `Object.create(null)`. The intersection of the other two,
  *   and the type of `BLANK_DICTIONARY` — the sentinel behind `#error`'s legacy
@@ -247,6 +246,7 @@ export type PlainOrDictionaryObject = PlainObject | DictionaryObject;
 //
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 
+/* @@throw-safe */
 /**
  * Narrows a value to {@link AnyObject} — any non-null, non-function
  * object — via `!!value && typeof value === 'object'`.
@@ -286,6 +286,7 @@ export function isObject<T = unknown>(value?: T): value is T & AnyObject;
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 
+/* @@throw-safe */
 /**
  * The member-surface marker of the cross-realm Plain Object contract:
  * confirms that `value` carries, as its own non-enumerable callable
@@ -293,7 +294,7 @@ export function isObject<T = unknown>(value?: T): value is T & AnyObject;
  * ES members plus whichever Annex-B accessor helpers the host realm
  * carries, calibrated once at module load).
  *
- * This is the one marker of {@link isObjectPrototypeEquivalent} that
+ * This is the one marker of `isObjectPrototypeEquivalent` that
  * inspects the prototype's actual members rather than its identity
  * claims. The five identity markers are all satisfiable by a hollow
  * `class extends null` whose `name` was redefined to `'Object'`; this
@@ -318,6 +319,7 @@ export function isObject<T = unknown>(value?: T): value is T & AnyObject;
  */
 export function doesImplementObjectPrototypeContract(prototype: unknown): boolean;
 
+/* @@throw-safe */
 /**
  * Probes the two inexpensive string-shape markers that suggest a value
  * is a plain `Object` instance — the `[[Class]]` tag
@@ -328,7 +330,7 @@ export function doesImplementObjectPrototypeContract(prototype: unknown): boolea
  *
  * Used as the front-half of the cross-realm Plain Object fallback in
  * {@link isPlainObject}: if either marker fails, the more expensive
- * {@link isObjectPrototypeEquivalent} walk is skipped.
+ * `isObjectPrototypeEquivalent` walk is skipped.
  * Also reused by the fused {@link isPlainOrDictionaryObject} dispatch
  * on its cross-realm branch.
  *
@@ -345,6 +347,7 @@ export function hasPlainObjectIdentitySignal(
   name: string | undefined,
 ): boolean;
 
+/* @@throw-safe */
 /**
  * Probes the two markers that suggest a value is a prototype-less
  * Dictionary Object — the `[[Class]]` tag (`'[object Object]'`) and the
@@ -353,7 +356,7 @@ export function hasPlainObjectIdentitySignal(
  * `toObjectString.call` capture and the constructor-walk's
  * descriptor-discipline.
  *
- * The dictionary counterpart to {@link hasPlainObjectIdentitySignal}:
+ * The dictionary counterpart to `hasPlainObjectIdentitySignal`:
  * where the plain signal expects the constructor name to read
  * `'Object'`, this one expects no defined constructor at all. Reused by
  * {@link isDictionaryObject} and by the `prototype === null` branch of
@@ -367,6 +370,7 @@ export function hasPlainObjectIdentitySignal(
  */
 export function hasDictionaryObjectIdentitySignal(value: unknown): boolean;
 
+/* @@throw-safe */
 /**
  * Verifies the structural anchor for cross-realm Plain Object
  * discrimination: a six-marker chain over a value's already-resolved
@@ -430,10 +434,11 @@ export function isObjectPrototypeEquivalent(
   name: string | undefined,
 ): boolean;
 
+/* @@throw-safe */
 /**
  * The cross-realm Plain Object fallback: the inexpensive
- * {@link hasPlainObjectIdentitySignal} front-gate AND the load-bearing
- * {@link isObjectPrototypeEquivalent} structural contract. A foreign
+ * `hasPlainObjectIdentitySignal` front-gate AND the load-bearing
+ * `isObjectPrototypeEquivalent` structural contract. A foreign
  * `Object.prototype` fails the local-realm `=== Object.prototype`
  * fast-path but matches this structural contract in every realm.
  *
@@ -453,6 +458,7 @@ export function isObjectPrototypeEquivalent(
  */
 export function isAlienRealmPlainObject(value: object, prototype: object): boolean;
 
+/* @@throw-safe */
 /**
  * Narrows a value to {@link PlainObject} — an AnyObject whose direct
  * constructor is the built-in `Object`.
@@ -460,8 +466,8 @@ export function isAlienRealmPlainObject(value: object, prototype: object): boole
  * Composes two complementary checks: the local-realm fast-path
  * `getPrototypeOf(value) === Object.prototype` (an O(1) reference
  * comparison) and a cross-realm-safe structural anchor formed by
- * {@link hasPlainObjectIdentitySignal} (two inexpensive string-shape
- * signal markers) AND {@link isObjectPrototypeEquivalent} (the
+ * `hasPlainObjectIdentitySignal` (two inexpensive string-shape
+ * signal markers) AND `isObjectPrototypeEquivalent` (the
  * six-marker prototype contract):
  *
  * - Signal markers (inexpensive, front-loaded): `[[Class]]` tag
@@ -546,6 +552,7 @@ export function isAlienRealmPlainObject(value: object, prototype: object): boole
  */
 export function isPlainObject<T = unknown>(value?: T): value is T & PlainObject;
 
+/* @@throw-safe */
 /**
  * Narrows a value to {@link DictionaryObject} — an AnyObject with no
  * prototype-chain. Typically created via `Object.create(null)` for
@@ -603,6 +610,7 @@ export function isPlainObject<T = unknown>(value?: T): value is T & PlainObject;
  */
 export function isDictionaryObject<T = unknown>(value?: T): value is T & DictionaryObject;
 
+/* @@throw-safe */
 /**
  * Narrows a value to {@link PlainOrDictionaryObject} — either a
  * {@link PlainObject} (prototype-bearing, constructor === Object) or a
@@ -616,11 +624,11 @@ export function isDictionaryObject<T = unknown>(value?: T): value is T & Diction
  *   accept immediately (fast-path).
  * - `prototype === null` → `DictionaryObject` candidate, verify the two
  *   non-prototype cross-validators via
- *   {@link hasDictionaryObjectIdentitySignal} (`getDefinedConstructor ===
+ *   `hasDictionaryObjectIdentitySignal` (`getDefinedConstructor ===
  *   undefined` and `getTypeSignature === '[object Object]'`).
  * - otherwise → cross-realm `PlainObject` fallback via
- *   {@link isObjectPrototypeEquivalent} (the six-marker prototype
- *   contract) behind the {@link hasPlainObjectIdentitySignal} gate.
+ *   `isObjectPrototypeEquivalent` (the six-marker prototype
+ *   contract) behind the `hasPlainObjectIdentitySignal` gate.
  *
  * The fused form avoids the redundant gate, prototype-read, tag-computation,
  * and constructor-walk that a naive `isPlainObject(v) || isDictionaryObject(v)`

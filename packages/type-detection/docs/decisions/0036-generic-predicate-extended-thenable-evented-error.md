@@ -54,8 +54,7 @@ identically at runtime, so the runtime semantics are preserved. The
 parameter-default-to-`null` ruling still applies to non-generic predicates that use it for
 strict-equality nullish unification — it just doesn't compose with the generic-T pattern
 when both are wanted in the same signature. Watch for this interaction when refactoring
-any future predicate that combines both patterns. Codified in
-[[generic-predicate-pattern]] memory.
+any future predicate that combines both patterns.
 
 Commit `92784f8`.
 [`../architecture/function.md`](../architecture/function.md#generic-typed-predicates-caller-side-narrowing-preserved)
