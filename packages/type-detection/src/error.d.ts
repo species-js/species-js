@@ -607,8 +607,11 @@ export function isDOMException<T = unknown>(value?: T): value is T & DOMExceptio
 /* @@throw-safe */
 /**
  * Narrows a value to {@link AnyError} — an `Error` or a `DOMException`. The
- * {@link isError} polyfill body, used when the runtime lacks native
- * `Error.isError`.
+ * {@link isError} polyfill body (bound when the runtime lacks native
+ * `Error.isError`) and the module's DETERMINISTIC, engine-independent reference:
+ * unlike the native-bound `isError`, it reads no `[[ErrorData]]` slot, so
+ * `isAnyError` ≡ `isGenericError` ⊎ `isDOMException` holds on every engine. Reach
+ * for it — and assert against it — when a verdict must not vary by engine.
  *
  * Realm-partitioned with the DOMException arm ordered first: a truthy
  * current-realm `DOMException` is confirmed by its contract; else a
@@ -638,32 +641,42 @@ export function isAnyError<T = unknown>(value?: T): value is T & AnyError;
 
 /* @@throw-safe */
 /**
- * Narrows a value to {@link AnyError} — the public Error predicate.
+ * Narrows a value to {@link AnyError} — the public Error predicate. Admits
+ * every real `Error` and every real `DOMException` (local or cross-realm),
+ * deterministically, on every engine.
  *
- * Bound once at module-load: native ECMA-262 `Error.isError` when the
- * captured realm provides it (ES2025+ — Node 23+, modern browsers), the
- * `isAnyError` polyfill otherwise. The binding is realm-fixed — it does
- * not re-read `globalThis.Error` at each call, so later tampering with the
- * global `Error.isError` does not reach it.
+ * Bound once at module-load by a three-way selection over the runtime's native
+ * `Error.isError` (realm-fixed — it does not re-read `globalThis.Error` per
+ * call, so later tampering cannot reach it):
  *
- * Native `Error.isError` is the spec-precise check — it reads the internal
- * `[[ErrorData]]` slot, which userland code cannot observe directly. The
- * polyfill approximates it structurally because that slot is unobservable;
- * the two admit the same set in well-behaved code, and the polyfill's
- * stack-graft filter keeps them convergent on the legacy
- * `Object.create(Error.prototype)` graft — both reject it wherever the
- * environment guarantees stacks (`ERROR_STACK_CAPABLE`) — rather than
- * widening; only where no stacks are populated does the filter stand down and
- * the polyfill admit grafts native would reject. The generic `T` surface is
- * applied even though the captured native method is non-generic per its ES2025
- * declaration — runtime semantics are unchanged, only the type-surface widens.
+ * 1. No native → the `isAnyError` polyfill body.
+ * 2. Native present AND it already recognizes a `DOMException` (probed once at
+ *    load) → native alone: on such an engine `[[ErrorData]]` covers both the
+ *    Error and DOMException arms.
+ * 3. Native present but it does NOT recognize a `DOMException` → native for the
+ *    Error arm OR the structural cross-realm {@link isDOMException} backstopping
+ *    the DOMException arm.
+ *
+ * Native `Error.isError` is the spec-precise Error check (it reads the internal
+ * `[[ErrorData]]` slot, unobservable from userland, and rejects an
+ * `Object.create(Error.prototype)` graft precisely); the polyfill approximates
+ * the slot with the stack-graft filter, convergent on that verdict wherever
+ * stacks are guaranteed (`ERROR_STACK_CAPABLE`). The probe + the branch-3
+ * backstop close the old native-vs-polyfill DOMException fuzziness for every
+ * well-formed value. Two residuals keep a narrow engine-dependence, under
+ * branch 2 only, on values outside the well-formed set — a slot-LESS
+ * `DOMException`-shaped fake, and a deliberately-malformed `DOMException` (the
+ * sole case where `isError` ≠ `isGenericError` ⊎ `isDOMException`); assert either
+ * via the deterministic `isAnyError`, never a baked-in native verdict. The
+ * generic `T` surface is applied even though native `Error.isError` is
+ * non-generic per its ES2025 declaration — only the type-surface widens.
  *
  * @typeParam T - the caller-side type of `value`; defaults to `unknown`
  * @param value - the value to test; omitted is treated as `undefined`, which
  *  is not an error
- * @returns `true` when the value carries `[[ErrorData]]` (native) or matches
- *  the polyfill semantics, narrowing `value` to `T & AnyError`; `false`
- *  otherwise
+ * @returns `true` when the value is a real `Error` or `DOMException` (or carries
+ *  `[[ErrorData]]` under raw native), narrowing `value` to `T & AnyError`;
+ *  `false` otherwise
  * @example
  * isError(new Error('boom'));                   // true
  * isError(new TypeError('x'));                  // true
@@ -694,6 +707,10 @@ export function isError<T = unknown>(value?: T): value is T & AnyError;
  * with `Object.defineProperty(err, 'name', { value: 42 })` passes
  * `isError`, but its `name` is not a string and the bare suffix-call
  * would throw `TypeError`.
+ *
+ * Because {@link isError} admits every real `DOMException` deterministically,
+ * the canonical abort error — a `DOMException` named `'AbortError'` from
+ * `AbortSignal.abort()` / `AbortController.abort()` — is detected on every engine.
  *
  * Captures the abort-channel naming convention shared by:
  *

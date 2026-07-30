@@ -26,6 +26,7 @@ import {
   isGenericError,
   isDOMException,
   isError,
+  isAnyError,
   isAbortError,
   isAlienRealmGenericError,
   isAlienRealmDOMException,
@@ -51,11 +52,19 @@ describe('error — cross-realm (axis 2)', () => {
     }
   });
 
-  it('isDOMException/A4: a foreign DOMException synthetic → DOMException, not generic', () => {
+  it('isDOMException/A4 + iAE/A2: a foreign DOMException synthetic → DOMException, not generic', () => {
     const foreign = foreignDomException();
     expect(isDOMException(foreign), 'isDOMException').toBe(true);
     expect(isGenericError(foreign), 'isGenericError').toBe(false);
-    expect(isError(foreign), 'isError').toBe(true);
+    // Assert the union via the DETERMINISTIC `isAnyError`, NOT the public `isError`:
+    // this fixture is a slot-LESS synthetic (a `DOMException` stand-in with getters
+    // but no `[[ErrorData]]`, since `vm` cannot construct a real one). A REAL
+    // cross-realm DOMException carries the slot and `isError` admits it on every
+    // engine; a slot-less synthetic is admitted by the polyfill / the branch-3
+    // backstop but would be REJECTED by raw native under a slot-granting engine
+    // (branch 2). Asserting `isError` here would bake in a native verdict — see
+    // ERROR.spec.md `isError/A4` + item #3. `isAnyError` is engine-independent.
+    expect(isAnyError(foreign), 'isAnyError').toBe(true);
   });
 
   it('a foreign non-error (plain `{ name, message }`) → all four false', () => {
