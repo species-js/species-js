@@ -50,9 +50,8 @@ types as the load-bearing distinction from the primitive form. The
 `string` over `String`") is correct for typical code but wrong here: this is precisely the
 case where the wrapper-object type is the structural model. Added a per-file ESLint
 override scoped to `**/src/primitive.d.ts`, with rationale, matching the existing
-override-with-rationale style in `eslint.config.js`. Per the zero-`eslint-disable` policy
-([[quality-discipline]]), the fix is configuration at the right level, not inline
-suppression.
+override-with-rationale style in `eslint.config.js`. Per the zero-`eslint-disable` policy,
+the fix is configuration at the right level, not inline suppression.
 
 **File-level structure.** Per-family sectioning (types and predicates for one family
 grouped together) over types-then-predicates. The five families are independent

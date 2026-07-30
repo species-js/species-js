@@ -268,7 +268,6 @@ both `null` and `undefined` are unified at the parameter-binding step, allowing 
 equality `!== null` checks without lint friction and without rejecting falsy primitives
 (which auto-box correctly and may have legitimate inherited methods). Canonical
 implementations: `hasInertMethod` and `getNextAvailablePropertyDescriptor` in `#utility`.
-See `[[design-rulings]]` for the forward-applicable framing.
 
 ## Realm intrinsics: the `%X%` notation
 

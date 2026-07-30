@@ -89,5 +89,5 @@ promise is settled.
   browsers. Deferred to Q.005; if adopted it belongs in an opt-in downstream adapter, not
   in the portable ES2020-floor foundation.
 
-Docs-only decision; no runtime change. Empirical confirmation captured in the
-[[boxed-primitive-discrimination]] memory and `THENABLE.spec.md` / `PRIMITIVE.spec.md`.
+Docs-only decision; no runtime change. Empirical confirmation captured in
+`THENABLE.spec.md` / `PRIMITIVE.spec.md`.

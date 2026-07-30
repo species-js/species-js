@@ -44,5 +44,4 @@ property descriptor and rejects accessor-based spoofing without invoking the get
 spec-correct reciprocal references depend on (e.g. `%GeneratorFunction%`'s `constructor`
 inheriting from `%Function.prototype%`). The rule generalizes for any future property read
 in this package: ask whether the spec defines the property as own-data or inherited, then
-pick the access path accordingly. Codified in [[design-rulings]] as "spec-shape determines
-the access path."
+pick the access path accordingly.

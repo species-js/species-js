@@ -84,14 +84,13 @@ the same `@/config` capture family for the realm-fix benefit alone.
 **Consequences.** The five `doesHaveStrictUnboxed{X}ValueEquality` helpers each implement
 the family-correct equality. The `objectIs` capture at `@/config` is the second
 realm-fix-only capture (alongside `toObjectString`'s pure-capture nature pre-retyping).
-Per [[boxed-primitive-discrimination]] memory, the lesson generalizes: when writing
-predicates over spec-defined wrapper types, **trace the constructor coercion path before
-assuming uniform implementation**. The four-shape result here is inherent to ECMA-262, not
-an implementation artifact.
+The lesson generalizes: when writing predicates over spec-defined wrapper types, **trace
+the constructor coercion path before assuming uniform implementation**. The four-shape
+result here is inherent to ECMA-262, not an implementation artifact.
 
-The realm-fix-vs-boundary-retyping distinction may warrant a small clarification in the
-`[[design-rulings]]` boundary-retyping ruling: not every `@/config` cached primitive needs
-retyping; some need pure capture for realm-fix without any type-system change.
+The realm-fix-vs-boundary-retyping distinction is worth making explicit: not every
+`@/config` cached primitive needs retyping; some need pure capture for realm-fix without
+any type-system change.
 
 Commit `8f880ee`. See [`../architecture/primitive.md`](../architecture/primitive.md) for
 the four-marker chain's positioning within the discrimination lattice and the per-family

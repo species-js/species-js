@@ -49,5 +49,4 @@ because of spec mechanics — see decision #043 for the per-family details. Capt
 needs them. The five `@internal` declarations in `primitive.d.ts` follow the established
 parallel-JSDoc convention.
 
-Codified in [[boxed-primitive-discrimination]] memory with the full per-family
-spec-mechanic walkthrough. Commit `8f880ee`.
+The full per-family spec-mechanic walkthrough accompanies commit `8f880ee`.

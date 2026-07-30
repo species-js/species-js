@@ -226,9 +226,9 @@ primitive `string` over `String`") is correct for typical TypeScript code but wr
 this is precisely the case where the wrapper-object type is the structural model. A
 per-file override scoped to `**/src/primitive.d.ts` in `eslint.config.js` disables the
 rule for the boxed-type declarations, with an inline rationale matching the existing
-override-with-rationale style in the config. Per the zero-`eslint-disable` policy
-([[quality-discipline]]), the fix is configuration at the right level, not inline
-suppression. See decision #038 for the full framing.
+override-with-rationale style in the config. Per the zero-`eslint-disable` policy, the fix
+is configuration at the right level, not inline suppression. See decision #038 for the
+full framing.
 
 ## The boxed-primitive discrimination chain — markers and the local-realm shortcut
 
@@ -305,8 +305,7 @@ wrapper types, and attempting unification by parameterizing one helper would eit
 precision (silently re-introducing the Boolean / NaN regressions) or special-case its way
 back to per-family logic via runtime branches. The species-js form ships five focused
 helpers, each named for its family, each documented with the spec-mechanic rationale. See
-decision #043 and the `[[boxed-primitive-discrimination]]` memory for the per-family
-walkthrough.
+decision #043 for the per-family walkthrough.
 
 Notable in the Symbol case: the description equality is _not_ redundant with the slot
 probe. The valueOf throws on any value lacking `[[SymbolData]]`, but a real boxed Symbol
@@ -348,10 +347,10 @@ captures-for-cross-realm-tag-reading set. The two patterns coexist within the sa
 `#config` family.
 
 The minor implication: not every `#config` cached primitive needs a `.d.ts` retyping. The
-boundary-retyping ruling in `[[design-rulings]]` should be read as _"when the lib type
-forces an `any`-cascade, retype at the boundary,"_ not as _"every captured primitive must
-be retyped."_ `objectIs` is the canonical example of the realm-fix-only form: type is
-already precise; only the realm capture matters.
+boundary-retyping ruling should be read as _"when the lib type forces an `any`-cascade,
+retype at the boundary,"_ not as _"every captured primitive must be retyped."_ `objectIs`
+is the canonical example of the realm-fix-only form: type is already precise; only the
+realm capture matters.
 
 ## Module-local capture vs `#config` promotion
 

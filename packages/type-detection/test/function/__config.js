@@ -131,7 +131,7 @@ export const THROW_SAFE_MARKED = [
 // Fixture bodies carry a non-empty statement (`return undefined` / `yield
 // undefined` / a real `await Promise.resolve()`) — an empty body trips
 // `no-empty-function`, a no-await async trips `require-await`, and a class with
-// no member trips `no-extraneous-class` (Lint/type gotchas, [[type-detection-test-round]]).
+// no member trips `no-extraneous-class` (lint/type gotchas).
 
 // --- Callable floor ---
 export const plainFunction = () =>

@@ -53,8 +53,7 @@ The package-wide form is now: every type-guard predicate (`isCallable` through
 ten new boxed/composite predicates. Package-wide tally: 36 generic-typed predicates across
 `@/function` (11) + `@/thenable` (3) + `@/evented` (4) + `@/error` (3) + `@/primitive`
 (15). The exclusion text in #036's Consequences section ("don't benefit — stay as-is") is
-now historical context, not an active ruling; this decision supersedes it explicitly. The
-codified [[generic-predicate-pattern]] memory carries the updated full-coverage status.
+now historical context, not an active ruling; this decision supersedes it explicitly.
 
 Commit `5c5dbe7`. See [`../architecture/primitive.md`](../architecture/primitive.md) for
 the family-pattern's expression on primitives.

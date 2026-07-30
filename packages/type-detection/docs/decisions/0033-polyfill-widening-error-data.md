@@ -57,6 +57,5 @@ legacy edge cases the polyfill admits."_ The `hasErrorPrototypeContract` sub-hel
 (four `Error.prototype` member presence/type assertions plus a trailing-`'Error'` `name`
 marker) are the structural-shape proxy for the unobservable `[[ErrorData]]`. The
 trailing-`'Error'` `name` check reads through the descriptor chain rather than invoking
-`prototype.toString()`, both for the `no-base-to-string` ESLint workaround (see
-[[quality-discipline]]) and because the descriptor read aligns with the spec-shape rule
-(#020, #021) for own-data properties.
+`prototype.toString()`, both for the `no-base-to-string` ESLint workaround and because the
+descriptor read aligns with the spec-shape rule (#020, #021) for own-data properties.
