@@ -39,6 +39,19 @@
 > `@@throw-safe` markers; the R2 cross-artifact pass found the canon already truthful (no
 > mechanism-drift). No admit/reject vector changed, the **FROZEN 2026-07-10** oracle
 > stands; see Open/resolved item #6.
+>
+> **Post-freeze amendment (2026-07-30 — `isError` redesign, ADR #082).** `isError` became
+> a spec-OWNED, native-backstopped predicate — a three-branch module-load selection over
+> the captured native `Error.isError` (polyfill / native-alone /
+> native-plus-`isDOMException`). This TIGHTENS one previously engine-dependent verdict to
+> a determinate one: `isError/A2` (a well-formed `DOMException`) is now
+> **deterministically true on every engine**, where the old raw-native binding left it
+> engine-dependent. No admit/reject vector was LOOSENED and the polyfill-path (Node-22)
+> behaviour the axis-1 suite exercises is unchanged, so the **FROZEN 2026-07-10** oracle
+> stands for the test env; the amendment is a cross-engine determinism guarantee, not a
+> re-decidability event. Recorded in the `## isError` section, the module-contract
+> invariant (now scoped to the deterministic `isAnyError`), and Open/resolved items #3
+> (RESOLVED) + #7 (IMPLEMENTED).
 
 ## Module contract
 
@@ -48,7 +61,7 @@ thenable / evented `Like`→identity lattices, this module is a **partition plus
 refinement**:
 
 ```
-                    isError  (public — native `Error.isError`, else the isAnyError polyfill)
+                    isError  (public — native `Error.isError` + a DOMException backstop, else the isAnyError polyfill)
                        │      narrows to AnyError = Error | DOMException
           ┌────────────┴────────────┐
    isGenericError              isDOMException          (public; DISJOINT arms)
@@ -60,9 +73,12 @@ refinement**:
 
 The load-bearing invariant, verified empirically across current- and foreign-realm inputs:
 
-> **`isError` ≡ `isGenericError` ⊎ `isDOMException`** — a disjoint, engine-independent
-> cover. Every error is exactly one of the two arms, never both, never (for a well-formed
-> value) neither.
+> **`isAnyError` ≡ `isGenericError` ⊎ `isDOMException`** — a disjoint, engine-INDEPENDENT
+> cover, unconditional on the deterministic polyfill body. Every error is exactly one of
+> the two arms, never both, never (for a well-formed value) neither. The public `isError`
+> matches this cover for every well-formed value on every engine (its three-branch binding
+> — see `isError` below); the sole break is a deliberately-malformed `DOMException`
+> admitted by raw native's `[[ErrorData]]` slot under branch 2 (`isError/R3`, `B2`).
 
 Three design commitments make that cover sound:
 
@@ -124,8 +140,9 @@ here — see [`./README.md`](./README.md) → "Throw-safety — the universal in
 ## Surface inventory
 
 **Public predicates (axis 1):** `isGenericError`, `isDOMException`, `isError` (an
-`export const` — native-or-polyfill bound at module-load; typed as a function in the
-`.d.ts`), `isAbortError`.
+`export const` — bound once at module-load by a three-way selection over the runtime's
+native `Error.isError`: native alone, native plus an `isDOMException` backstop, or the
+`isAnyError` polyfill; typed as a function in the `.d.ts`), `isAbortError`.
 
 **Exported `@internal` helpers (axis 4):** seventeen.
 
@@ -155,13 +172,14 @@ Re-confirmation gate: 21 `.js` runtime exports each carry a `.d.ts` declaration,
 
 **Test-environment note:** the probe run executes in Node 22 (vitest). `Error`,
 `TypeError`, `DOMException`, `AbortController` are present. Native `Error.isError` is
-**absent** (Node ≥ 23 / modern browsers only), so `isError` binds to the `isAnyError`
-polyfill and the polyfill path is what the axis-1 suite exercises here; the native binding
-is covered runtime-agnostically (see `isError/B2`). A `vm` realm exposes foreign `Error`
-(an ECMAScript intrinsic) but NOT `DOMException` (a WHATWG global, not an intrinsic), so
-cross-realm `DOMException` vectors use a **foreign synthetic** — a foreign `class`
-carrying the `[object DOMException]` tag plus WeakMap-backed `name` / `message` getters —
-as the real-world browser `DOMException` stand-in.
+**absent** (Node ≥ 23 / modern browsers only), so the module-load selection takes branch 1
+and `isError` binds to the `isAnyError` polyfill — the path the axis-1 suite exercises
+here; the two native-present branches are covered runtime-agnostically (see `isError/B2`).
+A `vm` realm exposes foreign `Error` (an ECMAScript intrinsic) but NOT `DOMException` (a
+WHATWG global, not an intrinsic), so cross-realm `DOMException` vectors use a **foreign
+synthetic** — a foreign `class` carrying the `[object DOMException]` tag plus
+WeakMap-backed `name` / `message` getters — as the real-world browser `DOMException`
+stand-in.
 
 ## Cross-cutting vectors
 
@@ -371,30 +389,51 @@ receiver via `doesImplementDOMExceptionPrototypeContract`).
 
 ## `isError`
 
-`isError<T = unknown>(value?: T): value is T & AnyError` Composition (bound once at
-module-load): `const isError = isFunction(nativeIsError) ? nativeIsError : isAnyError` —
-native ECMA-262 `Error.isError` when the captured realm provides it, the `isAnyError`
-polyfill otherwise. Spec basis: the `AnyError` union; native-or-polyfill binding;
-converges-not-widens (pending cluster, supersedes #032/#033); #036 generic surface.
+`isError<T = unknown>(value?: T): value is T & AnyError` Composition — bound once at
+module-load by a THREE-way selection over the captured native `Error.isError`:
 
-**Admits (native and polyfill)**
+1. **No native** → the `isAnyError` polyfill body.
+2. **Native present AND it recognizes a `DOMException`** — probed once at load via
+   `nativeIsError(new DOMException())` → **native alone** (on such an engine
+   `[[ErrorData]]` covers both the Error and DOMException arms, so a structural backstop
+   is redundant).
+3. **Native present but it does NOT recognize a `DOMException`** →
+   `nativeIsError(value) || isDOMException(value)` — native for the Error arm, the
+   structural cross-realm `isDOMException` backstopping the DOMException arm.
+
+The probe + the branch-3 backstop **CLOSE the old native-vs-polyfill DOMException
+fuzziness for every well-formed value** (the earlier "assert `A2` runtime-agnostically"
+caveat now applies only to the two non-real residuals in `B2`). Spec basis: the `AnyError`
+union; the native-backstopped binding; converges-not-widens (#032/#033); #036 generic
+surface.
+
+**Admits — DETERMINISTIC across all three branches for every well-formed value**
 
 - `isError/A1` — `new Error('boom')`, `new TypeError('x')`, `new RangeError()` → true.
-- `isError/A2` — `new DOMException('msg', 'XError')` → true (the DOMException arm; the
-  polyfill guarantees this via the getter contract, native side per `B2`).
+- `isError/A2` — `new DOMException('msg', 'XError')` → **true, deterministically.** Branch
+  2 admits it (the probe guaranteed native recognizes DOMExceptions); branch 3 admits it
+  via the `isDOMException` backstop; branch 1 via the polyfill's getter contract. (This is
+  the change from the old raw-native binding, which could reject it — see `B2`.)
 - `isError/A3` — subclass instances (`class X extends Error`, an idiomatic `DOMException`
   subclass) → true.
-- `isError/A4` — cross-realm `Error` / `DOMException` (fixtures) → true.
+- `isError/A4` — a cross-realm real `Error` / `DOMException` → true (a foreign `Error`
+  carries `[[ErrorData]]`; a real foreign `DOMException` carries the slot, or is caught by
+  the branch-3 backstop / polyfill). NOTE the axis-2 DOMException fixture is a slot-LESS
+  **synthetic** (`vm` cannot construct a real `DOMException`); it is admitted by the
+  polyfill / backstop but is engine-dependent under raw native (branch 2), so the test
+  asserts it via the deterministic `isAnyError` (`iAE/A2`), not `isError` — see `B2`.
 
-**Rejects (native and polyfill)**
+**Rejects**
 
 - `isError/R1` — `{ name: 'Error', message: '' }` → false (no slot; not `instanceof`; no
   prototype-equivalent level).
 - `isError/R2` — `42`, `'Error'`, `null`, `undefined`, `{}` → false.
 - `isError/R3` — the flattened-name `DOMException` subclass (`isDOMException/R2`) → false
-  (a malformed `DOMException`: the DOMException arm is selected by `instanceof` then fails
-  its contract, with no fall-through to the Error arm — classified as NEITHER, keeping
-  `isError ≡ isGenericError ⊎ isDOMException` consistent at `false = false ⊎ false`).
+  under branches 1 and 3 (the DOMException arm is selected by `instanceof`, fails its
+  contract, no fall-through — classified as NEITHER, keeping
+  `isError ≡ isGenericError ⊎ isDOMException` at `false = false ⊎ false`). Under branch 2
+  native admits it via its `[[ErrorData]]` slot → `isError` reads `true` while both arms
+  are false — the sole partition-break, a malformed-value residual (see `B2`).
 
 **Testable boundaries**
 
@@ -402,25 +441,33 @@ converges-not-widens (pending cluster, supersedes #032/#033); #036 generic surfa
   under native (no `[[ErrorData]]`), **false** under the polyfill in a stack-capable
   engine (graft filter, converging), **true** under the polyfill only where the
   environment populates no stacks (filter disabled, widening). In every stack-capable
-  engine — native or polyfill — → false.
-- `isError/B2` — native `Error.isError(new DOMException())` membership is
-  **engine-dependent and not under our control**: the polyfill GUARANTEES admission
-  (`A2`), but the public binding defers to native when present, and whether native admits
-  a `DOMException` depends on the engine granting it `[[ErrorData]]`. Assert `A2`
-  runtime-agnostically; do not bake in a native verdict. (Node 22 has no native
-  `Error.isError`, so the probe run exercised the polyfill only — the guarantee side.)
+  engine → false. (Under branches 2/3 native rejects it precisely.)
+- `isError/B2` — the native-backstopped binding **CLOSES the DOMException fuzziness for
+  every well-formed value** (`A2`): the load-time probe guarantees branch 2 only where
+  native already admits DOMExceptions, and branch 3 backstops with `isDOMException` where
+  native withholds `[[ErrorData]]`, so every real `Error` and real `DOMException` (local
+  or cross-realm) is admitted on every engine. Two residuals keep a narrow
+  engine-dependence, under branch 2 ONLY, on values **outside the well-formed set**: (a) a
+  slot-LESS `DOMException`-shaped **fake** (a synthetic with the getter contract but no
+  `[[ErrorData]]`, e.g. the axis-2 cross-realm fixture) — rejected by raw native, admitted
+  by the polyfill/backstop; (b) a deliberately-**malformed** `DOMException` (flattened
+  own-data `name`, `R3`) — admitted by native's slot, rejected by both structural arms,
+  the sole partition-break. **Assert both via the deterministic `isAnyError`, never a
+  baked-in native verdict.** (Node 22 has no native → the suite exercises branch 1.)
 
 **Refuses to claim**
 
 - The `[[ErrorData]]` slot directly (native reads it; the polyfill approximates via
   structural + stack-graft) — hence the `B1` native-vs-polyfill divergence on the graft in
-  a non-stack-capable engine.
+  a non-stack-capable engine, and the two `B2` residuals under branch 2.
 
-**Cross-realm (axis 2):** admit foreign `Error` + `DOMException` (both arms of the
-polyfill walk). **Spoof (axis 3):** grafts filtered as `B1`; throw-safe. **Composition
-note (axis 4):** binds `nativeIsError` (captured, realm-fixed) or the `isAnyError`
-polyfill body; the generic `T` surface is applied even though native `Error.isError` is
-non-generic per its ES2025 declaration (runtime unchanged, only the type widens).
+**Cross-realm (axis 2):** admit a foreign real `Error` + a foreign real `DOMException`
+(native slot / branch-3 backstop / polyfill walk); the slot-less synthetic is asserted via
+`isAnyError`. **Spoof (axis 3):** grafts filtered as `B1`; throw-safe. **Composition note
+(axis 4):** the three-branch binding above over `nativeIsError` (captured, realm-fixed),
+`isDOMException`, and the `isAnyError` polyfill body; the generic `T` surface is applied
+even though native `Error.isError` is non-generic per its ES2025 declaration (runtime
+unchanged, only the type widens).
 
 ---
 
@@ -685,8 +732,9 @@ the 17 `@internal` helpers. The two omitted are the load-time value constants
 plain probed values, not per-input readers, so they carry no throw surface to mark (they
 are asserted against the running engine — the axis-5 / environment concern, see the helper
 spec). Two of the marked exports are `export const` bindings, not `export function` —
-`retrieveErrorStack` (a reader carrying its own `.mode`) and `isError` (native-or-polyfill
-bound at load) — so the source marker parse matches `export (function|const)`.
+`retrieveErrorStack` (a reader carrying its own `.mode`) and `isError` (the three-way
+native selection, bound at load) — so the source marker parse matches
+`export (function|const)`.
 
 The four public predicates additionally carry the honest by-contract verdict per hostile
 class (the axis-3 `hostile × predicate` matrix, `throw-safety.test.js`). Axis-5 extends
@@ -720,18 +768,22 @@ prototype-contract walk runs).
    generic `Error` (`isGenericError/B2`, `iARGE/B1`) — the accepted realm-asymmetry
    (identity current-realm / structural cross-realm), documented not reconciled.
 
-3. **Native `Error.isError(new DOMException())` — POLICY FLAG (open, environment).**
-   Membership is engine-dependent and not under our control; the polyfill guarantees
-   admission. Assert `isError/A2` runtime-agnostically; the native path could diverge in
-   an engine that withholds `[[ErrorData]]` from `DOMException`. Verify per-engine at
-   axis-2/browser time; do not freeze a native verdict.
+3. **Native `Error.isError(new DOMException())` fuzziness — RESOLVED (2026-07-30, the
+   native-backstopped `isError`).** The former engine-dependence is CLOSED for every
+   well-formed value by the three-branch binding (see `## isError`): a load-time probe
+   (`nativeIsError(new DOMException())`) picks native-alone where native already admits
+   DOMExceptions, or `nativeIsError(v) || isDOMException(v)` where it withholds
+   `[[ErrorData]]` from `DOMException`, or the `isAnyError` polyfill with no native. So
+   `isError/A2` is now deterministically `true` on every engine — no runtime-agnostic
+   hedge needed. The only residual engine-dependence is under branch 2, on values outside
+   the well-formed set (a slot-less DOMException-shaped fake; a malformed DOMException) —
+   assert those via the deterministic `isAnyError`. Recorded in ADR #082.
 
-4. **`GenericError` type alias — OPEN (owner decision).** Whether to add a package-owned
-   `type GenericError = Error` to regularize the family (`isGenericError → GenericError`,
-   matching `isDOMException → DOMException`, `isError/isAnyError → AnyError`) and let
-   `AnyError = GenericError | DOMException`. Nominal (TS has no negation; `Error` already
-   excludes `DOMException` structurally), so it changes no vector — a documentation /
-   symmetry call.
+4. **`GenericError` type alias — DECLINED (owner decision, 2026-07-29 pairing round).** A
+   package-owned `type GenericError = Error` would regularize the family but is nominal
+   (TS has no negation; `Error` already excludes `DOMException` structurally) → changes no
+   vector. The decision was against it, and against any type/function rename (churn for
+   six downstream consumers for a paper-symmetry gain). Won't-do.
 
 5. **Canon complete — RESOLVED.** The redesign is recorded in ADRs #065–#069 (#065
    redesign
@@ -753,9 +805,18 @@ prototype-contract walk runs).
    `throw-safety.test.js` scores — the parallel to the function/thenable/object/evented
    sections. No admit/reject verdict changed; the FROZEN oracle stands. No ADR
    (mechanical + the package-wide #076 marker convention on a module that predated it).
-   Items 3–4 remain open owner policy flags.
+
+7. **Native-backstopped `isError` — IMPLEMENTED (2026-07-30, ADR #082).** `isError` became
+   a spec-OWNED predicate (no longer a raw passthrough to native `Error.isError`), via the
+   three-branch binding documented in `## isError` — the load-time DOMException probe +
+   the `isDOMException` backstop. This CLOSES item #3's fuzziness for well-formed values;
+   the `A2` verdict is now deterministic (updated above), and the `A4` cross-realm
+   DOMException fixture (a slot-less synthetic) is asserted via `isAnyError` (`iAE/A2`)
+   rather than `isError`. `isAnyError` stays `@internal` (the deterministic reference). No
+   rename. The partition invariant is now stated on `isAnyError` (unconditional) with
+   `isError` matching it for well-formed values (Module contract). No new admit/reject
+   vector for a well-formed value; the previously-hedged `A2` is now a hard `true`.
 
 FROZEN 2026-07-10 — decidability run passed (see the header) and owner design review
-complete. Items 3–4 remain open policy flags that bind no behavioral vector (item 3
-environment-dependent, item 4 a nominal type-symmetry call); items 5–6 resolved. Base for
-the axis-1 suite; axes 2–4 derive alongside.
+complete. Items 3 (RESOLVED by ADR #082), 4 (DECLINED), 5, 6, and 7 are all settled; no
+open policy flags remain. Base for the axis-1 suite; axes 2–4 derive alongside.

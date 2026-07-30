@@ -17,7 +17,7 @@ organized not as a `Like`→identity lattice (as thenable / evented are) but as 
 **partition plus a refinement**:
 
 ```
-                    isError  (public — native Error.isError, else the isAnyError polyfill)
+                    isError  (public — native Error.isError + a DOMException backstop, else the isAnyError polyfill)
                        │      narrows to AnyError = Error | DOMException
           ┌────────────┴────────────┐
    isGenericError              isDOMException          (public; DISJOINT arms)
@@ -28,8 +28,12 @@ organized not as a `Like`→identity lattice (as thenable / evented are) but as 
 ```
 
 The load-bearing invariant is that the two arms form a **disjoint, engine-independent
-cover**: `isError` ≡ `isGenericError` ⊎ `isDOMException`. Every error is exactly one of
-the arms, never both, never (for a well-formed value) neither. This is a full redesign
+cover**: `isAnyError` ≡ `isGenericError` ⊎ `isDOMException`, unconditional on the
+deterministic polyfill body. Every error is exactly one of the arms, never both, never
+(for a well-formed value) neither. The public `isError` matches this cover for every
+well-formed value on every engine (its three-branch native-backstopped binding — see
+"Native-backstopped capture"); the sole break is a deliberately-malformed `DOMException`
+admitted by raw native's `[[ErrorData]]` slot under branch 2. This is a full redesign
 (decision #065) of an earlier `[[Class]]`-tag classifier, which had one public predicate
 and folded `DOMException` into the union; the redesign brings the module onto the same
 identity-capture + realm-partition model the thenable / evented / object rounds converged
@@ -224,7 +228,7 @@ public compositions:
 | ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `isGenericError` | `if (!v \|\| isCurrentRealmDOMExceptionInstance(v)) return false; if (isCurrentRealmGenericErrorInstance(v)) return doesImplementGenericErrorContract(v); return isAlienRealmGenericError(v)` |
 | `isDOMException` | `!!v && isCurrentRealmDOMExceptionInstance(v) ? doesImplementDOMExceptionContract(v) : isAlienRealmDOMException(v)`                                                                           |
-| `isError`        | `const isError = isFunction(nativeIsError) ? nativeIsError : isAnyError` (bound once at module-load)                                                                                          |
+| `isError`        | bound once at load — `!native → isAnyError`; `native(new DOMException()) → nativeIsError`; else `v => nativeIsError(v) \|\| isDOMException(v)`                                                |
 | `isAbortError`   | `isError(v) && isStringValue(v.name) && v.name.endsWith('AbortError')`                                                                                                                        |
 
 The `@internal` helper compositions:
@@ -259,10 +263,12 @@ Two ordering choices worth naming:
   `DOMException`s through the stack contract instead would reject them in a browser — a
   rejected design (decision #069).
 
-## Native-or-polyfill capture at module-load (decisions #065, #032 retained)
+## Native-backstopped capture at module-load (decisions #082, #065, #032 retained)
 
-The public `isError` captures native `Error.isError` once at module-load and binds native
-or polyfill by a runtime feature-detection gate:
+The public `isError` is **our** spec-owned predicate that USES the captured native
+`Error.isError` as an internal accelerator — never a raw passthrough that sometimes
+literally IS the foreign native function (whose `DOMException` verdict we do not control).
+It captures native once at module-load and binds one of three bodies by a two-level gate:
 
 ```js
 const nativeIsError = /** @type {import('#error').isError | undefined} */ (
@@ -272,21 +278,66 @@ const nativeIsError = /** @type {import('#error').isError | undefined} */ (
 );
 
 export const isError = /** @type {import('#error').isError} */ (
-  isFunction(nativeIsError) ? nativeIsError : isAnyError
+  /** @type {{ isError: PredicateFunction }} */ (
+    !isFunction(nativeIsError)
+      ? {
+          isError(value) {
+            return isAnyError(value);
+          },
+        } // 1
+      : nativeIsError(new DOMExceptionConstructor())
+        ? {
+            isError(value) {
+              return nativeIsError(value);
+            },
+          } // 2
+        : {
+            isError(value) {
+              return nativeIsError(value) || isDOMException(value);
+            },
+          } // 3
+  ).isError
 );
 ```
 
 The cast through `ErrorConstructorES2025` (the interface declaring `isError?` as
 _optional_) reads the native method honestly — its type is
-`((v: unknown) => v is AnyError) | undefined`. The `isFunction` gate runs at module-load;
-the ternary picks native or the `isAnyError` polyfill. The capture is realm-fixed by
-construction: the binding does not re-read `globalThis.Error.isError` at each call, so
-later tampering with the global does not reach it. This native-or-polyfill _capture
-posture_ is retained from the retired #032; only the polyfill _body_ changed — from the
-tag-classifier to the realm-partitioned `isAnyError` (decision #065). When native is
-present it is the spec-precise `[[ErrorData]]` check; the polyfill approximates it
-structurally and converges on its verdict wherever stacks are guaranteed (§ "The
-stack-capability machinery").
+`((v: unknown) => v is AnyError) | undefined`. The three branches:
+
+1. **No native** → the `isAnyError` polyfill body.
+2. **Native present AND it already recognizes a `DOMException`** — probed once at load via
+   `nativeIsError(new DOMExceptionConstructor())` → **native alone**. On such an engine
+   the internal `[[ErrorData]]` slot covers both arms (real `Error`s and real
+   `DOMException`s carry it), so a structural DOMException backstop would be redundant on
+   every call.
+3. **Native present but it does NOT recognize a `DOMException`** →
+   `nativeIsError(value) || isDOMException(value)`: native for the `Error` arm (the
+   spec-precise `[[ErrorData]]` slot-read), the deterministic cross-realm `isDOMException`
+   backstopping the `DOMException` arm.
+
+The object-method wrapper (`{ isError(value) { … } }.isError`) rather than a bare arrow
+gives each branch's function its own `isError` name for introspection. The load-time probe
+in branch 2 runs ONCE and cannot throw: `DOMExceptionConstructor` is the capture-validated
+constructor (or the never-instantiated `INSTANCE_LESS_CONSTRUCTOR` sentinel, whose `new`
+yields a plain object), `new DOMException()` is spec-total, and `Error.isError` reads a
+slot without throwing.
+
+The capture is realm-fixed by construction: the binding does not re-read
+`globalThis.Error.isError` at each call, so later tampering with the global does not reach
+it. Only the _capture posture_ — native captured once at load, realm-fixed — is retained
+from the retired #032; its polyfill _body_ changed under #065 (from the tag-classifier to
+the realm-partitioned `isAnyError`), and its native-or-polyfill _binding_ is superseded by
+#082. Decision #082 is what made `isError` spec-owned: the earlier binding returned
+`nativeIsError` **raw** when native was present, so on a DOMException-blind engine
+`isError(new DOMException())` moved with the runtime's verdict. The probe + branch-3
+backstop close that fuzziness for every well-formed value — every real `Error` and real
+`DOMException`, local or cross-realm, is admitted on every engine. Two residuals persist
+under branch 2 only, on values outside the well-formed set: a slot-LESS
+`DOMException`-shaped fake (rejected by raw native, admitted by the polyfill/backstop) and
+a deliberately-malformed `DOMException` with an own-data `name` (admitted by native's
+slot, rejected by both structural arms — the sole break of
+`isError ≡ isGenericError ⊎ isDOMException`). The deterministic `isAnyError` carries the
+unconditional partition; `isError` matches it for every well-formed value.
 
 ## `AbortError` as a name-suffix refinement (decision #035)
 

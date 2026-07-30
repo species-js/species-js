@@ -77,16 +77,17 @@ Open architectural questions live in [open-questions.md](./open-questions.md).
 
 ### type-detection / error
 
-| #                                                                             | Title                                                                                                | Date       |
-| ----------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- | ---------- |
-| [032](./0032-error-predicates-native-or-polyfill.md)                          | Error predicates: layered composition with native-or-polyfill capture (structure superseded by #065) | 2026-06-05 |
-| [033](./0033-polyfill-widening-error-data.md)                                 | Polyfill widening semantics over the unobservable `[[ErrorData]]` slot (superseded by #066)          | 2026-06-05 |
-| [035](./0035-abort-error-name-suffix-refinement.md)                           | `AbortError` as a name-suffix refinement via template-literal type                                   | 2026-06-05 |
-| [065](./0065-error-module-redesign-identity-capture-realm-partition.md)       | Error module redesign: identity-capture + realm partition; the three-predicate split                 | 2026-07-10 |
-| [066](./0066-stack-capability-machinery-polyfill-converges.md)                | Stack-capability machinery; the polyfill converges with native, not widens                           | 2026-07-10 |
-| [067](./0067-domexception-distinct-arm-anyerror-two-armed.md)                 | `DOMException` a distinct arm, not an `Error` subtype; `AnyError` two-armed; `DOMExceptionLike` cut  | 2026-07-10 |
-| [068](./0068-domexception-descriptor-kind-contract-own-shadow-not-applied.md) | `isDOMException` descriptor-kind contract (getter admits, data rejects); #063 own-shadow not applied | 2026-07-10 |
-| [069](./0069-isgenericerror-domexception-exclusion-by-identity.md)            | `isGenericError` excludes `DOMException` by identity; partition-leak fix + accepted realm asymmetry  | 2026-07-10 |
+| #                                                                             | Title                                                                                                                           | Date       |
+| ----------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- | ---------- |
+| [032](./0032-error-predicates-native-or-polyfill.md)                          | Error predicates: layered composition with native-or-polyfill capture (structure superseded by #065; `isError` binding by #082) | 2026-06-05 |
+| [033](./0033-polyfill-widening-error-data.md)                                 | Polyfill widening semantics over the unobservable `[[ErrorData]]` slot (superseded by #066)                                     | 2026-06-05 |
+| [035](./0035-abort-error-name-suffix-refinement.md)                           | `AbortError` as a name-suffix refinement via template-literal type                                                              | 2026-06-05 |
+| [065](./0065-error-module-redesign-identity-capture-realm-partition.md)       | Error module redesign: identity-capture + realm partition; the three-predicate split                                            | 2026-07-10 |
+| [066](./0066-stack-capability-machinery-polyfill-converges.md)                | Stack-capability machinery; the polyfill converges with native, not widens                                                      | 2026-07-10 |
+| [067](./0067-domexception-distinct-arm-anyerror-two-armed.md)                 | `DOMException` a distinct arm, not an `Error` subtype; `AnyError` two-armed; `DOMExceptionLike` cut                             | 2026-07-10 |
+| [068](./0068-domexception-descriptor-kind-contract-own-shadow-not-applied.md) | `isDOMException` descriptor-kind contract (getter admits, data rejects); #063 own-shadow not applied                            | 2026-07-10 |
+| [069](./0069-isgenericerror-domexception-exclusion-by-identity.md)            | `isGenericError` excludes `DOMException` by identity; partition-leak fix + accepted realm asymmetry                             | 2026-07-10 |
+| [082](./0082-iserror-spec-owned-native-backstopped-three-branch.md)           | `isError` spec-owned + native-backstopped: three-branch load-time selection; resolves item #3 (supersedes #032 binding)         | 2026-07-30 |
 
 ### type-detection / primitive
 
@@ -222,3 +223,4 @@ order with one-line summaries:
 | 2026-07-27 | [079](./0079-omitted-argument-honesty-presence-gated-predicates.md)                   | Omitted-argument honesty: accept-`undefined` predicates arity-gate an omitted call to `false`; carves out #025                                   |
 | 2026-07-28 | [080](./0080-async-family-realm-decomposition-naming.md)                              | Function realm decomposition (async + generator): `isCurrentRealm*Instance` / `isAlienRealm*`; intrinsic casts `NewableFunction` (restores #007) |
 | 2026-07-28 | [081](./0081-bound-admission-asymmetry-settled-reliability-tenet.md)                  | Bound-admission asymmetry settled (closes Q.002): spoofable signals stay out of type-detection                                                   |
+| 2026-07-30 | [082](./0082-iserror-spec-owned-native-backstopped-three-branch.md)                   | `isError` spec-owned + native-backstopped: three-branch load-time selection; resolves error item #3 (supersedes #032 binding)                    |
