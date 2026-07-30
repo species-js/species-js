@@ -212,10 +212,14 @@ export const nullProtoTagSpoofedPromise = () =>
 // The `@internal` structural-equivalence helpers operate on PROTOTYPE objects
 // and constructor pairs, not the value-universe the matrix scores.
 //
-// CONTAMINATION DISCIPLINE (decision #054): the constructor registries are
-// value-keyed, so a no-option and an `{ assumePrototype: true }` resolution of
-// the SAME object poison each other. To stay order-independent, each prototype
-// object below is resolved under exactly ONE option-setting across the suite:
+// CONTAMINATION DISCIPLINE — vestigial since #059 (decisions #054 → #059).
+// When the constructor registries were value-keyed (#054), a no-option and an
+// `{ assumePrototype: true }` resolution of the SAME object poisoned each
+// other, so each prototype object below was resolved under exactly ONE
+// option-setting across the suite to stay order-independent. #059 dropped the
+// registries — resolution no longer caches — so the poisoning hazard is gone;
+// the one-option-per-prototype arrangement is retained but no longer
+// load-bearing:
 //   - `localPromisePrototype` / `foreignPromisePrototype`  → assumePrototype-only
 //   - `isolatedForeignPromisePrototype`                    → no-option-only (fresh realm)
 export const localPromisePrototype = () => Promise.prototype;

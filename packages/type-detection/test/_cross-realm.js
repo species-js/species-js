@@ -42,10 +42,12 @@ export function foreignRealmEval(expression) {
  * `vm` context, so the intrinsics it produces (and any module-level state
  * keyed on them) cannot contaminate — or be contaminated by — the shared
  * realm or another isolated one. Used where a vector must resolve a foreign
- * intrinsic under one specific code path with zero cross-vector cache
- * coupling — e.g. the value-keyed constructor registry (decision #054), where
- * a no-option and an `assumePrototype` resolution of the SAME object poison
- * each other.
+ * intrinsic in guaranteed isolation from every other vector's realm. (This
+ * originally guarded the value-keyed constructor registries of #054, where a
+ * no-option and an `assumePrototype` resolution of the same object poisoned
+ * each other; #059 dropped those registries and the resolution path no longer
+ * caches, so the isolation now stands as a defensive guarantee, not a
+ * load-bearing requirement.)
  *
  * @returns {(expression: string) => unknown} an evaluator over a fresh realm
  */
