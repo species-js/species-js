@@ -61,6 +61,13 @@ import { isCallable, isFunction, isNewableFunction } from '#function';
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 
+/**
+ * The trusted-data sentinel, re-exported from the module-scoped `#foundation`
+ * import. Internal machinery — the fast-path skip hint of #058 — never consumer
+ * surface, so the `@internal` marker the bare re-export would otherwise drop is
+ * restored here.
+ * @internal
+ */
 export { TRUSTED_DATA_CONFIRMATION };
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
