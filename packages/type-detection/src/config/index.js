@@ -340,7 +340,7 @@ export const getOwnPropertyDescriptors = o.getOwnPropertyDescriptors;
  * without `EventTarget` / `AbortSignal`, decision #060) and for the failure
  * surrogate of `getValidatedStandardConstructorAndPrototypeTuple`, compared by
  * identity and never read for keys. The inline cast narrows the
- * `objectCreate(null)` return (`DictionaryObject`) to `BlankDictionary`, since
+ * `objectCreate(null)` return ({@link DictionaryObject}) to {@link BlankDictionary}, since
  * the never-mutated form has no own key.
  * @internal
  */

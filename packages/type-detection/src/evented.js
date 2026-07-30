@@ -66,7 +66,7 @@ import { isBooleanValue } from '#primitive';
  * fails that getter-invocation closed, so a realm without `AbortController`
  * collapses the capture to the inert `[INSTANCE_LESS_CONSTRUCTOR,
  * BlankDictionary]` sentinel. The pair is realm-fixed — the captured
- * `abortSignalPrototype` backs the `isAbortSignal` local identity fast-path,
+ * `abortSignalPrototype` backs the {@link isAbortSignal} local identity fast-path,
  * and later reassignment of `globalThis.AbortSignal` does not reach these
  * bindings.
  */
