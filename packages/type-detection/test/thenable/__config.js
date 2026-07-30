@@ -20,7 +20,7 @@
 
 import { objectCreate } from '#index';
 
-import { foreignRealmEval, createForeignRealm } from '../_cross-realm.js';
+import { foreignRealmEval } from '../_cross-realm.js';
 
 // A non-empty no-op callable, used as the `then` / `catch` / `finally` member
 // value (a callable data property is what the structural arms read).
@@ -211,24 +211,9 @@ export const nullProtoTagSpoofedPromise = () =>
 // ----- axis-4 helper-unit inputs (prototype objects + constructors) -----
 // The `@internal` structural-equivalence helpers operate on PROTOTYPE objects
 // and constructor pairs, not the value-universe the matrix scores.
-//
-// CONTAMINATION DISCIPLINE — vestigial since #059 (decisions #054 → #059).
-// When the constructor registries were value-keyed (#054), a no-option and an
-// `{ assumePrototype: true }` resolution of the SAME object poisoned each
-// other, so each prototype object below was resolved under exactly ONE
-// option-setting across the suite to stay order-independent. #059 dropped the
-// registries — resolution no longer caches — so the poisoning hazard is gone;
-// the one-option-per-prototype arrangement is retained but no longer
-// load-bearing:
-//   - `localPromisePrototype` / `foreignPromisePrototype`  → assumePrototype-only
-//   - `isolatedForeignPromisePrototype`                    → no-option-only (fresh realm)
 export const localPromisePrototype = () => Promise.prototype;
 export const foreignPromisePrototype = () => foreignRealmEval('Promise.prototype');
 export const foreignPromiseConstructor = () => foreignRealmEval('Promise');
-// Fresh, isolated realm: its `Promise.prototype` is resolved ONLY no-option
-// (hPIS/R1), so poisoning it cannot reach any `assumePrototype` vector.
-export const isolatedForeignPromisePrototype = () =>
-  createForeignRealm()('Promise.prototype');
 
 // ----- axis-1 contract matrix -----
 // Each row: a fresh-value factory + the expected outcome of all three chain

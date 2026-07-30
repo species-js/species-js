@@ -34,25 +34,3 @@ const foreignRealm = createContext({});
 export function foreignRealmEval(expression) {
   return /** @type {unknown} */ (runInContext(expression, foreignRealm));
 }
-
-/**
- * Creates an ISOLATED foreign realm and returns an evaluator bound to it.
- *
- * Unlike the shared {@link foreignRealmEval}, each call builds a brand-new
- * `vm` context, so the intrinsics it produces (and any module-level state
- * keyed on them) cannot contaminate — or be contaminated by — the shared
- * realm or another isolated one. Used where a vector must resolve a foreign
- * intrinsic in guaranteed isolation from every other vector's realm. (This
- * originally guarded the value-keyed constructor registries of #054, where a
- * no-option and an `assumePrototype` resolution of the same object poisoned
- * each other; #059 dropped those registries and the resolution path no longer
- * caches, so the isolation now stands as a defensive guarantee, not a
- * load-bearing requirement.)
- *
- * @returns {(expression: string) => unknown} an evaluator over a fresh realm
- */
-export function createForeignRealm() {
-  const realm = createContext({});
-
-  return (expression) => /** @type {unknown} */ (runInContext(expression, realm));
-}
