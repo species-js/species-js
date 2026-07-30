@@ -2,6 +2,10 @@
 
 **Date:** 2026-06-05
 
+**Value-only exclusion superseded by #039 (2026-06-07).** #039 extended the
+generic-predicate pattern uniformly across the primitive family (value-only, boxed-only,
+composite), retiring the "stay as-is" exclusion recorded here.
+
 **Context.** Decision #031 named the generic-typed predicate pattern
 (`<T = unknown>(value?: T): value is T & X`) and applied it family-wide across the 11
 function-family predicates. The same pattern generalizes mechanically to any type-guard

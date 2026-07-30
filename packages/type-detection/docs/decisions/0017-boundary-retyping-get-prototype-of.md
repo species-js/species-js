@@ -2,6 +2,10 @@
 
 **Date:** 2026-06-03
 
+**Location claim superseded by #064 (2026-07-05).** The `getPrototypeOf` boundary-retype
+stands; #064 corrected only where the retyped surface is defined (`@/config`, not
+`@/utility`).
+
 **Context.** `getPrototypeOf` is typed by lib.es5.d.ts as `(o: any) => any`. The `any`
 return forced a `@typescript-eslint/no-unsafe-assignment` cascade at every consumer;
 multiple call sites in `function.js` and `utility/index.js` were laundering the value

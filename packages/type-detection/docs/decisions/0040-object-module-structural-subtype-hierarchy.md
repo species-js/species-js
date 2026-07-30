@@ -2,6 +2,10 @@
 
 **Date:** 2026-06-06
 
+**Location claim superseded by #064 (2026-07-05).** The structural-subtype-over-branding
+decision stands; #064 corrected only a shared location claim (the `BlankType` carrier
+lives in `@/config`, not `@/utility`).
+
 **Context.** The equip-js source's object module distinguished three types (`AnyObject`,
 `PlainObject`, `DictionaryObject`) via a `__objectBrand__: unique symbol` discriminator on
 each. The brand was structural fiction:

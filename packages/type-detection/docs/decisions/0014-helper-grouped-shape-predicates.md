@@ -2,6 +2,9 @@
 
 **Date:** 2026-06-02 → 2026-06-03
 
+**Superseded by #080 (2026-07-28).** #080's async-family realm decomposition replaces the
+single-shape-helper framing introduced here, for the whole function family.
+
 **Context.** The 6-marker `hasAsyncFunctionShape` body had grown to a long flat `&&`
 chain. The semantic groups (descriptor-presence floor, identity labels, proto-side
 membership) were visible to a careful reader but not structurally named. Cross-realm

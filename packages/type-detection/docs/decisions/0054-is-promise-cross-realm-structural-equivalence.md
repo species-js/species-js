@@ -2,6 +2,12 @@
 
 **Date:** 2026-06-23
 
+**Deferral overturned by #055 (2026-06-23); registry portions superseded by #059
+(2026-06-25).** #055 keyed both constructor registries per-interpretation, overturning the
+unreachable-collision deferral taken here; #059 then dropped the registry layer entirely
+(intra-call threading). The `assumePrototype` / structural-equivalence model generalized
+here still stands.
+
 **Context.** THENABLE.spec.md froze with `isPromise`'s cross-realm arm written as a flat,
 value-only marker chain:
 

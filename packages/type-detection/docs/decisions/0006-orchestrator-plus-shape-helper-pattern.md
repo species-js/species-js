@@ -2,6 +2,10 @@
 
 **Date:** 2026-06-01
 
+**Superseded by #080 (2026-07-28).** #080's async-family realm decomposition replaces the
+single-shape-helper (orchestrator + shape-helper) framing introduced here, for the whole
+function family.
+
 **Context.** `isAsyncFunction` originally fused the `isFunction` gate, the same-realm
 `instanceof` fast path, and the cross-realm structural check into one function. Testing
 the cross-realm path required either an iframe harness or coverage of branches you could

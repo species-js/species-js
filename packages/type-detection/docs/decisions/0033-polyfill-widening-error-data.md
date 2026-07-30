@@ -2,6 +2,10 @@
 
 **Date:** 2026-06-05
 
+**Widening posture reversed by #066 (2026-07-10).** #066 converges the polyfill on native
+`Error.isError` rather than widening; the widest-defensible-approximation stance taken
+here no longer holds.
+
 **Context.** ECMA-262 §20.5.2.2 `Error.isError(v)` returns `true` if `v` carries the
 internal `[[ErrorData]]` slot. The slot is set by `OrdinaryCreateFromConstructor` inside
 the `Error` constructor (and inherited by every built-in subclass — `TypeError`,

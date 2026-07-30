@@ -35,33 +35,33 @@ Open architectural questions live in [open-questions.md](./open-questions.md).
 | [003](./0003-three-species-newable-lattice.md)                       | Three-species newable lattice                                                                                                                    | 2026-06-01 |
 | [004](./0004-async-function-kin-to-async-function-intrinsic.md)      | `AsyncFunction` is kin to `%AsyncFunction%`                                                                                                      | 2026-06-01 |
 | [005](./0005-bound-admission-asymmetry.md)                           | Bound-admission asymmetry by spec mechanics                                                                                                      | 2026-06-01 |
-| [006](./0006-orchestrator-plus-shape-helper-pattern.md)              | Orchestrator + shape-helper pattern for non-newable predicates                                                                                   | 2026-06-01 |
+| [006](./0006-orchestrator-plus-shape-helper-pattern.md)              | Orchestrator + shape-helper pattern for non-newable predicates (single-shape-helper framing superseded by #080)                                  | 2026-06-01 |
 | [007](./0007-newable-function-intrinsic-cast.md)                     | Intrinsic constructor capture cast type: `NewableFunction`                                                                                       | 2026-06-01 |
 | [009](./0009-empirical-fingerprint-matrix.md)                        | Empirical fingerprint matrix as the discrimination signal                                                                                        | 2026-06-02 |
 | [010](./0010-conservative-narrowing-posture.md)                      | Conservative-narrowing posture for shape predicates                                                                                              | 2026-06-02 |
 | [011](./0011-set-string-primitive-for-shape-probes.md)               | `Set<string>` primitive for shape-presence probes                                                                                                | 2026-06-02 |
 | [012](./0012-family-level-abstraction.md)                            | Family-level abstraction over per-species duplication                                                                                            | 2026-06-02 |
 | [013](./0013-spec-defined-source-string-stays-in-detection.md)       | Spec-defined source-string checks stay in detection                                                                                              | 2026-06-02 |
-| [014](./0014-helper-grouped-shape-predicates.md)                     | Helper-grouped shape predicates with sub-helper extraction                                                                                       | 2026-06-02 |
+| [014](./0014-helper-grouped-shape-predicates.md)                     | Helper-grouped shape predicates with sub-helper extraction (single-shape-helper framing superseded by #080)                                      | 2026-06-02 |
 | [015](./0015-sub-helpers-exported-with-dts.md)                       | All sub-helpers exported with parallel `.d.ts` declarations                                                                                      | 2026-06-03 |
 | [016](./0016-singular-composite-naming.md)                           | Singular composite naming: `*IdentitySignal` and `*PrototypeSurface`                                                                             | 2026-06-03 |
 | [019](./0019-callable-or-newable-kept.md)                            | `CallableOrNewable` kept as third-party-consumable surface                                                                                       | 2026-06-03 |
 | [031](./0031-generic-typed-predicates-function.md)                   | Generic-typed predicates: `<T = unknown>(value?: T): value is T & X`                                                                             | 2026-06-05 |
-| [036](./0036-generic-predicate-extended-thenable-evented-error.md)   | Generic-predicate pattern extended to thenable / evented / error                                                                                 | 2026-06-05 |
+| [036](./0036-generic-predicate-extended-thenable-evented-error.md)   | Generic-predicate pattern extended to thenable / evented / error (value-only exclusion superseded by #039)                                       | 2026-06-05 |
 | [080](./0080-async-family-realm-decomposition-naming.md)             | Function realm decomposition (async + generator): `isCurrentRealm*Instance` / `isAlienRealm*`; intrinsic casts `NewableFunction` (restores #007) | 2026-07-28 |
 | [081](./0081-bound-admission-asymmetry-settled-reliability-tenet.md) | Bound-admission asymmetry settled (closes Q.002): spoofable signals stay out of type-detection                                                   | 2026-07-28 |
 
 ### type-detection / thenable
 
-| #                                                                | Title                                                                                           | Date       |
-| ---------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- | ---------- |
-| [022](./0022-promise-like-richer-than-lib.md)                    | `PromiseLike<T>` defined as richer than TypeScript's lib                                        | 2026-06-04 |
-| [023](./0023-is-promise-rejects-subclasses.md)                   | `isPromise` rejects subclasses by strict constructor-name equality                              | 2026-06-04 |
-| [024](./0024-has-inert-method-factored-to-utility.md)            | `hasInertMethod` factored as `@/utility` primitive                                              | 2026-06-04 |
-| [037](./0037-abortable-thenable-placement.md)                    | `AbortableThenable<T>` placement and design                                                     | 2026-06-06 |
-| [050](./0050-lift-from-like-cascade-strict-identity.md)          | Lift-from-`Like`-cascade: two-axis dispatch at the strict-identity entry point                  | 2026-06-16 |
-| [052](./0052-promise-prototype-graft-structurally-unsealable.md) | `Promise` prototype-graft is structurally unsealable; accept-and-document                       | 2026-06-18 |
-| [054](./0054-is-promise-cross-realm-structural-equivalence.md)   | `isPromise` cross-realm arm factored into structural-equivalence; `assumePrototype` generalized | 2026-06-23 |
+| #                                                                | Title                                                                                                                                                               | Date       |
+| ---------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------- |
+| [022](./0022-promise-like-richer-than-lib.md)                    | `PromiseLike<T>` defined as richer than TypeScript's lib                                                                                                            | 2026-06-04 |
+| [023](./0023-is-promise-rejects-subclasses.md)                   | `isPromise` rejects subclasses by strict constructor-name equality                                                                                                  | 2026-06-04 |
+| [024](./0024-has-inert-method-factored-to-utility.md)            | `hasInertMethod` factored as `@/utility` primitive                                                                                                                  | 2026-06-04 |
+| [037](./0037-abortable-thenable-placement.md)                    | `AbortableThenable<T>` placement and design                                                                                                                         | 2026-06-06 |
+| [050](./0050-lift-from-like-cascade-strict-identity.md)          | Lift-from-`Like`-cascade: two-axis dispatch at the strict-identity entry point                                                                                      | 2026-06-16 |
+| [052](./0052-promise-prototype-graft-structurally-unsealable.md) | `Promise` prototype-graft is structurally unsealable; accept-and-document                                                                                           | 2026-06-18 |
+| [054](./0054-is-promise-cross-realm-structural-equivalence.md)   | `isPromise` cross-realm arm factored into structural-equivalence; `assumePrototype` generalized (deferral overturned by #055; registry portions superseded by #059) | 2026-06-23 |
 
 ### type-detection / evented
 
@@ -104,23 +104,23 @@ Open architectural questions live in [open-questions.md](./open-questions.md).
 
 ### type-detection / object
 
-| #                                                                 | Title                                                       | Date       |
-| ----------------------------------------------------------------- | ----------------------------------------------------------- | ---------- |
-| [040](./0040-object-module-structural-subtype-hierarchy.md)       | Object module: structural subtype hierarchy over branding   | 2026-06-06 |
-| [041](./0041-strict-is-plain-object-vs-lodash.md)                 | Strict `isPlainObject` vs lodash `_.isPlainObject`          | 2026-06-06 |
-| [044](./0044-structural-anchor-is-plain-object.md)                | Structural anchor for `isPlainObject` — five-marker chain   | 2026-06-08 |
-| [045](./0045-tag-signature-cross-validator-dictionary-object.md)  | Tag-signature cross-validator added to `isDictionaryObject` | 2026-06-08 |
-| [046](./0046-plain-or-dictionary-object-fused-predicate.md)       | `PlainOrDictionaryObject` union type and fused predicate    | 2026-06-08 |
-| [064](./0064-object-shape-carriers-and-config-primitive-homes.md) | Three object-shape carriers; config-level primitive homes   | 2026-07-05 |
+| #                                                                 | Title                                                                                         | Date       |
+| ----------------------------------------------------------------- | --------------------------------------------------------------------------------------------- | ---------- |
+| [040](./0040-object-module-structural-subtype-hierarchy.md)       | Object module: structural subtype hierarchy over branding (location claim superseded by #064) | 2026-06-06 |
+| [041](./0041-strict-is-plain-object-vs-lodash.md)                 | Strict `isPlainObject` vs lodash `_.isPlainObject`                                            | 2026-06-06 |
+| [044](./0044-structural-anchor-is-plain-object.md)                | Structural anchor for `isPlainObject` — five-marker chain                                     | 2026-06-08 |
+| [045](./0045-tag-signature-cross-validator-dictionary-object.md)  | Tag-signature cross-validator added to `isDictionaryObject`                                   | 2026-06-08 |
+| [046](./0046-plain-or-dictionary-object-fused-predicate.md)       | `PlainOrDictionaryObject` union type and fused predicate                                      | 2026-06-08 |
+| [064](./0064-object-shape-carriers-and-config-primitive-homes.md) | Three object-shape carriers; config-level primitive homes                                     | 2026-07-05 |
 
 ### type-detection / utility
 
 | #                                                                                     | Title                                                                                                                                                                          | Date       |
 | ------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------- |
 | [008](./0008-boundary-retyping-to-function-string.md)                                 | Boundary-retyping at `@/config` for `toFunctionString`                                                                                                                         | 2026-06-01 |
-| [017](./0017-boundary-retyping-get-prototype-of.md)                                   | Boundary-retyping at `@/config` for `getPrototypeOf`                                                                                                                           | 2026-06-03 |
+| [017](./0017-boundary-retyping-get-prototype-of.md)                                   | Boundary-retyping at `@/config` for `getPrototypeOf` (location claim superseded by #064)                                                                                       | 2026-06-03 |
 | [026](./0026-is-valid-property-key-tightened.md)                                      | `isValidPropertyKey` tightened to safe-integer + three new `Number` type-guards (the `isValidPropertyKey` aspect superseded by #072; Number-guard location superseded by #074) | 2026-06-04 |
-| [034](./0034-boundary-retyping-object-create.md)                                      | Boundary-retyping at `@/config` for `objectCreate`                                                                                                                             | 2026-06-05 |
+| [034](./0034-boundary-retyping-object-create.md)                                      | Boundary-retyping at `@/config` for `objectCreate` (location claim superseded by #064)                                                                                         | 2026-06-05 |
 | [047](./0047-get-defined-constructor-pivot-and-walk.md)                               | `getDefinedConstructor` rewritten as inert pivot-and-walk                                                                                                                      | 2026-06-09 |
 | [048](./0048-resolve-type-two-axis-dispatch.md)                                       | `resolveType` lowercase-name precedence (two-axis dispatch)                                                                                                                    | 2026-06-13 |
 | [055](./0055-constructor-registries-per-interpretation-keying.md)                     | Constructor registries keyed by `(value, assumePrototype)`; #054 deferral overturned                                                                                           | 2026-06-23 |

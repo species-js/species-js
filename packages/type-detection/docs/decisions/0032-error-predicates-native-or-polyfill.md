@@ -2,6 +2,11 @@
 
 **Date:** 2026-06-05
 
+**Structure superseded by #065 (2026-07-10); binding posture superseded by #082
+(2026-07-30).** #065 replaced the layered tag-classifier stack; #082 replaced the
+native-or-polyfill `isError` binding. The native-or-polyfill capture concept survives in
+both; #032 stands as the historical record.
+
 **Context.** The equip-js source had five public exports for error discrimination —
 `isCurrentRealmError`, `isAlienRealmError`, `isGenericError`, `isError`, `isAbortError` —
 plus an internal `hasMatchingErrorPrototype` helper. The first three were the

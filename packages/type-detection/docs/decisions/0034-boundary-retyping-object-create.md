@@ -2,6 +2,9 @@
 
 **Date:** 2026-06-05
 
+**Location claim superseded by #064 (2026-07-05).** The `objectCreate` boundary-retype
+stands; #064 corrected only its stated location (`@/config`, not `@/utility`).
+
 **Context.** `Object.create` is typed by `lib.es5.d.ts` as `any`-returning on both
 overloads — `(o: object | null) => any` for the no-properties form and
 `(o: object | null, properties: PropertyDescriptorMap & ThisType<any>) => any` for the
