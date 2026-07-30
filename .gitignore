@@ -35,3 +35,5 @@ pnpm-debug.log*
 *.tmp
 *.temp
 .cache/
+_temp/
+tmp/
