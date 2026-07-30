@@ -28,17 +28,20 @@
  * - `@species-js/type-detection/thenable` — `Thenable`, `PromiseLike`,
  *   and `Promise` structural lattices.
  *
- * Re-export order below mirrors the `.js` barrel, where the order is
- * driven by ESM module-load semantics (`#function` first so the
- * `config ↔ function` cycle resolves through `function`'s hoisted
- * `isCallable` declaration).
+ * The re-export order below mirrors the `.js` barrel and is load-bearing in one
+ * respect: `#function` must be re-exported FIRST; the remaining seven may then be
+ * ordered freely. At load it captures `AsyncFunctionConstructor` via `#utility`'s
+ * `getDefinedConstructor`, closing an eval-time `function ↔ utility` cycle;
+ * `#function`-first forces that cluster to resolve, and any other order leaves a
+ * binding in a temporal dead zone under the vite transform (native Node tolerates
+ * it). `test/index.test.js` guards it; see ADR #083.
  */
 
 export * from '#function';
 export * from '#config';
 export * from '#utility';
 export * from '#primitive';
-export * from '#error';
 export * from '#object';
+export * from '#error';
 export * from '#evented';
 export * from '#thenable';

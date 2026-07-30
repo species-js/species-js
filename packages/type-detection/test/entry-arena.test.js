@@ -4,7 +4,8 @@
  * @module test/entry-arena
  *
  * Axis 5 — the delivery seam. Every axis-1 through axis-4 suite enters through
- * the `#index` barrel, whose re-export order is hand-tuned and load-bearing, so
+ * the `#index` barrel, whose re-export order is hand-tuned and load-bearing (the
+ * `function ↔ utility` eval-time cycle — ADR #083), so
  * no test ever loaded a published subpath as its OWN entry point. That blind
  * spot hid a load-order temporal-dead-zone crash: entering the `utility` subpath
  * directly threw `ReferenceError: Cannot access 'TRUSTED_DATA_CONFIRMATION'

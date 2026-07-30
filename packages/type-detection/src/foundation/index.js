@@ -10,7 +10,7 @@
  * hoisted helper (e.g. `getDefinedConstructor`) can read a `foundation`
  * constant at another module's load time regardless of which subpath is
  * entered first, without risking a temporal-dead-zone crash from the
- * `config ↔ function ↔ utility` import cycle (ADR #070).
+ * `function ↔ utility` import cycle (ADR #070; `config` was decoupled by #075).
  * @internal
  */
 
