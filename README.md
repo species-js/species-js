@@ -34,7 +34,7 @@ pnpm add @species-js/<package>
 ```sh
 pnpm install
 pnpm run check          # typecheck + lint + format + docs + audit + test:coverage (the canonical gate)
-pnpm run check:full     # everything above + build + pack:check (full CI mirror; slower)
+pnpm run check:full     # everything above + build + pack:check + check:publish (full CI mirror; slower)
 pnpm run docs           # generate typedoc HTML to docs/api
 pnpm run build          # node + browser + umd targets for every package
 ```

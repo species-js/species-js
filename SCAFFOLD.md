@@ -616,18 +616,20 @@ files written outside the normal Git workflow) is caught before code leaves the 
 
 ### `check:full` — the "really sure" command
 
-Two CI-gating steps are deliberately left out of `check` to keep the inner loop fast:
+Three CI-gating steps are deliberately left out of `check` to keep the inner loop fast:
 
 - `build` — three targets per package; cumulative cost grows with package count.
 - `pack:check` — runs `npm pack --dry-run` on every package; depends on `build` having
   produced `dist/` first.
+- `check:publish` — `attw` + `publint` on every package's packed output (the
+  consumer-resolution / publish gate); likewise depends on `build`.
 
 For those moments when you want a complete local mirror of CI (e.g. before opening a PR
 that touches build configuration, the `files` field of any package, or any
 `vite.config.js`), there's `pnpm run check:full`:
 
 ```
-check:full = check + build + pack:check
+check:full = check + build + pack:check + check:publish
 ```
 
 Same scripts CI runs, same order, locally. The cost is meaningfully higher (the twelve

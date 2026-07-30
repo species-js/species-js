@@ -30,7 +30,7 @@ pnpm install
 
 ```sh
 pnpm run check          # typecheck + lint + format + docs + audit + test:coverage (the canonical gate)
-pnpm run check:full     # everything above + build + pack:check (full CI mirror; slower)
+pnpm run check:full     # everything above + build + pack:check + check:publish (full CI mirror; slower)
 pnpm run test:watch     # tests in watch mode
 pnpm --filter @species-js/<package> run test  # focused single-package run
 ```

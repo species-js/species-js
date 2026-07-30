@@ -76,3 +76,7 @@ jobs:
       - name: Verify package contents (pack dry-run)
         if: matrix.os == 'ubuntu-latest'
         run: pnpm run pack:check
+
+      - name: Verify publish gates (attw + publint)
+        if: matrix.os == 'ubuntu-latest'
+        run: pnpm run check:publish

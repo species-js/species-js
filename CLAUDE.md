@@ -112,7 +112,7 @@ depend on these packages.
 
 ```sh
 pnpm run check          # typecheck + lint + format + docs + audit + test:coverage (the one command)
-pnpm run check:full     # check + build + pack:check (full CI mirror; slower)
+pnpm run check:full     # check + build + pack:check + check:publish (full CI mirror; slower)
 pnpm run typecheck      # tsc per package
 pnpm run lint           # eslint
 pnpm run test           # vitest (all packages)
