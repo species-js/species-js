@@ -22,7 +22,7 @@
     "audit": "node scripts/audit.mjs",
     "toolchain:check": "node scripts/check-toolchain-sync.mjs",
     "decisions:check": "node scripts/adr-graph.mjs",
-    "check": "pnpm run toolchain:check && pnpm run typecheck && pnpm run lint && pnpm run format:check && pnpm run docs:check && pnpm run audit && pnpm run test:coverage",
+    "check": "pnpm run toolchain:check && pnpm run typecheck && pnpm run lint && pnpm run format:check && pnpm run docs:check && pnpm run decisions:check && pnpm run audit && pnpm run test:coverage",
     "check:full": "pnpm run check && pnpm run build && pnpm run pack:check && pnpm run check:publish",
     "clean": "pnpm -r --sort run clean && node -e \"import('node:fs').then(fs => fs.rmSync('coverage', { recursive: true, force: true }))\"",
     "docs": "typedoc",

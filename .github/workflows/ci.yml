@@ -48,6 +48,10 @@ jobs:
       - name: Docs check
         run: pnpm run docs:check
 
+      - name: Decisions reciprocity
+        if: matrix.os == 'ubuntu-latest'
+        run: pnpm run decisions:check
+
       - name: Audit (prod, high+)
         if: matrix.os == 'ubuntu-latest'
         run: pnpm run audit
