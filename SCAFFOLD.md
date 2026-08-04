@@ -548,17 +548,24 @@ then removes the aggregate `coverage/` directory at repo root for the same reaso
 
 Three Husky hooks; each does one thing:
 
-| Hook         | Command                       | Purpose                                        |
-| ------------ | ----------------------------- | ---------------------------------------------- |
-| `pre-commit` | `pnpm lint-staged`            | Format + lint staged files only                |
-| `commit-msg` | `pnpm commitlint --edit "$1"` | Enforce conventional commits                   |
-| `pre-push`   | `pnpm run check`              | Full safety net before code leaves the machine |
+| Hook         | Command                                            | Purpose                                                    |
+| ------------ | -------------------------------------------------- | ---------------------------------------------------------- |
+| `pre-commit` | `pnpm run toolchain:check` then `pnpm lint-staged` | Fail on a stale toolchain, then format + lint staged files |
+| `commit-msg` | `pnpm commitlint --edit "$1"`                      | Enforce conventional commits                               |
+| `pre-push`   | `pnpm run check`                                   | Full safety net before code leaves the machine             |
 
-`pre-push` runs the canonical gate (`typecheck` + `lint` + `test`) so the local state
-matches what CI will run remotely. Earlier the hook ran only `typecheck && test`; lint was
-added during the trim pass when it was noted that `lint-staged` only sees staged files —
-anything that escaped staging (e.g. via `--no-verify` once, or pre-existing bad state)
-would never lint until CI failed.
+`pre-push` runs the canonical gate — the full `check` chain tabulated under "The `check`
+command" below, not merely typecheck and tests — so the local state matches what CI runs
+remotely. Lint was added during the trim pass when it was noted that `lint-staged` only
+sees staged files: anything that escaped staging (a `--no-verify` commit, or pre-existing
+bad state) would never lint until CI failed.
+
+`toolchain:check` runs at **pre-commit**, ahead of `lint-staged`, and not only inside the
+pre-push `check`. Its purpose is to catch that local lint and format ran a different tool
+version than the lockfile pins — and `lint-staged` IS that local run. Discovering the
+drift at pre-push means a whole batch of commits has already been reformatted by the wrong
+prettier, which is exactly the near-miss that motivated the script. It reads two files and
+costs well under a second, so it earns a place on every commit.
 
 ---
 
@@ -659,21 +666,26 @@ weekly.
 ### Single command name: `check`
 
 The root provides `check`
-(`typecheck + lint + format:check + docs:check + audit + test:coverage`) as the single
-validation command. It runs the exact same gating steps CI runs, in the same order, so
-"passes locally" implies "passes CI" for every gating step. There is no `validate` alias.
-One name, one purpose.
+(`toolchain:check + gates:check + typecheck + lint + format:check + docs:check + decisions:check + audit + test:coverage`)
+as the single validation command. It is a **superset** of CI's gating sequence rather than
+an exact match — `toolchain:check` is deliberately local-only (see its row below) — so
+"passes locally" implies "passes CI" for every gating step, but not the reverse. There is
+no `validate` alias. One name, one purpose.
 
-The composition is deliberately maintained as a strict superset of CI's gating sequence:
+That superset relation is no longer maintained by hand: `gates:check` enforces it, after a
+gate once went unrun in CI for weeks (see its row).
 
-| Step            | What it catches                                                                                 |
-| --------------- | ----------------------------------------------------------------------------------------------- |
-| `typecheck`     | Type errors across every package                                                                |
-| `lint`          | Style/correctness rules (type-aware via typescript-eslint)                                      |
-| `format:check`  | Prettier drift (files committed with `--no-verify` or written outside Git)                      |
-| `docs:check`    | typedoc strict validation — broken `{@link}`, undocumented exports, unexported referenced types |
-| `audit`         | Supply-chain vulnerabilities (prod deps, high+ severity)                                        |
-| `test:coverage` | Test failures **and** per-package coverage threshold violations                                 |
+| Step              | What it catches                                                                                                                                                                                                         |
+| ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `toolchain:check` | Installed tool versions drifting from the lockfile CI installs. **Local-only** — a guaranteed no-op under CI's `--frozen-lockfile`. Also runs at pre-commit, where it can still prevent the drift rather than report it |
+| `gates:check`     | A gate in `check` / `check:full` that nothing in CI invokes — so it passes locally while CI never runs it. One-directional by design; see the script header before extending it                                         |
+| `typecheck`       | Type errors across every package                                                                                                                                                                                        |
+| `lint`            | Style/correctness rules (type-aware via typescript-eslint)                                                                                                                                                              |
+| `format:check`    | Prettier drift (files written outside the normal Git workflow)                                                                                                                                                          |
+| `docs:check`      | typedoc strict validation — broken `{@link}`, undocumented exports, unexported referenced types                                                                                                                         |
+| `decisions:check` | An ADR supersession with no reciprocal annotation at its target, leaving the target reading as current when it is not                                                                                                   |
+| `audit`           | Advisories in **production** dependencies at high+ severity. Near-vacuous by construction here — read "Supply-chain audit" above before relying on it                                                                   |
+| `test:coverage`   | Test failures **and** per-package coverage threshold violations                                                                                                                                                         |
 
 CI invokes the same underlying scripts individually for clearer step-level reporting;
 locally, `pnpm run check` is the daily driver. The pre-push Husky hook also calls

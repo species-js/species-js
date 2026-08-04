@@ -111,8 +111,11 @@ depend on these packages.
 ## Commands
 
 ```sh
-pnpm run check          # typecheck + lint + format + docs + audit + test:coverage (the one command)
+pnpm run check          # toolchain + gates + typecheck + lint + format + docs + decisions + audit + test:coverage (the one command)
 pnpm run check:full     # check + build + pack:check + check:publish (full CI mirror; slower)
+pnpm run toolchain:check # installed tool versions === lockfile pins (also runs at pre-commit)
+pnpm run gates:check    # every gate in check/check:full is actually invoked by CI
+pnpm run decisions:check # every ADR supersession carries a reciprocal annotation
 pnpm run typecheck      # tsc per package
 pnpm run lint           # eslint
 pnpm run test           # vitest (all packages)
