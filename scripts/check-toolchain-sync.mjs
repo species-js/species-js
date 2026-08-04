@@ -21,14 +21,27 @@ import { fileURLToPath } from 'node:url';
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), '..');
 
-// Packages whose installed version alters CI OUTPUT (format / lint / typecheck).
-// Extend deliberately — only add tools whose version drift can turn CI red.
+// Packages whose installed version alters CI OUTPUT (format / lint / typecheck /
+// docs / coverage / publish gates). Extend deliberately — only add tools whose
+// version drift can turn CI red. Every entry MUST be a direct dependency in the
+// lockfile's `importers`; an unresolvable name fails the run (see below) rather
+// than being skipped, so this list cannot rot into a silent no-op.
 const TOOLCHAIN = [
+  // format / lint / typecheck
   'prettier',
   'eslint',
   'eslint-plugin-jsdoc',
   'typescript-eslint',
   'typescript',
+  // coverage — gate-affecting since the thresholds went live (2026-08-04): a
+  // version drift here moves the measured percentages, which can flip the gate.
+  'vitest',
+  '@vitest/coverage-v8',
+  // docs:check
+  'typedoc',
+  // check:publish
+  '@arethetypeswrong/cli',
+  'publint',
 ];
 
 /**
@@ -55,7 +68,12 @@ function readLockfilePins() {
     if (!inImporters) {
       continue;
     }
-    const name = line.match(/^ {6}(@?[\w./-]+):\s*$/);
+    // pnpm quotes SCOPED keys (`'@vitest/coverage-v8':`) and leaves unscoped ones
+    // bare (`typedoc:`), so the optional quotes are load-bearing: without them a
+    // scoped tool parses as absent and — before the unresolved-name guard above —
+    // was skipped in silence, guarding nothing. Found 2026-08-04 when the guard
+    // rejected the first two scoped entries ever added to TOOLCHAIN.
+    const name = line.match(/^ {6}'?(@?[\w./-]+)'?:\s*$/);
     if (name) {
       pkg = name[1];
       continue;
@@ -90,15 +108,37 @@ function installedVersion(name) {
 const pins = readLockfilePins();
 /** @type {Array<{ name: string, installed: string, expected: string }>} */
 const drift = [];
+/** Names this list claims to guard but the lockfile does not pin — list rot. */
+const unresolved = [];
 for (const name of TOOLCHAIN) {
   const expected = pins[name];
   if (!expected) {
-    continue; // not a direct dep in the lockfile — nothing to pin
+    // Previously skipped silently, which let a typo or a renamed package turn an
+    // entry into a permanent no-op — the guard would report success while
+    // checking nothing. An entry that cannot be resolved is a defect in THIS
+    // list, so it is surfaced rather than swallowed.
+    unresolved.push(name);
+    continue;
   }
   const installed = installedVersion(name);
   if (installed !== expected) {
     drift.push({ name, installed: installed ?? '(not installed)', expected });
   }
+}
+
+if (unresolved.length > 0) {
+  console.error(
+    '✗ toolchain list is stale — these names are not direct dependencies in ' +
+      'pnpm-lock.yaml, so they guard nothing:\n',
+  );
+  for (const name of unresolved) {
+    console.error(`    ${name}`);
+  }
+  console.error(
+    '\n  → fix the name in TOOLCHAIN (scripts/check-toolchain-sync.mjs), or drop\n' +
+      '    it if the tool is gone.',
+  );
+  process.exit(1);
 }
 
 if (drift.length > 0) {
