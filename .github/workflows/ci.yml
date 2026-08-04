@@ -48,6 +48,10 @@ jobs:
       - name: Docs check
         run: pnpm run docs:check
 
+      - name: CI gate coverage
+        if: matrix.os == 'ubuntu-latest'
+        run: pnpm run gates:check
+
       - name: Decisions reciprocity
         if: matrix.os == 'ubuntu-latest'
         run: pnpm run decisions:check
