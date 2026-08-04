@@ -699,3 +699,31 @@ path where present); the two must agree on every vector.
    all five families, documented as the `R-descshadow`-generalization prose in the
    "Per-family equality strategy" section (owner ruling: prose, not four parallel
    vectors).
+8. **Structural invariants promoted to a STANDING suite (2026-08-04) — RESOLVED.** Item
+   #7's probe was a throwaway: it proved the implementation clean once, then was
+   discarded. Its two halves have since been split by concern. The **throw-safety fuzzing
+   stays ephemeral** — axis 3 (`throw-safety.test.js`, hostile × predicate matrix + the
+   marked-set completeness triple-lock) owns that oracle permanently. Its
+   **structural-invariant half is now committed** as `test/primitive/invariants.test.js`
+   (794 tests), under the back-sweep's promotion decision that a module's spec-free
+   RELATIONSHIP laws earn a standing guard, not a one-off run. The nine laws: two-tier
+   composite (`isX ≡ isXValue ∨ isBoxedX`, five families) · umbrella ≡ OR-of-boxed ·
+   family mutual-exclusivity · the `isPrimitiveValue` partition and its arm-disjointness ·
+   tier disjointness (`isBoxedPrimitive ⇒ !isPrimitiveValue`) · refinement (value ⇒
+   boxable, boxed ⇒ umbrella, `registered ⇒ symbolValue`, and the Number-static ladder
+   `safe ⇒ integer ⇒ finite ⇒ number`) · cross-realm verdict symmetry over the full
+   23-predicate surface · determinism · non-collapse witnesses. Asserted over the whole
+   corpus — clean values, both tiers, foreign-realm, adversarial spoofs/grafts, and the
+   throwing traps; a law that held only for well-formed input would not be a law.
+   Deliberately NO falsy-floor law (unlike the error/thenable suites): `''`, `0`, `NaN`,
+   `false` and `0n` are primitive values the family predicates MUST admit.
+   Mutation-verified (4 solo mutations → 4 / 20 / 3 / 111 red, each attributable), so the
+   suite probes rather than pleases.
+
+   _Provenance —_ this suite was owed, not new work. The promotion decision was taken
+   mid-back-sweep (2026-07-29), after `primitive` had already been finalized (2026-07-27),
+   so `primitive` was scoped out of the very sweep that introduced the standard and its
+   compliance row carried a ✅ meaning only "the ephemeral probe was run". An instance of
+   **standard-coverage drift** — a standard promoted mid-flight reaches only the artifacts
+   in front of it. `function` carries the same debt (lighter surface); `config` is a
+   genuine exemption (predicate-free, no lattice).

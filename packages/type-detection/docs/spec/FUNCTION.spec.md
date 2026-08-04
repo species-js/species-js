@@ -792,6 +792,33 @@ test round builds must score exactly this set:
    (source drift) AND the imported function set (test drift). The marked set is the
    completeness oracle; source, oracle, and tests are triple-locked.
 
+2. **Structural invariants promoted to a STANDING suite — RESOLVED 2026-08-04.** The
+   function round's hostile-probe (52 values × 12 predicates, 0 breaches, 2026-07-28) was
+   ephemeral: it proved the implementation clean once, then was discarded. Its two halves
+   are now split by concern. The throw-safety fuzzing stays ephemeral — axis 5 (item 1
+   above) owns that oracle permanently. Its structural-invariant half is committed as
+   `test/function/invariants.test.js` (732 tests), asserting the spec-free RELATIONSHIP
+   laws the absolute-value matrices do not: the callability floor (every public predicate
+   ⇒ `isCallable`; every refinement below it ⇒ `isFunction`) · the `isClass` partition
+   (`isClass ≡ isCustomClass ⊎ isBuiltInClass` — the law named under `isBuiltInClass`
+   above, now machine-checked) · the newable ladder
+   (`isNewableFunction ≡ isFunction ∧ hasConstructSlot`, with `isES3Function ⊎ isClass`
+   disjoint by own-`prototype` writability) · the generator umbrella
+   (`isAnyGeneratorFunction ≡ the two arms`, disjoint) · coroutine-family exclusivity (an
+   async generator is NOT an async function) · the coroutine families are never newable ·
+   cross-realm verdict symmetry over the full 12-predicate surface · determinism ·
+   non-collapse witnesses. Asserted over the whole candidate corpus including bound forms,
+   foreign-realm callables, tag-spoofs and the throwing traps. Mutation-verified (4 solo
+   mutations → 82 / 7 / 34 / 10 red, each attributable).
+
+   _Provenance —_ owed, not new. The promotion decision was taken mid-back-sweep
+   (2026-07-29), after `function` had already been finalized (2026-07-28), so `function`
+   was scoped out of the very sweep that introduced the standard and its compliance row
+   recorded only "the ephemeral probe was run". An instance of **standard-coverage drift**
+   — a standard promoted mid-flight reaches only the artifacts in front of it. `primitive`
+   carried the same debt (see `PRIMITIVE.spec.md` resolved item #8, paid the same day);
+   `config` is a genuine exemption (predicate-free, no lattice).
+
 ## Policy flags
 
 - **Q.002 — bound-admission asymmetry — SETTLED (ADR #081).** All `[Q.002]`-tagged vectors
