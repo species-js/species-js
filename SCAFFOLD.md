@@ -358,9 +358,36 @@ package's `vite.config.js`. The root `vitest.config.js` carries nothing about co
 only declares `projects: ['packages/*/vite.config.js']` and lets vitest aggregate
 per-project output.
 
-This is a single source of truth: when running `pnpm run test:coverage` from root, vitest
-applies each package's own configuration. If two packages ever need different thresholds
-(mature vs. new), the divergence lives in exactly one place.
+This is a single source of truth: if two packages ever need different thresholds (mature
+vs. new), the divergence lives in exactly one place.
+
+**Why the root `test:coverage` fans out (`pnpm -r run test:coverage`) instead of running
+vitest once.** Per-package coverage settings only take effect when vitest is invoked _from
+the package directory_, with that package's `vite.config.js` as its own config root. Under
+the root config's `projects:` discovery, vitest propagates `provider` / `include` /
+`reporter` from each project — but **silently drops `thresholds`**, and widens the
+measured file set beyond each project's `include`. A single root `vitest run --coverage`
+therefore reports numbers polluted by test fixtures and never evaluates a threshold,
+exiting 0 no matter how low coverage falls.
+
+That is not a theoretical hazard — it was the live state until 2026-08-04. The thresholds
+had been declared since the initial scaffold and had never once been evaluated, while the
+inflated aggregate (test `__config.js` fixtures counted as product code) made real
+coverage look far worse than it was. Measured properly, `type-detection` was already
+**96.19 / 92.62 / 93.75 / 96.62** against a 90 / 85 / 90 / 90 bar.
+
+Verified A/B, same single test file: from the package directory the run emits four
+threshold ERRORs and fails; from the root under `projects:` it emits none and exits 0.
+Fanning out with `pnpm -r` keeps the per-package ownership this section describes AND
+makes the gate real — the two are not in tension, but only via the fan-out. Do not
+"simplify" this back to a single root vitest invocation; doing so silently disables every
+threshold in the monorepo.
+
+Thresholds are **global (aggregate) per package**, not per file, which is what lets a few
+deliberately-unreachable paths sit below the bar without special-casing. `config/index.js`
+reads 50% branches/functions because its only function is the `hasOwn` polyfill behind
+`objectHasOwn = typeof nativeHasOwn === 'function' ? nativeHasOwn : hasOwn` — dead on any
+engine with the native. That is an env-unreachable fallback, not a coverage gap.
 
 ### `/// <reference types="vitest" />` removed
 
@@ -566,8 +593,11 @@ high or critical advisory blocks the PR.
 ### Coverage upload
 
 `actions/upload-artifact@v4` (SHA-pinned) collects `coverage/` from root and each package,
-retains for 14 days, on Ubuntu only. This avoids a third-party signup (Codecov, Coveralls)
-while still providing trend visibility on demand.
+retains for 14 days, on Ubuntu only. Since the root `test:coverage` fans out with
+`pnpm -r` (see "Coverage owned per-package"), the reports are written per package and no
+root `coverage/` is produced — the step keeps both paths with `if-no-files-found: warn`,
+so the absent root directory is a no-op rather than a failure. This avoids a third-party
+signup (Codecov, Coveralls) while still providing trend visibility on demand.
 
 ### `npm pack --dry-run` verification
 

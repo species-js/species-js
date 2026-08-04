@@ -36,7 +36,7 @@
     "check:publish": "pnpm -r exec attw --pack --ignore-rules false-esm no-resolution internal-resolution-error && pnpm -r exec publint --level error",
     "prepare": "husky",
     "test": "vitest run",
-    "test:coverage": "vitest run --coverage",
+    "test:coverage": "pnpm -r run test:coverage",
     "test:watch": "vitest",
     "test:ui": "vitest --ui",
     "typecheck": "pnpm -r --sort run typecheck",
