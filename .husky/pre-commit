@@ -1,1 +1,8 @@
+# Toolchain sync runs FIRST, and here rather than only in the pre-push `check`.
+# Its whole purpose is to catch that local lint/format/typecheck ran a different
+# tool version than the lockfile CI installs — and `lint-staged` below is exactly
+# that local run. Discovering the drift at pre-push means a batch of commits has
+# already been reformatted by the wrong prettier (the 2026-07-01 near-miss). It
+# reads two files and costs well under a second, so it belongs on every commit.
+pnpm run toolchain:check
 pnpm lint-staged
