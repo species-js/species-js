@@ -587,8 +587,44 @@ Steps gated to `ubuntu-latest` for cost: the supply-chain audit, coverage upload
 ### Supply-chain audit
 
 A `pnpm audit --prod --audit-level high` step runs on Ubuntu. The `--audit-level high`
-threshold is enterprise-appropriate — CI doesn't fail on every low/moderate finding, but a
-high or critical advisory blocks the PR.
+threshold is enterprise-appropriate — CI doesn't fail on every low or moderate finding.
+
+**What this step can and cannot catch — read before trusting it.** An earlier version of
+this section claimed "a high or critical advisory blocks the PR". That is **false**, and
+the reason is structural rather than a misconfiguration: `--prod` scopes the audit to
+production dependencies, and this monorepo has **none**. `type-detection` has no
+dependencies at all; the other three depend only on `@species-js/type-detection` via
+`workspace:*`; the root has none. So the audit walks an effectively empty tree and
+**cannot go red for any advisory**. It is a near-vacuous gate, and it will stay that way
+for as long as the packages ship with no runtime dependencies — which is a deliberate
+property of this project, not an accident.
+
+**This is an accepted standing inversion, not an oversight.** Keeping `--prod` is right
+for a library whose consumers install zero transitive runtime code: a devDependency
+advisory is a build-supply-chain concern, not something that reaches a consumer, and
+failing every push on it would block work that cannot ship the vulnerability anyway. The
+tripwire therefore **moves** rather than vanishing — it does not simply disappear, which
+would make the inversion illegitimate.
+
+Where it moves to, stated precisely, because the strength of this net is the whole
+justification:
+
+- **GitHub Dependabot alerts — enabled and verified firing.** A high-severity `fast-uri`
+  advisory (scope: development) was reported on the default branch on 2026-08-04; the
+  `--prod` audit was green at the same moment. Both were correct.
+- **Weekly Dependabot version-update PRs — verified landing** (`.github/dependabot.yml`,
+  npm ecosystem, separate `prod-deps` and `dev-deps` groups; PRs #18, #19, #21, #22
+  merged). These carry dev dependencies forward on a schedule.
+- **Dependabot automated security fixes — currently DISABLED**
+  (`automated-security-fixes: {"enabled": false}`). This is the weak seam. A dev-dep
+  advisory raises an alert but opens no fix PR, so remediation waits on a human reading
+  the alert or on the weekly bump moving the parent incidentally.
+
+**Trip conditions.** Revisit this inversion when either holds: (1) any package gains a
+real external runtime dependency — `--prod` stops being vacuous and the gate becomes
+load-bearing overnight; or (2) the reliance on human alert-reading proves unreliable, in
+which case enable automated security fixes, or drop `--prod` and let the full tree gate.
+Verify (1) by checking every package's `dependencies` for a non-`workspace:` entry.
 
 ### Coverage upload
 
