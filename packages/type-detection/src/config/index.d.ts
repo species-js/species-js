@@ -159,6 +159,15 @@ export declare const toFunctionString: (this: Callable) => string;
  * empty-keys fact; the real prototype and constructor are runtime facts the
  * empty-record idiom cannot carry (it types even `constructor` as `never`),
  * documented here rather than modeled.
+ *
+ * Public by intent, and deliberately so despite carrying no value and having no
+ * consumer inside this package: it is shape vocabulary a downstream package is
+ * meant to import and work with, and the `#object` taxonomy names it to
+ * distinguish the three blank shapes — so a consumer reading those docs can
+ * reach for the type it just read about. Note the asymmetry with its former
+ * carrier: the `BLANK_TYPE` constant was REMOVED as unconsumed, while this type
+ * was kept. That is the intended rule, not drift — a value export earns its keep
+ * by being called, a type earns it by being nameable.
  */
 export type BlankType = Record<PropertyKey, never>;
 
@@ -174,6 +183,14 @@ export type BlankType = Record<PropertyKey, never>;
  * itself is a runtime characteristic TypeScript cannot express; the
  * `constructor?: never` marker is the closest structural proxy, shared with
  * {@link DictionaryObject}.
+ *
+ * Public by intent, even though its carrier `BLANK_DICTIONARY` is `@internal`.
+ * The two answer different questions and are tagged independently: the TYPE is
+ * shape vocabulary a downstream package may import to describe its own
+ * never-mutated `Object.create(null)` values, while the CONSTANT is this
+ * package's private sentinel — a single realm-fixed instance compared by
+ * identity, whose value would mean nothing outside it. Exporting the type
+ * without the instance is the whole point.
  */
 export type BlankDictionary = BlankType & { constructor?: never };
 
@@ -372,6 +389,12 @@ export declare const getOwnPropertyDescriptors: typeof Object.getOwnPropertyDesc
  * runtime without `EventTarget` / `AbortSignal`, decision #060) and for the
  * failure surrogate of `getValidatedStandardConstructorAndPrototypeTuple`,
  * compared by identity and never read for keys.
+ *
+ * Internal while its TYPE `BlankDictionary` is public — a deliberate split, not
+ * an inconsistency. Identity is the whole contract here: this instance is only
+ * meaningful to code that can compare against this very reference, so handing it
+ * to a consumer would export a sentinel they cannot use and could not safely
+ * substitute. The type they may well want; the instance they cannot.
  * @internal
  */
 export declare const BLANK_DICTIONARY: BlankDictionary;

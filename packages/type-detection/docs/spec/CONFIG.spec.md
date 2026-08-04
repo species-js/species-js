@@ -36,14 +36,15 @@
 > inventoried and vector-covered (`fix/A3`, the extended `fix/A1`, and the new
 > `(sentinels)` section `blank/*` + `ilc/*`); `BLANK_TYPE` was **removed** as an
 > unconsumed `@internal` export (Resolved items #2). **Export count 30 → 29 values + 2
-> exported types** (`BlankType` / `BlankDictionary`, visibility parked — Open items #1).
-> The founding "no public surface / all `@internal`" framing is corrected to the real
-> two-tier surface — a curated public API (the four presets, `objectHasOwn`,
-> `objectCreate`) over the `@internal` primitives (the `@internal` toggling shipped in
-> `f161805` alongside the typedoc docs-visibility fix). `getPrototypeOf` corrected
-> `object | null` → `object | Callable | null` (`ret/T2`, `cap/A4`). **Status: AMENDED —
-> the vectors added this round (`fix/A3`, `blank/*`, `ilc/*`) are now driven by the
-> standing config suite (`test/config/spec.test.js`, 21 vectors green, mutation-probed).**
+> exported types** (`BlankType` / `BlankDictionary` — both stay **public** by intent;
+> visibility SETTLED 2026-08-04, no code change, Open items #1). The founding "no public
+> surface / all `@internal`" framing is corrected to the real two-tier surface — a curated
+> public API (the four presets, `objectHasOwn`, `objectCreate`) over the `@internal`
+> primitives (the `@internal` toggling shipped in `f161805` alongside the typedoc
+> docs-visibility fix). `getPrototypeOf` corrected `object | null` →
+> `object | Callable | null` (`ret/T2`, `cap/A4`). **Status: AMENDED — the vectors added
+> this round (`fix/A3`, `blank/*`, `ilc/*`) are now driven by the standing config suite
+> (`test/config/spec.test.js`, 21 vectors green, mutation-probed).**
 
 ## Module contract
 
@@ -88,9 +89,10 @@ real work is typing and identity, not behavior.
 ## Surface inventory
 
 **29 value exports** (6 public + 23 `@internal`) **plus 2 exported types** (`BlankType`,
-`BlankDictionary`, currently public). Re-confirmation gate: 29 `.js` exports (28 `const` +
-1 `function`) = 29 `.d.ts` value declarations (28 `declare const` + 1 `declare function`)
-plus 2 `type` declarations; parity verified.
+`BlankDictionary` — both public by intent, settled 2026-08-04; Open items #1).
+Re-confirmation gate: 29 `.js` exports (28 `const` + 1 `function`) = 29 `.d.ts` value
+declarations (28 `declare const` + 1 `declare function`) plus 2 `type` declarations;
+parity verified.
 
 **Public value surface (6):** the four descriptor presets, `objectHasOwn` (the floor-safe
 own-property selector), and `objectCreate` (the 3-overload retype). The remaining 23 value
@@ -132,11 +134,22 @@ surrogate and, paired with the next, the failure surrogate of `#utility`'s
 (a never-invoked function statement cast to `NewableFunction`; its untouched `prototype`
 makes `x instanceof INSTANCE_LESS_CONSTRUCTOR` uniformly `false` without throwing — #060).
 
-**Exported types (2) — public:** `BlankType` (`Record<PropertyKey, never>`, the empty
-ordinary object shape — now type-only, its `BLANK_TYPE` carrier removed this round) and
-`BlankDictionary` (`BlankType & { constructor?: never }`, the never-mutated
-`Object.create(null)` shape, carried by `BLANK_DICTIONARY`); the object-shape vocabulary
-from #0064.
+**Exported types (2) — public by intent (settled 2026-08-04):** `BlankType`
+(`Record<PropertyKey, never>`, the empty ordinary object shape — type-only, its
+`BLANK_TYPE` carrier removed this round) and `BlankDictionary`
+(`BlankType & { constructor?: never }`, the never-mutated `Object.create(null)` shape,
+whose carrier `BLANK_DICTIONARY` is `@internal`); the object-shape vocabulary from #0064.
+
+**Types and carriers are tagged independently — that is the design, not drift.** A type is
+public when it is vocabulary a downstream package may import to describe its own values; a
+carrier constant is `@internal` when its whole contract is identity, so it means nothing
+outside the package that compares against it. `BLANK_DICTIONARY` is exactly that: a single
+realm-fixed sentinel, compared by reference and never read for keys, so exporting the
+instance would hand a consumer something they cannot use and must not substitute — while
+the type describing its shape is genuinely reusable. The same rule explains the other
+asymmetry visible in this round: the `BLANK_TYPE` **constant** was removed as unconsumed,
+while the `BlankType` **type** was kept. A value export earns its keep by being called; a
+type earns it by being nameable.
 
 Boundary-retyped set (B): `toFunctionString`, `objectCreate`, `getPrototypeOf`.
 Polyfilled-selector set (C): `objectHasOwn`; its closure `hasOwn`.
@@ -331,12 +344,35 @@ themselves; see ADR #074 and `PRIMITIVE.spec.md`.)_
 
 ## Open items
 
-1. **`BlankType` / `BlankDictionary` type visibility — parked (config round,
-   2026-07-29).** Both types are currently public (exported, present in the API docs), but
-   neither appears in a public runtime signature (`objectCreate(null)` returns `#object`'s
-   `DictionaryObject`), and `BlankType`'s value carrier is now gone. Whether they should
-   stay public (reusable downstream shape vocabulary) or go `@internal` to match their
-   carriers is a deliberately-deferred design call.
+1. **`BlankType` / `BlankDictionary` type visibility — RESOLVED 2026-08-04 (owner ruling).
+   Both stay PUBLIC; no code change.** Parked in the config round because both types were
+   public while neither appears in a public runtime signature (`objectCreate(null)`
+   returns `#object`'s `DictionaryObject`) and `BlankType`'s carrier had been removed.
+
+   **Ruling and reasoning.** The types are public _deliberately_: they are shape
+   vocabulary a downstream package may import and work with, and `#object`'s taxonomy
+   names them to distinguish the three blank shapes. `BLANK_DICTIONARY` is a different
+   question with a different answer — it is a real value with a real `.js` counterpart,
+   consumed inside the package, and its entire contract is identity, so it is `@internal`.
+   Types and carriers are tagged independently by design; see the Surface inventory note
+   above for the general rule and the `BLANK_TYPE`-removed / `BlankType`-kept asymmetry it
+   explains.
+
+   **Verified before closing (6 checks, all passing).** (1) Neither type carries
+   `@internal`. (2) `BLANK_DICTIONARY` is `@internal` in **both** `.js` and `.d.ts` —
+   parity holds. (3) The constant has genuine internal consumers — `utility/index.js`
+   imports it and returns it in the `[INSTANCE_LESS_CONSTRUCTOR, BLANK_DICTIONARY]`
+   surrogate tuple. (4) No `{@link}` anywhere targets an `@internal` constant; every such
+   reference is backticked. (5) The public type doc blocks link only to public symbols
+   (`BlankType`, `BlankDictionary`, `DictionaryObject`). (6) Both types are genuinely
+   reachable by a consumer — re-exported through the root barrel
+   (`export * from '#config'`) **and** via the declared `./config` subpath, so the
+   downstream-vocabulary rationale is actual rather than aspirational.
+
+   Point (5) is why the current state needed no repair: because both types are public, the
+   existing `{@link}` graph is already legal. Tagging `BlankDictionary` `@internal` would
+   have forced two links (in `BlankType`'s doc and `objectCreate`'s) to become backticks —
+   a repair the chosen ruling avoids entirely.
 
 _(The 2026-07-24 "config Round-2 retro-audit" deferral is RESOLVED by this round — the six
 drifted exports are inventoried, `BLANK_TYPE` removed; see Resolved items #2 and the

@@ -342,6 +342,11 @@ export const getOwnPropertyDescriptors = o.getOwnPropertyDescriptors;
  * identity and never read for keys. The inline cast narrows the
  * `objectCreate(null)` return ({@link DictionaryObject}) to {@link BlankDictionary}, since
  * the never-mutated form has no own key.
+ *
+ * Internal while its TYPE `BlankDictionary` is public — a deliberate split. This
+ * instance carries no information beyond its own identity, so it is only useful
+ * to code that compares against this very reference; the type, by contrast, is
+ * shape vocabulary a downstream package may legitimately import.
  * @internal
  */
 export const BLANK_DICTIONARY = /** @type {BlankDictionary} */ (objectCreate(null));
