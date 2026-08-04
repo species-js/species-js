@@ -125,13 +125,25 @@ const NUM = String.raw`#(\d{2,4})\b`;
  * does not read as an edge. The trailing `(?!-)` rejects the verb when it is the
  * head of a hyphenated compound — "amend-vs-append discipline (#054)" names a
  * discipline the citing ADR FOLLOWS, not an edge that amends #054.
+ *
+ * `corrects` earns its place (added 2026-08-04) even though a correction often
+ * leaves the target's DECISION standing: #083 corrects #070's deletability
+ * prediction while #070 itself stands, yet a reader landing on #070 still
+ * inherits a claim now known false. That is precisely the failure this script
+ * exists to prevent, so a corrected claim owes a reciprocal annotation exactly
+ * like a superseded one. It was the vocabulary's one real gap — found by
+ * mutation-probing the parser rather than by reading the corpus.
+ *
+ * `extends` is deliberately NOT a verb here. Every corpus use is provenance,
+ * not an edge — #078 says outright "Extends the #070 / #071 delivery-seam
+ * cluster; supersedes nothing." Admitting it would manufacture false R1 hits.
  */
 const FORWARD_VERB =
-  /\b(supersed(?:es|ing)|amends?|retires?|replaces?|reverses?|refines?|narrows|overturns?|revises?|obsoletes?)\b(?!-)/gi;
+  /\b(supersed(?:es|ing)|amends?|retires?|replaces?|reverses?|refines?|narrows|overturns?|revises?|obsoletes?|corrects?)\b(?!-)/gi;
 
 /** Inbound: this ADR was acted on by the numbers that follow "by". */
 const INBOUND =
-  /\b(superseded|amended|revised|reversed|retired|replaced|refined|narrowed|carved out|overturned)\b[^.\n]{0,60}?\bby\b[^.\n]{0,60}?#(\d{2,4})/gi;
+  /\b(superseded|amended|revised|reversed|retired|replaced|refined|narrowed|carved out|overturned|corrected)\b[^.\n]{0,60}?\bby\b[^.\n]{0,60}?#(\d{2,4})/gi;
 
 /** Any bare ADR reference. */
 const CITATION = new RegExp(NUM, 'g');

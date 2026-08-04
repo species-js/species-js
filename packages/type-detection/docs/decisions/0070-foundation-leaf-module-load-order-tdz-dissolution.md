@@ -2,6 +2,14 @@
 
 **Date:** 2026-07-16
 
+**Deletability prediction corrected by #083 (2026-07-30).** The closing aside under
+"Decision" below — that once the entry-point arena and the leaf-purity rule are both in
+place, the hand-tuned barrel-order comment at `index.js` "becomes deletable" — is
+**wrong**. #083 established that the barrel re-export order stays load-bearing through the
+`function ↔ utility` eval-time cycle (vite-enforced), which is independent of the
+subpath-entry TDZ this decision dissolved. Everything else here **stands**: the
+`foundation` leaf, the entry-point arena, and the leaf-purity rule are unaffected.
+
 **Context.** An outside review (fed the package as a ZIP) surfaced a defect the internal
 verification never saw, and a throwaway reproduction (2026-07-16) confirmed it: **loading
 a published subpath as its own entry point can crash at module-load time.** Entering
