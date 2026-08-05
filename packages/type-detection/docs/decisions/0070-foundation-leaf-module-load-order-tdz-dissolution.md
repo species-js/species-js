@@ -10,6 +10,15 @@ place, the hand-tuned barrel-order comment at `index.js` "becomes deletable" —
 subpath-entry TDZ this decision dissolved. Everything else here **stands**: the
 `foundation` leaf, the entry-point arena, and the leaf-purity rule are unaffected.
 
+**Byte-identical-surface clause amended by #084 (2026-08-05).** The Decision below keeps
+`utility` re-exporting `TRUSTED_DATA_CONFIRMATION` so "the public surface stays
+byte-identical". That clause was migration safety for a refactor which has since landed
+and is now guarded directly by the entry-point arena; meanwhile the re-export turned out
+to be the sentinel's ONLY path onto the package's typed surface while having no consumer
+at all (every reader takes it from `#foundation` directly, as this decision itself
+requires). #084 removes it. Everything else here **stands** — the `foundation` leaf, the
+direct-import requirement, and the arena guard are unaffected.
+
 **Context.** An outside review (fed the package as a ZIP) surfaced a defect the internal
 verification never saw, and a throwaway reproduction (2026-07-16) confirmed it: **loading
 a published subpath as its own entry point can crash at module-load time.** Entering

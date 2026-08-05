@@ -62,17 +62,6 @@ import { isCallable, isFunction, isNewableFunction } from '#function';
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 
 /**
- * The trusted-data sentinel, re-exported from the module-scoped `#foundation`
- * import. Internal machinery — the fast-path skip hint of #058 — never consumer
- * surface, so the `@internal` marker the bare re-export would otherwise drop is
- * restored here.
- * @internal
- */
-export { TRUSTED_DATA_CONFIRMATION };
-
-// ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
-
-/**
  * Whether `value` is a member of the `Set` bound as `this`. It is a `this`-bound
  * membership predicate for the array iteration callbacks (`Array.prototype.some`
  * / `every` / `filter`), called with the `Set` supplied as the `thisArg`:

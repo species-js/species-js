@@ -99,15 +99,21 @@ The whole `getSafeOwnProperty*` family, `getSafePrototypeOf`, `getVerifiedOwnNam
 throw-safe reflection primitive is general-purpose (the same rationale that promoted the
 `hasInert*` siblings, Resolved #1).
 
-**Re-exported constant (1):** `TRUSTED_DATA_CONFIRMATION` (from `#foundation`).
+**Re-exported constant (0) — removed 2026-08-05 (ADR #084, amends #070).** `utility` no
+longer re-exports `TRUSTED_DATA_CONFIRMATION`. The sentinel is imported from `#foundation`
+and still used internally (the `trustedData` hint threaded through the descriptor walk);
+only the pass-through export is gone. Every consumer already took it from `#foundation`
+directly, and `foundation` is not in the root barrel, so the re-export was the sentinel's
+sole path onto the package's typed surface — an `@internal` symbol reachable by consumers
+for no reason anyone needed.
 
 **Exported types (9):** `PropertyDescriptor`, `PropertyDescriptorMap`,
 `DefinedConstructorAccessorOptions`, `ConstructorName`, `TaggedType`, `ResolvedType`,
 `TypeSignature`, `WeakKey`, `PredicateFunction`.
 
-Re-confirmation gate (as re-tallied 2026-07-23): 22 public `.js` value exports + 2
-`@internal` helpers + the `TRUSTED_DATA_CONFIRMATION` re-export, each with a matching
-`.d.ts` declaration; 9 type exports match; `architecture/utility.md` matches the code; the
+Re-confirmation gate (re-tallied 2026-07-23; the re-export dropped 2026-08-05 per #084):
+22 public `.js` value exports + 2 `@internal` helpers, each with a matching `.d.ts`
+declaration; 9 type exports match; `architecture/utility.md` matches the code; the
 `@@throw-safe` flagged set matches the throw-safe surface below.
 
 ## Cross-cutting vectors

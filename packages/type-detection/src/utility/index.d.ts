@@ -166,14 +166,6 @@ export type WeakKey = symbol | object | Callable;
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 
-/**
- * The trusted-data sentinel, re-exported from `#foundation`. Internal
- * machinery — the fast-path skip hint of #058 — never consumer surface, so the
- * `@internal` marker the re-export would otherwise drop is restored here.
- * @internal
- */
-export { TRUSTED_DATA_CONFIRMATION } from '#foundation';
-
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 
 /**
