@@ -28,6 +28,7 @@ Open architectural questions live in [open-questions.md](./open-questions.md).
 | [078](./0078-delivery-seam-cjs-type-masquerade-accepted-attw-publint-gate.md) | Delivery-seam F3: CJS type-masquerade accepted; `attw` + `publint` publish gate; node10 dropped                                                                           | 2026-07-27 |
 | [083](./0083-barrel-order-load-bearing-function-utility-cycle.md)             | Barrel re-export order stays load-bearing (`function ↔ utility` eval-time cycle, vite-enforced); keep coupling, reject lazy-eval; corrects #070's deletability aside      | 2026-07-30 |
 | [084](./0084-drop-utility-trusted-data-confirmation-re-export.md)             | Drop `utility`'s consumerless `TRUSTED_DATA_CONFIRMATION` re-export — it was the sentinel's only path onto the typed surface; amends #070's byte-identical-surface clause | 2026-08-05 |
+| [085](./0085-curated-public-entry-and-surface-gate.md)                        | Curated `src/public.{js,d.ts}` becomes the package root; `#index` stays wide for tests; `surface:check` makes `@internal` enforceable; overturns #084's deferral          | 2026-08-06 |
 
 ### type-detection / function
 
@@ -228,3 +229,4 @@ order with one-line summaries:
 | 2026-07-30 | [082](./0082-iserror-spec-owned-native-backstopped-three-branch.md)                   | `isError` spec-owned + native-backstopped: three-branch load-time selection; resolves error item #3 (supersedes #032 binding)                                        |
 | 2026-07-30 | [083](./0083-barrel-order-load-bearing-function-utility-cycle.md)                     | Barrel re-export order stays load-bearing (`function ↔ utility` eval-time cycle, vite-enforced); keep coupling, reject lazy-eval; corrects #070's deletability aside |
 | 2026-08-05 | [084](./0084-drop-utility-trusted-data-confirmation-re-export.md)                     | Drop `utility`'s consumerless `TRUSTED_DATA_CONFIRMATION` re-export; amends #070's byte-identical-surface clause                                                     |
+| 2026-08-06 | [085](./0085-curated-public-entry-and-surface-gate.md)                                | Curated public entry at the package root + `surface:check`; overturns #084's deferral                                                                                |

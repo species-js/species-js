@@ -2,6 +2,16 @@
 
 **Date:** 2026-08-05
 
+**Root-barrel deferral overturned by #085 (2026-08-06).** The "Consequences" section below
+defers the wider `@internal` narrowing to publish-readiness, having found the recorded
+mechanism self-contradictory: `exports["."].types` and `#index` resolve to the same file,
+so narrowing it breaks all 49 test import sites. They resolve to the same file only
+because this package pointed them there. #085 splits the two roles — a curated
+`src/public.{js,d.ts}` for consumers, the wide `#index` for in-package use — which costs
+one build entry and leaves the suite untouched. Everything else here **stands**: the
+re-export removal, its verification, and the reasoning that a reachable `@internal` export
+is a de-facto public contract, which #085 generalizes rather than revises.
+
 **Context.** #070 extracted `TRUSTED_DATA_CONFIRMATION` into the zero-import `foundation`
 leaf to dissolve a module-load TDZ crash, and deliberately kept `utility` re-exporting it
 so that "the public surface stays byte-identical" — the sentinel remained reachable at
