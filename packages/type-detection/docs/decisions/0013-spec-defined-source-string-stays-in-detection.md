@@ -2,6 +2,15 @@
 
 **Date:** 2026-06-02
 
+**Placement principle superseded by #087 (2026-08-06).** The "Consequences" section below
+states the general test for any future predicate — "ask whether ECMA-262 guarantees the
+stringification form" — and that test gives the wrong answer for its own worked case:
+`isCustomClass` and `isBuiltInClass` are spec-guaranteed yet have zero internal consumers,
+so nothing composes from them. #087 replaces the axis with structural role (composed-from
+versus terminal), keeping reliability as a veto rather than a promotion. The **decision**
+here stands unchanged — both predicates stay in type-detection, and whether they
+eventually migrate under the new axis is deliberately held open.
+
 **Context.** An earlier framing held that any `Function.prototype.toString.call` source
 parsing belonged in `function-introspection`, since most syntactic recognition through
 stringification is heuristic. But `isCustomClass` and `isBuiltInClass` rely on

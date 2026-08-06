@@ -30,7 +30,22 @@ library. They belong to the more forgiving `function-introspection` toolkit
 residue of each predicate's spec-invariant discriminator. See ADR #081 and
 `FUNCTION.spec.md` Resolved items #6.
 
-## Q.003 — `@species-js/function-introspection` scope
+## Q.003 — `@species-js/function-introspection` scope (RESOLVED 2026-08-06 by decision #087)
+
+Resolved, and both halves of the question turned out to rest on stale premises. The
+package **is** scaffolded and live in every workspace gate, so the
+standalone-versus-subpath half was answered structurally long before it was recorded. The
+two named tenants are a **floor, not a scope** — they record what type-detection expelled,
+not what the package is for.
+
+#087 supplies the scope from inside the package: structural role decides placement
+(composed-from stays in detection, terminal comes here) with trust grade as a veto rather
+than a promotion, which supersedes the principle stated in #013's Consequences. This
+question is also the worked example of why `function-introspection` now keeps its own
+decision log — it was a question about that package filed here, and it went stale where
+nobody working on the package would look. The original text follows.
+
+## Q.003 — `@species-js/function-introspection` scope (original)
 
 Per decisions #005, #013, and #016, `function-introspection` is the host for
 source-parsing predicates that genuinely require `Function.prototype.toString.call`. Two
