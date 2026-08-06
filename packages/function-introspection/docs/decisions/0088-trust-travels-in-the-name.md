@@ -16,14 +16,19 @@ two were removed.
 **Decision.**
 
 - **The identifier carries the grade.** A `doesIndicate…` export answers "does the value
-  carry each mark of X", never "is the value X". The transformation is a total rewrite
-  rule — `isX` → `doesIndicateX` — mechanical and regex-checkable rather than a judgment
-  call per name, and it preserves the noun so the pair stays visibly related.
+  carry the marks of X", never "is the value X". The transformation is a total rewrite
+  rule — `isX` → `doesIndicateX` — mechanical rather than a judgment call per name, and it
+  preserves the noun so the pair stays visibly related.
 - **Such a predicate returns a plain `boolean` and grants no narrowing.** The generic
   predicate pattern (`<T = unknown>(value?: T): value is T & X`) deliberately **stops** at
   this tier.
 - **No marker and no tier folder.** Modules are named for their **subject** — `bound`,
   matching type-detection's per-domain scheme — never for their trust grade.
+- **A subject may carry more than one predicate, differing by evidence STRENGTH.** The
+  qualifier goes **inside the verb phrase** — `doesIndicateX` / `doesStronglyIndicateX` —
+  so the machine-checkable pattern is `^does\w*Indicate`, not a literal prefix. The
+  unqualified name stays the default; qualifying it too would suggest two equal
+  alternatives rather than a common case and an opt-in variant.
 
 **Rationale.**
 
@@ -50,13 +55,44 @@ two were removed.
   stay the minority**, or the mark carries no information at all.
 - **The rewrite rule generalizes; renaming most predicates would not.** The value of
   `doesIndicate` depends on `is` remaining the unmarked default.
+- **Name the variant for its CONSEQUENCE, not its mechanism.** The two bound predicates
+  differ by aggregation — one takes any mark, the other every mark — but a consumer does
+  not act on how many predicates were conjoined; they act on how much the answer is worth.
+  `Strictly` describes the implementation, `Strongly` describes what the caller gets. A
+  first draft named the pair for the aggregation and was wrong for that reason.
+- **`has…` was considered for the strict variant and rejected on two counts.** A value
+  does not _possess a heuristic_ — it carries **marks**; the library applies the
+  heuristic, so `hasStrongBoundHeuristic` names our technique as though it were a property
+  of the input. And `has…` is already taken: `hasConstructSlot`, `hasOwnPrototype`,
+  `hasInertMethod` all assert a specific observable and are all reliable-grade, so reusing
+  the prefix here would file a forgeable predicate under the one reserved for slot probes
+  and lose the tier marking entirely.
+- **Conjunction does not promote the grade, so no variant may be named `is…`.** Requiring
+  every mark raises the cost of forgery from one `defineProperty` to an exotic object with
+  a handler — real, and not the same as impossible. `[[BoundTargetFunction]]` stays
+  unobservable however the observable marks are arranged, which is the whole reason #087
+  places these predicates here.
 
 **Consequences.**
 
-- The first application is `doesIndicateBoundFunction`, whose two inherent false positives
-  are documented rather than fixed: a `Proxy` has no `[[SourceText]]` slot and stringifies
-  exactly as a bound function does, and `Function.prototype` is genuinely both anonymous
-  and native.
+- **The `bound` module ships the pair.** `doesIndicateBoundFunction` takes any of three
+  marks past a shared entrance-level (a verified function with no own `prototype`);
+  `doesStronglyIndicateBoundFunction` requires all three. They disagree on exactly three
+  values, and each disagreement is the intended trade: the conjunction rejects
+  `Function.prototype` and a prototype-less callable merely renamed to look bound — both
+  of which the cascade admits — and rejects a genuine bound function whose `name` was
+  overwritten, which the cascade still catches. **The cascade degrades to a weaker answer;
+  the conjunction degrades to silence.** That is the choice a consumer is making.
+- **The surviving boundary, stated precisely** — an earlier draft of the `.d.ts`
+  overstated it and was corrected by probe. A **bare** `Proxy` does _not_ defeat the
+  strict predicate: it satisfies the source mark honestly, having no `[[SourceText]]`
+  slot, but forwards its target's `name` and so fails the name mark. A `Proxy` that **also
+  traps `name`** satisfies every mark. `Function.prototype` defeats only the cascade,
+  being genuinely anonymous and genuinely native.
+- **Ordering rationale is per-predicate and opposite.** The cascade orders by
+  decisiveness, because any mark ends the question; the conjunction orders cheapest-first,
+  because the first mark to FAIL ends it. Written down at both sites, since either looks
+  like an inconsistency beside the other.
 - **An `indicative/` folder and subpath were built and then removed**, along with a
   `/source` subpath that held a single function. Recorded so the shape is not re-proposed:
   a subpath is a consumer-facing claim of coherence, and one function does not make one.

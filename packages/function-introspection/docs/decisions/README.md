@@ -26,4 +26,4 @@ inside it.
 | #                                                  | Title                                                                                                                  | Date       |
 | -------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- | ---------- |
 | [087](./0087-placement-is-role-not-reliability.md) | Placement is role, not reliability — terminal vs composed-from decides the package; supersedes #013's stated principle | 2026-08-06 |
-| [088](./0088-trust-travels-in-the-name.md)         | Trust travels in the name — `doesIndicate` prefix, plain `boolean`, no marker and no tier folder                       | 2026-08-06 |
+| [088](./0088-trust-travels-in-the-name.md)         | Trust travels in the name — `doesIndicate` prefix, plain `boolean`, no marker and no tier folder; qualified variants   | 2026-08-06 |
