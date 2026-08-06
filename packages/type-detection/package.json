@@ -15,13 +15,14 @@
   "publishConfig": {
     "access": "public"
   },
-  "main": "./dist/node/index.cjs",
-  "module": "./dist/node/index.js",
-  "types": "./src/index.d.ts",
-  "unpkg": "./dist/umd/index.umd.js",
-  "jsdelivr": "./dist/umd/index.umd.js",
+  "main": "./dist/node/public.cjs",
+  "module": "./dist/node/public.js",
+  "types": "./src/public.d.ts",
+  "unpkg": "./dist/umd/public.umd.js",
+  "jsdelivr": "./dist/umd/public.umd.js",
   "imports": {
     "#index": "./src/index.js",
+    "#public": "./src/public.js",
     "#foundation": "./src/foundation/index.js",
     "#function": "./src/function.js",
     "#config": "./src/config/index.js",
@@ -34,15 +35,15 @@
   },
   "exports": {
     ".": {
-      "types": "./src/index.d.ts",
+      "types": "./src/public.d.ts",
       "browser": {
-        "import": "./dist/browser/index.js"
+        "import": "./dist/browser/public.js"
       },
       "node": {
-        "import": "./dist/node/index.js",
-        "require": "./dist/node/index.cjs"
+        "import": "./dist/node/public.js",
+        "require": "./dist/node/public.cjs"
       },
-      "default": "./dist/node/index.js"
+      "default": "./dist/node/public.js"
     },
     "./config": {
       "types": "./src/config/index.d.ts",

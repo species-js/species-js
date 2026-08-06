@@ -162,6 +162,21 @@ declare global {
     symbol: symbol;
   }
 }
+
+/**
+ * A value admissible as a `WeakMap` / `WeakSet` key — any object, any callable,
+ * or a symbol.
+ *
+ * The `symbol` arm is the ES2023 "Symbols as WeakMap keys" semantics, opted
+ * into through the `WeakKeyTypes` merge above rather than by raising `lib`,
+ * which would type-enable ES2021+ runtime APIs past the package's ES2020 floor.
+ * `Callable` is named explicitly because the lib's own `WeakKey` does not carry
+ * it, though a function is an object at runtime.
+ *
+ * The narrow target of {@link isValidWeakKey}, which reports on the runtime
+ * precondition this type cannot express — an engine still rejects a
+ * registered* symbol at insertion.
+ */
 export type WeakKey = symbol | object | Callable;
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----

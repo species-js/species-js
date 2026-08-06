@@ -13,9 +13,13 @@ export default defineConfig({
     emptyOutDir: false,
     lib: {
       entry: isUmd
-        ? { index: resolve(import.meta.dirname, 'src/index.js') }
+        ? { public: resolve(import.meta.dirname, 'src/public.js') }
         : {
-            index: resolve(import.meta.dirname, 'src/index.js'),
+            // The published root entry is the CURATED barrel, never `src/index.js`
+            // — that one stars every subdomain and carries the `@internal`
+            // machinery with it. It is reachable in-package as `#index` (the test
+            // suite imports it) and is deliberately never built.
+            public: resolve(import.meta.dirname, 'src/public.js'),
             config: resolve(import.meta.dirname, 'src/config/index.js'),
             utility: resolve(import.meta.dirname, 'src/utility/index.js'),
             function: resolve(import.meta.dirname, 'src/function.js'),
