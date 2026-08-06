@@ -12,7 +12,12 @@ export default defineConfig({
   build: {
     emptyOutDir: false,
     lib: {
-      entry: resolve(import.meta.dirname, 'src/index.js'),
+      entry: isUmd
+        ? { index: resolve(import.meta.dirname, 'src/index.js') }
+        : {
+            index: resolve(import.meta.dirname, 'src/index.js'),
+            bound: resolve(import.meta.dirname, 'src/bound.js'),
+          },
       fileName: (format, entryName) => {
         if (format === 'cjs') {
           return `${entryName}.cjs`;

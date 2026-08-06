@@ -21,7 +21,10 @@
   "unpkg": "./dist/umd/index.umd.js",
   "jsdelivr": "./dist/umd/index.umd.js",
   "imports": {
-    "#index": "./src/index.js"
+    "#index": "./src/index.js",
+    "#config": "./src/config/index.js",
+    "#bound": "./src/bound.js",
+    "#utility": "./src/utility/index.js"
   },
   "exports": {
     ".": {
@@ -34,6 +37,17 @@
         "require": "./dist/node/index.cjs"
       },
       "default": "./dist/node/index.js"
+    },
+    "./bound": {
+      "types": "./src/bound.d.ts",
+      "browser": {
+        "import": "./dist/browser/bound.js"
+      },
+      "node": {
+        "import": "./dist/node/bound.js",
+        "require": "./dist/node/bound.cjs"
+      },
+      "default": "./dist/node/bound.js"
     }
   },
   "sideEffects": false,
