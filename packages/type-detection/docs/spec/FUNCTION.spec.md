@@ -199,6 +199,14 @@ the whole chain wrapped in `try`/`catch` → throw-safe (`@@throw-safe`, #073/#0
 - `isFunction/R2` — a function whose own `bind` is shadowed with a non-callable
   (`Object.defineProperty(fn, 'bind', { value: 123 })`) → false (the
   `isCallable(value.bind)` link fails).
+- `isFunction/R3` — `Function.prototype.bind(null)` → false (the `[[Prototype]]` CHAIN
+  does not provide the three methods, where `R2` covers an own shadow). `bind` preserves
+  the TARGET's `[[Prototype]]` (ECMA-262 §20.2.3.2, `BoundFunctionCreate`), and
+  `Function.prototype`'s own `[[Prototype]]` is `Object.prototype` — so the bound result
+  inherits no `call`/`apply`/`bind`. `Function.prototype` is the root of that chain, hence
+  the standard witness. **Generalizes: being a bound function does NOT imply being a
+  `VerifiedFunction`** — the same holds for anything `setPrototypeOf`-ed off the chain.
+  Added post-freeze 2026-08-06; see Resolved items #9.
 - `isFunction/B1` — a callable `Proxy` whose `get` trap throws
   (`new Proxy(() => {}, { get() { throw new Error(); } })`) → **false, not thrown**.
   `typeof` admits the Proxy (`isCallable` true), then reading `.bind` fires the trap; the
@@ -763,6 +771,17 @@ narrows `value is T & GeneratorFunction`.
    a reliability-first type-detection library declines it; forcing symmetry would require
    importing that unreliable signal, which belongs to introspection (`isBoundFunction`,
    Q.003). The `[Q.002]` tags are retained as findable cross-refs to the settled decision.
+
+7. **`isFunction/R3` appended 2026-08-06 — a chain gap, not an own shadow.**
+   `isFunction`'s rejects covered a non-callable carrying the three methods (`R1`) and a
+   function whose OWN `bind` is shadowed (`R2`), but nothing covered the `[[Prototype]]`
+   chain simply not providing them. `Function.prototype.bind(null)` is the standard
+   witness: `bind` preserves the target's `[[Prototype]]` (§20.2.3.2), and
+   `Function.prototype`'s is `Object.prototype`. **Append, not amendment** — no existing
+   verdict changed, so the frozen oracle stands; the behavior was always this, only
+   undocumented. Surfaced from outside this package, while writing
+   `function-introspection`'s bind-closure invariant (`BOUND.spec.md` vector `bound/X6`),
+   which is where the same fact is recorded for the `bound` module's own entrance-level.
 
 ## Throw-safety (axis 5) — completeness oracle
 
