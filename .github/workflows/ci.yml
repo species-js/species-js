@@ -56,6 +56,10 @@ jobs:
         if: matrix.os == 'ubuntu-latest'
         run: pnpm run decisions:check
 
+      - name: Public surface
+        if: matrix.os == 'ubuntu-latest'
+        run: pnpm run surface:check
+
       - name: Audit (prod, high+)
         if: matrix.os == 'ubuntu-latest'
         run: pnpm run audit
