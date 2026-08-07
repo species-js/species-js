@@ -4,10 +4,14 @@
 > [type-detection's spec README](../../../type-detection/docs/spec/README.md); this
 > package follows the same model and does not restate it. Vectors are reasoned from the
 > canon (`bound.js`, `bound.d.ts`, `utility/index.{js,d.ts}`, decisions #087 and #088).
-> Status: **FROZEN 2026-08-06** — decidability check passed: every vector below was
-> executed against the real predicates through the `#index` barrel before freezing,
-> including the cross-realm pairs (`node:vm`) and the two forgery shapes. This spec is the
-> base for the axis-1 suite; axes 2–5 derive alongside.
+> Status: **FROZEN 2026-08-06 · AMENDED 2026-08-07** — decidability check passed: every
+> vector below was executed against the real predicates through the `#index` barrel before
+> freezing, including the cross-realm pairs (`node:vm`) and the two forgery shapes. This
+> spec is the base for the axis-1 suite; axes 2–5 derive alongside.
+>
+> The 2026-08-07 amendment adds `dIBF/B4` and `dSIBF/R14` — the shape mark 3 exists for,
+> which no vector had covered — and corrects the disagreement set from four values to
+> five. No existing verdict changed. See Resolved item 5.
 
 ## Module contract
 
@@ -129,6 +133,14 @@ question.
   source honestly. No handler is involved.
 - `dIBF/B3` — an arrow renamed to `'bound x'` → true — **documented boundary**. Mark 3 is
   forgeable; `name` is `configurable` on every function.
+- `dIBF/B4` — a **named** native renamed to `'bound max'` → true — **documented boundary,
+  and the shape mark 3 exists for**. Marks 1 and 2 both fail: no construct slot, and the
+  source keeps the target's name (`'function max(){[native code]}'`), so it is not the
+  anonymous form. The verdict therefore comes from mark 3 alone. On V8 the value is a
+  forgery — a renamed `Math.max` is not bound. On an engine whose built-ins stringify
+  identically bound or unbound, it is what a genuine bound built-in looks like, and mark 3
+  is the only mark left that can admit it. Built in a `node:vm` realm so the rename cannot
+  reach this realm's intrinsics.
 
 **Rejects**
 
@@ -180,6 +192,11 @@ where a slot exists.
   price**. Mark 3 fails and there is no weaker gate to fall through to.
 - `dSIBF/R13` — a **bare** `Proxy` over a prototype-less callable → false — it satisfies
   mark 2 honestly but forwards its target's `name`, failing mark 3.
+- `dSIBF/R14` — the named native renamed to `'bound max'` of `dIBF/B4` → false — mark 2
+  fails. On V8 that rejection is a precision gain, because the value is not bound. On an
+  engine that keeps the name in the native source form, the identical rejection is a
+  **recall loss on a genuinely bound built-in**. One vector, read either way depending on
+  the engine — which is why the disagreement table below is engine-relative.
 
 ## Relationship — the two predicates together
 
@@ -189,7 +206,7 @@ is what the qualifier claims and it is structural: identical entrance-level, and
 conjunction of the same three marks cannot admit what a disjunction of them rejects.
 Verified with zero violations over the 38-value corpus.
 
-**The disagreement set — exactly four values**, all in the same direction:
+**The disagreement set — exactly five values**, all in the same direction:
 
 | value                                   | cascade | strong | why the divergence is intended                   |
 | --------------------------------------- | ------- | ------ | ------------------------------------------------ |
@@ -197,10 +214,27 @@ Verified with zero violations over the 38-value corpus.
 | an arrow renamed `'bound x'`            | true    | false  | precision gained — own source fails mark 2       |
 | a **bare** `Proxy` over a callable      | true    | false  | precision gained — forwarded `name` fails mark 3 |
 | a bound function whose `name` was reset | true    | false  | recall lost — the price of requiring every mark  |
+| a named native renamed `'bound max'`    | true    | false  | engine-relative — see below                      |
 
-Three of the four are precision gains and one is the recall cost. **The cascade degrades
-to a weaker answer; the conjunction degrades to silence** — that is the choice a consumer
-makes between them.
+**The cascade degrades to a weaker answer; the conjunction degrades to silence** — that is
+the choice a consumer makes between them.
+
+**Engine dependence.** The first four rows read the same on every engine: three precision
+gains and one recall cost. The fifth does not, because mark 2 asks whether the source is
+the ANONYMOUS native form. On V8 a bound built-in loses its target's name there, so mark 2
+always holds and **mark 3 never decides** — every value that fires mark 3 has already
+fired mark 2, and the cascade short-circuits first. On an engine whose built-ins stringify
+identically bound or unbound, mark 2 fails for genuinely bound built-ins and mark 3 is the
+only mark that can admit them. That is why it exists.
+
+The consequence is concrete: **on such an engine `doesStronglyIndicateBoundFunction`
+rejects genuinely bound built-ins.** Both `bound.js` and `bound.d.ts` state this; it is
+recorded here because the spec is the oracle, and the table alone reads as
+engine-independent.
+
+`dIBF/B4` simulates the shape, not the provenance — a single-engine runner cannot produce
+the real value. It pins the decision path (marks 1 and 2 fail, mark 3 admits), not the
+engine claim, which rests on the three-browser observation recorded in `bound.js`.
 
 ## Helper specification (axis 4)
 
@@ -302,7 +336,7 @@ Verified before freezing: no throws across the marked set.
 2. **The disagreement set is four, not three (corrected in #088, 2026-08-06).** The ADR
    first stated three, omitting the bare `Proxy` and so understating the conjunction's
    benefit. The exhaustive enumeration required to write this spec produced four; #088's
-   Consequences now match.
+   Consequences now match. **Superseded by item 5 — the count is five as of 2026-08-07.**
 3. **The `[[Construct]]` mark is conditional in the strict predicate**, not required, and
    this is deliberate — see `doesStronglyIndicateBoundFunction` above. Reading it as an
    inconsistency with the cascade is the expected misreading.
@@ -314,3 +348,12 @@ Verified before freezing: no throws across the marked set.
    changed, so the FROZEN 2026-08-06 oracle stands. The general fact belongs to
    `isFunction` rather than to this module and was appended to type-detection's
    `FUNCTION.spec.md` as `isFunction/R3` the same day.
+5. **Mark 3 had no justifying vector (added 2026-08-07).** Every vector in which mark 3
+   decided was a forgery (`dIBF/B3`), so the suite pinned the mechanism but never the
+   purpose — and the spec named no engine anywhere, though both source files did. Not a
+   correctness hole; the risk was **directional**. Mark 3's only guard asserted "an arrow
+   renamed to look bound is admitted", so a maintainer trimming spoofable behaviour would
+   read that test's failure as endorsing the removal rather than blocking it. `dIBF/B4`
+   and `dSIBF/R14` close the gap and the disagreement set becomes five. **Amendment, not
+   an append** — "exactly four" was a frozen claim in the Relationship section and is now
+   corrected, as is #088's Consequences.

@@ -78,19 +78,24 @@ two were removed.
 - **The `bound` module ships the pair.** `doesIndicateBoundFunction` takes any of three
   marks past a shared entrance-level (a verified function with no own `prototype`);
   `doesStronglyIndicateBoundFunction` requires all three. Over the frozen corpus of
-  `BOUND.spec.md` they disagree on **exactly four values**, every one in the same
-  direction — three precision gains and one recall cost. The conjunction rejects
+  `BOUND.spec.md` they disagree on **exactly five values** (four until the 2026-08-07
+  amendment), every one in the same direction. The conjunction rejects
   `Function.prototype` (empty `name`), a prototype-less callable merely renamed to look
   bound (its own source), and a **bare** `Proxy` (a forwarded `name`), all three of which
   the cascade admits; and it rejects a genuine bound function whose `name` was
-  overwritten, which the cascade still catches. **The cascade degrades to a weaker answer;
-  the conjunction degrades to silence.** That is the choice a consumer is making.
-- **The count came from a hand-written list and was wrong.** This ADR first said three,
-  omitting the bare `Proxy` and so understating the conjunction's benefit. Writing
+  overwritten, which the cascade still catches. The fifth is engine-relative: a named
+  native carrying a `'bound '` name, which on V8 is a forgery the conjunction correctly
+  refuses and on an engine that keeps names in the native source form is a genuinely bound
+  built-in it wrongly refuses. **The cascade degrades to a weaker answer; the conjunction
+  degrades to silence.** That is the choice a consumer is making.
+- **The count came from a hand-written list and was wrong — twice.** This ADR first said
+  three, omitting the bare `Proxy` and so understating the conjunction's benefit. Writing
   `BOUND.spec.md` forced an exhaustive enumeration over a 38-value corpus and produced
   four, along with the subset law (`doesStronglyIndicate… ⟹ doesIndicate…`, zero
-  violations) that the qualifier's honesty depends on. Recorded because the correction
-  arrived from executing a corpus, not from re-reading the prose.
+  violations) that the qualifier's honesty depends on. The 2026-08-07 amendment produced
+  five, on noticing that no vector covered the shape mark 3 exists for. Both corrections
+  arrived from executing a corpus, not from re-reading the prose — and the second only
+  after asking what a mark that never decides is doing in the cascade at all.
 - **The surviving boundary, stated precisely** — an earlier draft of the `.d.ts`
   overstated it and was corrected by probe. A **bare** `Proxy` does _not_ defeat the
   strict predicate: it satisfies the source mark honestly, having no `[[SourceText]]`

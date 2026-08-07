@@ -11,13 +11,13 @@
  * differing only in whether ANY or EVERY mark is required. The matrix therefore
  * scores both in one row, which makes the subset law
  * (`doesStronglyIndicateBoundFunction ⟹ doesIndicateBoundFunction`) and the
- * four-value disagreement set auditable at a glance rather than asserted in
+ * five-value disagreement set auditable at a glance rather than asserted in
  * prose.
  *
  * `spec.test.js` drives the matrix; the targeted axis suites (cross-realm,
  * adversarial, invariants) import the specific named factories they need.
  *
- * Mirrors `docs/spec/BOUND.spec.md` (FROZEN 2026-08-06).
+ * Mirrors `docs/spec/BOUND.spec.md` (FROZEN 2026-08-06 · AMENDED 2026-08-07).
  */
 
 import { objectCreate } from '@species-js/type-detection';
@@ -149,6 +149,26 @@ export const conciseMethodWithMarkerLikeBody = () =>
     },
   }).m;
 
+/**
+ * A NAMED native carrying a `'bound '` name — the shape mark 3 exists for.
+ *
+ * Marks 1 and 2 both fail (no construct slot; the source keeps the target's
+ * name, so it is not the anonymous form), so admission can only come from
+ * mark 3. On V8 this value is a forgery — a renamed `Math.max` is not bound —
+ * but on an engine whose built-ins stringify identically bound or unbound it is
+ * exactly what a genuine bound built-in looks like.
+ *
+ * Taken from the foreign realm so the rename cannot reach this realm's
+ * `Math.max`. It does mutate the shared foreign realm's copy, which no other
+ * fixture reads.
+ */
+export const foreignNamedNativeRenamed = () =>
+  /** @type {Callable} */ (
+    foreignRealmEval(
+      "Object.defineProperty(Math.max, 'name', { value: 'bound max', configurable: true })",
+    )
+  );
+
 // cross-realm (axis 2) — the `Proxy` subtraction must recognise a foreign
 // constructor structurally, having no identity match to fall back on
 export const foreignBoundFunction = () =>
@@ -260,7 +280,7 @@ export const specMatrix = {
     vectors: ['dIBF/A12', 'dSIBF/A11'],
   },
 
-  // --- the four-value disagreement set (BOUND.spec.md → Relationship) ---
+  // --- the five-value disagreement set (BOUND.spec.md → Relationship) ---
   functionPrototype: {
     description: '`Function.prototype` — anonymous and native, but unnamed',
     make: functionPrototype,
@@ -284,6 +304,12 @@ export const specMatrix = {
     make: renamedBoundFunction,
     expected: CASCADE_ONLY,
     vectors: ['dIBF/A11', 'dSIBF/R12'],
+  },
+  foreignNamedNativeRenamed: {
+    description: 'a named native renamed to `bound max` — mark 3 decides alone',
+    make: foreignNamedNativeRenamed,
+    expected: CASCADE_ONLY,
+    vectors: ['dIBF/B4', 'dSIBF/R14'],
   },
 
   // --- rejected by both ---

@@ -24,7 +24,7 @@
  * imported from `CONDENSED_NATIVE_SOURCE_FOUNDATION`. An oracle that imports the
  * value it checks cannot detect a change to that value.
  *
- * Mirrors `docs/spec/BOUND.spec.md` (FROZEN 2026-08-06) — the
+ * Mirrors `docs/spec/BOUND.spec.md` (FROZEN 2026-08-06 · AMENDED 2026-08-07) — the
  * `## Helper specification (axis 4)` section.
  */
 

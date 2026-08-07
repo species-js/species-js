@@ -18,18 +18,32 @@
  * `@@throw-safe` marker's promise covers all of them — see `BOUND.spec.md`, the
  * marker's contract.
  *
- * Mirrors `docs/spec/BOUND.spec.md` — the documented boundaries `dIBF/B1`–`B3`,
- * `dSIBF/B1`, `dSIBF/R10`–`R13`, and the forgery rejects `dIBF/R7`, `dIBF/R8`.
+ * Mirrors `docs/spec/BOUND.spec.md` — the documented boundaries `dIBF/B1`–`B4`,
+ * `dSIBF/B1`, `dSIBF/R10`–`R14`, and the forgery rejects `dIBF/R7`, `dIBF/R8`.
+ *
+ * `dIBF/B4` is the one vector whose reading is engine-relative, and the only one
+ * where mark 3 decides on its own. It asserts the decision PATH rather than the
+ * verdict alone — marks 1 and 2 pinned as failing first — because a verdict
+ * cannot show which mark produced it.
  */
 
 import { describe, it, expect } from 'vitest';
 
 import { doesIndicateBoundFunction, doesStronglyIndicateBoundFunction } from '#index';
 
+import { hasConstructSlot } from '@species-js/type-detection';
+
+import { CONDENSED_NATIVE_SOURCE_FOUNDATION, getCondensedFunctionSource } from '#utility';
+
 import {
   bareProxyOverArrow,
   bareProxyOverClass,
+  boundArrow,
+  boundNativeNonConstructable,
+  boundPlain,
   conciseMethodWithMarkerLikeBody,
+  doubleBound,
+  foreignNamedNativeRenamed,
   functionPrototype,
   nameTrappingProxyOverArrow,
   renamed,
@@ -38,6 +52,8 @@ import {
   renamedPlainFunction,
   throwSafetyMatrix,
 } from './__config.js';
+
+/** @typedef {import('@species-js/type-detection').Callable} Callable */
 
 describe('bound — adversarial (axis 3)', () => {
   describe('forgery that ordinary code can attempt', () => {
@@ -89,6 +105,41 @@ describe('bound — adversarial (axis 3)', () => {
       const value = nameTrappingProxyOverArrow();
       expect(doesIndicateBoundFunction(value)).toBe(true);
       expect(doesStronglyIndicateBoundFunction(value)).toBe(true);
+    });
+
+    it('a named native carrying a `bound ` name is admitted by mark 3 ALONE [dIBF/B4, dSIBF/R14]', () => {
+      const value = foreignNamedNativeRenamed();
+
+      // The verdict alone would not show WHICH mark carried it, so the two
+      // weaker marks are pinned as failing first. Without this the test would
+      // still pass if mark 2 started admitting the value.
+      expect(hasConstructSlot(value), 'mark 1 must fail — no construct slot').toBe(false);
+      expect(
+        getCondensedFunctionSource(value),
+        'mark 2 must fail — the source keeps the name',
+      ).toBe('function max(){[native code]}');
+      expect(value.name.startsWith('bound '), 'mark 3 must hold').toBe(true);
+
+      expect(doesIndicateBoundFunction(value)).toBe(true);
+      expect(doesStronglyIndicateBoundFunction(value)).toBe(false);
+    });
+
+    it('mark 3 never decides for a REAL bound value on this engine — which is why B4 is simulated', () => {
+      // Every genuinely bound form here satisfies mark 2, so the cascade
+      // short-circuits before mark 3 is consulted. B4 exists because that is an
+      // engine property, not a language guarantee: where built-ins stringify
+      // identically bound or unbound, mark 2 fails and mark 3 is all that remains.
+      for (const [label, make] of Object.entries({
+        boundPlain,
+        boundArrow,
+        boundNativeNonConstructable,
+        doubleBound,
+      })) {
+        expect(
+          getCondensedFunctionSource(/** @type {Callable} */ (make())),
+          `${label} must satisfy mark 2`,
+        ).toBe(CONDENSED_NATIVE_SOURCE_FOUNDATION);
+      }
     });
 
     it('the conjunction raises forgery from one defineProperty to an exotic object', () => {

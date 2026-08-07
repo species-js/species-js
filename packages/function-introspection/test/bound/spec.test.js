@@ -15,14 +15,14 @@
  * caught as bad data before it is ever compared to the implementation — the
  * implementation-side law over a wider corpus belongs to `invariants.test.js`.
  * And the disagreement set is pinned by name: the two predicates may differ on
- * exactly four candidates, and any change to that set surfaces here with the
+ * exactly five candidates, and any change to that set surfaces here with the
  * offending row named rather than as an anonymous count.
  *
  * Foreign-realm vectors live in `cross-realm.test.js`; the forgery shapes and
  * documented boundaries in `adversarial.test.js`; the `@internal` helpers in
  * `../utility/`.
  *
- * Mirrors `docs/spec/BOUND.spec.md` (FROZEN 2026-08-06).
+ * Mirrors `docs/spec/BOUND.spec.md` (FROZEN 2026-08-06 · AMENDED 2026-08-07).
  */
 
 import { describe, it, expect } from 'vitest';
@@ -35,9 +35,10 @@ import { specMatrix, crossCuttingRejections } from './__config.js';
 const predicates = { doesIndicateBoundFunction, doesStronglyIndicateBoundFunction };
 const predicateNames = Object.keys(predicates).sort();
 
-/** The four candidates on which the two predicates are specified to differ. */
+/** The five candidates on which the two predicates are specified to differ. */
 const DISAGREEMENT_SET = [
   'bareProxyOverArrow',
+  'foreignNamedNativeRenamed',
   'functionPrototype',
   'renamedArrow',
   'renamedBoundFunction',
@@ -61,7 +62,7 @@ describe('bound — spec/contract matrix', () => {
     }
   });
 
-  it('the two predicates disagree on exactly the specified four candidates', () => {
+  it('the two predicates disagree on exactly the specified five candidates', () => {
     const declared = Object.entries(specMatrix)
       .filter(
         ([, { expected }]) =>

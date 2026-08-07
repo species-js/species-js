@@ -30,7 +30,7 @@
  * for every cell: the call returns rather than throws, and its result is within
  * the declared return type.
  *
- * Mirrors `docs/spec/BOUND.spec.md` (FROZEN 2026-08-06) —
+ * Mirrors `docs/spec/BOUND.spec.md` (FROZEN 2026-08-06 · AMENDED 2026-08-07) —
  * `## Throw-safety (axis 5) — completeness oracle`.
  */
 

@@ -1,5 +1,3 @@
-// @ts-check
-
 /**
  * @module @species-js/function-introspection
  *
