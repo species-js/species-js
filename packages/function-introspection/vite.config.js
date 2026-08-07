@@ -39,23 +39,11 @@ export default defineConfig({
     target: isUmd ? 'es2020' : isNode ? 'node22' : 'es2020',
   },
   test: {
-    // The workspace dependency resolves through type-detection's own exports
-    // map, whose runtime entries point into `dist/`. On a fresh checkout that
-    // directory does not exist yet — CI runs Test before Build — so every test
-    // file failed to load with "Failed to resolve entry for package". It passed
-    // locally only because a previously built `dist/` happened to be lying
-    // around, which is a green underwritten by an artifact nobody re-derived.
-    //
-    // Tests run against SOURCE instead. Artifact correctness is a separate
-    // concern and already has its own gates after the build step (`pack:check`,
-    // `check:publish`). The target is deliberately `src/public.js` rather than
-    // `src/index.js`: it makes every cross-package import prove it consumes
-    // only type-detection's curated public surface (ADR #085), which nothing
-    // else currently enforces across a package boundary.
-    //
-    // Exact-match regex, not a bare string — a string alias also rewrites
-    // subpath specifiers (`…/foo` → `<path>/foo`), which would silently
-    // redirect an import this package does not currently make.
+    // The package name resolves through type-detection's exports map into
+    // `dist/`, which does not exist before a build. Tests use source instead,
+    // via the PUBLIC entry — so a cross-package import of an `@internal` symbol
+    // fails here. Exact regex: a string alias would also rewrite subpaths.
+    // ADR #089.
     alias: [
       {
         find: /^@species-js\/type-detection$/,

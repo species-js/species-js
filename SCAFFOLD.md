@@ -389,6 +389,37 @@ reads 50% branches/functions because its only function is the `hasOwn` polyfill 
 `objectHasOwn = typeof nativeHasOwn === 'function' ? nativeHasOwn : hasOwn` — dead on any
 engine with the native. That is an env-unreachable fallback, not a coverage gap.
 
+### Cross-package imports resolve to source in tests
+
+A package that imports another workspace package **by name** cannot resolve it before a
+build. The dependency is `workspace:*`, so pnpm symlinks it and resolution goes through
+that package's `exports` map, whose runtime entries point into `dist/`. CI runs Test
+before Build, so on a fresh checkout every test file fails with
+`Failed to resolve entry for package`. It passes locally only while a stale `dist/`
+happens to exist.
+
+Each consuming package therefore aliases the specifier in its `vite.config.js`, under
+`test.alias` — not top-level `resolve.alias`, which would also affect the build:
+
+```js
+alias: [
+  {
+    find: /^@species-js\/type-detection$/,
+    replacement: resolve(import.meta.dirname, '../type-detection/src/public.js'),
+  },
+],
+```
+
+Two details are load-bearing. The **exact-match regex** prevents a bare string alias from
+also rewriting subpath specifiers. The target is **`src/public.js`, not `src/index.js`**,
+which makes every cross-package import prove it consumes only the curated public surface —
+an import of an `@internal` symbol fails to resolve in tests. Rationale and the rejected
+alternative (Build-before-Test): ADR #089.
+
+**Trip condition — the second consuming package.** This alias is per-package duplication.
+When a second package needs it, fold it into the shared vite factory described under
+"Per-package vite configs are self-contained" instead of copying it a third time.
+
 ### `/// <reference types="vitest" />` removed
 
 The triple-slash directive is unnecessary when `defineConfig` is imported from
