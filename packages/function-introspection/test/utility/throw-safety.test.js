@@ -30,8 +30,9 @@
  * for every cell: the call returns rather than throws, and its result is within
  * the declared return type.
  *
- * Mirrors `docs/spec/BOUND.spec.md` (FROZEN 2026-08-06 · AMENDED 2026-08-07) —
- * `## Throw-safety (axis 5) — completeness oracle`.
+ * Mirrors `docs/spec/UTILITY.spec.md` (FROZEN 2026-08-11) —
+ * `## Throw-safety (axis 5) — completeness oracle`. The `#bound` half of that table
+ * moved out with it; `test/bound/` scores its own two.
  */
 
 import { describe, it, expect } from 'vitest';

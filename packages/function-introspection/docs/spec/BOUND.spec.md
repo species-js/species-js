@@ -4,14 +4,19 @@
 > [type-detection's spec README](../../../type-detection/docs/spec/README.md); this
 > package follows the same model and does not restate it. Vectors are reasoned from the
 > canon (`bound.js`, `bound.d.ts`, `utility/index.{js,d.ts}`, decisions #087 and #088).
-> Status: **FROZEN 2026-08-06 · AMENDED 2026-08-07** — decidability check passed: every
-> vector below was executed against the real predicates through the `#index` barrel before
-> freezing, including the cross-realm pairs (`node:vm`) and the two forgery shapes. This
-> spec is the base for the axis-1 suite; axes 2–5 derive alongside.
+> Status: **FROZEN 2026-08-06 · AMENDED 2026-08-07 · AMENDED 2026-08-11** — decidability
+> check passed: every vector below was executed against the real predicates through the
+> `#index` barrel before freezing, including the cross-realm pairs (`node:vm`) and the two
+> forgery shapes. This spec is the base for the axis-1 suite; axes 2–5 derive alongside.
 >
 > The 2026-08-07 amendment adds `dIBF/B4` and `dSIBF/R14` — the shape mark 3 exists for,
 > which no vector had covered — and corrects the disagreement set from four values to
 > five. No existing verdict changed. See Resolved item 5.
+>
+> The 2026-08-11 amendment **moves the axis-4 helper section and the `#utility` half of
+> the axis-5 table out to [`UTILITY.spec.md`](./UTILITY.spec.md)**, now that `concise` is
+> a second consumer of those helpers. No vector was re-derived, no verdict changed, and
+> every identifier is unchanged at the new location. See Resolved item 6.
 
 ## Module contract
 
@@ -46,11 +51,11 @@ never propagate.
 
 **The marker's contract, settled here for the package (2026-08-06).** `@@throw-safe` means
 _the export does not throw for any input **within its declared parameter type**_. For an
-`unknown`-typed parameter that is every value. For a narrowed parameter — the package has
-two, `getFunctionSourceCondensate(source: string | undefined)` and
-`hasProxyConstructorShape(value: VerifiedFunction)` — it is every value of that type, and
-the declared type is the enforcement, per the standing rule that a helper with a _partial_
-body narrows its input rather than accepting `unknown`.
+`unknown`-typed parameter that is every value. For a narrowed parameter it is every value
+of that type, and the declared type is the enforcement. The package has two such
+parameters: `getFunctionSourceCondensate(source: string | undefined)` and
+`hasProxyConstructorShape(value: VerifiedFunction)`. Both follow the standing rule that a
+helper with a _partial_ body narrows its input rather than accepting `unknown`.
 
 This matters for axis 3: a throw-safety suite must feed hostile values **of the declared
 type**. Feeding `42` to a `string`-typed parameter tests nothing about the marker and
@@ -73,6 +78,10 @@ reports a defect that is not one.
 Only `doesIndicateBoundFunction`, `doesStronglyIndicateBoundFunction` and
 `getCondensedFunctionSource` reach a consumer; `#utility` and `#config` are re-exported
 nowhere and published as no subpath (#085's barrel rule).
+
+The `#utility` rows stay listed here because this module composes from them, but their
+**contracts and vectors live in [`UTILITY.spec.md`](./UTILITY.spec.md)** as of 2026-08-11;
+this table is an inventory, not a specification of them.
 
 ## Cross-cutting vectors — the entrance-level
 
@@ -238,89 +247,36 @@ engine claim, which rests on the three-browser observation recorded in `bound.js
 
 ## Helper specification (axis 4)
 
-### `getCondensedFunctionSource(value: Callable): string | undefined` — public
+**Moved 2026-08-11 to [`UTILITY.spec.md`](./UTILITY.spec.md).** The four `#utility`
+helpers this module composes from — `getCondensedFunctionSource`,
+`getFunctionSourceCondensate`, `hasProxyConstructorShape`, `doesMatchProxyConstructor` —
+are specified there, together with `CONDENSED_NATIVE_SOURCE_FOUNDATION`, under their
+original vector identifiers (`gCFS/*`, `gFSC/*`, `hPCS/*`, `dMPC/*`) and with their
+verdicts unchanged.
 
-Reads the source through the realm-fixed `Function.prototype.toString` and returns it
-condensed. Composition: `getFunctionSourceCondensate(getFunctionSource(value))`.
-
-- `gCFS/A1` — a bound function → `'function(){[native code]}'`.
-- `gCFS/A2` — `Proxy` → `'function Proxy(){[native code]}'`.
-- `gCFS/A3` — `(a) => a` → `'(a)=> a'` — whitespace next to `)` is removed, the space
-  after `=>` survives. Looks like a typo; it is the specified behavior.
-- `gCFS/A4` — a non-callable → `undefined` — `getFunctionSource` absorbs the `TypeError`.
-
-**`Function.prototype.toString` never returns a non-string.** ECMA-262 §20.2.3.5 returns a
-String or throws a TypeError; there is no third outcome, and it throws only for a
-non-callable. So the `| undefined` arm is reachable **only** by out-of-contract input —
-verified across fourteen callable shapes including a revoked `Proxy`, a `Proxy` with a
-throwing `get` trap, a `Function` subclass instance and a hostile subclass, all of which
-return strings.
-
-### `getFunctionSourceCondensate(source: string | undefined): string | undefined` — `@internal`
-
-Removes whitespace adjacent to `(`, `)`, `{`, `}`, `[`, `]`; leaves every other run
-intact.
-
-- `gFSC/A1` — `'function () { [native code] }'` (V8) → the canonical form.
-- `gFSC/A2` — `'function () {\n    [native code]\n}'` (JavaScriptCore / SpiderMonkey) →
-  the canonical form.
-- `gFSC/A3` — `'function\t()\t{\t[native code]\t}'` (tabs) → the canonical form.
-- `gFSC/A4` — `'function(){[native code]}'` (already condensed) → unchanged.
-- `gFSC/R1` — `'function max() { [native code] }'` → **not** the canonical form; the name
-  survives, which is what separates a bound function from the native it was bound from.
-- `gFSC/R2` — `'m() { [nativecode] }'` → **not** the canonical form. The interior space in
-  `[native code]` is preserved deliberately: without it the marker would fuse into the
-  legal identifier `[nativecode]`, which a concise method can carry as an array literal —
-  a forgery needing no `Proxy`.
-- `gFSC/X1` — `undefined` → `undefined`; `''` → `''` — falsy input returned unchanged.
-
-Takes the source rather than the callable **so that engine-specific forms can be exercised
-under a single-engine test runner**. `A2` and `A3` are unreachable through
-`getCondensedFunctionSource` in Node, and they are the reason this export exists.
-
-### `hasProxyConstructorShape(value: VerifiedFunction): boolean` — `@internal`
-
-Own-descriptor shape of a `Proxy` constructor: own `name` of `'Proxy'`, **and** either an
-own `length` of `2` or a callable own `revocable`, **and** the named native source form.
-
-- `hPCS/A1` — the `Proxy` constructor → true.
-- `hPCS/A2` — a cross-realm `Proxy` constructor → true — structural, not nominal.
-- `hPCS/R1` — `Proxy.bind(null)` → false — `name` is `'bound Proxy'`.
-- `hPCS/R2` — any other callable → false.
-
-### `doesMatchProxyConstructor(value: VerifiedFunction): boolean` — `@internal`
-
-This realm's capture by identity, then `hasProxyConstructorShape` for every other realm.
-Identity first because it is one reference compare; the descriptor walk only pays for
-values that are not the local intrinsic.
-
-- `dMPC/A1` — the `Proxy` constructor → true (identity arm).
-- `dMPC/A2` — a cross-realm `Proxy` constructor → true (shape arm).
-- `dMPC/R1` — a plain function, a bound `Proxy` → false.
+They left this file because they stopped belonging to one consumer: `concise` now imports
+`getFunctionSourceCondensate` and the constant, so helper contracts specified inside the
+`bound` spec would have made one module's spec a dependency of another's. This mirrors
+type-detection, where `utility` has always had its own spec. See Resolved item 6.
 
 ## Throw-safety (axis 5) — completeness oracle
 
-Six exports carry `@@throw-safe`, in both files of each pair:
+Two exports carry `@@throw-safe`, in both files of the pair:
 
 | export                              | `.js` | `.d.ts` |
 | ----------------------------------- | ----- | ------- |
 | `doesIndicateBoundFunction`         | ✓     | ✓       |
 | `doesStronglyIndicateBoundFunction` | ✓     | ✓       |
-| `getFunctionSourceCondensate`       | ✓     | ✓       |
-| `getCondensedFunctionSource`        | ✓     | ✓       |
-| `hasProxyConstructorShape`          | ✓     | ✓       |
-| `doesMatchProxyConstructor`         | ✓     | ✓       |
 
 The axis-5 suite asserts the triple-lock: the markers found in source ⟺ the set declared
-in the test config ⟺ the set actually exercised. Each marked export is fed hostile values
-**of its declared parameter type** (see the marker contract above):
+in `test/bound/__config.js` (`THROW_SAFE_MARKED`) ⟺ the set actually exercised. Both
+parameters are `unknown`, so the hostile set is unrestricted — `null`, `undefined`,
+primitives, a revoked `Proxy`, proxies with throwing `getOwnPropertyDescriptor` / `get` /
+`ownKeys` traps, a function with an accessor `name` that throws, a null-prototype object.
 
-- for `unknown` parameters — `null`, `undefined`, primitives, a revoked `Proxy`, proxies
-  with throwing `getOwnPropertyDescriptor` / `get` / `ownKeys` traps, a function with an
-  accessor `name` that throws, a null-prototype object;
-- for the `string | undefined` parameter — `''`, whitespace-only, punctuation soup, a lone
-  surrogate, combining marks, a 1 MB string, embedded NUL, an RTL override, emoji;
-- for the `VerifiedFunction` parameters — the hostile callables from the first list.
+`#utility`'s four marked exports are scored by `test/utility/__config.js` and specified in
+[`UTILITY.spec.md`](./UTILITY.spec.md); the parser is given one module path at a time, so
+the sets never merge.
 
 Verified before freezing: no throws across the marked set.
 
@@ -352,8 +308,19 @@ Verified before freezing: no throws across the marked set.
    decided was a forgery (`dIBF/B3`), so the suite pinned the mechanism but never the
    purpose — and the spec named no engine anywhere, though both source files did. Not a
    correctness hole; the risk was **directional**. Mark 3's only guard asserted "an arrow
-   renamed to look bound is admitted", so a maintainer trimming spoofable behaviour would
+   renamed to look bound is admitted". A maintainer trimming spoofable behaviour would
    read that test's failure as endorsing the removal rather than blocking it. `dIBF/B4`
-   and `dSIBF/R14` close the gap and the disagreement set becomes five. **Amendment, not
+   and `dSIBF/R14` close the gap, and the disagreement set becomes five. **Amendment, not
    an append** — "exactly four" was a frozen claim in the Relationship section and is now
    corrected, as is #088's Consequences.
+6. **Axis-4 helpers and the `#utility` half of axis 5 moved out (2026-08-11).** They were
+   written here because `bound` was the only consumer; `concise` became the second, which
+   was the recorded trigger for a standalone [`UTILITY.spec.md`](./UTILITY.spec.md). **A
+   move, not a re-derivation** — all eighteen vectors keep their identifiers and verdicts.
+   None was re-executed to justify the relocation, since they are already the live oracle
+   of the committed `test/utility/` suite. The axis-5 table was additionally **wrong to be
+   merged here at all**: it listed six exports as this module's marked set, while
+   `test/bound/__config.js` has always scored only its own two. The split brings the spec
+   back in step with the test architecture rather than changing either. The marker
+   contract for a narrowed parameter (Module contract, Resolved item 1) stays here as
+   package policy, cited from `UTILITY.spec.md` rather than duplicated.

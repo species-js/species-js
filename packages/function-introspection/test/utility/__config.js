@@ -4,7 +4,7 @@
  * @module test/utility/__config
  *
  * Test configuration for the `utility` module: the axis-4 helper vectors frozen
- * in `BOUND.spec.md`, the hostile sets the `@@throw-safe` markers promise over,
+ * in `UTILITY.spec.md`, the hostile sets the `@@throw-safe` markers promise over,
  * and this module's marked-set oracle.
  *
  * `getFunctionSourceCondensate` takes a SOURCE rather than a callable, and that
@@ -24,8 +24,8 @@
  * imported from `CONDENSED_NATIVE_SOURCE_FOUNDATION`. An oracle that imports the
  * value it checks cannot detect a change to that value.
  *
- * Mirrors `docs/spec/BOUND.spec.md` (FROZEN 2026-08-06 · AMENDED 2026-08-07) — the
- * `## Helper specification (axis 4)` section.
+ * Mirrors `docs/spec/UTILITY.spec.md` (FROZEN 2026-08-11), which owns these helper
+ * contracts. They lived in `BOUND.spec.md` until `concise` became a second consumer.
  */
 
 import { foreignRealmEval } from '../_cross-realm.js';

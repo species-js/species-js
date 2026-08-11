@@ -26,8 +26,8 @@
  * public surface is exactly one export: the barrel rule (ADR #085) asserted at
  * runtime rather than only by the static `surface:check` gate.
  *
- * Mirrors `docs/spec/BOUND.spec.md` (FROZEN 2026-08-06 · AMENDED 2026-08-07) — the
- * `## Helper specification (axis 4)` section.
+ * Mirrors `docs/spec/UTILITY.spec.md` (FROZEN 2026-08-11) — the per-export vector
+ * sections. They lived in `BOUND.spec.md` until `concise` became a second consumer.
  */
 
 import { describe, it, expect } from 'vitest';
