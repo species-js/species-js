@@ -1,6 +1,7 @@
 # @species-js/function-introspection
 
-Function classification and structural introspection for JavaScript callables.
+Classification of JavaScript callables — arrows, concise methods and bound functions —
+each answered at the strength its evidence supports.
 
 Part of the [species-js](https://github.com/species-js/species-js) monorepo — foundation
 runtime type infrastructure.
