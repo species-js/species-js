@@ -23,8 +23,10 @@
   "imports": {
     "#index": "./src/index.js",
     "#config": "./src/config/index.js",
+    "#utility": "./src/utility/index.js",
     "#bound": "./src/bound.js",
-    "#utility": "./src/utility/index.js"
+    "#arrow": "./src/arrow.js",
+    "#concise": "./src/concise.js"
   },
   "exports": {
     ".": {
