@@ -56,20 +56,20 @@ two were removed.
 - **The rewrite rule generalizes; renaming most predicates would not.** The value of
   `doesIndicate` depends on `is` remaining the unmarked default.
 - **Name the variant for its CONSEQUENCE, not its mechanism.** The two bound predicates
-  differ by aggregation — one takes any mark, the other every mark — but a consumer does
-  not act on how many predicates were conjoined; they act on how much the answer is worth.
+  differ by aggregation: one takes any mark, the other every mark. But a consumer does not
+  act on how many predicates were conjoined. They act on how much the answer is worth.
   `Strictly` describes the implementation, `Strongly` describes what the caller gets. A
-  first draft named the pair for the aggregation and was wrong for that reason.
-- **`has…` was considered for the strict variant and rejected on two counts.** A value
-  does not _possess a heuristic_ — it carries **marks**; the library applies the
+  first draft named the pair for the aggregation, and was wrong for that reason.
+- **`has…` was considered for the strict variant and rejected on two counts.** First, a
+  value does not _possess a heuristic_ — it carries **marks**. The library applies the
   heuristic, so `hasStrongBoundHeuristic` names our technique as though it were a property
-  of the input. And `has…` is already taken: `hasConstructSlot`, `hasOwnPrototype`,
-  `hasInertMethod` all assert a specific observable and are all reliable-grade, so reusing
-  the prefix here would file a forgeable predicate under the one reserved for slot probes
-  and lose the tier marking entirely.
+  of the input. Second, `has…` is already taken. `hasConstructSlot`, `hasOwnPrototype` and
+  `hasInertMethod` each assert a specific observable and are all reliable-grade. Reusing
+  the prefix would file a forgeable predicate under the one reserved for slot probes, and
+  lose the tier marking entirely.
 - **Conjunction does not promote the grade, so no variant may be named `is…`.** Requiring
   every mark raises the cost of forgery from one `defineProperty` to an exotic object with
-  a handler — real, and not the same as impossible. `[[BoundTargetFunction]]` stays
+  a handler. That is real, and not the same as impossible. `[[BoundTargetFunction]]` stays
   unobservable however the observable marks are arranged, which is the whole reason #087
   places these predicates here.
 
@@ -79,15 +79,15 @@ two were removed.
   marks past a shared entrance-level (a verified function with no own `prototype`);
   `doesStronglyIndicateBoundFunction` requires all three. Over the frozen corpus of
   `BOUND.spec.md` they disagree on **exactly five values** (four until the 2026-08-07
-  amendment), every one in the same direction. The conjunction rejects
-  `Function.prototype` (empty `name`), a prototype-less callable merely renamed to look
-  bound (its own source), and a **bare** `Proxy` (a forwarded `name`), all three of which
-  the cascade admits; and it rejects a genuine bound function whose `name` was
-  overwritten, which the cascade still catches. The fifth is engine-relative: a named
-  native carrying a `'bound '` name, which on V8 is a forgery the conjunction correctly
-  refuses and on an engine that keeps names in the native source form is a genuinely bound
-  built-in it wrongly refuses. **The cascade degrades to a weaker answer; the conjunction
-  degrades to silence.** That is the choice a consumer is making.
+  amendment), every one in the same direction. Three the cascade admits and the
+  conjunction rejects: `Function.prototype` (empty `name`), a prototype-less callable
+  merely renamed to look bound (its own source), and a **bare** `Proxy` (a forwarded
+  `name`). A fourth is a genuine bound function whose `name` was overwritten, which the
+  cascade still catches. The fifth is engine-relative — a named native carrying a
+  `'bound '` name. On V8 that is a forgery the conjunction correctly refuses; on an engine
+  that keeps names in the native source form it is a genuinely bound built-in it wrongly
+  refuses. **The cascade degrades to a weaker answer; the conjunction degrades to
+  silence.** That is the choice a consumer is making.
 - **The count came from a hand-written list and was wrong — twice.** This ADR first said
   three, omitting the bare `Proxy` and so understating the conjunction's benefit. Writing
   `BOUND.spec.md` forced an exhaustive enumeration over a 38-value corpus and produced

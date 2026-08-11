@@ -35,18 +35,18 @@ they are foundation; by what they actually do they are leaves.
   structural role (composed-from / terminal) are independent, and #013's test measures
   only the first. Separating them is what lets a spec-guaranteed predicate live here
   without contradiction, and it is why this package is not merely "the unreliable one".
-- **"Used more often" was considered and rejected as a criterion.** It cannot be measured
-  — the six downstream projects that would supply the evidence do not exist — and it makes
-  placement a moving target, where a predicate earns promotion through adoption and the
-  move is a breaking change on two public surfaces by the time it is warranted. That is an
-  event-shaped condition with no defined observable, the shape that reliably rots. "Is it
-  composed from" is the structural proxy, observable today, and it usually predicts
-  frequency anyway.
+- **"Used more often" was considered and rejected as a criterion.** It cannot be measured:
+  the six downstream projects that would supply the evidence do not exist. It also makes
+  placement a moving target. A predicate would earn promotion through adoption, and by the
+  time the move was warranted it would be a breaking change on two public surfaces. That
+  is an event-shaped condition with no defined observable, the shape that reliably rots.
+  "Is it composed from" is the structural proxy. It is observable today, and it usually
+  predicts frequency anyway.
 - **The role axis is mechanically enforceable, which the reliability axis never was.**
-  #088 gives this tier plain-`boolean` returns; a predicate that narrows nothing cannot be
+  #088 gives this tier plain-`boolean` returns. A predicate that narrows nothing cannot be
   composed from in a type-safe chain, so the type system prevents a terminal predicate
-  from quietly becoming load-bearing. A rule that the compiler upholds beats one that
-  depends on each future author re-deriving it.
+  from quietly becoming load-bearing. A rule the compiler upholds beats one that depends
+  on each future author re-deriving it.
 - **#013's own decision is untouched.** `isCustomClass` and `isBuiltInClass` stay where
   they are; only the general principle stated in its "Consequences" is replaced. Whether
   those two eventually migrate under the new axis is deliberately **held** — it is a
@@ -63,12 +63,13 @@ they are foundation; by what they actually do they are leaves.
   document provided: terminal classification of callables, at whatever trust grade the
   evidence supports.
 - **Q.003 is also the worked example of why this corpus exists.** It was a question about
-  `function-introspection` filed in type-detection's decision folder, and it rotted there
-  — nobody scaffolding this package had reason to walk another package's open questions.
-  Decisions about this package are recorded here from now on; `decisions:check` already
-  walks every `packages/*/docs/decisions` directory, so the reciprocity graph spans both
-  corpora without change. ADR numbers continue the **global** sequence, because that graph
-  is one map, keyed by number, and a restarted count would silently overwrite entries.
+  `function-introspection`, filed in type-detection's decision folder, and it rotted
+  there. Nobody scaffolding this package had reason to walk another package's open
+  questions. Decisions about this package are recorded here from now on. `decisions:check`
+  already walks every `packages/*/docs/decisions` directory, so the reciprocity graph
+  spans both corpora without change. ADR numbers continue the **global** sequence: that
+  graph is one map keyed by number, and a restarted count would silently overwrite
+  entries.
 - The forward test for any future predicate: **is anything composed from it?** If yes, and
   it is reliable, it is foundation. If no, it belongs here regardless of how solid its
   evidence is.

@@ -31,8 +31,8 @@ continues to treat the dependency as external.
   make.
 
 **Alternatives.** Reordering CI to Build-before-Test fixes the failure in one line and
-tests the real artifact, but it is slower, makes a broken build block all test feedback,
-and fixes only CI — the local `pnpm clean` footgun remains.
+tests the real artifact. It is slower, though, and a broken build would then block all
+test feedback. It also fixes only CI: the local `pnpm clean` footgun remains.
 
 **Consequences.** Every future consuming package needs the same alias; at the second one
 it belongs in the shared vite factory (SCAFFOLD, "Per-package vite configs are
