@@ -65,6 +65,10 @@ jobs:
         if: matrix.os == 'ubuntu-latest'
         run: pnpm run surface:check
 
+      - name: Entry parity
+        if: matrix.os == 'ubuntu-latest'
+        run: pnpm run entries:check
+
       - name: Audit (prod, high+)
         if: matrix.os == 'ubuntu-latest'
         run: pnpm run audit
@@ -83,8 +87,44 @@ jobs:
           if-no-files-found: warn
           retention-days: 14
 
+      # One upload PER PACKAGE, each carrying its own flag. A single upload of
+      # both lcov files would merge them into one project number and lose the
+      # per-package view; flags add that view without giving up the aggregate,
+      # which Codecov still computes across every flag. The flags are declared
+      # in `codecov.yml`, and each package's README carries its own badge.
+      #
+      # The private scaffolds are deliberately absent — one trivial test each
+      # would only dilute the numbers. Add a package here, in `codecov.yml`,
+      # and in its README when it gains a real surface.
+      #
+      # `fail_ci_if_error` is TRUE on purpose. A silently failing upload leaves
+      # the badge grey forever and nothing goes red — the same
+      # green-for-the-wrong-reason shape the other gates exist to prevent.
+      - name: Upload type-detection coverage to Codecov
+        if: matrix.os == 'ubuntu-latest'
+        uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # v7.0.0
+        with:
+          files: ./packages/type-detection/coverage/lcov.info
+          flags: type-detection
+          fail_ci_if_error: true
+          token: ${{ secrets.CODECOV_TOKEN }}
+
+      - name: Upload function-introspection coverage to Codecov
+        if: matrix.os == 'ubuntu-latest'
+        uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # v7.0.0
+        with:
+          files: ./packages/function-introspection/coverage/lcov.info
+          flags: function-introspection
+          fail_ci_if_error: true
+          token: ${{ secrets.CODECOV_TOKEN }}
+
       - name: Build
         run: pnpm run build
+
+      # Runs on every OS, unlike the static gates: this one EXECUTES the
+      # bundles, so the platform and its V8 are part of what is under test.
+      - name: Smoke the built bundles
+        run: pnpm run smoke:check
 
       - name: Verify package contents (pack dry-run)
         if: matrix.os == 'ubuntu-latest'
@@ -93,3 +133,29 @@ jobs:
       - name: Verify publish gates (attw + publint)
         if: matrix.os == 'ubuntu-latest'
         run: pnpm run check:publish
+
+      # Each package declares `engines.node: ">=18"` — the CONSUMER floor of
+      # ADR #078. Until now that was a convention held up by an ES2020 source
+      # rule and, since today, a syntax scan over the built output. Neither
+      # executes anything, so neither proves the floor.
+      #
+      # This does. The UMD bundle inlines every dependency, so it needs no
+      # install and no module resolution — which is what makes a Node-18 job
+      # possible at all here: `engine-strict=true` plus the root `>=22`
+      # contributor floor would refuse to install this workspace on Node 18.
+      # Running the UMD executes every line of library code, BOTH packages
+      # (type-detection is inlined), on the runtime the packages promise.
+      #
+      # Deliberately last in the job: it switches the runtime, and nothing
+      # after it should inherit that.
+      - name: Set up the consumer floor (Node 18)
+        if: matrix.os == 'ubuntu-latest'
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 18
+
+      - name: Execute the UMD bundles on Node 18
+        if: matrix.os == 'ubuntu-latest'
+        env:
+          SPECIES_SMOKE_ONLY: umd
+        run: node scripts/check-bundle-smoke.mjs

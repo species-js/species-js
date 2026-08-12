@@ -1,6 +1,7 @@
 {
   "name": "@species-js/custom-domain",
   "version": "0.0.0",
+  "private": true,
   "description": "Customizable prototype-less namespace objects for sealed method grouping.",
   "type": "module",
   "license": "MIT",
@@ -48,7 +49,7 @@
     "edge >= 80"
   ],
   "dependencies": {
-    "@species-js/type-detection": "workspace:*"
+    "@species-js/type-detection": "workspace:^"
   },
   "scripts": {
     "build": "pnpm run build:node && pnpm run build:browser && pnpm run build:umd",

@@ -122,7 +122,7 @@ export function matchesStartSequencesOfAsyncArrowFunctionSource(source) {
  *
  * The pattern carries the whole verdict — beyond the entrance-level no tag is
  * read at all, because a leading `(` or `ident =>` belongs to nothing else. An
- * async arrow is refused by that same pattern rather than by a gate: its head
+ * async arrow is refused by that same pattern rather than by a gate. Its head
  * leads with `async`, which the bare-parameter branch declines because `=>`
  * does not follow the identifier.
  *
@@ -144,8 +144,8 @@ export function isArrowFunction(value) {
  * The source shape decides first and the tag read confirms. The pattern cannot
  * establish async-ness by itself, since a concise method named `async` wears
  * the same head, so `isAsyncFunction` keeps the last word. Asking it last
- * changes only where it is reached: the anchored `^async` discharges every
- * other callable for the price of a string compare, and the costly rejecting
+ * changes only where it is reached. The anchored `^async` discharges every
+ * other callable for the price of a string compare, so the costly rejecting
  * read never runs on a value that could not have matched.
  *
  * A method NAMED `async` is the one value that still pays that read. Its head IS
@@ -182,3 +182,5 @@ export function isAnyArrowFunction(value) {
   // the spec records what it cost. Sync stays first as the commoner flavor.
   return isArrowFunction(value) || isAsyncArrowFunction(value);
 }
+
+// ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----

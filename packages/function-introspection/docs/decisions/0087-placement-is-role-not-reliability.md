@@ -48,10 +48,34 @@ they are foundation; by what they actually do they are leaves.
   from quietly becoming load-bearing. A rule the compiler upholds beats one that depends
   on each future author re-deriving it.
 - **#013's own decision is untouched.** `isCustomClass` and `isBuiltInClass` stay where
-  they are; only the general principle stated in its "Consequences" is replaced. Whether
-  those two eventually migrate under the new axis is deliberately **held** — it is a
-  public-surface move across two packages, and it reads better once both surfaces exist
-  side by side.
+  they are; only the general principle stated in its "Consequences" is replaced.
+
+> **AMENDED 2026-08-12 — resolved: no migration.**
+>
+> `isClass`, `isCustomClass` and `isBuiltInClass` remain in type-detection's `function`
+> module. Class detection is outside `function-introspection`'s scope, permanently. The
+> paragraph replaced above described this as held; it had in fact been settled before
+> function-introspection had any implementation.
+>
+> **Rationale.**
+>
+> 1. Source reading is a minor component of class detection. The decisive work is the
+>    newable and prototype-descriptor analysis, which is type-detection's own domain.
+>    `isClass` is additionally load-bearing inside that package: `evented.js`,
+>    `thenable.js`, `object.js` and `error.js` each compose from it.
+> 2. `function-introspection`'s scope is defined by what it does — bound-function
+>    probability, and structural discrimination of concise methods and arrow functions.
+>    None of that is required by type-detection, which is the boundary between the two
+>    packages.
+>
+> **Two observations in this ADR carry no weight against the decision** and should not be
+> re-used to revisit it:
+>
+> - The zero-internal-consumers property of `isCustomClass`/`isBuiltInClass` still holds.
+>   Both are refinements of `isClass`, which the package composes from throughout, so the
+>   property says nothing about where the family belongs.
+> - `getFunctionSource` no longer exists solely to serve those two. `arrow.js`,
+>   `concise.js` and `utility/index.js` in function-introspection consume it as well.
 
 **Consequences.**
 

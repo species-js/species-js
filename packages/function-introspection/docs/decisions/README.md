@@ -23,9 +23,12 @@ inside it.
 
 ## Decisions
 
-| #                                                       | Title                                                                                                                    | Date       |
-| ------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ | ---------- |
-| [087](./0087-placement-is-role-not-reliability.md)      | Placement is role, not reliability — terminal vs composed-from decides the package; supersedes #013's stated principle   | 2026-08-06 |
-| [088](./0088-trust-travels-in-the-name.md)              | Trust travels in the name — `doesIndicate` prefix, plain `boolean`, no marker and no tier folder; qualified variants     | 2026-08-06 |
-| [089](./0089-tests-resolve-workspace-deps-to-source.md) | Tests resolve workspace dependencies to source, through the public entry — and so enforce #085's surface across packages | 2026-08-07 |
-| [090](./0090-proven-admission-earns-the-is-prefix.md)   | Proven admission earns the `is` prefix — the four criteria a reliable-grade predicate here must meet; complements #088   | 2026-08-11 |
+| #                                                       | Title                                                                                                                                                    | Date       |
+| ------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------- |
+| [087](./0087-placement-is-role-not-reliability.md)      | Placement is role, not reliability — terminal vs composed-from decides the package; supersedes #013's stated principle                                   | 2026-08-06 |
+| [088](./0088-trust-travels-in-the-name.md)              | Trust travels in the name — `doesIndicate` prefix, plain `boolean`, no marker and no tier folder; qualified variants                                     | 2026-08-06 |
+| [089](./0089-tests-resolve-workspace-deps-to-source.md) | Tests resolve workspace dependencies to source, through the public entry — and so enforce #085's surface across packages                                 | 2026-08-07 |
+| [090](./0090-proven-admission-earns-the-is-prefix.md)   | Proven admission earns the `is` prefix — the four criteria a reliable-grade predicate here must meet; complements #088                                   | 2026-08-11 |
+| [091](./0091-entry-parity-is-gated-statically.md)       | Entry parity is gated statically — `exports` ↔ legacy fields ↔ vite entries, by parity rather than file existence; guards #085's schema and #089's alias | 2026-08-12 |
+| [092](./0092-built-bundles-are-smoke-tested.md)         | Built bundles are smoke-tested — every published artifact loaded and executed; presence and shape are not sufficient; scaffolds go private               | 2026-08-12 |
+| [093](./0093-release-policy.md)                         | Release policy — caret dependency ranges, first version 0.1.0, independent versioning, changesets-automated flow, and no missing-changeset gate          | 2026-08-12 |

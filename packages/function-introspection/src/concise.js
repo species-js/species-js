@@ -79,6 +79,10 @@ import {
 } from '#utility';
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
+//
+//  Source Head Recognizers
+//
+// ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 
 /* @@throw-safe */
 /**
@@ -167,7 +171,7 @@ export function matchesStartSequencesOfConciseAsyncMethodSource(source) {
  * marks and zero-width joiners and may be written with unicode escapes that
  * `toString` reports verbatim. The numeric branch is separate because a KEY may
  * begin with a digit where a parameter may not — which is why the sibling
- * `arrow` module cannot share this class — and it covers every legal spelling,
+ * `arrow` module cannot share this class. It covers every legal spelling,
  * including the three a narrower pattern missed: `.5`, `1e-3` and `1.`.
  *
  * NECESSARY but not sufficient. Three non-methods share this shape and are each
@@ -199,9 +203,9 @@ export function matchesStartSequencesOfConciseMethodNormalForm(source) {
  * Reports whether the source opens with the `function` keyword, optional
  * trivia, then `(` — an anonymous function expression's head.
  *
- * A method NAMED `function` wears exactly this shape, which is the point: the
- * helper marks the one head where the source has said all it can and the
- * caller must look at `prototype` and the native-source form to finish the
+ * A method NAMED `function` wears exactly this shape, which is the point. The
+ * helper marks the one head where the source has said all it can. From there
+ * the caller looks at `prototype` and the native-source form to finish the
  * question.
  *
  * @param {string} source - a function's raw source text
@@ -213,6 +217,10 @@ export function matchesStartSequencesOfUnnamedPlainFunctionSource(source) {
   return /^function(?:\s|\/\*(?:[^*]|\*(?!\/))*\*\/|\/\/[^\n]*(?:\n|$))*\(/.test(source);
 }
 
+// ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
+//
+//  Flavor Predicates
+//
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 
 /* @@throw-safe */
@@ -248,9 +256,9 @@ export function matchesStartSequencesOfUnnamedPlainFunctionSource(source) {
  *
  * Scoping both reads to that one head is deliberate. Applied to every key they
  * would also refuse a method that had merely been GIVEN a `prototype` after the
- * fact — tampering that costs recall for no gain, since only the `function`
- * head is ambiguous in the first place. The cost is now confined to a method
- * named `function` that has also been tampered with.
+ * fact. That tampering costs recall for no gain, since only the `function` head
+ * is ambiguous in the first place. The cost is now confined to a method named
+ * `function` that has also been tampered with.
  *
  * The source is read once and reused, so the condensing pass runs only for the
  * `function` head rather than on every candidate.
@@ -297,11 +305,11 @@ export function isPlainConciseMethod(value) {
  * infer it from the head. That is why a method may be named `async` here
  * (`async async() {}`) without being mistaken for the modifier.
  *
- * A key of `function` is refused, and this is the module's one refusal of a
- * genuine case: `async function(){}` is produced BOTH by a method named
- * `function` and by an anonymous async function expression, and the two agree
- * on source, tag, own-property set, prototype and `name` — which
- * NamedEvaluation sets identically. With nothing left to read, silence is the
+ * A key of `function` is refused — the module's one refusal of a genuine case.
+ * `async function(){}` is produced BOTH by a method named `function` and by an
+ * anonymous async function expression. The two agree on source, tag,
+ * own-property set, prototype and `name`, which NamedEvaluation sets
+ * identically. With nothing left to read, silence is the
  * only honest answer. The guard is a keyword boundary rather than a shape, so
  * `async functionFoo(){}` still passes while `async function foo(){}` is
  * refused on its own terms.
@@ -309,11 +317,11 @@ export function isPlainConciseMethod(value) {
  * The key still has to be followed by a parameter list, and that requirement is
  * what separates a method from an async ARROW — `async x => x` reaches the same
  * identifier and then finds `=>` instead of `(`. Deferring to the sibling
- * module's `isAsyncArrowFunction` would read more simply but is deliberately
- * NOT done: consuming another predicate through `!` turns its false negatives
- * into this one's false positives, and that predicate has a known identifier
- * gap, so an async arrow whose parameter carries a zero-width joiner, a
- * combining mark or a unicode escape would be admitted here as a method.
+ * module's `isAsyncArrowFunction` would read more simply, and is deliberately
+ * NOT done. Consuming another predicate through `!` turns its false negatives
+ * into this one's false positives. That predicate has a known identifier gap:
+ * an async arrow whose parameter carries a zero-width joiner, a combining mark
+ * or a unicode escape would be admitted here as a method.
  *
  * Trivia is accepted in both slots — after `async`, where only horizontal
  * whitespace and single-line block comments are legal, and before the `(`.
@@ -372,7 +380,7 @@ export function isConciseGeneratorMethod(value) {
  *
  * The key is not read here either. Both this flavor and an async generator
  * FUNCTION open with `async`, so unlike the plain generator the first token is
- * not enough — but the SECOND significant one is: a method puts `*` there, a
+ * not enough. The SECOND significant one is: a method puts `*` there, a
  * function puts `function`. Confirming that settles it, and everything past the
  * `*` is admitted for free.
  *

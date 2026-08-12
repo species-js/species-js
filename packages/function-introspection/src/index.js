@@ -1,16 +1,28 @@
+// @ts-check
+
 /**
  * @module @species-js/function-introspection
  *
- * Function classification and structural introspection
- * for JavaScript callables.
+ * Function classification and structural introspection for JavaScript
+ * callables.
  *
- * Aggregates the package's per-domain subpaths into a single import surface.
- * Consumers may import either from the root
- * (`@species-js/function-introspection`) or from a specific subdomain.
- * Subpaths:
+ * The package's WIDE barrel. It stars every module, so it carries the
+ * `@internal` machinery along with the public predicates — `#index` is what
+ * the test suites import, and narrowing it would break them. The PUBLISHED
+ * root is the curated `src/public.js`, which names its exports one by one and
+ * is what `exports["."]` resolves to.
  *
+ * Each module is also published as a subpath of its own:
+ *
+ * - `@species-js/function-introspection/utility` — the function-source
+ *   readers and `Proxy` constructor recognizers the predicates share; mostly
+ *   `@internal`.
  * - `@species-js/function-introspection/bound` — what
  *   `Function.prototype.bind` leaves observable on its result.
+ * - `@species-js/function-introspection/arrow` — arrow functions of either
+ *   flavor, told apart from the concise methods they resemble.
+ * - `@species-js/function-introspection/concise` — which shorthand method
+ *   definition, if any, a function came from.
  *
  * ## Trust travels in the name
  *
@@ -31,16 +43,9 @@
  * Modules are named for their subject, never for their trust grade. A grade
  * in a filename would be a second carrier of something the identifier already
  * says, and one that can drift from it.
- *
- * `#utility` is deliberately absent below. A module whose exports are public
- * throughout is star-re-exported; one that merely contains some is not, and
- * the barrel names what escapes — `@internal` is a documentation tag no
- * resolver enforces, so a star would publish the module whatever its tagging
- * claims.
  */
 
+export * from '#utility';
 export * from '#bound';
 export * from '#arrow';
 export * from '#concise';
-
-export { getCondensedFunctionSource } from '#utility';

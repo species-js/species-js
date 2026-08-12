@@ -56,6 +56,14 @@ jobs:
           # Re-enable this line (and set the NPM_TOKEN repo secret) when you
           # are ready to publish the first real release. Until then, this
           # workflow only opens "Version Packages" PRs from pending changesets.
+          #
+          # ADR #093 fixes the order: run `bootstrap-publish.yml` ONCE, then
+          # uncomment the line above and delete that workflow.
+          #
+          # Inert until `publish` is on, and stated explicitly rather than left
+          # to the action's default: each published version gets a GitHub
+          # Release carrying the changelog entry already being generated.
+          createGithubReleases: true
           title: 'chore: version packages'
           commit: 'chore: version packages'
         env:

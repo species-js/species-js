@@ -1,17 +1,29 @@
 /**
+ * @module #config
+ *
+ * Realm-fixed captures this package's predicates read through.
+ *
+ * Internal only. Unlike type-detection's `config`, this module is not a
+ * published subpath — the bundler inlines it into the entries that consume it.
+ *
+ * Capturing a member once at module-load, rather than reaching for `Object.x`
+ * at each call site, fixes its identity to this realm and shields the
+ * predicates from later tampering with the global `Object`.
+ */
+
+/**
  * The realm's global object, captured once at module-load.
  *
- * `globalThis` (ES2020 — the package floor) is the single
- * standardized handle to the global object across Node,
- * browsers, workers, and UMD bundles, so a bare reference
- * resolves on every target the package ships to. Consumers
- * read members through this capture (`globalContext.DOMException`)
- * rather than as bare intrinsic references — some module
- * runners (vitest's among them) fail to resolve a bare
- * `DOMException` within a project-module's scope even
- * though `globalThis.DOMException` is present. Reading
- * through the capture sidesteps that, and fixes the
- * global's identity to this realm.
+ * `globalThis` (ES2020 — the package floor) is the one standardized handle to
+ * the global object across Node, browsers, workers and UMD bundles. A bare
+ * reference therefore resolves on every target the package ships to.
+ *
+ * Members are read through this capture (`globalContext.DOMException`) rather
+ * than as bare intrinsic references. Some module runners (vitest's among them)
+ * fail to resolve a bare `DOMException` within a project module's scope even
+ * though `globalThis.DOMException` is present. Reading through the capture
+ * sidesteps that, and fixes the global's identity to this realm.
+ *
  * @internal
  */
 export declare const globalContext: typeof globalThis;

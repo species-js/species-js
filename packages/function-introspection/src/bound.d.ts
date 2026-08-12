@@ -15,6 +15,8 @@
  * how much evidence stands behind it.
  */
 
+// ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
+
 /* @@throw-safe */
 /**
  * Reports whether the value carries evidence of `Function.prototype.bind`.
@@ -38,10 +40,10 @@
  * ## Boundaries
  *
  * - **A `Proxy` is reported as bound.** Any prototype-less callable wrapped in
- *   a bare `Proxy` satisfies mark 2, because a `Proxy` has no `[[SourceText]]`
- *   slot and so stringifies to the same anonymous native form a bound function
- *   does. No handler or forgery is involved, and no source-based test can
- *   separate the two.
+ *   a bare `Proxy` satisfies mark 2. A `Proxy` has no `[[SourceText]]` slot, so
+ *   it stringifies to the same anonymous native form a bound function does. No
+ *   handler or forgery is involved, and no source-based test can separate the
+ *   two.
  * - **`Function.prototype` is reported as bound.** It is genuinely anonymous
  *   and genuinely native, so it satisfies mark 2 on its own terms.
  * - **Mark 3 admits a rename.** Any prototype-less callable — an arrow, a
@@ -111,14 +113,15 @@ export function doesIndicateBoundFunction(value?: unknown): boolean;
  *   the bound values affected. This variant degrades to silence where the
  *   cascade degrades to a weaker answer.
  * - **A `Proxy` that also forges its `name` still passes.** A bare `Proxy` does
- *   not: it satisfies mark 2 for free — no `[[SourceText]]` slot, so it produces
- *   the anonymous native source honestly — but forwards the target's `name`,
- *   which fails mark 3. Add a `get`/`getOwnPropertyDescriptor` trap reporting a
- *   `'bound …'` name and every mark is satisfied. So the conjunction raises the
- *   cost of forgery from one `defineProperty` to an exotic object with a
- *   handler, without ever making it impossible — which is why this is still a
- *   `doesIndicate…` predicate returning a plain `boolean`, and why no variant of
- *   it may be named `is…`.
+ *   not. It satisfies mark 2 for free: with no `[[SourceText]]` slot it
+ *   produces the anonymous native source honestly. But it forwards the
+ *   target's `name`, which fails mark 3. Add a
+ *   `get`/`getOwnPropertyDescriptor` trap reporting a `'bound …'` name and
+ *   every mark is satisfied. So the conjunction raises the cost of forgery
+ *   from one `defineProperty` to an exotic object with a handler. It never
+ *   makes forgery impossible. That is why this stays a `doesIndicate…`
+ *   predicate returning a plain `boolean`, and why no variant of it may be
+ *   named `is…`.
  *
  * @example
  * ```ts

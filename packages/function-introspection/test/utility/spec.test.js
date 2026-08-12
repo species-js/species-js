@@ -162,27 +162,43 @@ describe('utility — helper specification (axis 4)', () => {
     });
   });
 
-  describe('the module surface (ADR #085 — the barrel names what escapes)', () => {
-    it('exports exactly one name through the root barrel', async () => {
-      const barrel = await import('#index');
-      const utilityExports = [
-        'CONDENSED_NATIVE_SOURCE_FOUNDATION',
-        'doesMatchProxyConstructor',
-        'getCondensedFunctionSource',
-        'getFunctionSourceCondensate',
-        'hasProxyConstructorShape',
-      ];
+  describe('the module surface (ADR #085 — the curated entry names what escapes)', () => {
+    /**
+     * The escape boundary is `#public`, not `#index`. `#index` is the INTERNAL
+     * barrel: it stars every module, carries the `@internal` machinery, and is
+     * what the suites import. `#public` is what `exports["."]` resolves to, so
+     * it alone decides what a consumer can reach.
+     */
+    const utilityExports = [
+      'CONDENSED_NATIVE_SOURCE_FOUNDATION',
+      'doesMatchProxyConstructor',
+      'getCondensedFunctionSource',
+      'getFunctionSourceCondensate',
+      'hasProxyConstructorShape',
+    ];
+
+    it('exports exactly one name through the curated public entry', async () => {
+      const entry = await import('#public');
 
       expect(
-        utilityExports.filter((name) => name in barrel),
-        'only the public helper may reach the root barrel',
+        utilityExports.filter((name) => name in entry),
+        'only the public helper may reach a consumer',
       ).toEqual(['getCondensedFunctionSource']);
     });
 
-    it('the escaping export is the same function object the module defines', async () => {
-      const barrel = /** @type {Record<string, unknown>} */ (await import('#index'));
+    it('the internal barrel deliberately carries all five', async () => {
+      const barrel = await import('#index');
 
-      expect(barrel.getCondensedFunctionSource).toBe(getCondensedFunctionSource);
+      expect(
+        utilityExports.filter((name) => name in barrel),
+        '#index is the internal barrel — narrowing it would break the suites',
+      ).toEqual(utilityExports);
+    });
+
+    it('the escaping export is the same function object the module defines', async () => {
+      const entry = /** @type {Record<string, unknown>} */ (await import('#public'));
+
+      expect(entry.getCondensedFunctionSource).toBe(getCondensedFunctionSource);
     });
   });
 });

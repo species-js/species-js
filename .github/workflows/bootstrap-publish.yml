@@ -1,0 +1,164 @@
+name: Bootstrap Publish
+
+# The FIRST publish, run once, by hand.
+#
+# `release.yml` deliberately leaves `changesets/action`'s `publish:` input
+# disabled: with it set and no changesets pending, the action falls back to
+# "publish any unpublished packages", which E404s against a registry that has
+# never seen these names and jams every later run. So the first release has to
+# be deliberate rather than automatic.
+#
+# What it must NOT be is local. npm provenance is generated from an OIDC token
+# that only a supported CI provider issues — `npm publish --provenance` from a
+# laptop fails outright. Publishing the first version by hand would therefore
+# ship it WITHOUT the attestation the README promises, and the claim would only
+# become true one release later.
+#
+# This workflow resolves both: manual (you press the button, and type a
+# confirmation), but executed in CI, so provenance works. It bypasses
+# `changesets/action` entirely, so the E404 fallback cannot apply.
+#
+# Afterward: uncomment `publish:` in `release.yml`, and delete this file. It is
+# a bootstrap, not a release mechanism — leaving it around invites someone to
+# publish out of band, past the changesets version history.
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Pack and verify only. Leave checked until you mean it.'
+        type: boolean
+        default: true
+      confirm:
+        description: 'Type PUBLISH to publish for real (ignored while dry run is checked)'
+        type: string
+        default: ''
+
+concurrency:
+  group: bootstrap-publish
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  # Required for provenance. Without it `--provenance` fails rather than
+  # silently publishing an unattested package.
+  id-token: write
+
+jobs:
+  bootstrap:
+    name: Publish the first release
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Refuse an unconfirmed real publish
+        if: ${{ !inputs.dry_run && inputs.confirm != 'PUBLISH' }}
+        run: |
+          echo "::error::dry_run is off but confirm is not 'PUBLISH'. Refusing."
+          exit 1
+
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
+
+      - name: Setup Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: '.nvmrc'
+          cache: 'pnpm'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # The full gate, not a subset. A publish-task is irreversible under a
+      # version number npm will not let us reuse, so this is the one place
+      # where the slow, complete check is unambiguously worth its runtime.
+      - name: Verify everything
+        run: pnpm run check:full
+
+      # `pnpm pack`, never `npm pack`: only pnpm rewrites the `workspace:*`
+      # protocol into a real version range. A npm-produced tarball would carry
+      # `workspace:*` into the published manifest and break every install.
+      # Verified against a real tarball before this workflow was written.
+      - name: Pack the publishable packages
+        id: pack
+        run: |
+          set -euo pipefail
+          mkdir -p .bootstrap
+          # Dependency order: packages with no workspace dependencies first, so
+          # a consumer installing between the two publishes cannot see a
+          # dangling reference.
+          ORDER=$(node -e "
+            const { readdirSync, readFileSync, existsSync } = require('node:fs');
+            const pkgs = readdirSync('packages')
+              .map((dir) => ({ dir, file: 'packages/' + dir + '/package.json' }))
+              .filter(({ file }) => existsSync(file))
+              .map(({ dir, file }) => ({ dir, manifest: JSON.parse(readFileSync(file, 'utf8')) }))
+              .filter(({ manifest }) => manifest.private !== true)
+              .map(({ dir, manifest }) => ({
+                dir,
+                deps: Object.keys(manifest.dependencies ?? {}).filter((d) =>
+                  d.startsWith('@species-js/'),
+                ).length,
+              }))
+              .sort((a, b) => a.deps - b.deps)
+              .map(({ dir }) => dir);
+            if (pkgs.length === 0) {
+              console.error('no publishable packages found');
+              process.exit(1);
+            }
+            console.log(pkgs.join(' '));
+          ")
+          echo "publishing in order: $ORDER"
+          for dir in $ORDER; do
+            (cd "packages/$dir" && pnpm pack --pack-destination "$GITHUB_WORKSPACE/.bootstrap")
+          done
+          echo "order=$ORDER" >> "$GITHUB_OUTPUT"
+          ls -la .bootstrap
+
+      - name: Show what would be published (dry run)
+        if: ${{ inputs.dry_run }}
+        run: |
+          set -euo pipefail
+          for tgz in .bootstrap/*.tgz; do
+            echo "::group::$tgz"
+            tar -xzOf "$tgz" package/package.json | node -e "
+              let s = '';
+              process.stdin.on('data', (d) => (s += d)).on('end', () => {
+                const m = JSON.parse(s);
+                console.log('name        :', m.name);
+                console.log('version     :', m.version);
+                console.log('dependencies:', JSON.stringify(m.dependencies ?? {}));
+                console.log('publishConfig:', JSON.stringify(m.publishConfig ?? {}));
+              });
+            "
+            echo "::endgroup::"
+          done
+          echo "Dry run only — nothing was published."
+
+      # `npm publish <tarball>`, because `pnpm publish` does not document a
+      # `--provenance` flag. Publishing the pnpm-produced tarball through npm
+      # gets both: the rewritten manifest AND the attestation.
+      - name: Publish with provenance
+        if: ${{ !inputs.dry_run }}
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          set -euo pipefail
+          for dir in ${{ steps.pack.outputs.order }}; do
+            name=$(node -p "require('./packages/$dir/package.json').name.replace('@','').replace('/','-')")
+            tgz=$(ls .bootstrap/${name}-*.tgz)
+            echo "publishing $tgz"
+            npm publish "$tgz" --provenance --access public
+          done
+
+      - name: Next steps
+        if: ${{ !inputs.dry_run }}
+        run: |
+          echo "Published. Now:"
+          echo "  1. Uncomment 'publish: pnpm changeset publish' in .github/workflows/release.yml"
+          echo "  2. Delete .github/workflows/bootstrap-publish.yml — it has done its job"
+          echo "  3. Verify the provenance badge on npmjs.com for each package"

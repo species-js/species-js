@@ -69,9 +69,9 @@ const BOUND_NAME_PREFIX = 'bound ';
  * the answer outright. {@link doesStronglyIndicateBoundFunction} requires all
  * three and therefore orders them the other way round.
  *
- * Composed entirely from throw-safe readers: `hasOwnPrototype` reads an own
- * descriptor inside a `try`/`catch`, `getVerifiedOwnName` additionally refuses
- * an accessor so a hostile `name` getter is never invoked, and
+ * Composed entirely from throw-safe readers. `hasOwnPrototype` reads an own
+ * descriptor inside a `try`/`catch`. `getVerifiedOwnName` additionally refuses
+ * an accessor, so a hostile `name` getter is never invoked.
  * {@link getCondensedFunctionSource} reports `undefined` instead of
  * propagating when the source cannot be read.
  *
@@ -108,24 +108,24 @@ export function doesIndicateBoundFunction(value) {
  *
  * The same entrance-level and the same three marks, conjoined instead of
  * cascaded. Requiring all of them closes two boundaries the cascade documents
- * as accepted: `Function.prototype`, which is genuinely anonymous and native
- * but carries no `'bound '` name, and any prototype-less callable merely
- * renamed to look bound, whose source is still its own text.
+ * as accepted. `Function.prototype` is genuinely anonymous and native, but
+ * carries no `'bound '` name. And any prototype-less callable merely renamed
+ * to look bound still has its own source text.
  *
  * The `[[Construct]]` mark is applied conditionally rather than required. A
  * bound arrow or bound concise method has no construct slot, so demanding one
- * would reject half the bound forms; what the clause contributes here is the
+ * would reject half the bound forms. What the clause contributes here is the
  * `Proxy` subtraction, which only bites where a slot exists.
  *
- * Ordered cheapest-first, the opposite of the cascade and for the mirrored
- * reason: a conjunction ends at the first mark that FAILS, so the two
- * descriptor reads run before the string allocation, and the `Proxy`-allocating
- * construct probe runs last.
+ * Ordered cheapest-first — the opposite of the cascade, and for the mirrored
+ * reason. A conjunction ends at the first mark that FAILS. So the two
+ * descriptor reads run before the string allocation, and the
+ * `Proxy`-allocating construct probe runs last.
  *
- * Recall is the price. A genuine bound function whose `name` was overwritten is
- * reported `false`, and so is any bound value on an engine that keeps a name in
- * the native source form — both of which the cascade still catches. This
- * variant degrades to silence; the cascade degrades to a weaker answer.
+ * Recall is the price. A genuine bound function whose `name` was overwritten
+ * is reported `false`. So is any bound value on an engine that keeps a name in
+ * the native source form. The cascade still catches both. This variant
+ * degrades to silence; the cascade degrades to a weaker answer.
  *
  * @param {unknown} [value] - the value to test; omitted is treated as
  *  `undefined`, which carries no bound markers

@@ -34,6 +34,17 @@ export default defineConfig({
     target: isUmd ? 'es2020' : isNode ? 'node22' : 'es2020',
   },
   test: {
+    // The package name resolves through type-detection's exports map into
+    // `dist/`, which does not exist before a build. Tests use source instead,
+    // via the PUBLIC entry — so a cross-package import of an `@internal` symbol
+    // fails here. Exact regex: a string alias would also rewrite subpaths.
+    // ADR #089.
+    alias: [
+      {
+        find: /^@species-js\/type-detection$/,
+        replacement: resolve(import.meta.dirname, '../type-detection/src/public.js'),
+      },
+    ],
     coverage: {
       include: ['src/**/*.js'],
       provider: 'v8',

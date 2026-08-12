@@ -4,10 +4,9 @@
  * Shared internals behind the package's predicates — the function-source
  * readers and the `Proxy` constructor recognizers.
  *
- * Not a published subpath; the bundler inlines this module into the entries
- * that consume it. `getCondensedFunctionSource` is the one consumer-facing
- * export and reaches the surface by name through the root barrel; everything
- * else is `@internal`.
+ * Published as its own subpath, and inlined by the bundler into the entries
+ * that consume it as well. `getCondensedFunctionSource` is the one
+ * consumer-facing export; everything else here is `@internal`.
  */
 
 import type { Callable, VerifiedFunction } from '@species-js/type-detection';
@@ -56,11 +55,10 @@ export function getFunctionSourceCondensate(
  * Reads a callable's source through the realm-fixed
  * `Function.prototype.toString` and returns it condensed.
  *
- * Whitespace next to `(`, `)`, `{`, `}`, `[` and `]` is removed and every
- * other run is preserved, which normalizes the engine-specific spellings of
- * the `NativeFunction` grammar onto one comparable form while leaving the
- * space inside `[native code]` — the part ordinary source cannot reproduce —
- * intact.
+ * Whitespace next to `(`, `)`, `{`, `}`, `[` and `]` is removed; every other
+ * run is preserved. That collapses the engine-specific spellings of the
+ * `NativeFunction` grammar onto one comparable form. The space inside
+ * `[native code]` survives — it is the part ordinary source cannot reproduce.
  *
  * Never throws: a source the reader cannot produce is reported as `undefined`.
  *

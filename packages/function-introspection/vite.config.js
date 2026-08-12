@@ -13,10 +13,19 @@ export default defineConfig({
     emptyOutDir: false,
     lib: {
       entry: isUmd
-        ? { index: resolve(import.meta.dirname, 'src/index.js') }
+        ? { public: resolve(import.meta.dirname, 'src/public.js') }
         : {
-            index: resolve(import.meta.dirname, 'src/index.js'),
+            // The published root entry is the CURATED barrel, never
+            // `src/index.js` — that one stars every module and carries the
+            // `@internal` machinery with it. It stays reachable in-package as
+            // `#index` (the test suite imports it) and is deliberately never
+            // built. One entry per `exports` subpath, so nothing in the map
+            // resolves to a file the build does not emit.
+            public: resolve(import.meta.dirname, 'src/public.js'),
+            utility: resolve(import.meta.dirname, 'src/utility/index.js'),
             bound: resolve(import.meta.dirname, 'src/bound.js'),
+            arrow: resolve(import.meta.dirname, 'src/arrow.js'),
+            concise: resolve(import.meta.dirname, 'src/concise.js'),
           },
       fileName: (format, entryName) => {
         if (format === 'cjs') {
