@@ -10,12 +10,12 @@ prototype-less namespaces.
 
 ## Packages
 
-| Package                                                                   | Purpose                                                                          |
-| ------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
-| [`@species-js/type-detection`](./packages/type-detection)                 | Runtime type checking with cross-realm safety                                    |
-| [`@species-js/function-introspection`](./packages/function-introspection) | Classification of JavaScript callables (class, generator, async, arrow, concise) |
-| [`@species-js/type-identity`](./packages/type-identity)                   | Type branding, identity sealing, multi-layer validation pipelines                |
-| [`@species-js/custom-domain`](./packages/custom-domain)                   | Prototype-less namespace objects for sealed method grouping                      |
+| Package                                                                   | Purpose                                                                          | Coverage                                                                                                                                                                 |
+| ------------------------------------------------------------------------- | -------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| [`@species-js/type-detection`](./packages/type-detection)                 | Runtime type checking with cross-realm safety                                    | [![codecov](https://codecov.io/gh/species-js/species-js/branch/main/graph/badge.svg?flag=type-detection)](https://app.codecov.io/gh/species-js/species-js/flags)         |
+| [`@species-js/function-introspection`](./packages/function-introspection) | Classification of JavaScript callables (class, generator, async, arrow, concise) | [![codecov](https://codecov.io/gh/species-js/species-js/branch/main/graph/badge.svg?flag=function-introspection)](https://app.codecov.io/gh/species-js/species-js/flags) |
+| [`@species-js/type-identity`](./packages/type-identity)                   | Type branding, identity sealing, multi-layer validation pipelines                | not yet published                                                                                                                                                        |
+| [`@species-js/custom-domain`](./packages/custom-domain)                   | Prototype-less namespace objects for sealed method grouping                      | not yet published                                                                                                                                                        |
 
 All packages share the same browser floor: Chrome 80+, Firefox 74+, Safari 13.1+, Edge 80+
 — see the `browserslist` field in each package's `package.json`.

@@ -13,7 +13,8 @@
     "directory": "packages/function-introspection"
   },
   "publishConfig": {
-    "access": "public"
+    "access": "public",
+    "provenance": true
   },
   "main": "./dist/node/public.cjs",
   "module": "./dist/node/public.js",
