@@ -112,12 +112,13 @@ depend on these packages.
 
 ```sh
 pnpm run check          # toolchain + gates + typecheck + lint + format + docs + decisions + surface + entries + audit + test:coverage (the one command)
-pnpm run check:full     # check + build + pack:check + check:publish (full CI mirror; slower)
+pnpm run check:full     # check + build + smoke + pack:check + check:publish (full CI mirror; slower)
 pnpm run toolchain:check # installed tool versions === lockfile pins (also runs at pre-commit)
 pnpm run gates:check    # every gate in check/check:full is actually invoked by CI
 pnpm run decisions:check # every ADR supersession carries a reciprocal annotation
 pnpm run surface:check  # curated public entry === the @internal tagging it re-exports
 pnpm run entries:check  # exports map === legacy fields === vite build entries
+pnpm run smoke:check    # every built artifact loads and its exports execute (needs build)
 pnpm run typecheck      # tsc per package
 pnpm run lint           # eslint
 pnpm run test           # vitest (all packages)
