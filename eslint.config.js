@@ -171,14 +171,32 @@ export default tseslint.config(
     },
   },
   // --- Root config files + tooling scripts: not in any tsconfig; disable type-aware rules + JSDoc ---
+  // `smoke.probes.mjs` belongs here for both reasons the others do: it is
+  // harness code rather than consumer surface, and it calls members of a
+  // dynamically loaded bundle namespace by design, which every type-aware rule
+  // reads as unsafe. Its fixtures are deliberately empty functions — that is
+  // what makes them the shapes under test.
   {
-    files: ['*.config.js', '*.config.cjs', '*.config.mjs', 'scripts/**/*.mjs'],
+    files: [
+      '*.config.js',
+      '*.config.cjs',
+      '*.config.mjs',
+      'scripts/**/*.mjs',
+      '**/smoke.probes.mjs',
+    ],
     ...tseslint.configs.disableTypeChecked,
   },
   {
-    files: ['*.config.js', '*.config.cjs', '*.config.mjs', 'scripts/**/*.mjs'],
+    files: [
+      '*.config.js',
+      '*.config.cjs',
+      '*.config.mjs',
+      'scripts/**/*.mjs',
+      '**/smoke.probes.mjs',
+    ],
     rules: {
       'jsdoc/require-jsdoc': 'off',
+      '@typescript-eslint/no-empty-function': 'off',
     },
   },
 );

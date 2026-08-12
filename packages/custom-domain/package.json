@@ -1,6 +1,7 @@
 {
   "name": "@species-js/custom-domain",
   "version": "0.0.0",
+  "private": true,
   "description": "Customizable prototype-less namespace objects for sealed method grouping.",
   "type": "module",
   "license": "MIT",
