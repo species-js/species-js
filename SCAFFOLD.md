@@ -856,10 +856,23 @@ Each package's `exports` field defines `node` (ESM + CJS), `browser` (ESM only),
 
 ### Engine + package-manager pinning
 
-The root `package.json` carries `engines.node: ">=22.0.0"` (matched by `.nvmrc`) and
+The root `package.json` carries `engines.node: ">=22"` (matched by `.nvmrc`) and
 `engines.pnpm: ">=10.0.0"`. The Corepack-managed `packageManager` field pins
 `pnpm@10.11.0` exactly. Together these give clear feedback paths to consumers using plain
 npm, plain pnpm, or Corepack.
+
+**Two floors, deliberately different (ADR #078).** The root value is the CONTRIBUTOR floor
+— what you need to work on this repo, and enforced rather than advised, since `.npmrc`
+sets `engine-strict=true`. Each package's own `engines.node: ">=18"` is the CONSUMER
+floor, which the ES2020 API-floor design keeps genuinely runnable. Reading the root value
+as the consumer contract is a mistake the split invites, so it is spelled out here: they
+are not a drift to be reconciled.
+
+The consumer floor is guarded rather than assumed. The node build target is `node22`, so
+esbuild is permitted to emit syntax older runtimes cannot parse; `smoke:check` scans the
+built output for post-ES2020 syntax so the floor cannot rot silently. That scan is a
+REGRESSION guard over known markers, not a proof of compatibility — only running on the
+target runtime proves that.
 
 ---
 

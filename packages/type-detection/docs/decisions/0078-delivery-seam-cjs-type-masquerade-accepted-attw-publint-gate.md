@@ -2,6 +2,13 @@
 
 **Date:** 2026-07-27
 
+> **AMENDED 2026-08-12.** The contributor floor is now `>=22`, not `>=22.22.1`. The patch
+> level was never justified anywhere and `.npmrc`'s `engine-strict=true` made it a HARD
+> block, so a contributor on any earlier 22.x patch could not install. The two-floor
+> design below is unchanged, and the consumer floor is now guarded: `smoke:check` scans
+> the built output for post-ES2020 syntax, since the `node22` build target permits
+> emitting it.
+
 **Context.** The delivery-seam cluster (#070 runtime load-order, #071 consumer-deliverable
 types) closed the two seams that "shipped in theory," each turned into a guarded property:
 `entry-arena.test.js` (runtime) and `consumer-resolution.test.js` (types). But

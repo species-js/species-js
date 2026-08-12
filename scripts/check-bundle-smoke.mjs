@@ -53,7 +53,7 @@
 
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { createRequire } from 'node:module';
-import { dirname, join } from 'node:path';
+import { dirname, join, relative } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import vm from 'node:vm';
 
@@ -68,6 +68,7 @@ let packagesChecked = 0;
 let artifactsLoaded = 0;
 let namesChecked = 0;
 let probesRun = 0;
+let markersScanned = 0;
 
 /**
  * Reads a nested value out of an `exports` subpath entry.
@@ -84,6 +85,96 @@ function at(entry, keys) {
         : undefined,
     /** @type {unknown} */ (entry),
   );
+}
+
+/**
+ * Syntax and APIs newer than the ES2020 floor each package's `engines.node`
+ * (`>=18`, the CONSUMER floor of ADR #078) promises to run on.
+ *
+ * The node build target is `node22`, so esbuild is PERMITTED to emit anything
+ * Node 22 understands. Nothing lowers it. What actually keeps the promise is
+ * the source obeying an ES2020 floor by convention — and a convention with no
+ * check is one contributor away from silently breaking a published contract.
+ *
+ * Markers are chosen for high signal and no false positives on minified
+ * output. `.at(`, `with(` and numeric separators are deliberately ABSENT: they
+ * collide with ordinary identifiers once names are mangled, and a gate that
+ * cries wolf gets switched off.
+ */
+const POST_ES2020 = [
+  { pattern: /\?\?=/, name: '??= (ES2021)' },
+  { pattern: /\|\|=/, name: '||= (ES2021)' },
+  { pattern: /&&=/, name: '&&= (ES2021)' },
+  { pattern: /\breplaceAll\s*\(/, name: 'String.replaceAll (ES2021)' },
+  { pattern: /\bPromise\s*\.\s*any\s*\(/, name: 'Promise.any (ES2021)' },
+  { pattern: /\bWeakRef\b/, name: 'WeakRef (ES2021)' },
+  { pattern: /\bFinalizationRegistry\b/, name: 'FinalizationRegistry (ES2021)' },
+  { pattern: /\bObject\s*\.\s*hasOwn\s*\(/, name: 'Object.hasOwn (ES2022)' },
+  { pattern: /\bstatic\s*\{/, name: 'class static block (ES2022)' },
+  { pattern: /\bfindLast(Index)?\s*\(/, name: 'Array.findLast (ES2023)' },
+  {
+    pattern: /\btoSorted\s*\(|\btoReversed\s*\(|\btoSpliced\s*\(/,
+    name: 'Array copy methods (ES2023)',
+  },
+  {
+    pattern: /\bObject\s*\.\s*groupBy\s*\(|\bMap\s*\.\s*groupBy\s*\(/,
+    name: 'groupBy (ES2024)',
+  },
+  {
+    pattern: /\bPromise\s*\.\s*withResolvers\s*\(/,
+    name: 'Promise.withResolvers (ES2024)',
+  },
+];
+
+/**
+ * Every emitted script under a `dist/` tree, source maps excluded.
+ *
+ * EVERY file, not just the entry points. The entries are re-export shells
+ * holding almost no code — the implementation lives in the chunks they import,
+ * so scanning only the entries produced a healthy-looking marker count over
+ * files that could not have contained a violation. Caught by mutation probe.
+ *
+ * @param {string} directory - a directory to walk
+ * @returns {string[]} absolute paths of every `.js`/`.cjs` file beneath it
+ */
+function emittedScripts(directory) {
+  if (!existsSync(directory)) {
+    return [];
+  }
+  const found = [];
+  for (const entry of readdirSync(directory, { withFileTypes: true })) {
+    const path = join(directory, entry.name);
+    if (entry.isDirectory()) {
+      found.push(...emittedScripts(path));
+    } else if (/\.(js|cjs)$/.test(entry.name)) {
+      found.push(path);
+    }
+  }
+  return found;
+}
+
+/**
+ * Scans one built file for syntax past the consumer floor.
+ *
+ * A REGRESSION guard over known markers, NOT a proof of compatibility — the
+ * list is a sample and cannot be exhaustive. Only executing on the target
+ * runtime proves a runtime works.
+ *
+ * @param {string} label - how to name this file in a message
+ * @param {string} source - the built file's contents
+ * @returns {number} how many markers were scanned
+ */
+function scanForPostFloorSyntax(label, source) {
+  for (const { pattern, name } of POST_ES2020) {
+    if (pattern.test(source)) {
+      problems.push(
+        `${label}: built output uses ${name}, past the ES2020 floor each package's ` +
+          `\`engines.node\` (>=18) promises — either lower the build target or raise the ` +
+          `declared floor`,
+      );
+    }
+  }
+  return POST_ES2020.length;
 }
 
 /**
@@ -256,6 +347,19 @@ for (const name of readdirSync(PACKAGES)) {
     compareSurface(where, expected, surfaceOf(namespace));
   }
 
+  // ----- the consumer floor: every emitted script, not just the entries -----
+
+  const emitted = emittedScripts(join(packageDir, 'dist'));
+  if (emitted.length === 0) {
+    problems.push(`${name}: no emitted scripts found under dist/ to scan`);
+  }
+  for (const file of emitted) {
+    markersScanned += scanForPostFloorSyntax(
+      `${name} ${relative(packageDir, file)}`,
+      readFileSync(file, 'utf8'),
+    );
+  }
+
   // ----- behavioural probes -----
 
   const probeFile = join(packageDir, 'smoke.probes.mjs');
@@ -342,5 +446,5 @@ if (red) {
 
 console.warn(
   `✓ built artifacts behave (${packagesChecked} packages, ${artifactsLoaded} artifacts, ` +
-    `${namesChecked} exports, ${probesRun} probes)`,
+    `${namesChecked} exports, ${probesRun} probes, ${markersScanned} syntax markers)`,
 );
