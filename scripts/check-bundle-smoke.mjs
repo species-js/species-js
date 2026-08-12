@@ -32,9 +32,9 @@
  * 3. **The UMD is self-contained.** It is executed in a fresh realm with no
  *    `require`, `module`, `exports` or `define` in scope, so it cannot reach a
  *    dependency at runtime even in principle. It must still work.
- * 4. **The UMD claims its own namespace** under the shared `SpeciesJS` global,
- *    taken from the vite config rather than assumed, and merges rather than
- *    overwrites — two packages must coexist on one page.
+ * 4. **The UMD claims exactly ONE namespace**, discovered from what the bundle
+ *    actually defines on a fresh global rather than looked up in the config —
+ *    so two packages can coexist on one page without colliding.
  * 5. **Behavioral probes run**, when the package ships a `smoke.probes.mjs`.
  *    Presence and shape prove the wiring; only a probe proves the code RUNS.
  *
@@ -306,6 +306,8 @@ for (const name of readdirSync(PACKAGES)) {
 
     /** @type {Record<string, unknown> | undefined} */
     let namespace;
+    /** @type {string | undefined} */
+    let umdGlobalName;
     try {
       if (kind === 'esm') {
         namespace = await import(pathToFileURL(file).href);
@@ -320,32 +322,45 @@ for (const name of readdirSync(PACKAGES)) {
         //
         // Withholding these too would fail honest code for the wrong reason:
         // a bare realm has no `EventTarget`, and a browser does.
-        const context = vm.createContext({
+        const seed = {
           EventTarget,
           AbortSignal,
           AbortController,
           DOMException,
           queueMicrotask,
-        });
+        };
+        const seeded = new Set(Object.keys(seed));
+        const context = vm.createContext({ ...seed });
         vm.runInContext(readFileSync(file, 'utf8'), context);
 
-        const config = await loadUmdConfig(packageDir);
-        const globalName = config?.build?.lib?.name;
-        if (typeof globalName !== 'string') {
-          problems.push(`${where}: the vite config declares no UMD global name`);
-          continue;
-        }
-        const [namespaceRoot, leaf] = globalName.split('.');
-        const carrier = /** @type {Record<string, Record<string, unknown>>} */ (
-          /** @type {unknown} */ (context)
-        )[namespaceRoot];
-        if (!carrier || !carrier[leaf]) {
+        // The namespace is DISCOVERED from what the bundle actually defined,
+        // not looked up in the vite config. Reading the config here made this
+        // gate unrunnable on the very floor it is meant to prove: the configs
+        // use `import.meta.dirname`, which does not exist before Node 20.11,
+        // so on Node 18 the harness died before the bundle was ever loaded.
+        // Config-to-manifest parity is `entries:check`'s job anyway; what
+        // belongs here is that the BUNDLE claims exactly one namespace.
+        const added = Object.keys(context).filter((key) => !seeded.has(key));
+        if (added.length !== 1) {
           problems.push(
-            `${where}: loaded but did not define \`${globalName}\` on the global`,
+            `${where}: defined ${added.length} globals (${added.join(', ') || 'none'}); ` +
+              `a UMD bundle must claim exactly one`,
           );
           continue;
         }
-        namespace = carrier[leaf];
+        const carrier = /** @type {Record<string, Record<string, unknown>>} */ (
+          /** @type {unknown} */ (context)
+        )[added[0]];
+        const leaves = carrier ? Object.keys(carrier) : [];
+        if (leaves.length !== 1) {
+          problems.push(
+            `${where}: global '${added[0]}' carries ${leaves.length} entries ` +
+              `(${leaves.join(', ') || 'none'}); expected exactly one namespace`,
+          );
+          continue;
+        }
+        umdGlobalName = `${added[0]}.${leaves[0]}`;
+        namespace = carrier[leaves[0]];
       }
     } catch (error) {
       problems.push(`${where}: failed to load — ${/** @type {Error} */ (error).message}`);
@@ -356,7 +371,9 @@ for (const name of readdirSync(PACKAGES)) {
       continue;
     }
     artifactsLoaded += 1;
-    loaded.set(label, namespace);
+    // The discovered UMD namespace rides in the label, so any later probe
+    // failure names the global it ran against.
+    loaded.set(umdGlobalName ? `${label} (${umdGlobalName})` : label, namespace);
     compareSurface(where, expected, surfaceOf(namespace));
   }
 
@@ -408,24 +425,6 @@ for (const name of readdirSync(PACKAGES)) {
       }
     }
   }
-}
-
-/**
- * The package's vite config, evaluated for the UMD target so its declared
- * global name can be read rather than assumed.
- *
- * @param {string} packageDir - the package root
- * @returns {Promise<{ build?: { lib?: { name?: unknown } } } | undefined>} the resolved
- *  config, narrowed to the one field this gate reads
- */
-async function loadUmdConfig(packageDir) {
-  const configPath = join(packageDir, 'vite.config.js');
-  if (!existsSync(configPath)) {
-    return undefined;
-  }
-  process.env.SPECIES_BUILD_TARGET = 'umd';
-  const module = await import(`${pathToFileURL(configPath).href}?smoke=umd`);
-  return module.default;
 }
 
 // ----- the gate's own denominators -----
