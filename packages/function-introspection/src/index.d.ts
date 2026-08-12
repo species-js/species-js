@@ -39,8 +39,7 @@
  * claims.
  */
 
+export * from '#utility';
 export * from '#bound';
 export * from '#arrow';
 export * from '#concise';
-
-export { getCondensedFunctionSource } from '#utility';

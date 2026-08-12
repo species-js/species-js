@@ -15,6 +15,8 @@
  * how much evidence stands behind it.
  */
 
+// ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
+
 /* @@throw-safe */
 /**
  * Reports whether the value carries evidence of `Function.prototype.bind`.

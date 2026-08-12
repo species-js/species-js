@@ -182,3 +182,5 @@ export function isAnyArrowFunction(value) {
   // the spec records what it cost. Sync stays first as the commoner flavor.
   return isArrowFunction(value) || isAsyncArrowFunction(value);
 }
+
+// ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----

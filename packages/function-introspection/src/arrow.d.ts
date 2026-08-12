@@ -52,6 +52,8 @@
  * ```
  */
 
+// ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
+
 /* @@throw-safe */
 /**
  * Reports whether the source opens with a non-async arrow's head — either a
@@ -78,6 +80,8 @@ export function matchesStartSequencesOfArrowFunctionSource(source: string): bool
  * @internal
  */
 export function matchesStartSequencesOfAsyncArrowFunctionSource(source: string): boolean;
+
+// ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 
 /* @@throw-safe */
 /**
@@ -151,3 +155,5 @@ export function isAsyncArrowFunction(value?: unknown): boolean;
  * ```
  */
 export function isAnyArrowFunction(value?: unknown): boolean;
+
+// ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----

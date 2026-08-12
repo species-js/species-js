@@ -79,6 +79,10 @@ import {
 } from '#utility';
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
+//
+//  Source Head Recognizers
+//
+// ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 
 /* @@throw-safe */
 /**
@@ -213,6 +217,10 @@ export function matchesStartSequencesOfUnnamedPlainFunctionSource(source) {
   return /^function(?:\s|\/\*(?:[^*]|\*(?!\/))*\*\/|\/\/[^\n]*(?:\n|$))*\(/.test(source);
 }
 
+// ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
+//
+//  Flavor Predicates
+//
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 
 /* @@throw-safe */
