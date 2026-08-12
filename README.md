@@ -17,8 +17,20 @@ prototype-less namespaces.
 | [`@species-js/type-identity`](./packages/type-identity)                   | Type branding, identity sealing, multi-layer validation pipelines                |
 | [`@species-js/custom-domain`](./packages/custom-domain)                   | Prototype-less namespace objects for sealed method grouping                      |
 
-All packages share the same runtime floor: Chrome 80+, Firefox 74+, Safari 13.1+, Edge
-80+, Node 22+. See the `browserslist` field in each package's `package.json`.
+All packages share the same browser floor: Chrome 80+, Firefox 74+, Safari 13.1+, Edge 80+
+— see the `browserslist` field in each package's `package.json`.
+
+### Node support, stated precisely
+
+Each published package declares `engines.node: ">=18"` — the **consumer** floor (ADR
+#078). What actually stands behind it differs per artifact, so it is worth being exact
+rather than reassuring:
+
+| claim                                        | status                                                                                                                                                                                                                                                                              |
+| -------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| The published **UMD bundles run on Node 18** | **Tested.** CI executes them on Node 18 and runs every behavioral probe against them. Because the dependency is inlined, that exercises both packages’ code.                                                                                                                        |
+| The ESM and CJS builds run on Node 18        | **Guarded, not tested.** Every emitted file is scanned for syntax past the ES2020 floor. That is a regression guard over known markers, not a proof — those builds resolve their dependency through a consumer’s own `node_modules`, which this repository cannot model on Node 18. |
+| Node 22+                                     | The **contributor** floor (root `engines.node`) — what you need to work on this repository. It is not what a consumer needs.                                                                                                                                                        |
 
 ## Status
 

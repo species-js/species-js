@@ -5,9 +5,12 @@
 > **AMENDED 2026-08-12.** The contributor floor is now `>=22`, not `>=22.22.1`. The patch
 > level was never justified anywhere and `.npmrc`'s `engine-strict=true` made it a HARD
 > block, so a contributor on any earlier 22.x patch could not install. The two-floor
-> design below is unchanged, and the consumer floor is now guarded: `smoke:check` scans
-> the built output for post-ES2020 syntax, since the `node22` build target permits
-> emitting it.
+> design below is unchanged, and the consumer floor is no longer merely asserted. It is
+> guarded at two levels: `smoke:check` scans every emitted file for post-ES2020 syntax
+> (the `node22` build target permits emitting it), and CI EXECUTES the UMD bundles on Node
+> 18, running every behavioral probe against them. The module builds are still not
+> executed there — they need a consumer's own `node_modules`, which this workspace cannot
+> model on Node 18.
 
 **Context.** The delivery-seam cluster (#070 runtime load-order, #071 consumer-deliverable
 types) closed the two seams that "shipped in theory," each turned into a guarded property:
