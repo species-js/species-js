@@ -32,6 +32,25 @@ why a half-applied rule survives unnoticed. `type-identity` is the next arc; the
 gains a surface and goes public, an exact pin would ship without anyone thinking to look.
 Uniform now costs nothing and leaves nothing to remember.
 
+## 1b. Subpaths deliberately expose `@internal`, and the tag says so
+
+`@internal` in this workspace means **outside the semver contract and absent from the API
+docs** — NOT unreachable. `type-detection/src/config/index.d.ts` has stated it since it
+was written: "`@internal` — importable by downstream, hidden from the public API docs".
+
+Two tiers follow, and both are intended. The ROOT is curated and hard: `exports["."]`
+resolves to `src/public.{js,d.ts}`, which lists its exports one by one, and
+`surface:check` fails the build if that list and the `@internal` tagging disagree (#085).
+The per-module SUBPATHS are open: **106 of the 257 exports reachable through them carry
+`@internal`** — 41%, measured 2026-08-12, and `./config` alone is 23 of 31.
+
+Recorded here because it is about to stop being reversible. At `0.1.0` those symbols
+acquire consumers regardless of the tag, and Hyrum's law does not read JSDoc. The decision
+is to KEEP the exposure — it is what makes the per-module subpaths useful to a downstream
+package that needs a shared primitive — but it is now ratified rather than inherited from
+one module's header. If a future package wants a genuinely sealed subpath, that is a new
+decision, not an adjustment to this one.
+
 ## 2. The first version is `0.1.0`
 
 Not `1.0.0`. Q.005 and the `isCustomClass` / `isBuiltInClass` placement question are open
