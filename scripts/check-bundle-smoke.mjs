@@ -61,6 +61,19 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const PACKAGES = join(ROOT, 'packages');
 const require = createRequire(import.meta.url);
 
+/**
+ * Restricts the run to ONE artifact kind (`esm` / `cjs` / `umd`), unset for all.
+ *
+ * The reason this exists: the consumer floor (ADR #078) promises Node 18, and
+ * the only way to prove that is to execute there. The module builds import
+ * their dependency by bare specifier and so need a resolvable `node_modules`,
+ * which this workspace cannot have on Node 18 — `engine-strict=true` plus the
+ * root `>=22` floor blocks installing it at all. The UMD inlines every
+ * dependency and needs nothing, so `SPECIES_SMOKE_ONLY=umd` is what makes a
+ * Node-18 job possible without weakening either floor.
+ */
+const ONLY_KIND = process.env.SPECIES_SMOKE_ONLY;
+
 /** @type {string[]} */
 const problems = [];
 
@@ -271,7 +284,7 @@ for (const name of readdirSync(PACKAGES)) {
     { kind: 'cjs', label: 'node CJS', target: at(root, ['node', 'require']) },
     { kind: 'esm', label: 'browser ESM', target: at(root, ['browser', 'import']) },
     { kind: 'umd', label: 'UMD', target: manifest.unpkg },
-  ];
+  ].filter(({ kind }) => ONLY_KIND === undefined || kind === ONLY_KIND);
 
   /** @type {Map<string, Record<string, unknown>>} */
   const loaded = new Map();

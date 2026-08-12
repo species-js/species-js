@@ -872,7 +872,11 @@ The consumer floor is guarded rather than assumed. The node build target is `nod
 esbuild is permitted to emit syntax older runtimes cannot parse; `smoke:check` scans the
 built output for post-ES2020 syntax so the floor cannot rot silently. That scan is a
 REGRESSION guard over known markers, not a proof of compatibility — only running on the
-target runtime proves that.
+target runtime proves that, which CI now does: a final ubuntu step re-runs the smoke gate
+on **Node 18** against the UMD bundles (`SPECIES_SMOKE_ONLY=umd`). The UMD inlines every
+dependency, so it needs no install — which is what makes the job possible at all, since
+`engine-strict` plus the `>=22` contributor floor would refuse to install this workspace
+there.
 
 ---
 

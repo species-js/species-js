@@ -133,3 +133,29 @@ jobs:
       - name: Verify publish gates (attw + publint)
         if: matrix.os == 'ubuntu-latest'
         run: pnpm run check:publish
+
+      # Each package declares `engines.node: ">=18"` — the CONSUMER floor of
+      # ADR #078. Until now that was a convention held up by an ES2020 source
+      # rule and, since today, a syntax scan over the built output. Neither
+      # executes anything, so neither proves the floor.
+      #
+      # This does. The UMD bundle inlines every dependency, so it needs no
+      # install and no module resolution — which is what makes a Node-18 job
+      # possible at all here: `engine-strict=true` plus the root `>=22`
+      # contributor floor would refuse to install this workspace on Node 18.
+      # Running the UMD executes every line of library code, BOTH packages
+      # (type-detection is inlined), on the runtime the packages promise.
+      #
+      # Deliberately last in the job: it switches the runtime, and nothing
+      # after it should inherit that.
+      - name: Set up the consumer floor (Node 18)
+        if: matrix.os == 'ubuntu-latest'
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 18
+
+      - name: Execute the UMD bundles on Node 18
+        if: matrix.os == 'ubuntu-latest'
+        env:
+          SPECIES_SMOKE_ONLY: umd
+        run: node scripts/check-bundle-smoke.mjs
