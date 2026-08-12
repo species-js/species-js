@@ -18,7 +18,7 @@ name: Bootstrap Publish
 # confirmation), but executed in CI, so provenance works. It bypasses
 # `changesets/action` entirely, so the E404 fallback cannot apply.
 #
-# Afterwards: uncomment `publish:` in `release.yml`, and delete this file. It is
+# Afterward: uncomment `publish:` in `release.yml`, and delete this file. It is
 # a bootstrap, not a release mechanism — leaving it around invites someone to
 # publish out of band, past the changesets version history.
 
@@ -73,14 +73,14 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      # The full gate, not a subset. A publish is irreversible under a version
-      # number npm will not let us reuse, so this is the one place where the
-      # slow, complete check is unambiguously worth its runtime.
+      # The full gate, not a subset. A publish-task is irreversible under a
+      # version number npm will not let us reuse, so this is the one place
+      # where the slow, complete check is unambiguously worth its runtime.
       - name: Verify everything
         run: pnpm run check:full
 
       # `pnpm pack`, never `npm pack`: only pnpm rewrites the `workspace:*`
-      # protocol into a real version range. An npm-produced tarball would carry
+      # protocol into a real version range. A npm-produced tarball would carry
       # `workspace:*` into the published manifest and break every install.
       # Verified against a real tarball before this workflow was written.
       - name: Pack the publishable packages
