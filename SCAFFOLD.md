@@ -697,7 +697,7 @@ weekly.
 ### Single command name: `check`
 
 The root provides `check`
-(`toolchain:check + gates:check + typecheck + lint + format:check + docs:check + decisions:check + audit + test:coverage`)
+(`toolchain:check + gates:check + typecheck + lint + format:check + docs:check + decisions:check + surface:check + entries:check + audit + test:coverage`)
 as the single validation command. It is a **superset** of CI's gating sequence rather than
 an exact match — `toolchain:check` is deliberately local-only (see its row below) — so
 "passes locally" implies "passes CI" for every gating step, but not the reverse. There is
@@ -706,17 +706,19 @@ no `validate` alias. One name, one purpose.
 That superset relation is no longer maintained by hand: `gates:check` enforces it, after a
 gate once went unrun in CI for weeks (see its row).
 
-| Step              | What it catches                                                                                                                                                                                                         |
-| ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `toolchain:check` | Installed tool versions drifting from the lockfile CI installs. **Local-only** — a guaranteed no-op under CI's `--frozen-lockfile`. Also runs at pre-commit, where it can still prevent the drift rather than report it |
-| `gates:check`     | A gate in `check` / `check:full` that nothing in CI invokes — so it passes locally while CI never runs it. One-directional by design; see the script header before extending it                                         |
-| `typecheck`       | Type errors across every package                                                                                                                                                                                        |
-| `lint`            | Style/correctness rules (type-aware via typescript-eslint)                                                                                                                                                              |
-| `format:check`    | Prettier drift (files written outside the normal Git workflow)                                                                                                                                                          |
-| `docs:check`      | typedoc strict validation — broken `{@link}`, undocumented exports, unexported referenced types                                                                                                                         |
-| `decisions:check` | An ADR supersession with no reciprocal annotation at its target, leaving the target reading as current when it is not                                                                                                   |
-| `audit`           | Advisories in **production** dependencies at high+ severity. Near-vacuous by construction here — read "Supply-chain audit" above before relying on it                                                                   |
-| `test:coverage`   | Test failures **and** per-package coverage threshold violations                                                                                                                                                         |
+| Step              | What it catches                                                                                                                                                                                                             |
+| ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `toolchain:check` | Installed tool versions drifting from the lockfile CI installs. **Local-only** — a guaranteed no-op under CI's `--frozen-lockfile`. Also runs at pre-commit, where it can still prevent the drift rather than report it     |
+| `gates:check`     | A gate in `check` / `check:full` that nothing in CI invokes — so it passes locally while CI never runs it. One-directional by design; see the script header before extending it                                             |
+| `typecheck`       | Type errors across every package                                                                                                                                                                                            |
+| `lint`            | Style/correctness rules (type-aware via typescript-eslint)                                                                                                                                                                  |
+| `format:check`    | Prettier drift (files written outside the normal Git workflow)                                                                                                                                                              |
+| `docs:check`      | typedoc strict validation — broken `{@link}`, undocumented exports, unexported referenced types                                                                                                                             |
+| `decisions:check` | An ADR supersession with no reciprocal annotation at its target, leaving the target reading as current when it is not                                                                                                       |
+| `surface:check`   | A curated `src/public.{js,d.ts}` disagreeing with the `@internal` tagging it re-exports — a published internal, or a documented-public export no consumer can reach (#085)                                                  |
+| `entries:check`   | A published subpath resolving to a file the build never emits — `exports` ↔ legacy fields ↔ vite `lib.entry` drift, and #089's workspace-dependency pair. Static parity; artifact existence stays in `check:publish` (#091) |
+| `audit`           | Advisories in **production** dependencies at high+ severity. Near-vacuous by construction here — read "Supply-chain audit" above before relying on it                                                                       |
+| `test:coverage`   | Test failures **and** per-package coverage threshold violations                                                                                                                                                             |
 
 CI invokes the same underlying scripts individually for clearer step-level reporting;
 locally, `pnpm run check` is the daily driver. The pre-push Husky hook also calls
