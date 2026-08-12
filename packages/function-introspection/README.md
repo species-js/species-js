@@ -1,5 +1,7 @@
 # @species-js/function-introspection
 
+[![codecov](https://codecov.io/gh/species-js/species-js/branch/main/graph/badge.svg?flag=function-introspection)](https://app.codecov.io/gh/species-js/species-js/flags)
+
 Classification of JavaScript callables — arrows, concise methods and bound functions —
 each answered at the strength its evidence supports.
 

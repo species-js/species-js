@@ -87,6 +87,37 @@ jobs:
           if-no-files-found: warn
           retention-days: 14
 
+      # One upload PER PACKAGE, each carrying its own flag. A single upload of
+      # both lcov files would merge them into one project number and lose the
+      # per-package view; flags add that view without giving up the aggregate,
+      # which Codecov still computes across every flag. The flags are declared
+      # in `codecov.yml`, and each package's README carries its own badge.
+      #
+      # The private scaffolds are deliberately absent — one trivial test each
+      # would only dilute the numbers. Add a package here, in `codecov.yml`,
+      # and in its README when it gains a real surface.
+      #
+      # `fail_ci_if_error` is TRUE on purpose. A silently failing upload leaves
+      # the badge grey forever and nothing goes red — the same
+      # green-for-the-wrong-reason shape the other gates exist to prevent.
+      - name: Upload type-detection coverage to Codecov
+        if: matrix.os == 'ubuntu-latest'
+        uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # v7.0.0
+        with:
+          files: ./packages/type-detection/coverage/lcov.info
+          flags: type-detection
+          fail_ci_if_error: true
+          token: ${{ secrets.CODECOV_TOKEN }}
+
+      - name: Upload function-introspection coverage to Codecov
+        if: matrix.os == 'ubuntu-latest'
+        uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # v7.0.0
+        with:
+          files: ./packages/function-introspection/coverage/lcov.info
+          flags: function-introspection
+          fail_ci_if_error: true
+          token: ${{ secrets.CODECOV_TOKEN }}
+
       - name: Build
         run: pnpm run build
 

@@ -1,5 +1,9 @@
 # species-js
 
+[![CI](https://github.com/species-js/species-js/actions/workflows/ci.yml/badge.svg)](https://github.com/species-js/species-js/actions/workflows/ci.yml)
+[![codecov](https://codecov.io/gh/species-js/species-js/branch/main/graph/badge.svg)](https://codecov.io/gh/species-js/species-js)
+[![License: MIT](https://img.shields.io/github/license/species-js/species-js)](./LICENSE)
+
 Foundation runtime type infrastructure for JavaScript. A monorepo of four small, focused
 packages providing cross-realm type detection, function introspection, type identity, and
 prototype-less namespaces.

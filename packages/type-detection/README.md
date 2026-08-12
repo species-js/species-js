@@ -1,5 +1,7 @@
 # @species-js/type-detection
 
+[![codecov](https://codecov.io/gh/species-js/species-js/branch/main/graph/badge.svg?flag=type-detection)](https://app.codecov.io/gh/species-js/species-js/flags)
+
 Runtime type detection with cross-realm safety for JavaScript values.
 
 Part of the [species-js](https://github.com/species-js/species-js) monorepo — foundation

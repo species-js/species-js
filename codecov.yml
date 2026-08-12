@@ -1,0 +1,41 @@
+# Codecov configuration.
+#
+# Coverage is reported BOTH per package and in aggregate. Flags are what make
+# the per-package view exist: without them Codecov merges every uploaded lcov
+# file into one project number and the distinction is gone. With them, the
+# project number is still computed — flags add granularity, they do not replace
+# the total.
+#
+# One flag per publishable package, each fed by its own upload step in
+# `.github/workflows/ci.yml`. A package earns an entry here when it gains a
+# real surface; the private scaffolds have none and are deliberately absent,
+# since a package with one trivial test would only dilute the numbers.
+
+coverage:
+  status:
+    project:
+      default:
+        target: auto
+        # Tolerate ordinary noise, fail on a real regression.
+        threshold: 1%
+    patch:
+      default:
+        target: auto
+
+flag_management:
+  default_rules:
+    # A flag whose tests did not run in a given CI job keeps its previous
+    # value rather than reporting zero. Without this a partial run reads as a
+    # coverage collapse.
+    carryforward: true
+  individual_flags:
+    - name: type-detection
+      paths:
+        - packages/type-detection/
+    - name: function-introspection
+      paths:
+        - packages/function-introspection/
+
+comment:
+  layout: 'reach, diff, flags, files'
+  require_changes: true
