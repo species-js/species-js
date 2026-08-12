@@ -6,10 +6,9 @@
  * Shared internals behind the package's predicates — the function-source
  * readers and the `Proxy` constructor recognizers.
  *
- * Not a published subpath; the bundler inlines this module into the entries
- * that consume it. `getCondensedFunctionSource` is the one consumer-facing
- * export and reaches the surface by name through the root barrel; everything
- * else is `@internal`.
+ * Published as its own subpath, and inlined by the bundler into the entries
+ * that consume it as well. `getCondensedFunctionSource` is the one
+ * consumer-facing export; everything else here is `@internal`.
  */
 
 import { getFunctionSource, isFunction } from '@species-js/type-detection';
@@ -78,9 +77,9 @@ export function getFunctionSourceCondensate(source) {
  * {@link getFunctionSourceCondensate}, so a source the reader cannot produce
  * arrives as `undefined` and passes through untouched.
  *
- * The one export of this module that is consumer surface; it reaches the
- * package's public API by name through the root barrel rather than by living
- * in a subpath of its own.
+ * The one export of this module that is consumer surface. It is named
+ * explicitly by the curated root entry, which is what lets the rest of the
+ * module stay `@internal`.
  *
  * @param {Callable} value - the callable whose source to read
  * @returns {string | undefined} the condensed source; `undefined` when the
