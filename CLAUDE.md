@@ -6,12 +6,12 @@ depend on these packages.
 
 ## Packages
 
-| Package                              | Purpose                                                           | Dependencies   |
-| ------------------------------------ | ----------------------------------------------------------------- | -------------- |
-| `@species-js/type-detection`         | Runtime type checking, cross-realm discrimination                 | none           |
-| `@species-js/function-introspection` | Function classification (class, generator, async, arrow, concise) | type-detection |
-| `@species-js/type-identity`          | Type branding, constructor sealing, multi-layer validation        | type-detection |
-| `@species-js/custom-domain`          | Prototype-less namespace objects for sealed method grouping       | type-detection |
+| Package                              | Purpose                                                            | Dependencies   |
+| ------------------------------------ | ------------------------------------------------------------------ | -------------- |
+| `@species-js/type-detection`         | Runtime type checking, cross-realm discrimination                  | none           |
+| `@species-js/function-introspection` | Function classification — bound functions, arrows, concise methods | type-detection |
+| `@species-js/type-identity`          | Type branding, constructor sealing, multi-layer validation         | type-detection |
+| `@species-js/custom-domain`          | Prototype-less namespace objects for sealed method grouping        | type-detection |
 
 ## Code conventions
 

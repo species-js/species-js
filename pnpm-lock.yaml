@@ -89,13 +89,13 @@ importers:
   packages/custom-domain:
     dependencies:
       '@species-js/type-detection':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../type-detection
 
   packages/function-introspection:
     dependencies:
       '@species-js/type-detection':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../type-detection
 
   packages/type-detection: {}
@@ -103,7 +103,7 @@ importers:
   packages/type-identity:
     dependencies:
       '@species-js/type-detection':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../type-detection
 
 packages:

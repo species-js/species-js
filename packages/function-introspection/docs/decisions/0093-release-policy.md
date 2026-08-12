@@ -26,11 +26,38 @@ captures and two identity registries, and values would fail checks across the bo
 On `0.x` the caret is already restrictive — `^0.1.0` admits `0.1.x` only — so this buys
 patch propagation without the latitude a caret carries at `1.x`.
 
+**The rule applies to EVERY consuming package, private ones included.** `type-identity`
+and `custom-domain` publish nothing today, so their specifier is inert — which is exactly
+why a half-applied rule survives unnoticed. `type-identity` is the next arc; the moment it
+gains a surface and goes public, an exact pin would ship without anyone thinking to look.
+Uniform now costs nothing and leaves nothing to remember.
+
+## 1b. Subpaths deliberately expose `@internal`, and the tag says so
+
+`@internal` in this workspace means **outside the semver contract and absent from the API
+docs** — NOT unreachable. `type-detection/src/config/index.d.ts` has stated it since it
+was written: "`@internal` — importable by downstream, hidden from the public API docs".
+
+Two tiers follow, and both are intended. The ROOT is curated and hard: `exports["."]`
+resolves to `src/public.{js,d.ts}`, which lists its exports one by one, and
+`surface:check` fails the build if that list and the `@internal` tagging disagree (#085).
+The per-module SUBPATHS are open: **106 of the 257 exports reachable through them carry
+`@internal`** — 41%, measured 2026-08-12, and `./config` alone is 23 of 31.
+
+Recorded here because it is about to stop being reversible. At `0.1.0` those symbols
+acquire consumers regardless of the tag, and Hyrum's law does not read JSDoc. The decision
+is to KEEP the exposure — it is what makes the per-module subpaths useful to a downstream
+package that needs a shared primitive — but it is now ratified rather than inherited from
+one module's header. If a future package wants a genuinely sealed subpath, that is a new
+decision, not an adjustment to this one.
+
 ## 2. The first version is `0.1.0`
 
-Not `1.0.0`. Q.005 and the `isCustomClass` / `isBuiltInClass` placement question are open
-and could still move surface. `0.x` says "stable enough to build on, not frozen"; `1.0.0`
-would commit us to major-version discipline for changes we may want within the month.
+Not `1.0.0`. **Q.005 is the only open question that could still move surface.** The
+`isCustomClass` / `isBuiltInClass` placement question was resolved on 2026-08-12 (see
+#087's amendment), with class detection remaining in type-detection. `0.x` says "stable
+enough to build on, not frozen"; `1.0.0` would commit us to major-version discipline for
+changes we may want within the month.
 
 ## 3. Packages version INDEPENDENTLY
 
@@ -58,7 +85,7 @@ The changelog is being generated anyway.
 ## 7. Releases stay CHANGESETS-AUTOMATED, and that is not the same as unattended
 
 The recurring question is manual versus automated. It is a false split here — both
-judgement calls remain human, and only the arithmetic is machine work:
+judgment calls remain human, and only the arithmetic is machine work:
 
 | step                                             | who     |
 | ------------------------------------------------ | ------- |
