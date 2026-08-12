@@ -53,9 +53,11 @@ decision, not an adjustment to this one.
 
 ## 2. The first version is `0.1.0`
 
-Not `1.0.0`. Q.005 and the `isCustomClass` / `isBuiltInClass` placement question are open
-and could still move surface. `0.x` says "stable enough to build on, not frozen"; `1.0.0`
-would commit us to major-version discipline for changes we may want within the month.
+Not `1.0.0`. **Q.005 is the only open question that could still move surface.** The
+`isCustomClass` / `isBuiltInClass` placement question was resolved on 2026-08-12 (see
+#087's amendment), with class detection remaining in type-detection. `0.x` says "stable
+enough to build on, not frozen"; `1.0.0` would commit us to major-version discipline for
+changes we may want within the month.
 
 ## 3. Packages version INDEPENDENTLY
 
