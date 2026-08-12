@@ -26,6 +26,12 @@ captures and two identity registries, and values would fail checks across the bo
 On `0.x` the caret is already restrictive — `^0.1.0` admits `0.1.x` only — so this buys
 patch propagation without the latitude a caret carries at `1.x`.
 
+**The rule applies to EVERY consuming package, private ones included.** `type-identity`
+and `custom-domain` publish nothing today, so their specifier is inert — which is exactly
+why a half-applied rule survives unnoticed. `type-identity` is the next arc; the moment it
+gains a surface and goes public, an exact pin would ship without anyone thinking to look.
+Uniform now costs nothing and leaves nothing to remember.
+
 ## 2. The first version is `0.1.0`
 
 Not `1.0.0`. Q.005 and the `isCustomClass` / `isBuiltInClass` placement question are open
@@ -58,7 +64,7 @@ The changelog is being generated anyway.
 ## 7. Releases stay CHANGESETS-AUTOMATED, and that is not the same as unattended
 
 The recurring question is manual versus automated. It is a false split here — both
-judgement calls remain human, and only the arithmetic is machine work:
+judgment calls remain human, and only the arithmetic is machine work:
 
 | step                                             | who     |
 | ------------------------------------------------ | ------- |
