@@ -7,10 +7,10 @@
  * Capturing `Object` and `Function.prototype` members once at module-load,
  * rather than reaching for `Object.x` at each call site, fixes their
  * identity to this realm and shields the predicates from later tampering
- * with the global `Object`. The documented surface is a small set of public
- * building blocks — the descriptor presets, `objectHasOwn`, `objectCreate`, and
- * the `Blank*` shape types; the remaining realm-fixed primitives are `@internal`
- * (importable by downstream, but omitted from these docs).
+ * with the global `Object`. The documented surface is the value-add half — the
+ * ten descriptor presets with their paired `*Options` interfaces, `objectHasOwn`,
+ * `objectCreate`, and the `Blank*` shape types; the raw realm-fixed captures are
+ * `@internal` (importable by downstream, but omitted from these docs).
  *
  * ## Descriptor presets
  *

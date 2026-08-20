@@ -4,7 +4,8 @@
  * Cross-realm-safe, throw-safe primitives for runtime type inspection: weak-key
  * and property-key validation, throw-safe prototype and descriptor reads, own
  * `prototype`-property predicates, type-signature and tag readers, tamper-resistant
- * constructor inspection, type-name resolution, and standard-constructor validation.
+ * constructor inspection, type-name resolution, own-property definability, and
+ * standard-constructor validation.
  *
  * Used internally by the package's predicates and exposed via subpath for
  * downstream packages that need the same cross-realm-safe primitives.

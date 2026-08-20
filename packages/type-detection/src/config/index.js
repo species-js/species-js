@@ -9,10 +9,10 @@
  * Capturing `Object` and `Function.prototype` members once at module-load,
  * rather than reaching for `Object.x` at each call site, fixes their
  * identity to this realm and shields the predicates from later tampering
- * with the global `Object`. Most exports are internal realm-fixed primitives
- * (`@internal` — importable by downstream, hidden from the public API docs); a
- * curated few are public building blocks a downstream package reaches for
- * directly: the descriptor presets, `objectHasOwn`, `objectCreate`, and the
+ * with the global `Object`. The raw captures are `@internal` — importable by
+ * downstream, hidden from the public API docs. The public half is the value-adds
+ * a downstream package reaches for directly: the ten descriptor presets with
+ * their paired `*Options` interfaces, `objectHasOwn`, `objectCreate`, and the
  * `Blank*` shape types.
  *
  * ## Descriptor presets

@@ -222,9 +222,10 @@ full test configuration (coverage thresholds, includes, environment). The root
 **Why — portability:** a package directory should be transplantable. If a package moves to
 a different monorepo or becomes standalone, its vite config works without modification.
 
-**Inflection point:** at four packages the duplication (~55 lines × 4) is acceptable. At
-~6 packages a shared `vite.config.base.js` factory becomes worth the loss of
-single-directory portability. Tracked in the scaffold-followups memory.
+**Inflection point:** at four packages the duplication (~85-100 lines × 4, up from ~55
+before the manifest-derived threshold gate) is acceptable. At ~6 packages a shared
+`vite.config.base.js` factory becomes worth the loss of single-directory portability.
+Tracked in the scaffold-followups memory.
 
 ### Build targets per package
 
