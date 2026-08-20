@@ -51,6 +51,7 @@ import {
   hasInertSetter,
   hasInertValue,
   getVerifiedOwnName,
+  canOwnPropertyBeDefined,
   getTypeSignature,
   getTaggedType,
   getDefinedConstructor,
@@ -89,6 +90,7 @@ const valueReaders = {
 /** @type {Record<string, (type: unknown, key: PropertyKey) => unknown>} */
 const chainProbeFns = {
   getNextAvailableSafeDescriptor,
+  canOwnPropertyBeDefined,
   hasInertMethod,
   hasInertGetter,
   hasInertSetter,

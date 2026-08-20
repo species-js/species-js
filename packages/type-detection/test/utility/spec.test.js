@@ -31,6 +31,7 @@ import {
   getDefinedConstructorName,
   resolveType,
   getVerifiedOwnName,
+  canOwnPropertyBeDefined,
   getSafePrototypeOf,
   getOwnPropertyKeys,
   getSafeOwnPropertyNames,
@@ -50,6 +51,7 @@ import {
   invalidWeakKeys,
   typeReaderMatrix,
   verifiedOwnNameTable,
+  definabilityTable,
 } from './__config.js';
 
 import { foreignRealmEval } from '../_cross-realm.js';
@@ -228,6 +230,79 @@ describe('getVerifiedOwnName', () => {
       expect(getVerifiedOwnName(row.make())).toBe(row.expected);
     });
   }
+});
+
+// ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
+//
+//  `canOwnPropertyBeDefined` — definability, NOT own-ness
+//
+// ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
+
+describe('canOwnPropertyBeDefined', () => {
+  for (const [rowName, row] of Object.entries(definabilityTable)) {
+    it(`${rowName}: ${row.description} [${row.vectors.join(', ')}]`, () => {
+      expect(canOwnPropertyBeDefined(row.make(), row.key)).toBe(row.expected);
+    });
+  }
+
+  it('cOPBD/R4: a nullish value → false (guard)', () => {
+    expect(canOwnPropertyBeDefined(null, 'k'), 'null').toBe(false);
+    expect(canOwnPropertyBeDefined(undefined, 'k'), 'undefined').toBe(false);
+    expect(canOwnPropertyBeDefined(), 'omitted').toBe(false);
+  });
+
+  it('cOPBD/R5: an omitted or invalid key → false (guard, via isValidPropertyKey)', () => {
+    expect(canOwnPropertyBeDefined({ k: 1 }), 'omitted key').toBe(false);
+    expect(
+      canOwnPropertyBeDefined(
+        {},
+        /** @type {PropertyKey} */ (/** @type {unknown} */ ({})),
+      ),
+      'object key',
+    ).toBe(false);
+  });
+
+  // The second half of B2: the predicate's `true` is NOT a promise the define
+  // succeeds. Asserting only the verdict would leave the boundary unpinned.
+  it('cOPBD/B2: `true` on a non-extensible target, yet defining that key throws', () => {
+    const target = Object.preventExtensions({});
+    expect(canOwnPropertyBeDefined(target, 'k'), 'predicate is optimistic').toBe(true);
+    expect(() => Object.defineProperty(target, 'k', { value: 1 })).toThrow(TypeError);
+
+    // ...while REDEFINING an already-present configurable key does succeed there,
+    // so the optimism is confined to absent keys.
+    const withOwn = Object.preventExtensions(
+      Object.defineProperty({}, 'k', { value: 1, configurable: true }),
+    );
+    expect(canOwnPropertyBeDefined(withOwn, 'k'), 'own configurable').toBe(true);
+    expect(() =>
+      Object.defineProperty(withOwn, 'k', { value: 2, configurable: true }),
+    ).not.toThrow();
+  });
+
+  // Completeness: the suite must cover every vector the spec section defines.
+  it('covers every `cOPBD/*` vector in UTILITY.spec.md', () => {
+    const covered = new Set(
+      Object.values(definabilityTable).flatMap((row) => row.vectors),
+    );
+    ['cOPBD/R4', 'cOPBD/R5', 'cOPBD/B2'].forEach((id) => covered.add(id));
+
+    const expected = [
+      'cOPBD/A1',
+      'cOPBD/A2',
+      'cOPBD/A3',
+      'cOPBD/A4',
+      'cOPBD/A5',
+      'cOPBD/R1',
+      'cOPBD/R2',
+      'cOPBD/R3',
+      'cOPBD/R4',
+      'cOPBD/R5',
+      'cOPBD/B1',
+      'cOPBD/B2',
+    ];
+    expect([...covered].sort()).toEqual(expected.sort());
+  });
 });
 
 describe('type-reader reject / edge composition', () => {

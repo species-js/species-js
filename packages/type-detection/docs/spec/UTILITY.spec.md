@@ -28,6 +28,23 @@
 > strengthened from a hardcoded list to a source-locked triple-lock, and a determinism
 > standing-invariant added (`invariants.test.js`); no spec section changed and no vector
 > moved — see Resolved item #7.
+>
+> **Amended 2026-08-20 — `canOwnPropertyBeDefined` added.** A definability probe,
+> introduced while building `type-identity`'s `defineStableTypeIdentity` and promoted to
+> the public surface. Its section and vectors `cOPBD/A1`–`A5`, `R1`–`R5`, `B1`–`B2` are
+> appended below. **Public functions 22 → 23; the `@@throw-safe` marked set 21 → 22.** No
+> existing vector, verdict or count elsewhere is affected.
+>
+> **Status: AMENDED — RE-DECIDED 2026-08-20.** All twelve vectors are driven by
+> `test/utility/spec.test.js` (ten from the `definabilityTable`, plus the two guard
+> vectors and the second half of `cOPBD/B2` — that `defineProperty` really does throw on
+> the target the predicate reports `true` for). A completeness guard in that suite fails
+> if a `cOPBD/*` vector is added here without a test. `throw-safety.test.js` now scores
+> the function across all four hostile rows, so the matrix covers 21 of the 22 marks and
+> `_internal/helpers.test.js` the remaining `@internal` one. Mutation-probed twice:
+> `!== false` → `=== true` reddens exactly `A3`/`A4`/`A5`/`B2` (the vectors that separate
+> this predicate from the `hasOwn*` family), and removing the `try/catch` reddens the
+> desc-trap row. Not yet run through `check`/CI.
 
 ## Module contract
 
@@ -64,7 +81,7 @@ predicates are `isValidWeakKey` (`value is WeakKey`) and `isValidPropertyKey`
 
 ## Surface inventory
 
-**Public functions (axis 1) — 22:**
+**Public functions (axis 1) — 23:**
 
 - Weak-key validation: `isValidWeakKey` (narrowing guard → `value is WeakKey`).
 - Throw-safe prototype access: `getSafePrototypeOf` (→
@@ -83,6 +100,8 @@ predicates are `isValidWeakKey` (`value is WeakKey`) and `isValidPropertyKey`
   `getNextAvailableSafeDescriptor`.
 - Verified-name reader: `getVerifiedOwnName` (own `name` descriptor `value`, narrowed to a
   string primitive).
+- Definability probe: `canOwnPropertyBeDefined` (boolean; `true` unless an own
+  non-configurable property occupies the key — deliberately NOT a `hasOwn*` predicate).
 - Type-signature readers: `getTypeSignature`, `getTaggedType` (each overloaded: omitted
   arg → `undefined`; a hostile tag getter → `undefined`).
 - Constructor inspection: `getDefinedConstructor`, `getDefinedConstructorName`.
@@ -111,10 +130,12 @@ for no reason anyone needed.
 `DefinedConstructorAccessorOptions`, `ConstructorName`, `TaggedType`, `ResolvedType`,
 `TypeSignature`, `WeakKey`, `PredicateFunction`.
 
-Re-confirmation gate (re-tallied 2026-07-23; the re-export dropped 2026-08-05 per #084):
-22 public `.js` value exports + 2 `@internal` helpers, each with a matching `.d.ts`
-declaration; 9 type exports match; `architecture/utility.md` matches the code; the
-`@@throw-safe` flagged set matches the throw-safe surface below.
+Re-confirmation gate (re-tallied 2026-08-20; the re-export dropped 2026-08-05 per #084):
+23 public `.js` value exports + 2 `@internal` helpers, each with a matching `.d.ts`
+declaration (three of the public ones — `getTypeSignature`, `getTaggedType`, `resolveType`
+— are declared as overload pairs, so the `.d.ts` carries 26 function declarations for 23
+names); 9 type exports match; the `@@throw-safe` flagged set is 22 and matches the
+throw-safe surface below.
 
 ## Cross-cutting vectors
 
@@ -531,6 +552,65 @@ string primitive. Own-only (no chain walk; `getVerifiedNextAvailableName` reserv
 
 **Cross-realm (axis 2):** realm-safe. **Composition note (axis 4):** behind
 `getDefinedConstructorName`.
+
+---
+
+## `canOwnPropertyBeDefined`
+
+`canOwnPropertyBeDefined(value?: unknown, key?: PropertyKey, trustedData?: boolean): boolean`
+—
+`try { return (getOwnPropertyDescriptor(value, key) ?? {}).configurable !== false; } catch { return false; }`,
+behind a guard that rejects a nullish `value` or an invalid `key` unless `trustedData` is
+set. Reports whether anything already sitting at `key` would block defining it as an own
+property. **`@@throw-safe`.**
+
+**Not a member of the `hasOwn*` family — the load-bearing distinction.** Those predicates
+assert that a property EXISTS and then qualify it, so they answer `false` for an absent or
+inherited-only key. This one asserts the _absence of a blocker_, so it answers `true` in
+both those cases. The sole `false` from a reachable descriptor is an own property carrying
+`configurable: false`. The `?? {}` fallback is what produces that asymmetry — no
+descriptor means no blocker — and `!== false` rather than `=== true` is what stops a
+descriptor-less read from being mistaken for a non-configurable one.
+
+- `cOPBD/A1` — an own configurable data property (`{ k: 1 }`, key `'k'`) → `true`.
+- `cOPBD/A2` — an own configurable **accessor** (`get k()`, `configurable: true`) → `true`
+  (the descriptor kind is irrelevant; only the flag is read, and the getter is never
+  invoked).
+- `cOPBD/A3` — a key with no own descriptor (`{}`, key `'k'`) → `true`. Nothing occupies
+  the slot, so nothing blocks defining it.
+- `cOPBD/A4` — a key present only on the prototype chain (`Object.create({ k: 1 })`, key
+  `'k'`) → `true`. The read is own-only; an inherited property is not a blocker.
+- `cOPBD/A5` — a symbol key with no own descriptor → `true` (symbol keys pass
+  `isValidPropertyKey` and read identically).
+- `cOPBD/R1` — an own **non-configurable** data property → `false`. The one blocker.
+- `cOPBD/R2` — an own **non-configurable accessor** → `false` (same flag, either kind).
+- `cOPBD/R3` — a non-configurable **symbol**-keyed property → `false`.
+- `cOPBD/R4` — a nullish `value` (`null`, `undefined`/omitted) → `false` (guard).
+- `cOPBD/R5` — an omitted or invalid `key` (`{}`, an object) → `false` (guard, via
+  `isValidPropertyKey`).
+- `cOPBD/B1` — a `Proxy` whose `getOwnPropertyDescriptor` trap throws → `false`, **not
+  thrown**.
+- `cOPBD/B2` — a **non-extensible** target (`Object.preventExtensions` / `seal` /
+  `freeze`) with an ABSENT key → `true`, yet `Object.defineProperty` on that key
+  **throws**. `[[Extensible]]` is object-level state and invisible to a per-property
+  descriptor read, so the predicate cannot see it. Pinned because the name reads as a
+  promise the check does not make. Redefining an already-present configurable key on a
+  non-extensible target does succeed, so the optimism is confined to absent keys.
+
+**Refuses to claim.** That the define will succeed — only that no _descriptor_ blocks it
+(`cOPBD/B2`). That the property exists, is own, or is enumerable. That a setter, a
+prototype-chain entry, or a `[[Prototype]]` trap will not interfere.
+
+**The `trustedData` path is unvalidated by contract.** With the flag set, the nullish and
+property-key guards are skipped and an invalid `key` is coerced by
+`getOwnPropertyDescriptor` rather than rejected — so the trusted path can answer `true`
+where `cOPBD/R5` answers `false`. That is a caller contract violation, not a specified
+input, and is deliberately given no vector.
+
+**Cross-realm (axis 2):** realm-safe — the descriptor read goes through the realm-fixed
+`getOwnPropertyDescriptor` capture and inspects only a boolean flag. **Composition note
+(axis 4):** consumed by `type-identity`'s `defineStableTypeIdentity`, which asks the
+can-this-be-defined question of `name` and `Symbol.toStringTag` before sealing either.
 
 ---
 

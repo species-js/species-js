@@ -13,7 +13,7 @@
  *   A. COMPLETENESS TRIPLE-LOCK — the `@@throw-safe` marked set is pinned from three
  *      sides: the top-level markers parsed out of `src/utility/index.js` (source
  *      drift), the canonical {@link THROW_SAFE_MARKED} list, and the imported set
- *      scored below (test drift). `throw-safety.test.js` scores the 20 public marks
+ *      scored below (test drift). `throw-safety.test.js` scores the 21 public marks
  *      against the hostile matrix and `_internal/helpers.test.js` scores the sole
  *      `@internal` mark, but neither locks its function list to the source — this
  *      does, so a marker added or removed without updating the oracle fails here.
@@ -48,6 +48,7 @@ import {
   hasInertSetter,
   hasInertValue,
   getVerifiedOwnName,
+  canOwnPropertyBeDefined,
   getTypeSignature,
   getTaggedType,
   getDefinedConstructor,
@@ -67,7 +68,7 @@ import {
 
 // ----- Law A: the completeness triple-lock -----
 
-// The full 21-mark imported set, keyed by name — the third side of the lock.
+// The full 22-mark imported set, keyed by name — the third side of the lock.
 const markedImports = {
   isValidWeakKey,
   getSafePrototypeOf,
@@ -84,6 +85,7 @@ const markedImports = {
   hasInertSetter,
   hasInertValue,
   getVerifiedOwnName,
+  canOwnPropertyBeDefined,
   getTypeSignature,
   getTaggedType,
   getDefinedConstructor,
@@ -113,11 +115,11 @@ function markedNamesFromSource() {
 }
 
 describe('utility — structural invariants (A: completeness triple-lock)', () => {
-  it('completeness (source): the top-level `@@throw-safe` markers in src/utility/index.js === the 21-name oracle', () => {
+  it('completeness (source): the top-level `@@throw-safe` markers in src/utility/index.js === the 22-name oracle', () => {
     expect(markedNamesFromSource().sort()).toEqual(markedSorted);
   });
 
-  it('completeness (test): the imported marked set === the 21-name oracle', () => {
+  it('completeness (test): the imported marked set === the 22-name oracle', () => {
     expect(Object.keys(markedImports).sort()).toEqual(markedSorted);
   });
 });
@@ -185,6 +187,7 @@ const valueReaders = {
 /** @type {Record<string, (type: unknown, key: PropertyKey) => unknown>} */
 const chainProbes = {
   getNextAvailableSafeDescriptor,
+  canOwnPropertyBeDefined,
   hasInertMethod,
   hasInertGetter,
   hasInertSetter,

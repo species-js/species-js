@@ -610,6 +610,49 @@ export function hasInertValue(
  */
 export function getVerifiedOwnName(value?: unknown): string | undefined;
 
+/* @@throw-safe */
+/**
+ * Reports whether nothing already sitting at `key` would block defining it as
+ * an own property of `value`.
+ *
+ * The sole blocker is an own property whose descriptor carries
+ * `configurable: false` — that is the only state answering `false`. An absent
+ * key, a key that lives only on the prototype chain, and an own configurable
+ * key all answer `true`, because none of them stands in the way.
+ *
+ * ## Not a member of the `hasOwn*` family
+ *
+ * The `hasOwn*` predicates assert that a property EXISTS and then qualify it,
+ * so they answer `false` for an absent or inherited-only key. This one asserts
+ * the absence of a blocker and answers `true` in both those cases. A caller who
+ * needs existence should reach for a `hasOwn*` predicate and qualify it.
+ *
+ * ## Does not check extensibility
+ *
+ * `[[Extensible]]` is object-level state, invisible to a per-property
+ * descriptor read. On a non-extensible target — `Object.preventExtensions`,
+ * `Object.seal`, `Object.freeze` — defining a NEW key throws while this
+ * predicate still answers `true`. Redefining an already-present configurable
+ * key does succeed there, so the answer is only optimistic for keys that are
+ * absent.
+ *
+ * Throw-safe: the own-descriptor read is wrapped, so a hostile
+ * `getOwnPropertyDescriptor` Proxy-trap yields `false` rather than propagating.
+ *
+ * @param value - the value the key would be defined on
+ * @param key - the property key to test for a blocker
+ * @param trustedData - call-site hint; skips the nullish-value and
+ *  property-key validation the caller has already performed
+ * @returns `true` when no own non-configurable property occupies `key`;
+ *  `false` when one does, when the guard rejects the input, or when the
+ *  descriptor read throws
+ */
+export function canOwnPropertyBeDefined(
+  value?: unknown,
+  key?: PropertyKey,
+  trustedData?: boolean,
+): boolean;
+
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 //
 //  Throw-safe Type-Signature Readers

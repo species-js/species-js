@@ -41,15 +41,15 @@ import { isCallable, isFunction, isNewableFunction } from '#function';
 
 /** @typedef {import('#config').BlankDictionary} BlankDictionary */
 
-/** @typedef {import('./index').WeakKey} WeakKey */
-/** @typedef {import('./index').DefinedConstructorAccessorOptions} DefinedConstructorAccessorOptions */
+/** @typedef {import('#utility').WeakKey} WeakKey */
+/** @typedef {import('#utility').DefinedConstructorAccessorOptions} DefinedConstructorAccessorOptions */
 
-/** @typedef {import('./index').PropertyDescriptorMap} PropertyDescriptorMap */
-/** @typedef {import('./index').PropertyDescriptor} PropertyDescriptor */
-/** @typedef {import('./index').ConstructorName} ConstructorName */
-/** @typedef {import('./index').TypeSignature} TypeSignature */
-/** @typedef {import('./index').TaggedType} TaggedType */
-/** @typedef {import('./index').ResolvedType} ResolvedType */
+/** @typedef {import('#utility').PropertyDescriptorMap} PropertyDescriptorMap */
+/** @typedef {import('#utility').PropertyDescriptor} PropertyDescriptor */
+/** @typedef {import('#utility').ConstructorName} ConstructorName */
+/** @typedef {import('#utility').TypeSignature} TypeSignature */
+/** @typedef {import('#utility').TaggedType} TaggedType */
+/** @typedef {import('#utility').ResolvedType} ResolvedType */
 
 /** @typedef {import('#function').Callable} Callable */
 
@@ -57,7 +57,7 @@ import { isCallable, isFunction, isNewableFunction } from '#function';
 /** @typedef {import('#function').ES3Function} ES3Function */
 /** @typedef {import('#function').ClassConstructor} ClassConstructor */
 
-/** @typedef {import('./index').PredicateFunction} PredicateFunction */
+/** @typedef {import('#utility').PredicateFunction} PredicateFunction */
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 
@@ -644,6 +644,53 @@ export function getVerifiedOwnName(value) {
     return isStringValue(name) ? name : void 0;
   } catch {
     return void 0;
+  }
+}
+
+/* @@throw-safe */
+/**
+ * Reports whether nothing already sitting at `key` would block defining it as
+ * an own property of `value`.
+ *
+ * Reads the own descriptor through the realm-fixed `getOwnPropertyDescriptor`
+ * capture and tests `configurable !== false`. Two details carry the contract:
+ * the `?? {}` fallback is what makes an absent or inherited-only key answer
+ * `true` — no descriptor means no blocker — and `!== false` rather than
+ * `=== true` is what keeps that descriptor-less read from being mistaken for a
+ * non-configurable one.
+ *
+ * Despite the `Own` in the name this is NOT an `hasOwn*` predicate: it reports
+ * the absence of a blocker, not the presence of a property, so it answers
+ * `true` where the `hasOwn*` family answers `false`.
+ *
+ * It also cannot see `[[Extensible]]`, which is object-level rather than
+ * per-property: on a sealed, frozen or `preventExtensions`-ed target, defining
+ * a NEW key throws while this still answers `true`.
+ *
+ * Throw-safe: the descriptor read is wrapped, so a hostile
+ * `getOwnPropertyDescriptor` Proxy-trap yields `false` rather than propagating.
+ *
+ * @param {unknown} [value] - the value the key would be defined on
+ * @param {PropertyKey} [key] - the property key to test for a blocker
+ * @param {TRUSTED_DATA_CONFIRMATION_FLAG} [trustedData] - call-site hint; skips
+ *  the nullish-value and property-key validation the caller has already
+ *  performed
+ * @returns {boolean} `true` when no own non-configurable property occupies
+ *  `key`; `false` when one does, when the guard rejects the input, or when the
+ *  descriptor read throws
+ */
+export function canOwnPropertyBeDefined(value = null, key, trustedData) {
+  if (trustedData !== true && (value === null || !isValidPropertyKey(key))) {
+    return false;
+  }
+  try {
+    // Might throw. Nothing guards this specific property-descriptor access.
+    return (
+      (getOwnPropertyDescriptor(value, /** @type {PropertyKey} */ (key)) ?? {})
+        .configurable !== false
+    );
+  } catch {
+    return false;
   }
 }
 

@@ -712,6 +712,114 @@ export const verifiedOwnNameTable = {
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 //
+//  `canOwnPropertyBeDefined` definability table (axis 1)
+//
+// ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
+// The predicate answers `true` unless an own NON-configurable property occupies
+// the key. Absent and inherited-only keys therefore answer `true` — the rows
+// that separate it from the `hasOwn*` family, which require existence.
+
+const cOPBDSymbolKey = Symbol('cOPBD');
+
+/**
+ * @typedef {object} DefinabilityRow
+ * @property {string} description - human-readable candidate description
+ * @property {() => unknown} make - fresh-value factory
+ * @property {PropertyKey} key - the property key probed
+ * @property {boolean} expected - expected verdict
+ * @property {string[]} vectors - spec vector IDs this row covers
+ */
+
+/** @type {Record<string, DefinabilityRow>} */
+export const definabilityTable = {
+  ownConfigurableData: {
+    description: 'an own configurable data property `{ k: 1 }`',
+    make: () => ({ k: 1 }),
+    key: 'k',
+    expected: true,
+    vectors: ['cOPBD/A1'],
+  },
+  ownConfigurableAccessor: {
+    description: 'an own configurable accessor `get k()` (never invoked)',
+    make: () =>
+      Object.defineProperty({}, 'k', {
+        get() {
+          return 1;
+        },
+        configurable: true,
+      }),
+    key: 'k',
+    expected: true,
+    vectors: ['cOPBD/A2'],
+  },
+  absentKey: {
+    description: 'a plain object with no own `k` — nothing occupies the slot',
+    make: plainObject,
+    key: 'k',
+    expected: true,
+    vectors: ['cOPBD/A3'],
+  },
+  inheritedOnlyKey: {
+    description: 'an object whose `k` lives only on the prototype chain',
+    make: () => objectCreate({ k: 1 }),
+    key: 'k',
+    expected: true,
+    vectors: ['cOPBD/A4'],
+  },
+  absentSymbolKey: {
+    description: 'a symbol key with no own descriptor',
+    make: plainObject,
+    key: cOPBDSymbolKey,
+    expected: true,
+    vectors: ['cOPBD/A5'],
+  },
+  ownNonConfigurableData: {
+    description: 'an own NON-configurable data property — the sole blocker',
+    make: () => Object.defineProperty({}, 'k', { value: 1, configurable: false }),
+    key: 'k',
+    expected: false,
+    vectors: ['cOPBD/R1'],
+  },
+  ownNonConfigurableAccessor: {
+    description: 'an own NON-configurable accessor — same flag, either kind',
+    make: () =>
+      Object.defineProperty({}, 'k', {
+        get() {
+          return 1;
+        },
+        configurable: false,
+      }),
+    key: 'k',
+    expected: false,
+    vectors: ['cOPBD/R2'],
+  },
+  ownNonConfigurableSymbol: {
+    description: 'a NON-configurable symbol-keyed property',
+    make: () =>
+      Object.defineProperty({}, cOPBDSymbolKey, { value: 1, configurable: false }),
+    key: cOPBDSymbolKey,
+    expected: false,
+    vectors: ['cOPBD/R3'],
+  },
+  throwingDescTrap: {
+    description: 'a `Proxy` whose `getOwnPropertyDescriptor` trap throws',
+    make: throwingDescTrapProxy,
+    key: 'k',
+    expected: false,
+    vectors: ['cOPBD/B1'],
+  },
+  nonExtensibleAbsentKey: {
+    description:
+      'a non-extensible target with an ABSENT key — `true`, though defining throws',
+    make: () => Object.preventExtensions({}),
+    key: 'k',
+    expected: true,
+    vectors: ['cOPBD/B2'],
+  },
+};
+
+// ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
+//
 //  Reader tamper candidates (attack angles; targeted by adversarial.test.js)
 //
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
@@ -829,6 +937,7 @@ export const THROW_SAFE_MARKED = [
   'hasInertSetter',
   'hasInertValue',
   'getVerifiedOwnName',
+  'canOwnPropertyBeDefined',
   'getTypeSignature',
   'getTaggedType',
   'getDefinedConstructor',
@@ -866,6 +975,7 @@ export const throwSafetyMatrix = {
     expected: {
       ...invariantColumns,
       getSafePrototypeOf: TS_SENTINEL.UNDEF, // absorbed — this trap's prime victim
+      canOwnPropertyBeDefined: true, // descriptor read untrapped; no own `then`
       getTypeSignature: '[object Object]', // toString never reads the prototype
       getTaggedType: 'Object',
       getDefinedConstructor: TS_SENTINEL.UNDEF, // chain severed at the pivot
@@ -878,10 +988,19 @@ export const throwSafetyMatrix = {
     make: throwingDescTrapProxy,
     // the descriptor-read throw-safety of the `hasOwn*` family, the own-`name` read,
     // the Safe descriptor walk, and the `hasInert*` probes.
-    vectors: ['hOP/B1', 'hOWP/B1', 'hONWP/B1', 'gVON/B1', 'gNASD/B1', 'hIM/R6'],
+    vectors: [
+      'hOP/B1',
+      'hOWP/B1',
+      'hONWP/B1',
+      'gVON/B1',
+      'gNASD/B1',
+      'hIM/R6',
+      'cOPBD/B1',
+    ],
     expected: {
       ...invariantColumns,
       getSafePrototypeOf: TS_SENTINEL.PROTOTYPE, // `getPrototypeOf` untrapped
+      canOwnPropertyBeDefined: false, // absorbed — the descriptor read IS the trap
       getTypeSignature: '[object Object]',
       getTaggedType: 'Object',
       getDefinedConstructor: Object, // walks the REAL `Object.prototype`, bypassing the trap
@@ -900,6 +1019,7 @@ export const throwSafetyMatrix = {
       // getSafeOwnProperty* absorb this trap (vs the honest-empty of the other
       // rows) — same value, the completeness guard keeps the cell explicit.
       getSafePrototypeOf: TS_SENTINEL.PROTOTYPE,
+      canOwnPropertyBeDefined: true, // `ownKeys` is not the descriptor read
       getTypeSignature: '[object Object]',
       getTaggedType: 'Object',
       getDefinedConstructor: Object,
@@ -917,6 +1037,7 @@ export const throwSafetyMatrix = {
     expected: {
       ...invariantColumns,
       getSafePrototypeOf: TS_SENTINEL.PROTOTYPE,
+      canOwnPropertyBeDefined: true, // the tag getter is never reached
       getTypeSignature: TS_SENTINEL.UNDEF, // absorbed — this trap's prime victim
       getTaggedType: TS_SENTINEL.UNDEF, // absorbed (composes getTypeSignature)
       getDefinedConstructor: Object, // constructor walk never reads the tag
