@@ -26,3 +26,5 @@
  * @internal
  */
 export const TRUSTED_DATA_CONFIRMATION = /** @type {true} */ (true);
+
+// ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----

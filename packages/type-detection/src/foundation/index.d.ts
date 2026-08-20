@@ -24,3 +24,5 @@
  * @internal
  */
 export const TRUSTED_DATA_CONFIRMATION = true;
+
+// ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
