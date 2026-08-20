@@ -11,6 +11,27 @@
  * building blocks — the descriptor presets, `objectHasOwn`, `objectCreate`, and
  * the `Blank*` shape types; the remaining realm-fixed primitives are `@internal`
  * (importable by downstream, but omitted from these docs).
+ *
+ * ## Descriptor presets
+ *
+ * Ten presets span the visible/hidden × writable × configurable grid. Each ships
+ * as a constant paired with an interface — `defaultDataDescriptor` with
+ * `DefaultDataDescriptorOptions` — that pins its flags as literal types. A preset
+ * typed `{ writable: boolean }` would say nothing about which preset a consumer
+ * is holding; the paired interface keeps the declared shape legible at the call
+ * site and in the editor.
+ *
+ * The naming follows `Object.seal` and `Object.freeze` rather than a private
+ * vocabulary. `readOnly` is non-writable but still configurable, and claims only
+ * what holds — a configurable property can be redefined back to writable.
+ * `frozen` is `Object.freeze`'s pair, non-writable and non-configurable, and
+ * exists for data descriptors only. `sealed` is `Object.seal`'s single effect,
+ * `configurable: false`, and exists for accessors only.
+ *
+ * There is deliberately no frozen accessor. On an accessor the two operations
+ * produce identical descriptors, and `configurable: false` says nothing about
+ * mutability — that depends on whether a `set` was supplied, which a preset
+ * cannot know.
  */
 
 import type { Callable, NewableFunction } from '#function';
@@ -42,52 +63,185 @@ export declare const globalContext: typeof globalThis;
 //
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 
+// CONFIGURABLE
+
+// enumerable, configurable DESCRIPTOR and ACCESSOR
+
 /**
- * Descriptor preset for a hidden-but-mutable property.
- *
- * The default shape for defining internal properties that may still be
- * reassigned.
+ * The flag set of a configurable, *visible-and-mutable* data-property.
  */
-export declare const defaultDescriptorOptions: {
+export interface DefaultDataDescriptorOptions {
+  enumerable: true;
+  writable: true;
+  configurable: true;
+}
+
+/**
+ * Descriptor preset for a configurable, *visible-and-mutable*
+ * data-property.
+ *
+ * The default shape for defining data-properties.
+ */
+export declare const defaultDataDescriptor: DefaultDataDescriptorOptions;
+
+/**
+ * The flag set of a configurable, *visible*, accessor-backed data-property.
+ *
+ * `writable` is absent by construction — it is invalid on an accessor
+ * descriptor, so the type offers no place to put it.
+ */
+export interface DefaultDataAccessorOptions {
+  enumerable: true;
+  configurable: true;
+}
+
+/**
+ * Descriptor preset for a configurable and *visible*, accessor-backed
+ * data-property.
+ *
+ * The default shape for defining accessor-backed data-properties.
+ */
+export declare const defaultDataAccessor: DefaultDataAccessorOptions;
+
+// non-enumerable, configurable DESCRIPTOR and ACCESSOR
+
+/**
+ * The flag set of a configurable, *hidden-but-mutable* entry.
+ */
+export interface DefaultEntryDescriptorOptions {
   enumerable: false;
   writable: true;
   configurable: true;
-};
+}
 
 /**
- * Descriptor preset for a hidden read-only property.
+ * Descriptor preset for a configurable, *hidden-but-mutable* entry.
  *
- * Configurable despite being non-writable, so the property can still be
- * redefined or deleted.
+ * The default shape for defining (internal) key-value pairs that may
+ * still be reassigned.
  */
-export declare const restrictedDescriptorOptions: {
+export declare const defaultEntryDescriptor: DefaultEntryDescriptorOptions;
+
+/**
+ * The flag set of a configurable but *hidden*, accessor-backed entry.
+ *
+ * `writable` is absent by construction — it is invalid on an accessor
+ * descriptor, so the type offers no place to put it.
+ */
+export interface DefaultEntryAccessorOptions {
+  enumerable: false;
+  configurable: true;
+}
+
+/**
+ * Descriptor preset for a configurable but *hidden*, accessor-backed entry.
+ *
+ * The default shape for defining accessor-backed (internal) key-value pairs.
+ */
+export declare const defaultEntryAccessor: DefaultEntryAccessorOptions;
+
+// non-writable, configurable DESCRIPTORS
+
+/**
+ * The flag set of a still configurable, *visible-but-read-only*
+ * data-property.
+ */
+export interface ReadOnlyDataDescriptorOptions {
+  enumerable: true;
+  writable: false;
+  configurable: true;
+}
+
+/**
+ * Descriptor preset for a still configurable *visible-but-read-only*
+ * data-property.
+ */
+export declare const readOnlyDataDescriptor: ReadOnlyDataDescriptorOptions;
+
+/**
+ * The flag set of a still configurable, *hidden-and-read-only* key-value
+ * pair.
+ */
+export interface ReadOnlyEntryDescriptorOptions {
   enumerable: false;
   writable: false;
   configurable: true;
-};
+}
 
 /**
- * Descriptor preset for a hidden accessor (get/set) property.
- *
- * Omits `writable`, which is invalid on accessor descriptors.
+ * Descriptor preset for a still configurable *hidden-and-read-only*
+ * key-value pair.
  */
-export declare const restrictedAccessorOptions: {
+export declare const readOnlyEntryDescriptor: ReadOnlyEntryDescriptorOptions;
+
+// NON-CONFIGURABLE
+
+// non-configurable DESCRIPTORS
+
+/**
+ * The flag set of a *visible-but-entirely-frozen* data-property.
+ */
+export interface FrozenDataDescriptorOptions {
+  enumerable: true;
+  writable: false;
+  configurable: false;
+}
+
+/**
+ * Descriptor preset for a *visible-but-entirely-frozen* data-property.
+ */
+export declare const frozenDataDescriptor: FrozenDataDescriptorOptions;
+
+/**
+ * The flag set of a *hidden-and-entirely-frozen* key-value pair.
+ */
+export interface FrozenEntryDescriptorOptions {
   enumerable: false;
-  configurable: true;
-};
+  writable: false;
+  configurable: false;
+}
 
 /**
- * Descriptor preset for a sealed property.
- *
- * Non-configurable, so the property can be neither redefined nor deleted
- * once set. Omits `writable` so the preset fits both data and accessor
- * properties; on a data property `writable` then defaults to `false`, so a
- * sealed data property is also read-only.
+ * Descriptor preset for a *hidden-and-entirely-frozen* key-value pair.
  */
-export declare const sealedDescriptorOptions: {
+export declare const frozenEntryDescriptor: FrozenEntryDescriptorOptions;
+
+// non-configurable ACCESSORS
+
+/**
+ * The flag set of a *visible-but-non-configurable* accessor-backed
+ * data-property.
+ *
+ * `writable` is absent by construction — it is invalid on an accessor
+ * descriptor, so the type offers no place to put it.
+ */
+export interface SealedDataAccessorOptions {
+  enumerable: true;
+  configurable: false;
+}
+
+/**
+ * Descriptor preset for a *visible-but-non-configurable*, accessor-backed
+ * data-property.
+ */
+export declare const sealedDataAccessor: SealedDataAccessorOptions;
+
+/**
+ * The flag set of a *hidden-and-non-configurable* accessor-backed entry.
+ *
+ * `writable` is absent by construction — it is invalid on an accessor
+ * descriptor, so the type offers no place to put it.
+ */
+export interface SealedEntryAccessorOptions {
   enumerable: false;
   configurable: false;
-};
+}
+
+/**
+ * Descriptor preset for a *hidden-and-non-configurable*, accessor-backed
+ * entry.
+ */
+export declare const sealedEntryAccessor: SealedEntryAccessorOptions;
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 //
@@ -411,3 +565,5 @@ export declare const BLANK_DICTIONARY: BlankDictionary;
  * @internal
  */
 export declare const INSTANCE_LESS_CONSTRUCTOR: NewableFunction;
+
+// ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----

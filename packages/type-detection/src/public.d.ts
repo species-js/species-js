@@ -51,16 +51,36 @@ export type {
 } from '#function';
 
 export {
-  defaultDescriptorOptions,
   objectCreate,
   objectHasOwn,
-  restrictedAccessorOptions,
-  restrictedDescriptorOptions,
-  sealedDescriptorOptions,
+  defaultDataDescriptor,
+  defaultDataAccessor,
+  defaultEntryDescriptor,
+  defaultEntryAccessor,
+  readOnlyDataDescriptor,
+  readOnlyEntryDescriptor,
+  frozenDataDescriptor,
+  frozenEntryDescriptor,
+  sealedDataAccessor,
+  sealedEntryAccessor,
 } from '#config';
-export type { BlankDictionary, BlankType } from '#config';
+export type {
+  BlankDictionary,
+  BlankType,
+  DefaultDataDescriptorOptions,
+  DefaultDataAccessorOptions,
+  DefaultEntryDescriptorOptions,
+  DefaultEntryAccessorOptions,
+  ReadOnlyDataDescriptorOptions,
+  ReadOnlyEntryDescriptorOptions,
+  FrozenDataDescriptorOptions,
+  FrozenEntryDescriptorOptions,
+  SealedDataAccessorOptions,
+  SealedEntryAccessorOptions,
+} from '#config';
 
 export {
+  canOwnPropertyBeDefined,
   getDefinedConstructor,
   getDefinedConstructorName,
   getNextAvailablePropertyDescriptor,

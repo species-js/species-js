@@ -12,7 +12,7 @@
  *   (A) realm-fixity        — `fix/*`  (identity + tamper-immunity + globalContext)
  *   (A/runtime) captures    — `cap/*`  (the wired-through native behavior)
  *   (C) polyfill-fallback   — `oHO/*` + `hasOwn/*` (selector + isolated closure)
- *   (data) presets          — `dpo/*`  (exact descriptor shapes)
+ *   (data+accessor) presets — `dpo/*`  (exact descriptor shapes)
  *   (sentinels)             — `blank/*` + `ilc/*` (#060 shape constants)
  *
  * Dimension (B) — the boundary-retyped signatures (`ret/T1`–`T3`) — is a type-level
@@ -40,10 +40,16 @@ import {
   getOwnPropertySymbols,
   objectHasOwn,
   hasOwn,
-  defaultDescriptorOptions,
-  restrictedDescriptorOptions,
-  restrictedAccessorOptions,
-  sealedDescriptorOptions,
+  defaultDataDescriptor,
+  defaultDataAccessor,
+  defaultEntryDescriptor,
+  defaultEntryAccessor,
+  readOnlyDataDescriptor,
+  readOnlyEntryDescriptor,
+  frozenDataDescriptor,
+  frozenEntryDescriptor,
+  sealedDataAccessor,
+  sealedEntryAccessor,
   BLANK_DICTIONARY,
   INSTANCE_LESS_CONSTRUCTOR,
 } from '#index';
@@ -178,33 +184,135 @@ describe('config — spec (captures, retypes, presets, polyfill, sentinels)', ()
     });
   });
 
-  // ----- (data) descriptor presets -----
-  describe('(data) descriptor presets — exact shape', () => {
-    it('dpo/A1: defaultDescriptorOptions', () => {
-      expect(defaultDescriptorOptions).toEqual({
+  // ----- (data + accessor) descriptor presets -----
+  //
+  // Listed in the spec's structural order — configurable before non-configurable,
+  // visible (`Data`) before hidden (`Entry`), descriptor before accessor. IDs are
+  // append-only, so the sequence is deliberately non-contiguous: A1–A4 predate the
+  // 2026-08-19 rework and assert exactly the shapes they always did.
+  //
+  // `toEqual` is an EXACT shape assertion — an extra own key fails it — so the
+  // accessor presets' missing `writable` is covered. The explicit `objectHasOwn`
+  // check is kept anyway: "no `writable`" is a stated contract, not a side effect.
+  describe('(data + accessor) descriptor presets — exact shape', () => {
+    // --- configurable ---
+
+    it('dpo/A5: defaultDataDescriptor', () => {
+      expect(defaultDataDescriptor).toEqual({
+        enumerable: true,
+        writable: true,
+        configurable: true,
+      });
+    });
+
+    it('dpo/A6: defaultDataAccessor (no `writable` — invalid on accessors)', () => {
+      expect(defaultDataAccessor).toEqual({
+        enumerable: true,
+        configurable: true,
+      });
+      expect(objectHasOwn(defaultDataAccessor, 'writable'), 'writable absent').toBe(
+        false,
+      );
+    });
+
+    it('dpo/A1: defaultEntryDescriptor', () => {
+      expect(defaultEntryDescriptor).toEqual({
         enumerable: false,
         writable: true,
         configurable: true,
       });
     });
-    it('dpo/A2: restrictedDescriptorOptions', () => {
-      expect(restrictedDescriptorOptions).toEqual({
+
+    it('dpo/A3: defaultEntryAccessor (no `writable` — invalid on accessors)', () => {
+      expect(defaultEntryAccessor).toEqual({
+        enumerable: false,
+        configurable: true,
+      });
+      expect(objectHasOwn(defaultEntryAccessor, 'writable'), 'writable absent').toBe(
+        false,
+      );
+    });
+
+    it('dpo/A7: readOnlyDataDescriptor', () => {
+      expect(readOnlyDataDescriptor).toEqual({
+        enumerable: true,
+        writable: false,
+        configurable: true,
+      });
+    });
+
+    it('dpo/A2: readOnlyEntryDescriptor', () => {
+      expect(readOnlyEntryDescriptor).toEqual({
         enumerable: false,
         writable: false,
         configurable: true,
       });
     });
-    it('dpo/A3: restrictedAccessorOptions (no `writable` — invalid on accessors)', () => {
-      expect(restrictedAccessorOptions).toEqual({
-        enumerable: false,
-        configurable: true,
+
+    // --- non-configurable ---
+
+    it('dpo/A8: frozenDataDescriptor', () => {
+      expect(frozenDataDescriptor).toEqual({
+        enumerable: true,
+        writable: false,
+        configurable: false,
       });
     });
-    it('dpo/A4: sealedDescriptorOptions (omits `writable` — fits data + accessor)', () => {
-      expect(sealedDescriptorOptions).toEqual({
+
+    it('dpo/A9: frozenEntryDescriptor', () => {
+      expect(frozenEntryDescriptor).toEqual({
+        enumerable: false,
+        writable: false,
+        configurable: false,
+      });
+    });
+
+    it('dpo/A10: sealedDataAccessor (no `writable` — invalid on accessors)', () => {
+      expect(sealedDataAccessor).toEqual({
+        enumerable: true,
+        configurable: false,
+      });
+      expect(objectHasOwn(sealedDataAccessor, 'writable'), 'writable absent').toBe(false);
+    });
+
+    it('dpo/A4: sealedEntryAccessor (no `writable` — invalid on accessors)', () => {
+      expect(sealedEntryAccessor).toEqual({
         enumerable: false,
         configurable: false,
       });
+      expect(objectHasOwn(sealedEntryAccessor, 'writable'), 'writable absent').toBe(
+        false,
+      );
+    });
+
+    // The ten presets are pairwise distinct grid cells. Guards against a
+    // copy-paste that leaves two names pointing at the same shape — which every
+    // per-vector assertion above would still pass.
+    it('dpo: the ten presets occupy ten distinct flag combinations', () => {
+      /** @type {[string, object][]} */
+      const presets = [
+        ['defaultDataDescriptor', defaultDataDescriptor],
+        ['defaultDataAccessor', defaultDataAccessor],
+        ['defaultEntryDescriptor', defaultEntryDescriptor],
+        ['defaultEntryAccessor', defaultEntryAccessor],
+        ['readOnlyDataDescriptor', readOnlyDataDescriptor],
+        ['readOnlyEntryDescriptor', readOnlyEntryDescriptor],
+        ['frozenDataDescriptor', frozenDataDescriptor],
+        ['frozenEntryDescriptor', frozenEntryDescriptor],
+        ['sealedDataAccessor', sealedDataAccessor],
+        ['sealedEntryAccessor', sealedEntryAccessor],
+      ];
+      expect(presets.length, 'every preset is imported').toBe(10);
+
+      let comparisons = 0;
+      presets.forEach(([leftName, left], index) => {
+        presets.slice(index + 1).forEach(([rightName, right]) => {
+          expect(left, `${leftName} vs ${rightName}`).not.toEqual(right);
+          comparisons += 1;
+        });
+      });
+      // The pair count is asserted so an empty or short loop cannot pass silently.
+      expect(comparisons, 'every pair compared').toBe(45);
     });
   });
 

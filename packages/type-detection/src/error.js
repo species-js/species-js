@@ -37,10 +37,10 @@ import { TRUSTED_DATA_CONFIRMATION } from '#foundation';
 
 import {
   globalContext,
-  restrictedDescriptorOptions,
   defineProperties,
   getOwnPropertyDescriptors,
   getOwnPropertyDescriptor,
+  readOnlyEntryDescriptor,
   INSTANCE_LESS_CONSTRUCTOR,
 } from '#config';
 
@@ -168,8 +168,8 @@ export const retrieveErrorStack = ((
           }
         },
         {
-          mode: { ...restrictedDescriptorOptions, value: 'gated-slot' },
-          name: { ...restrictedDescriptorOptions, value: 'retrieveErrorStack' },
+          mode: { ...readOnlyEntryDescriptor, value: 'gated-slot' },
+          name: { ...readOnlyEntryDescriptor, value: 'retrieveErrorStack' },
         },
       )
     : defineProperties(
@@ -184,8 +184,8 @@ export const retrieveErrorStack = ((
           }
         },
         {
-          mode: { ...restrictedDescriptorOptions, value: 'plain-data' },
-          name: { ...restrictedDescriptorOptions, value: 'retrieveErrorStack' },
+          mode: { ...readOnlyEntryDescriptor, value: 'plain-data' },
+          name: { ...readOnlyEntryDescriptor, value: 'retrieveErrorStack' },
         },
       );
 })(

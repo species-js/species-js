@@ -46,22 +46,38 @@
 > this round (`fix/A3`, `blank/*`, `ilc/*`) are now driven by the standing config suite
 > (`test/config/spec.test.js`, 21 vectors green, mutation-probed).**
 
+> **Amended 2026-08-19 (descriptor-preset rework).** The four presets are replaced by
+> **ten** covering the full visible/hidden × writable × configurable grid, each paired
+> with an exported `*Options` interface that pins its flags as literal types instead of
+> widening them to `boolean`. The old four survive **by value** — every one has an exact
+> equivalent in the new set — so `dpo/A1`–`A4` keep the shapes they always asserted and
+> only the symbol each names changes; the six genuinely new shapes append as
+> `dpo/A5`–`A10` per the README's append-only rule. Mapping and the two things the old set
+> had hidden are in Resolved items #3. **Export count 29 → 35 values + 12 exported types**
+> (the ten `*Options` interfaces plus `BlankType` / `BlankDictionary`); the `@internal`
+> count is **unchanged at 23**. Vocabulary is now spec-aligned: `readOnly` = non-writable
+> but still configurable, `frozen` = `Object.freeze`'s pair (data only), `sealed` =
+> `configurable: false` (accessors only). **Status: AMENDED — `dpo/A5`–`A10` are
+> re-decidability PENDING.** The six new shapes have never been through a decidability run
+> and `test/config/spec.test.js` does not yet cover them; the vectors below are reasoned
+> from the canon, not yet executed.
+
 ## Module contract
 
 `type-detection / config` is the **realm-fixed capture + boundary-retype layer**. It
 captures `Object` / `Object.prototype` / `Function.prototype` members once at module-load
-— pinning their identity to this realm — and re-exports them (plus four descriptor
-presets) so every predicate reaches for a load-time-fixed reference instead of `Object.x`
-at each call site. This shields the package from later tampering with the global `Object`.
+— pinning their identity to this realm — and re-exports them (plus ten descriptor presets)
+so every predicate reaches for a load-time-fixed reference instead of `Object.x` at each
+call site. This shields the package from later tampering with the global `Object`.
 
 **What makes this spec different from the seven behavioral modules.** Config exports **no
 predicates** — it is a capture/retype layer, not a discrimination domain — so there are
 almost no admit/reject vectors. What it exposes splits into two tiers:
 
-- a **curated public surface** — the four descriptor presets, `objectHasOwn`,
-  `objectCreate`, and the `BlankType` / `BlankDictionary` shape types — the value-added
-  building blocks a downstream package is meant to reach for directly, and the only
-  exports present in the generated API docs;
+- a **curated public surface** — the ten descriptor presets with their paired `*Options`
+  interfaces, `objectHasOwn`, `objectCreate`, and the `BlankType` / `BlankDictionary`
+  shape types — the value-added building blocks a downstream package is meant to reach for
+  directly, and the only exports present in the generated API docs;
 - a larger body of **`@internal` realm-fixed primitives** — the raw `Object` /
   `Function.prototype` captures, the polyfill closure, and the `#060` sentinels —
   importable via the subpath but omitted from the public API docs.
@@ -88,13 +104,14 @@ real work is typing and identity, not behavior.
 
 ## Surface inventory
 
-**29 value exports** (6 public + 23 `@internal`) **plus 2 exported types** (`BlankType`,
-`BlankDictionary` — both public by intent, settled 2026-08-04; Open items #1).
-Re-confirmation gate: 29 `.js` exports (28 `const` + 1 `function`) = 29 `.d.ts` value
-declarations (28 `declare const` + 1 `declare function`) plus 2 `type` declarations;
-parity verified.
+**35 value exports** (12 public + 23 `@internal`) **plus 12 exported types** (the ten
+`*Options` interfaces, plus `BlankType` / `BlankDictionary` — those two public by intent,
+settled 2026-08-04; Open items #1). Re-confirmation gate: 35 `.js` exports (34 `const` + 1
+`function`) = 35 `.d.ts` value declarations (34 `declare const` + 1 `declare function`)
+plus 12 type declarations (the ten `*Options` interfaces + `BlankType` /
+`BlankDictionary`); parity re-verified 2026-08-19.
 
-**Public value surface (6):** the four descriptor presets, `objectHasOwn` (the floor-safe
+**Public value surface (12):** the ten descriptor presets, `objectHasOwn` (the floor-safe
 own-property selector), and `objectCreate` (the 3-overload retype). The remaining 23 value
 exports are `@internal` realm-fixed primitives, grouped below.
 
@@ -107,8 +124,11 @@ exported since #0064.)_
 **Realm capture (1) — `@internal`:** `globalContext` (`globalThis`, the root global-object
 capture from which the `Object` / `Function.prototype` members below are read).
 
-**Descriptor presets (4) — public, plain data objects:** `defaultDescriptorOptions`,
-`restrictedDescriptorOptions`, `restrictedAccessorOptions`, `sealedDescriptorOptions`.
+**Descriptor presets (10) — public, plain data objects**, each paired with a public
+`*Options` interface pinning its flags as literal types: `defaultDataDescriptor`,
+`defaultDataAccessor`, `defaultEntryDescriptor`, `defaultEntryAccessor`,
+`readOnlyDataDescriptor`, `readOnlyEntryDescriptor`, `frozenDataDescriptor`,
+`frozenEntryDescriptor`, `sealedDataAccessor`, `sealedEntryAccessor`.
 
 **Prototype-method captures (3) — `@internal`:** `objectPrototype` (`Object.prototype`),
 `toObjectString` (`Object.prototype.toString`, for `.call(value)`), `toFunctionString`
@@ -134,9 +154,19 @@ surrogate and, paired with the next, the failure surrogate of `#utility`'s
 (a never-invoked function statement cast to `NewableFunction`; its untouched `prototype`
 makes `x instanceof INSTANCE_LESS_CONSTRUCTOR` uniformly `false` without throwing — #060).
 
-**Exported types (2) — public by intent (settled 2026-08-04):** `BlankType`
+**Exported types (12) — all public.** Ten `*Options` interfaces, one per descriptor preset
+(`DefaultDataDescriptorOptions`, `DefaultDataAccessorOptions`,
+`DefaultEntryDescriptorOptions`, `DefaultEntryAccessorOptions`,
+`ReadOnlyDataDescriptorOptions`, `ReadOnlyEntryDescriptorOptions`,
+`FrozenDataDescriptorOptions`, `FrozenEntryDescriptorOptions`,
+`SealedDataAccessorOptions`, `SealedEntryAccessorOptions`), each pinning that preset's
+flags as literal types so the declared shape survives to the consumer instead of widening
+to `boolean`. The accessor types carry no `writable` member at all — it is invalid on an
+accessor descriptor, so the type offers no place to put it.
+
+Plus the two object-shape types, **public by intent (settled 2026-08-04)**: `BlankType`
 (`Record<PropertyKey, never>`, the empty ordinary object shape — type-only, its
-`BLANK_TYPE` carrier removed this round) and `BlankDictionary`
+`BLANK_TYPE` carrier removed in the 2026-07-29 round) and `BlankDictionary`
 (`BlankType & { constructor?: never }`, the never-mutated `Object.create(null)` shape,
 whose carrier `BLANK_DICTIONARY` is `@internal`); the object-shape vocabulary from #0064.
 
@@ -250,18 +280,42 @@ re-defines `Object`'s behavior):
 
 ---
 
-## (data) Descriptor presets — exact shape
+## (data + accessor) Descriptor presets — exact shape
 
 Plain frozen-by-convention option objects consumed by `defineProperty` call sites. Vectors
 assert the exact own-key/value shape.
 
-- `dpo/A1` — `defaultDescriptorOptions` →
-  `{ enumerable: false, writable: true, configurable: true }`.
-- `dpo/A2` — `restrictedDescriptorOptions` →
-  `{ enumerable: false, writable: false, configurable: true }`.
-- `dpo/A3` — `restrictedAccessorOptions` → `{ enumerable: false, configurable: true }` (no
+Listed in the source file's structural order — configurable before non-configurable,
+visible (`Data`) before hidden (`Entry`), descriptor before accessor — so the section can
+be walked in parallel against `config/index.js` for completeness. IDs are append-only, so
+the sequence is deliberately non-contiguous: `A1`–`A4` predate the 2026-08-19 rework and
+assert exactly the shapes they always did (Resolved items #3).
+
+**Configurable**
+
+- `dpo/A5` — `defaultDataDescriptor` →
+  `{ enumerable: true, writable: true, configurable: true }`.
+- `dpo/A6` — `defaultDataAccessor` → `{ enumerable: true, configurable: true }` (no
   `writable` — invalid on accessor descriptors).
-- `dpo/A4` — `sealedDescriptorOptions` → `{ enumerable: false, configurable: false }`.
+- `dpo/A1` — `defaultEntryDescriptor` →
+  `{ enumerable: false, writable: true, configurable: true }`.
+- `dpo/A3` — `defaultEntryAccessor` → `{ enumerable: false, configurable: true }` (no
+  `writable` — invalid on accessor descriptors).
+- `dpo/A7` — `readOnlyDataDescriptor` →
+  `{ enumerable: true, writable: false, configurable: true }`.
+- `dpo/A2` — `readOnlyEntryDescriptor` →
+  `{ enumerable: false, writable: false, configurable: true }`.
+
+**Non-configurable**
+
+- `dpo/A8` — `frozenDataDescriptor` →
+  `{ enumerable: true, writable: false, configurable: false }`.
+- `dpo/A9` — `frozenEntryDescriptor` →
+  `{ enumerable: false, writable: false, configurable: false }`.
+- `dpo/A10` — `sealedDataAccessor` → `{ enumerable: true, configurable: false }` (no
+  `writable` — invalid on accessor descriptors).
+- `dpo/A4` — `sealedEntryAccessor` → `{ enumerable: false, configurable: false }` (no
+  `writable` — invalid on accessor descriptors).
 
 ---
 
@@ -341,6 +395,35 @@ themselves; see ADR #074 and `PRIMITIVE.spec.md`.)_
    (it composes `BlankDictionary`), now carrier-less; #0064 was fronted with a
    supersession pointer, and the `#object` architecture docs updated. Surface: 30 → 29
    value exports.
+
+3. **Descriptor presets reworked 4 → 10 (2026-08-19).** The presets now cover the full
+   visible/hidden × writable × configurable grid, and each is paired with an exported
+   `*Options` interface that pins its flags as literal types — before this, both the `.js`
+   and the `.d.ts` widened every flag to `boolean`, so no consumer or IDE could see which
+   preset it held. Every old preset survived **by value**, so no vector was withdrawn and
+   none renumbered:
+
+   | vector   | old symbol                    | shape                             | now carried by            |
+   | -------- | ----------------------------- | --------------------------------- | ------------------------- |
+   | `dpo/A1` | `defaultDescriptorOptions`    | `{ e: false, w: true, c: true }`  | `defaultEntryDescriptor`  |
+   | `dpo/A2` | `restrictedDescriptorOptions` | `{ e: false, w: false, c: true }` | `readOnlyEntryDescriptor` |
+   | `dpo/A3` | `restrictedAccessorOptions`   | `{ e: false, c: true }`           | `defaultEntryAccessor`    |
+   | `dpo/A4` | `sealedDescriptorOptions`     | `{ e: false, c: false }`          | `sealedEntryAccessor`     |
+
+   Two things the old set had hidden. **All four were `enumerable: false`** — the
+   inventory only ever covered the hidden half of the grid, so `dpo/A5`–`A10` are the
+   visible half plus `frozenEntryDescriptor`. And **`sealedDescriptorOptions` was a
+   misnomer**: named `Descriptor`, it carried no `writable`, so it had been an accessor
+   shape all along — `sealedEntryAccessor` is what it always was.
+
+   Vocabulary is now spec-aligned. `Object.seal` clears `configurable` and leaves
+   `writable` untouched, so **`sealed`** names the non-configurable accessors;
+   `Object.freeze` clears both, so **`frozen`** names the non-configurable, non-writable
+   data descriptors; the still-configurable non-writable pair is **`readOnly`**, which
+   claims only what holds, since a `configurable: true` property can be redefined back to
+   writable. There is deliberately no frozen accessor: on an accessor `seal` and `freeze`
+   produce identical descriptors, and `configurable: false` says nothing about mutability
+   because that depends on whether a `set` was supplied — which a preset cannot know.
 
 ## Open items
 

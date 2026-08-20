@@ -39,15 +39,22 @@ export {
 } from '#function';
 
 export {
-  defaultDescriptorOptions,
   objectCreate,
   objectHasOwn,
-  restrictedAccessorOptions,
-  restrictedDescriptorOptions,
-  sealedDescriptorOptions,
+  defaultDataDescriptor,
+  defaultDataAccessor,
+  defaultEntryDescriptor,
+  defaultEntryAccessor,
+  readOnlyDataDescriptor,
+  readOnlyEntryDescriptor,
+  frozenDataDescriptor,
+  frozenEntryDescriptor,
+  sealedDataAccessor,
+  sealedEntryAccessor,
 } from '#config';
 
 export {
+  canOwnPropertyBeDefined,
   getDefinedConstructor,
   getDefinedConstructorName,
   getNextAvailablePropertyDescriptor,
