@@ -361,6 +361,27 @@ per-project output.
 This is a single source of truth: if two packages ever need different thresholds (mature
 vs. new), the divergence lives in exactly one place.
 
+**Thresholds are enforced only on PUBLISHED packages (2026-08-20).** Each config derives
+`isPublished` from its own manifest and spreads the `thresholds` block in only when the
+package is not `private` — the same `private`-gated rule `smoke:check` and `entries:check`
+already apply to the delivery seam. A scaffold has no consumer to protect, and before it
+has a surface there is nothing to measure: v8 scores 0/0 as 100%, so a threshold there
+asserts nothing anyway. Coverage still runs and reports for private packages, so the
+numbers stay visible while a package grows.
+
+The rule was introduced because `type-identity` stopped being a scaffold in practice
+before it stopped being one on paper — it gained ~53 statements of real implementation
+against an eleven-line placeholder test, and the gate that had passed vacuously at 0/0
+began failing the whole `check` chain at 7.54%.
+
+**Trip condition — dropping `private` from a manifest.** That single edit restores the
+workspace thresholds in full, and an untested surface fails the build from that commit on.
+Verified by probe on 2026-08-20: removing `private` from `type-identity` flipped its
+config from no-enforcement to the full 90/85/90/90 bar and its coverage run from exit 0 to
+exit 1. The gate lifts itself rather than waiting to be remembered — which matters,
+because the alternative (a hand-maintained exclusion list) is the shape that silently
+dies.
+
 **Why the root `test:coverage` fans out (`pnpm -r run test:coverage`) instead of running
 vitest once.** Per-package coverage settings only take effect when vitest is invoked _from
 the package directory_, with that package's `vite.config.js` as its own config root. Under

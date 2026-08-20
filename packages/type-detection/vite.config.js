@@ -1,5 +1,6 @@
 // @ts-check
 
+import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { defineConfig } from 'vitest/config';
 
@@ -7,6 +8,25 @@ const buildTarget = process.env.SPECIES_BUILD_TARGET ?? 'node';
 
 const isNode = buildTarget === 'node';
 const isUmd = buildTarget === 'umd';
+
+// Coverage thresholds are enforced only once the package is PUBLISHED — the same
+// `private`-gated rule the delivery-seam gates use (`smoke:check`, `entries:check`).
+// A scaffold has no consumer to protect, and before it has a surface there is
+// nothing to measure: v8 scores 0/0 as 100%, so a threshold asserts nothing there
+// anyway. Coverage still RUNS and reports, so the numbers stay visible while the
+// package grows.
+//
+// TRIP CONDITION — dropping `private` from this package's manifest restores the
+// workspace thresholds in full, and an untested surface fails the build from that
+// commit on. That is deliberate: the gate lifts itself rather than waiting to be
+// remembered.
+/** @type {unknown} */
+const manifest = JSON.parse(
+  readFileSync(resolve(import.meta.dirname, 'package.json'), 'utf8'),
+);
+const isPublished =
+  !(typeof manifest === 'object' && manifest !== null && 'private' in manifest) ||
+  manifest.private !== true;
 
 export default defineConfig({
   build: {
@@ -51,12 +71,14 @@ export default defineConfig({
       include: ['src/**/*.js'],
       provider: 'v8',
       reporter: ['text', 'html', 'json', 'lcov'],
-      thresholds: {
-        branches: 85,
-        functions: 90,
-        lines: 90,
-        statements: 90,
-      },
+      ...(isPublished && {
+        thresholds: {
+          branches: 85,
+          functions: 90,
+          lines: 90,
+          statements: 90,
+        },
+      }),
     },
     environment: 'node',
     include: ['test/**/*.test.js'],
