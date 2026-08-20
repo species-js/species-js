@@ -9,11 +9,11 @@
  * Capturing `Object` and `Function.prototype` members once at module-load,
  * rather than reaching for `Object.x` at each call site, fixes their
  * identity to this realm and shields the predicates from later tampering
- * with the global `Object`. The raw captures are `@internal` — importable by
- * downstream, hidden from the public API docs. The public half is the value-adds
- * a downstream package reaches for directly: the ten descriptor presets with
- * their paired `*Options` interfaces, `objectHasOwn`, `objectCreate`, and the
- * `Blank*` shape types.
+ * with the global `Object`. The captures themselves stay `@internal`: a
+ * downstream package may import them, but they never appear in the public API
+ * docs. Those docs cover the value-adds a consumer reaches for directly — the
+ * ten descriptor presets with their paired `*Options` interfaces,
+ * `objectHasOwn`, `objectCreate`, and the `Blank*` shape types.
  *
  * ## Descriptor presets
  *
