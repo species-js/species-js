@@ -79,8 +79,9 @@ fail on the day it lapses, for a reason nobody will remember; see Consequences.
 
 ## 6. Each published version gets a GitHub Release
 
-`createGithubReleases: true`, stated explicitly rather than left to the action's default.
-The changelog is being generated anyway.
+`create-github-releases: true` (`createGithubReleases:` when this was written; renamed by
+the v2 migration below), stated explicitly rather than left to the action's default. The
+changelog is being generated anyway.
 
 ## 7. Releases stay CHANGESETS-AUTOMATED, and that is not the same as unattended
 
@@ -120,12 +121,62 @@ vigilance than it saves. Recorded here so the idea is not rediscovered as an ove
   hand-authored declarations travel in the tarball (62 `dist` files, 22 `src` files, ~432
   KB for type-detection). This looks like dead weight and is not: dropping `src` from
   `files` silently breaks types for every consumer.
-- **`bootstrap-publish.yml` must be deleted after the first release**, and `publish:`
-  re-enabled in `release.yml`. Leaving the bootstrap in place is a way to publish out of
-  band, past the changesets version history.
+- **`bootstrap-publish.yml` must be deleted after the first release**, and the publish
+  script re-enabled in `release.yml` — `publish-script:` since the v2 migration below;
+  this bullet said `publish:` when written. Leaving the bootstrap in place is a way to
+  publish out of band, past the changesets version history.
 - **The token expiry has no self-defence.** Nothing in the repository can warn about it;
   it needs a reminder held outside. This is the only part of the release chain that will
   fail for a reason the repository cannot explain.
 - The `@changesets/changelog-github` generator now carries its required `repo` option.
   Without it `changeset version` throws — a latent failure that would have fired at the
   first real version bump and never before it.
+
+---
+
+## Amendment — `changesets/action` v1.9.0 → v2.1.1 (2026-08-20)
+
+Dependabot proposed the major bump as PR #26. CI went green on it, and that green meant
+nothing: **no gate in this repository exercises `release.yml`.** The workflow is parsed on
+every push and does nothing, because no changeset is ever pending. The first run that
+would have executed it for real is the first release — the exact moment this ADR's staged
+bootstrap exists to de-risk.
+
+**v2.0.0 renames every input `release.yml` used, and removes both environment variables it
+relied on.** Verified against the action's own `action.yml` at `v2.1.1`, not against the
+release-note prose:
+
+| v1.9.0                  | v2                                                                                                     |
+| ----------------------- | ------------------------------------------------------------------------------------------------------ |
+| `version:`              | `version-script:`                                                                                      |
+| `publish:`              | `publish-script:`                                                                                      |
+| `title:`                | `pr-title:`                                                                                            |
+| `commit:`               | `commit-message:`                                                                                      |
+| `createGithubReleases:` | `create-github-releases:`                                                                              |
+| `env: GITHUB_TOKEN`     | `github-token:` **input** — the env var and `actions/checkout`'s credentials are no longer substitutes |
+| `env: NPM_TOKEN`        | removed; the action's own `.npmrc` handling is gone                                                    |
+
+**Why this was worth catching rather than merging.** GitHub Actions warns on an
+unrecognised `with:` key instead of failing. A v1-shaped call under v2 therefore still
+_runs_ — silently ignoring the version script, the PR title, the commit message and the
+release-creation flag, with no usable token. It would have failed at first release, in a
+workflow nothing tests, having passed every check on the way in.
+
+**Decision.** Migrate the inputs and pin **v2.1.1**, not the proposed v2.1.0: v2.1.0
+shipped a typo in the renamed inputs, fixed in v2.1.1. The npm token becomes
+`NODE_AUTH_TOKEN`, which is what the `setup-node` step's existing
+`registry-url: 'https://registry.npmjs.org'` actually reads — a rename, not new plumbing.
+
+**What is unaffected.** `bootstrap-publish.yml` does not use this action; it runs
+`pnpm pack` and `npm publish --provenance` directly, so the first-publish path in section
+7 is untouched. `create-github-releases: true` keeps its meaning. One v2 change is inert
+here but worth recording: `create-github-releases: false` no longer suppresses git tags —
+`push-git-tags` now controls those separately. This repository sets the flag `true`, so
+nothing changes.
+
+**Still unproven, and unprovable by CI.** The behaviour section 7 rests on — that a
+publish script set with no pending changesets falls back to "publish any unpublished
+package" and fails E404 on a virgin registry — was established for v1.9.0. Whether v2
+still behaves that way is not tested here and cannot be, since the publish script stays
+commented out until the bootstrap. The staged order in section 7 is what protects against
+it either way: bootstrap once by hand, then enable the script.

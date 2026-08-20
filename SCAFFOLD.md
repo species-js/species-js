@@ -811,18 +811,18 @@ safety net:
 The cost (~30–60s per release for redundant rebuilds in CI) is worth the defensive
 posture.
 
-### Publish bootstrap — why `publish:` is currently disabled
+### Publish bootstrap — why the publish script is currently disabled
 
-`changesets/action` has a documented fallback behavior: when the `publish` input is set
+`changesets/action` has a documented fallback behavior: when the publish script is set
 **and** no pending changesets exist, it attempts to publish "any unpublished packages to
 npm." On a fresh monorepo where no `@species-js/*` package has ever been pushed to the
 registry, every such attempt fails with `E404 Not Found` (anonymous PUT against a missing
 package name), and every release-workflow run goes red.
 
 To keep the workflow's red/green signal meaningful before any real publish has happened,
-the `publish:` input is commented out in `.github/workflows/release.yml`. The workflow
-still runs `version:` on every push to `main` — opening a "Version Packages" PR whenever
-pending changesets exist — but it never tries to publish.
+the `publish-script:` input is commented out in `.github/workflows/release.yml`. The
+workflow still runs `version-script:` on every push to `main` — opening a "Version
+Packages" PR whenever pending changesets exist — but it never tries to publish.
 
 **When to re-enable:**
 
@@ -831,7 +831,7 @@ pending changesets exist — but it never tries to publish.
 3. The first publish has been bootstrapped manually so at least one version of each
    `@species-js/*` package exists on the registry.
 
-Then uncomment the `publish: pnpm changeset publish` line in `release.yml` and the
+Then uncomment the `publish-script: pnpm changeset publish` line in `release.yml` and the
 workflow takes over fully.
 
 ### npm publish with provenance

@@ -39,33 +39,50 @@ jobs:
       - name: Build
         run: pnpm run build
 
+      # v2 renamed every input this step uses and removed both environment
+      # variables it relied on (see ADR #093's 2026-08-20 amendment). The rename
+      # is the dangerous part: GitHub Actions WARNS on an unrecognised `with:`
+      # key rather than failing, so a v1-shaped call under v2 runs, silently
+      # ignores `version` / `title` / `commit` / `createGithubReleases`, and has
+      # no usable token — and it would do so for the first time on the first
+      # push that carries a pending changeset. Nothing in CI exercises this
+      # file, so no gate would have caught it.
       - name: Create release PR (publish disabled until first manual bootstrap)
-        uses: changesets/action@a45c4d594aa4e2c509dc14a9f2b3b67ba3780d0d # v1.9.0
+        uses: changesets/action@8488615a623b1b9c987934bb89eae8af6a946ac1 # v2.1.1
         with:
-          version: pnpm changeset version
-          # publish: pnpm changeset publish
+          version-script: pnpm changeset version
+          # publish-script: pnpm changeset publish
           #
-          # The `publish` input is intentionally disabled.
+          # The publish script is intentionally disabled.
           #
-          # changesets/action's behavior when `publish` is set AND no changesets
-          # are pending is to fall back to "publish any unpublished packages to
-          # npm" — which fails with E404 on a fresh monorepo where no version
-          # has ever been pushed to the registry, and breaks every release-
-          # workflow run until the bootstrap publish happens.
+          # changesets/action's behavior when a publish script is set AND no
+          # changesets are pending is to fall back to "publish any unpublished
+          # packages to npm" — which fails with E404 on a fresh monorepo where
+          # no version has ever been pushed to the registry, and breaks every
+          # release-workflow run until the bootstrap publish happens.
           #
-          # Re-enable this line (and set the NPM_TOKEN repo secret) when you
-          # are ready to publish the first real release. Until then, this
-          # workflow only opens "Version Packages" PRs from pending changesets.
+          # Re-enable this line when you are ready to publish the first real
+          # release. Until then, this workflow only opens "Version Packages"
+          # PRs from pending changesets.
           #
           # ADR #093 fixes the order: run `bootstrap-publish.yml` ONCE, then
           # uncomment the line above and delete that workflow.
           #
-          # Inert until `publish` is on, and stated explicitly rather than left
-          # to the action's default: each published version gets a GitHub
-          # Release carrying the changelog entry already being generated.
-          createGithubReleases: true
-          title: 'chore: version packages'
-          commit: 'chore: version packages'
+          # Inert until the publish script is on, and stated explicitly rather
+          # than left to the action's default: each published version gets a
+          # GitHub Release carrying the changelog entry already being generated.
+          create-github-releases: true
+          pr-title: 'chore: version packages'
+          commit-message: 'chore: version packages'
+          # v2 no longer reads a GITHUB_TOKEN environment variable, nor the
+          # credentials `actions/checkout` configures. The token must arrive
+          # through this input or the action cannot open the Version PR.
+          github-token: ${{ secrets.GITHUB_TOKEN }}
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+          # v2 removed the action's own `.npmrc` handling, so `NPM_TOKEN` in the
+          # environment no longer authenticates anything. `setup-node` above
+          # already sets `registry-url`, and the variable it reads is
+          # `NODE_AUTH_TOKEN` — so the token is renamed rather than re-plumbed.
+          # Inert while the publish script is commented out, and in place for
+          # the moment it is not.
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

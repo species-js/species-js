@@ -2,7 +2,7 @@ name: Bootstrap Publish
 
 # The FIRST publish, run once, by hand.
 #
-# `release.yml` deliberately leaves `changesets/action`'s `publish:` input
+# `release.yml` deliberately leaves `changesets/action`'s `publish-script:` input
 # disabled: with it set and no changesets pending, the action falls back to
 # "publish any unpublished packages", which E404s against a registry that has
 # never seen these names and jams every later run. So the first release has to
@@ -18,7 +18,7 @@ name: Bootstrap Publish
 # confirmation), but executed in CI, so provenance works. It bypasses
 # `changesets/action` entirely, so the E404 fallback cannot apply.
 #
-# Afterward: uncomment `publish:` in `release.yml`, and delete this file. It is
+# Afterward: uncomment `publish-script:` in `release.yml`, and delete this file. It is
 # a bootstrap, not a release mechanism — leaving it around invites someone to
 # publish out of band, past the changesets version history.
 
@@ -159,6 +159,6 @@ jobs:
         if: ${{ !inputs.dry_run }}
         run: |
           echo "Published. Now:"
-          echo "  1. Uncomment 'publish: pnpm changeset publish' in .github/workflows/release.yml"
+          echo "  1. Uncomment 'publish-script: pnpm changeset publish' in .github/workflows/release.yml"
           echo "  2. Delete .github/workflows/bootstrap-publish.yml — it has done its job"
           echo "  3. Verify the provenance badge on npmjs.com for each package"
