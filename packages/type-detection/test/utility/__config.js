@@ -4,7 +4,7 @@
  * @module test/utility/__config
  *
  * Test configuration for the `utility` module. Unlike the domain modules,
- * `utility` is not a single superset lattice — its 22 public functions have
+ * `utility` is not a single superset lattice — its 23 public functions have
  * heterogeneous signatures (single-value predicates, `(type, key)` chain
  * probes, value→output readers, and the intrinsic-pair capture). So the config
  * is a set of FOCUSED matrices and input→output tables, each covering one

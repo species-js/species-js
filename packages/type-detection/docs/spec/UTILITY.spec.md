@@ -44,7 +44,9 @@
 > `_internal/helpers.test.js` the remaining `@internal` one. Mutation-probed twice:
 > `!== false` → `=== true` reddens exactly `A3`/`A4`/`A5`/`B2` (the vectors that separate
 > this predicate from the `hasOwn*` family), and removing the `try/catch` reddens the
-> desc-trap row. Not yet run through `check`/CI.
+> desc-trap row. Verified under the full `check` chain — every gate green, 5447 tests
+> workspace-wide. Of the 126 vectors this spec defines, all 126 are driven by the suite
+> (measured 2026-08-20); `utility` has no typecheck-only dimension, so nothing is exempt.
 
 ## Module contract
 
