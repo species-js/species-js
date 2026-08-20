@@ -167,7 +167,7 @@ jobs:
       #
       # This does. The UMD bundle inlines every dependency, so it needs no
       # install and no module resolution — which is what makes a Node-18 job
-      # possible at all here: `engine-strict=true` plus the root `>=22`
+      # possible at all here: `engine-strict=true` plus the root `>=22.11`
       # contributor floor would refuse to install this workspace on Node 18.
       # Running the UMD executes every line of library code, BOTH packages
       # (type-detection is inlined), on the runtime the packages promise.

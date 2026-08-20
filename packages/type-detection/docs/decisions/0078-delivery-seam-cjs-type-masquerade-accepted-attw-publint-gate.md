@@ -11,6 +11,16 @@
 > 18, running every behavioral probe against them. The module builds are still not
 > executed there — they need a consumer's own `node_modules`, which this workspace cannot
 > model on Node 18.
+>
+> **AMENDED 2026-08-20.** The contributor floor is now `>=22.11`, not `>=22`. Raising it
+> is not a preference: `@changesets/cli@3.0.0` and `@changesets/changelog-github@1.0.0`
+> both declare `engines.node: "^22.11 || ^24 || >=26"`, and `.npmrc`'s
+> `engine-strict=true` makes that a hard install block. `>=22` therefore promised a
+> support window the dependency tree could not honour — a contributor on Node 22.5 met the
+> declared floor and would still have been refused install. The CONSUMER floor is
+> untouched at `>=18`; the two-floor design stands, only the upper number moved to what
+> already binds. `.nvmrc` keeps pinning the `22` line, whose current release satisfies it,
+> so CI is unaffected.
 
 **Context.** The delivery-seam cluster (#070 runtime load-order, #071 consumer-deliverable
 types) closed the two seams that "shipped in theory," each turned into a guarded property:

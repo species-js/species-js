@@ -167,7 +167,7 @@ per-package customization is wanted.
 All public build targets sit at ES2020: `tsconfig.base.json` declares `lib: ["ES2020", …]`
 with `target: "ES2020"`, and the per-package vite configs target `es2020` for both the
 browser ESM and UMD builds. The Node build uses `node22` since the project's own
-`engines.node` is `>=22`.
+`engines.node` is `>=22.11`.
 
 **Why ES2020 and not higher:** species-js is the foundation of six downstream projects.
 Every browser version the floor reaches compounds across the whole stack. ES2020 captures
@@ -878,10 +878,10 @@ Each package's `exports` field defines `node` (ESM + CJS), `browser` (ESM only),
 
 ### Engine + package-manager pinning
 
-The root `package.json` carries `engines.node: ">=22"` (matched by `.nvmrc`) and
-`engines.pnpm: ">=10.0.0"`. The Corepack-managed `packageManager` field pins
-`pnpm@10.11.0` exactly. Together these give clear feedback paths to consumers using plain
-npm, plain pnpm, or Corepack.
+The root `package.json` carries `engines.node: ">=22.11"` (`.nvmrc` pins the 22 line,
+whose current release satisfies it) and `engines.pnpm: ">=10.0.0"`. The Corepack-managed
+`packageManager` field pins `pnpm@10.11.0` exactly. Together these give clear feedback
+paths to consumers using plain npm, plain pnpm, or Corepack.
 
 **Two floors, deliberately different (ADR #078).** The root value is the CONTRIBUTOR floor
 — what you need to work on this repo, and enforced rather than advised, since `.npmrc`
@@ -897,8 +897,8 @@ REGRESSION guard over known markers, not a proof of compatibility — only runni
 target runtime proves that, which CI now does: a final ubuntu step re-runs the smoke gate
 on **Node 18** against the UMD bundles (`SPECIES_SMOKE_ONLY=umd`). The UMD inlines every
 dependency, so it needs no install — which is what makes the job possible at all, since
-`engine-strict` plus the `>=22` contributor floor would refuse to install this workspace
-there.
+`engine-strict` plus the `>=22.11` contributor floor would refuse to install this
+workspace there.
 
 ---
 

@@ -128,9 +128,12 @@ vigilance than it saves. Recorded here so the idea is not rediscovered as an ove
 - **The token expiry has no self-defence.** Nothing in the repository can warn about it;
   it needs a reminder held outside. This is the only part of the release chain that will
   fail for a reason the repository cannot explain.
-- The `@changesets/changelog-github` generator now carries its required `repo` option.
-  Without it `changeset version` throws — a latent failure that would have fired at the
-  first real version bump and never before it.
+- The `@changesets/changelog-github` generator carries its `repo` option. It was REQUIRED
+  when this was written — without it `changeset version` threw, a latent failure that
+  would have fired at the first real version bump and never before it. Since
+  `changelog-github@1.0.0` (2026-08-20) the option falls back to `GITHUB_REPOSITORY`, so
+  it is no longer required in CI. It is kept explicit anyway, because that variable does
+  not exist in a local `changeset version` run.
 
 ---
 
