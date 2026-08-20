@@ -57,10 +57,18 @@
 > (the ten `*Options` interfaces plus `BlankType` / `BlankDictionary`); the `@internal`
 > count is **unchanged at 23**. Vocabulary is now spec-aligned: `readOnly` = non-writable
 > but still configurable, `frozen` = `Object.freeze`'s pair (data only), `sealed` =
-> `configurable: false` (accessors only). **Status: AMENDED — `dpo/A5`–`A10` are
-> re-decidability PENDING.** The six new shapes have never been through a decidability run
-> and `test/config/spec.test.js` does not yet cover them; the vectors below are reasoned
-> from the canon, not yet executed.
+> `configurable: false` (accessors only).
+>
+> **Status: AMENDED — RE-DECIDED 2026-08-20.** All ten `dpo/*` vectors are driven by
+> `test/config/spec.test.js`, one `it()` per vector, listed in the source file's
+> structural order so the section can be walked in parallel against `config/index.js`. The
+> four accessor vectors carry a second assertion — `objectHasOwn(preset, 'writable')` is
+> `false` — because "no `writable`" is a stated contract, not an incidental absence. A
+> distinctness guard asserts the ten presets occupy ten distinct flag combinations, which
+> every per-vector assertion would pass while two names pointed at the same shape.
+> Mutation-probed three ways: flipping a flag value, adding `writable` to an accessor
+> preset, and making two presets collide each redden the expected vector AND the
+> distinctness guard. Suite total 21 → 28 cases.
 
 ## Module contract
 
@@ -186,12 +194,12 @@ Polyfilled-selector set (C): `objectHasOwn`; its closure `hasOwn`.
 
 ## Axis mapping for this module
 
-| Axis | How it applies to config                                                                                                                                                                                                                                                                              |
-| ---- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1    | Thin — the preset shapes (`dpo/*`), `objectHasOwn` semantics (`oHO/*`), `objectCreate` overloads (`cap/A5`), the sentinel contracts (`blank/*`, `ilc/*`), and capture identity/behavior (`fix/*`, `cap/*`). The presets, `objectHasOwn`, and `objectCreate` are also the module's public API surface. |
-| 2    | The whole point — realm-fixity (A). A captured `const` cannot be re-resolved by global tampering.                                                                                                                                                                                                     |
-| 3    | Tamper-immunity is the adversarial face of (A): reassigning `globalThis.Object.x` does not affect the export.                                                                                                                                                                                         |
-| —    | (B) boundary-retyped signatures are a **type-level** contract — `pnpm run typecheck` is their gate, not a runtime suite. The spec records them so the typing intent is enumerable.                                                                                                                    |
+| Axis | How it applies to config                                                                                                                                                                                                                                                                                                                                                              |
+| ---- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1    | Thin — the preset shapes (`dpo/*`), `objectHasOwn` semantics (`oHO/*`), `objectCreate` overloads (`cap/A5`), the sentinel contracts (`blank/*`, `ilc/*`), and capture identity/behavior (`fix/*`, `cap/*`). The ten presets, `objectHasOwn`, and `objectCreate` are the module's public VALUE surface; the twelve public types carry no axis-1 vector, since a type is dimension (B). |
+| 2    | The whole point — realm-fixity (A). A captured `const` cannot be re-resolved by global tampering.                                                                                                                                                                                                                                                                                     |
+| 3    | Tamper-immunity is the adversarial face of (A): reassigning `globalThis.Object.x` does not affect the export.                                                                                                                                                                                                                                                                         |
+| —    | (B) boundary-retyped signatures are a **type-level** contract — `pnpm run typecheck` is their gate, not a runtime suite. The spec records them so the typing intent is enumerable.                                                                                                                                                                                                    |
 
 ---
 
@@ -464,7 +472,11 @@ the new `(sentinels)` group; their narrowing casts are dimension-A shape notes, 
 dimension B — which stays the three lib-gap retypes.)_
 
 The 2026-06-19 decidability run covers dimensions (A `fix/A1`–`A2`, `cap/*`), (C — the
-`oHO` selector plus the `hasOwn` closure), and the presets (`dpo/*`); dimension (B
-`ret/T*`) is `typecheck`-gated. The vectors added this round (`fix/A3`, `blank/*`,
-`ilc/*`) are now driven by `test/config/spec.test.js` (21 vectors, green; mutation-probed)
-— decidability confirmed.
+`oHO` selector plus the `hasOwn` closure), and the four presets the module then had;
+dimension (B `ret/T*`) is `typecheck`-gated and has no runtime vector.
+
+`test/config/spec.test.js` is the standing suite — **28 cases, green, mutation-probed**.
+It drives the vectors added in the 2026-07-29 round (`fix/A3`, `blank/*`, `ilc/*`) and,
+since 2026-08-20, all ten `dpo/*` preset shapes. Of the 32 vectors this spec defines, 30
+are driven there; the two that are not are `ret/T2` and `ret/T3`, the boundary retypes
+whose gate is `typecheck` by design. Runtime decidability confirmed.
