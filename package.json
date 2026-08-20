@@ -62,7 +62,7 @@
     "esbuild": "^0.28.2",
     "eslint": "~10.8.0",
     "eslint-config-prettier": "^10.1.8",
-    "eslint-plugin-jsdoc": "~63.3.2",
+    "eslint-plugin-jsdoc": "~64.2.0",
     "globals": "^17.6.0",
     "husky": "^9.1.7",
     "lint-staged": "^17.0.5",
