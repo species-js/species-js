@@ -93,5 +93,3 @@ case — objects own data by design, only the tag is shadowable there).
 Builds on #028 (subclass rejection), #050 (two-axis dispatch), #052 (structural
 sealability — the complementary slot-seal), #054 / #061 (cross-realm structural arm the
 local gate now agrees with). Uses the new `@/utility` `isValueOfBoundSet`.
-
-Commit: _pending_.

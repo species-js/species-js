@@ -67,5 +67,3 @@ no `doesNotShadow*` gate.
 Builds on #063 (own-shadow FAMILY question, here answered "not applicable"), #020 / #021 /
 #029 (spec-shape / inert-descriptor access without invocation), #067 (`DOMException` as a
 distinct arm, no `DOMExceptionLike`).
-
-Commit: _pending_.

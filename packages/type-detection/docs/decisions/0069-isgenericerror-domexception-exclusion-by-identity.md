@@ -74,5 +74,3 @@ Builds on #065 (the disjoint partition), #067 (`DOMException` as a distinct arm)
 (`INSTANCE_LESS_CONSTRUCTOR` + throw-safe `instanceof`), #068 (the `DOMException` contract
 whose breakage motivates the identity anchor). Pinned by the axis-1 / axis-2 vectors
 `isGenericError/R3`, `isGenericError/B2`, `isAnyError/R1`, `iARGE/B1` in `ERROR.spec.md`.
-
-Commit: _pending_.

@@ -88,5 +88,3 @@ them takes `doesIndicate…` under #088 and grants none.
   workspace has already cleaned out once.
 - Builds on #087 (role chooses the package, grade rides separately) and #088 (the
   identifier carries the grade).
-
-Commit: _pending_.

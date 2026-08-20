@@ -152,8 +152,6 @@ Builds on #047 (inert pivot-and-walk), #056 (throw-safe constructor reads), #057
 and #055 (the `(value, assumePrototype)` keying and the poisoning fix retire with the
 caches; their lessons stay as history). Founded on the 2026-06 benchmark sessions.
 
-Commit: _pending_.
-
 ---
 
 ## Amendment — benchmark harness retired (2026-07-03)

@@ -96,5 +96,3 @@ Builds on #047 (pivot-and-walk inertness), #029 (trust boundary), and #024
 (`hasInertMethod` / `getInertDescriptor` lineage). Independent of #055 (registry keying);
 together #055 + #056 close the two adversarial findings from the thenable post-freeze
 round.
-
-Commit: _pending_ (batched with the thenable structural-equivalence refactor).

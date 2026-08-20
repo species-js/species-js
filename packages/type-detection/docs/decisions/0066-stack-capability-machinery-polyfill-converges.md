@@ -70,5 +70,3 @@ verdict.
 retired widening posture and its equip-js-compatibility rationale. Builds on #032
 (native-or-polyfill capture, retained), #065 (the realm-partition redesign this machinery
 serves).
-
-Commit: _pending_.

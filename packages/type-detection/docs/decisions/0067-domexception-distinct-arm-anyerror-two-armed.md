@@ -61,5 +61,3 @@ retires.
 Builds on #001 (branding rejected), #035
 (`AbortError = AnyError & { name: AbortErrorName }`), #065 (the three-predicate split this
 typing serves).
-
-Commit: _pending_.

@@ -123,5 +123,3 @@ The generalizable finding:
 Builds on #057 (benchmark methodology; the granularity / allocating-op threshold) and the
 codified "memoization is the consumer's concern" ruling. Retires the descriptor-batching
 and descriptor-memo threads.
-
-Commit: _pending_.

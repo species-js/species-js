@@ -59,5 +59,3 @@ architecture docs in a separate `docs:` change. Builds on #070; together they cl
 delivery-seam cluster's structural fixes. The remaining fifth-axis facet — a permanent
 consumer-side type-resolution check — is worth adding next so this property is guarded,
 not just verified once here.
-
-Commit: _pending_.

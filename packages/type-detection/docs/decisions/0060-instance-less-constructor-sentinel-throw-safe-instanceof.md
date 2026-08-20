@@ -40,5 +40,3 @@ when the realm genuinely lacks the global.
 Builds on #034 (boundary-retyping `objectCreate`) and the package-wide throw-safety
 invariant. Relates to #027 / #028 (evented locality and subclass rejection). Pairs with
 #061 (the strict decomposition whose fast-path this guards).
-
-Commit: _pending_.

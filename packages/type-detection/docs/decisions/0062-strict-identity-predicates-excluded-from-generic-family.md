@@ -31,5 +31,3 @@ runtime behavior change; type-surface only.
 
 Builds on #031 / #036 / #039 (generic-predicate family) and #051 (per-case generic
 exclusion). Pairs with #061 (the strict/Like decomposition that motivates it).
-
-Commit: _pending_.

@@ -9,6 +9,12 @@ mutating the historical record.
 ADR filenames follow `NNNN-short-kebab-slug.md`. Decision numbers within prose are
 referenced as `#NNN` (without zero-padding) for readability.
 
+**ADRs carry no commit pointer, by design.** A `Commit:` field once sat on 22 of them and
+was never resolved on a single one; `git log --diff-filter=A -- <file>` answers the
+question exactly, so the field only ever restated the commit that already contained it.
+Reintroducing it would need a gate to stay true — and an unenforced field that has never
+held is worse than none, because it reads as information.
+
 **Numbering continues the workspace-wide sequence** and does not restart at 001.
 `decisions:check` builds one supersession graph across every `packages/*/docs/decisions`
 directory, keyed by decision number — so a restarted count would silently overwrite

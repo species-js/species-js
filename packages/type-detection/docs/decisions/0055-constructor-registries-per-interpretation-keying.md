@@ -112,5 +112,3 @@ slot as cached and return `undefined`.
 Builds directly on #054 (overturns its registry deferral) and #047 (`assumePrototype`
 origin). Independent of the open `isPromise` constructor-walk throw-safety gap, which is
 tracked separately.
-
-Commit: _pending_ (batched with the thenable structural-equivalence refactor).

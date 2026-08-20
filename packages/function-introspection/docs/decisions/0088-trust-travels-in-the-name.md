@@ -119,5 +119,3 @@ two were removed.
   already cleaned out once.
 - Builds on #087 (which places these predicates here) and #081 (which established that a
   spoofable signal is not a type-detection answer).
-
-Commit: _pending_.

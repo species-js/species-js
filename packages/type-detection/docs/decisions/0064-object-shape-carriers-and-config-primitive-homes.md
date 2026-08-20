@@ -112,5 +112,3 @@ rewritten to the three-carrier taxonomy), `UTILITY.spec.md` (type-export tally c
 Builds on #017 (dictionary-object detection), #034 (boundary-retyping at `@/config` for
 `objectCreate`), #040 (object-module structural subtype hierarchy), #060
 (`INSTANCE_LESS_CONSTRUCTOR` sentinel).
-
-Commit: _pending_.

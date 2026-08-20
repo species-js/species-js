@@ -55,5 +55,3 @@ Builds on #054 (is-promise cross-realm structural equivalence), #048 (two-axis d
 #028 (subclass rejection), #029 (aborted direct-read), #030 (Like minimum surface). Pairs
 with #060 (sentinel makes the local-realm `instanceof` fast-path throw-safe) and #062 (the
 strict generic-drop the decomposition motivates).
-
-Commit: _pending_.

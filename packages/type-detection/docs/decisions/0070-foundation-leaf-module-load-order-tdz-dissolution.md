@@ -100,5 +100,3 @@ currently emit unresolvable `@/` specifiers at a consumer's compiler), which als
 the fifth axis's consumer-side type-resolution check. Builds on #058 (the
 `TRUSTED_DATA_CONFIRMATION` hot-path-skip flag) and #060 (the sibling
 `INSTANCE_LESS_CONSTRUCTOR = null` module-scope sentinel precedent).
-
-Commit: _pending_.

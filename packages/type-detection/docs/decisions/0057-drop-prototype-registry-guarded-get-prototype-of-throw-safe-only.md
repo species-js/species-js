@@ -99,5 +99,3 @@ composes it. Only the cache is gone.
 
 Builds on #029 (trust boundary, the retained throw-safety) and the measurement
 methodology; begins unwinding the registry layer of #054/#055.
-
-Commit: _pending_.

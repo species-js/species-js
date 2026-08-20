@@ -97,5 +97,3 @@ they are foundation; by what they actually do they are leaves.
 - The forward test for any future predicate: **is anything composed from it?** If yes, and
   it is reliable, it is foundation. If no, it belongs here regardless of how solid its
   evidence is.
-
-Commit: _pending_.

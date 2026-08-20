@@ -79,5 +79,3 @@ exclusion (and the partition-leak fix) is #069. #035 (`AbortError` suffix) and #
 Builds on #054 / #061 (cross-realm structural-equivalence model), #059 (intra-call
 constructor threading), #060 (`INSTANCE_LESS_CONSTRUCTOR` sentinel + throw-safe
 `instanceof`), #064 (the `BLANK_DICTIONARY` surrogate slot).
-
-Commit: _pending_.

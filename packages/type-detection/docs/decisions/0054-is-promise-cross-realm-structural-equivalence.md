@@ -153,5 +153,3 @@ posture).
 **overturned and closed** — both registries are now keyed by `(value, assumePrototype)`.
 The deferral reasoning here is preserved as the record of phase one; see **#055** for the
 hardening decision.
-
-Commit: _pending_ (batched with the thenable structural-equivalence refactor).
