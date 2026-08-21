@@ -30,7 +30,11 @@ const isPublished =
 
 export default defineConfig({
   build: {
-    emptyOutDir: false,
+    // Vite's own default for an in-root `outDir`, made explicit. Each target owns a
+    // separate `dist/<target>`, so emptying one cannot reach its siblings — verified.
+    // Left at `false` by the initial scaffold, it let every content-hashed chunk from
+    // every previous build accumulate, and `files: ["dist", "src"]` packs them.
+    emptyOutDir: true,
     lib: {
       entry: isUmd
         ? { public: resolve(import.meta.dirname, 'src/public.js') }

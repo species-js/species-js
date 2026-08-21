@@ -240,6 +240,31 @@ Three build targets per package, driven by `SPECIES_BUILD_TARGET`:
 UMD is the only minified output. CDN consumers (`unpkg`, `jsdelivr`) want a small bundle;
 downstream bundlers handling ESM will run their own minification.
 
+### `emptyOutDir: true` — each target owns its own `dist/<target>`
+
+Each target writes to `outDir: dist/${buildTarget}`, so the three directories are disjoint
+and emptying one **cannot** reach its siblings. That was verified rather than assumed:
+building only the `node` target with the flag on left `dist/browser` (24 files) and
+`dist/umd` (2 files) byte-for-byte untouched, while `dist/node` shed 8 stale files and
+kept all 18 entries.
+
+The scaffold originally set `emptyOutDir: false` in all four packages — never revisited,
+carrying no rationale, and overriding Vite's own default for an in-root `outDir`. Because
+chunks are content-hashed, every build wrote a new hash and left the previous one behind:
+`type-detection` had accumulated **six orphaned chunks, 157 kB**, some dating from three
+weeks earlier and still exporting an API name that had since been renamed. Since
+`package.json` declares `files: ["dist", "src"]`, all of it would have shipped in the
+tarball.
+
+Neither delivery-seam gate can see this. `entries:check` verifies `exports`-map parity and
+`smoke:check` loads the artifacts that **are** referenced — an unreferenced file is
+invisible to both. The flag is the fix; a gate would only mechanize a problem the default
+removes.
+
+Applied to all four packages at once, including the three where it cannot yet bite:
+`function-introspection`, `type-identity` and `custom-domain` emit no shared chunks today,
+so they had zero orphans — which is exactly the shape a half-applied rule hides behind.
+
 ### `cross-env` for env vars
 
 Build scripts use `cross-env SPECIES_BUILD_TARGET=node vite build`. While macOS/Linux
