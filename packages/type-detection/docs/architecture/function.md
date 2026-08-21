@@ -289,15 +289,30 @@ _identity_.
 
 ## Open architectural questions
 
-These are not unresolved bugs; they are architectural choices that have not yet been made.
-Each one is tracked in [`../decisions/open-questions.md`](../decisions/open-questions.md).
+None. Both questions this module once tracked are resolved; the outcomes are recorded here
+so a reader need not open
+[`../decisions/open-questions.md`](../decisions/open-questions.md) to learn them.
 
-- **Q.002 — Bound-admission policy for public predicates.** The fingerprint matrix made
-  bound detection cheap for every species, eliminating the spec-mechanics-forced asymmetry
-  from decision #005. The current shipped behavior preserves the asymmetry. Whether public
-  predicates should now be re-balanced is a policy question, not a structural one.
+- **Q.002 — bound-admission policy for public predicates — RESOLVED 2026-07-28 by decision
+  #081.** The shipped asymmetry stands: strict newable predicates (`isES3Function`,
+  `isClass`) reject bound variants, while the species predicates and `isNewableFunction` /
+  `hasConstructSlot` admit them. The cheap bound tell from #009 — `own_proto: false` plus
+  `name.startsWith('bound ')` — is **spoofable**, since `name` is a writable own property
+  forgeable on any non-bound function, and a reliability-first library declines an
+  unreliable signal. So no predicate reads it, and the asymmetry is the free residue of
+  each predicate's spec-invariant discriminator rather than a weighed policy choice.
+  Re-balancing to symmetry is declined on principle, not for feasibility. The `[Q.002]`
+  tags in `FUNCTION.spec.md` and `test/function/__config.js` are deliberately retained as
+  findable cross-refs to the settled decision.
+- **Q.003 — `@species-js/function-introspection` scope and shape — RESOLVED 2026-08-06 by
+  decision #087.** Both halves rested on stale premises. The package is scaffolded,
+  shipped and live in every workspace gate, so the standalone-versus-subpath half was
+  answered structurally long before anyone recorded it; and the two predicates once named
+  here were a **floor, not a scope** — they record what type-detection expelled, not what
+  the package is for. #087 supplies the scope from inside that package: structural role
+  decides placement, with trust grade acting as a veto rather than a promotion.
 
-- **Q.003 — `@species-js/function-introspection` scope and shape.** Two predicates
-  currently belong to introspection: the arrow-vs-concise distinguisher and
-  `isBoundFunction`. The package has not yet been scaffolded. Whether it lives standalone
-  or as a subpath of type-detection is open.
+That second one is also the worked example of why `function-introspection` keeps its own
+decision log — it was a question **about** another package, filed here, and it went stale
+exactly where nobody working on that package would look. Its decisions now live in
+`packages/function-introspection/docs/decisions/`.
