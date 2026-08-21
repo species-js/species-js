@@ -40,6 +40,33 @@ These are the structural tells that `#function`'s `isES3Function` (→
 Like every read here the descriptor access is throw-safe: nullish input and a hostile
 `getOwnPropertyDescriptor` trap alike yield `false`, never a throw.
 
+## Own-property shapeability
+
+`canOwnPropertyBeShaped` answers whether the own-property slot at a key can still take an
+arbitrary descriptor. A property's **shape** is its descriptor form — its kind (data or
+accessor) and its flags, never its value. That distinction is the whole design: a
+`configurable: false` property has a frozen shape and, if it is also writable, a value
+that still moves freely.
+
+It carries one arm per branch of `Object.defineProperty`, because the operation itself
+branches. An **absent** key succeeds or fails purely on `[[Extensible]]`; a **present**
+key succeeds or fails purely on `configurable`. Mirroring that split is what makes the
+answer exact rather than approximate — the earlier single-arm form read
+`configurable !== false` for both and was therefore optimistic on absent keys, which
+#081's reliability tenet does not permit (ADR #094). Both flags are one-way doors, so a
+`false` is permanent for that slot; a re-check can never turn it back into a `true`.
+
+The realm-fixed captures are the module's usual discipline: `getOwnPropertyDescriptor`
+from `#config`, and a module-local `Object.isExtensible` taken from the same
+`globalContext`. Neither is exported, so #086's "realm-fixed captures stay `@internal`"
+holds trivially. The descriptor read is wrapped, making the predicate `@@throw-safe`: a
+hostile `getOwnPropertyDescriptor` trap yields `false` rather than propagating — the
+cautious answer, since absorption cannot distinguish "sealed" from "unreadable".
+
+Deliberately NOT a member of the `hasOwn*` family. Those assert that a property exists and
+then qualify it; this reports whether a slot is malleable, so an absent key on an
+extensible target answers `true` where every `hasOwn*` answers `false`.
+
 ## Type Resolution
 
 `resolveType` is the single public composer of the constructor-name and the tagged-type
@@ -149,5 +176,18 @@ inline-cache-friendly and more readable than a factory over four near-identical 
 
 ## Open architectural questions
 
-_Section currently empty — the utility module's public surface is complete pending the
-test round._
+**Should a descriptor-aware sibling of `canOwnPropertyBeShaped` exist?** (Raised
+2026-08-20; the question that prompted it was resolved 2026-08-21 by ADR #094, this
+remainder is open but unmotivated.) Restating the contract as "can this slot take an
+arbitrary shape" made the predicate exact, so the original framing — that it was
+conservative and needed narrowing — dissolved. A caller who wants to know whether one
+SPECIFIC weaker descriptor would apply still cannot ask: that needs the intended
+descriptor as a parameter plus the `ValidateAndApplyPropertyDescriptor` compatibility
+rules, which is a different function with a different name. No consumer wants it today,
+and both packages still to come (`type-identity`, `custom-domain`) are sealing packages
+that ask the arbitrary-shape question. Left unbuilt deliberately, not overlooked.
+
+A second, smaller question rides along: `defineStableTypeIdentity` recomputes
+`configurable !== false` inline for `name` and `Symbol.toStringTag` rather than calling
+this predicate, so the two carry the same reasoning in two places — and the inline copy
+lacks the extensibility arm.

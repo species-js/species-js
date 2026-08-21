@@ -144,6 +144,7 @@ Open architectural questions live in [open-questions.md](./open-questions.md).
 | [076](./0076-throw-safe-marker-generalized-beyond-utility.md)                         | `@@throw-safe` marker generalized beyond utility to a package-wide convention (primitive is the second module); re-scopes #073; retro-sweep sequenced                          | 2026-07-26 |
 | [077](./0077-direct-narrowing-primitive-predicates-two-way-strategy.md)               | Primitive predicates narrow DIRECTLY (`value is X`), not generic `T & X`; two-way strategy (generic stays for broad-shape/`#function`); revises #039                           | 2026-07-26 |
 | [079](./0079-omitted-argument-honesty-presence-gated-predicates.md)                   | Omitted-argument honesty: accept-`undefined` predicates (`isNullishPrimitive`, `isPrimitiveValue`) arity-gate an omitted call to `false`; carves out #025                      | 2026-07-27 |
+| [094](./0094-shapeability-not-definability-predicate-contract.md)                     | A slot's SHAPE, not a prediction of `defineProperty`: `canOwnPropertyBeDefined` → `canOwnPropertyBeShaped`, an extensibility arm makes it exact 13/13; withdraws `cOPBS/B2`    | 2026-08-21 |
 
 ## Decisions by date (chronological)
 
@@ -238,3 +239,4 @@ order with one-line summaries:
 | 2026-08-05 | [084](./0084-drop-utility-trusted-data-confirmation-re-export.md)                     | Drop `utility`'s consumerless `TRUSTED_DATA_CONFIRMATION` re-export; amends #070's byte-identical-surface clause                                                     |
 | 2026-08-06 | [085](./0085-curated-public-entry-and-surface-gate.md)                                | Curated public entry at the package root + `surface:check`; overturns #084's deferral                                                                                |
 | 2026-08-06 | [086](./0086-realm-fixed-captures-stay-internal.md)                                   | Realm-fixed captures stay `@internal`; each package captures its own (idempotent vs identity)                                                                        |
+| 2026-08-21 | [094](./0094-shapeability-not-definability-predicate-contract.md)                     | A slot's SHAPE, not a prediction of `defineProperty`: `canOwnPropertyBeShaped`, an extensibility arm, exact 13/13; withdraws the optimistic absent-key vector        |

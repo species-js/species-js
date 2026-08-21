@@ -4,7 +4,7 @@
  * Cross-realm-safe, throw-safe primitives for runtime type inspection: weak-key
  * and property-key validation, throw-safe prototype and descriptor reads, own
  * `prototype`-property predicates, type-signature and tag readers, tamper-resistant
- * constructor inspection, type-name resolution, own-property definability, and
+ * constructor inspection, type-name resolution, own-property shapeability, and
  * standard-constructor validation.
  *
  * Used internally by the package's predicates and exposed via subpath for
@@ -613,46 +613,83 @@ export function getVerifiedOwnName(value?: unknown): string | undefined;
 
 /* @@throw-safe */
 /**
- * Reports whether nothing already sitting at `key` would block defining it as
- * an own property of `value`.
+ * Reports whether the own-property slot at `key` can still take an arbitrary
+ * shape.
  *
- * The sole blocker is an own property whose descriptor carries
- * `configurable: false` — that is the only state answering `false`. An absent
- * key, a key that lives only on the prototype chain, and an own configurable
- * key all answer `true`, because none of them stands in the way.
+ * A property's **shape** is its descriptor form — its kind (data or accessor)
+ * and its flags. Never its value. `configurable: false` freezes a property's
+ * shape while leaving a writable value free to change, and that split is what
+ * this predicate reports.
+ *
+ * There is one arm per branch of `defineProperty`. An absent key can take a
+ * shape iff the target is extensible; a present key can change shape iff its
+ * descriptor is configurable. Both flags are one-way doors, so a `false` is
+ * permanent for that slot.
  *
  * ## Not a member of the `hasOwn*` family
  *
  * The `hasOwn*` predicates assert that a property EXISTS and then qualify it,
- * so they answer `false` for an absent or inherited-only key. This one asserts
- * the absence of a blocker and answers `true` in both those cases. A caller who
- * needs existence should reach for a `hasOwn*` predicate and qualify it.
+ * so they answer `false` for an absent or inherited-only key. This one reports
+ * whether the slot is malleable, so an absent key on an extensible target
+ * answers `true`. A caller who needs existence should reach for a `hasOwn*`
+ * predicate and qualify it.
  *
- * ## Does not check extensibility
+ * ## `key` is deliberately unconstrained
  *
- * `[[Extensible]]` is object-level state, invisible to a per-property
- * descriptor read. On a non-extensible target — `Object.preventExtensions`,
- * `Object.seal`, `Object.freeze` — defining a NEW key throws while this
- * predicate still answers `true`. Redefining an already-present configurable
- * key does succeed there, so the answer is only optimistic for keys that are
- * absent.
+ * Any value is a usable key, because both `getOwnPropertyDescriptor` and
+ * `defineProperty` put it through `ToPropertyKey` first — `{}` becomes
+ * `'[object Object]'`, `NaN` becomes `'NaN'`, `1n` becomes `'1'`. Rejecting
+ * a non-`PropertyKey` would deny a slot that shapes perfectly well, so the
+ * parameter takes `unknown` and no validation runs.
+ *
+ * The target is the real precondition: `defineProperty` requires an Object
+ * and throws on every primitive, so a non-object `value` answers `false`.
+ *
+ * ## What a `false` still permits
+ *
+ * `false` means no define can RESHAPE the slot — not that every define fails.
+ * Three kinds still succeed, and only the last is a capability lost by trusting
+ * the answer:
+ *
+ * | what still succeeds | a real capability? |
+ * | --- | --- |
+ * | a no-op define (`{}`, or `SameValue` fields) | no — nothing changes |
+ * | a value write to a still-writable property | no — plain assignment does it |
+ * | the one-way `writable: true` to `false` tightening | **yes**, and the only one |
+ *
+ * The no-op rule compares with `SameValue`, not `===`, so both float edge cases
+ * invert: `-0` onto `+0` throws, while `NaN` onto `NaN` succeeds. `[].length`
+ * is the everyday instance of the writable-yet-non-configurable state.
+ *
+ * ## What no descriptor read can see
+ *
+ * Two hostile-`Proxy` states lie outside the answer, one in each direction. A
+ * `Proxy` may trap `defineProperty` itself and refuse; nothing here can foresee
+ * that, so this answers `true` and the define throws. Conversely, a `Proxy`
+ * whose `getOwnPropertyDescriptor` trap throws is absorbed to `false` though
+ * the define would have landed — the absorption cannot distinguish "sealed"
+ * from "unreadable" and reports the cautious answer.
  *
  * Throw-safe: the own-descriptor read is wrapped, so a hostile
  * `getOwnPropertyDescriptor` Proxy-trap yields `false` rather than propagating.
  *
- * @param value - the value the key would be defined on
- * @param key - the property key to test for a blocker
- * @param trustedData - call-site hint; skips the nullish-value and
- *  property-key validation the caller has already performed
- * @returns `true` when no own non-configurable property occupies `key`;
- *  `false` when one does, when the guard rejects the input, or when the
+ * @example
+ * canOwnPropertyBeShaped({}, 'k'); // true — a fresh slot on an extensible target
+ * canOwnPropertyBeShaped(Object.freeze({}), 'k'); // false — target sealed shut
+ * canOwnPropertyBeShaped([], 'length'); // false — writable, yet non-configurable
+ *
+ * // ...and that last `false` is about the SHAPE, not the value:
+ * Object.defineProperty([], 'length', { value: 5 }); // still succeeds
+ *
+ * @param value - the value whose slot would be shaped; must be an object or a
+ *  callable, since `defineProperty` rejects every primitive
+ * @param key - the property key to test; any value, coerced
+ * @returns `true` when the slot at `key` can take an arbitrary descriptor;
+ *  `false` when a non-configurable property occupies it, when the key is absent
+ *  from a non-extensible target, when `value` is not an object, or when the
  *  descriptor read throws
  */
-export function canOwnPropertyBeDefined(
-  value?: unknown,
-  key?: PropertyKey,
-  trustedData?: boolean,
-): boolean;
+export function canOwnPropertyBeShaped(value?: unknown, key?: unknown): boolean;
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 //

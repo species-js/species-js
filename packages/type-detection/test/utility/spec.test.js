@@ -31,7 +31,7 @@ import {
   getDefinedConstructorName,
   resolveType,
   getVerifiedOwnName,
-  canOwnPropertyBeDefined,
+  canOwnPropertyBeShaped,
   getSafePrototypeOf,
   getOwnPropertyKeys,
   getSafeOwnPropertyNames,
@@ -51,7 +51,7 @@ import {
   invalidWeakKeys,
   typeReaderMatrix,
   verifiedOwnNameTable,
-  definabilityTable,
+  shapeabilityTable,
 } from './__config.js';
 
 import { foreignRealmEval } from '../_cross-realm.js';
@@ -234,72 +234,224 @@ describe('getVerifiedOwnName', () => {
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 //
-//  `canOwnPropertyBeDefined` — definability, NOT own-ness
+//  `canOwnPropertyBeShaped` — shapeability, NOT own-ness
 //
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 
-describe('canOwnPropertyBeDefined', () => {
-  for (const [rowName, row] of Object.entries(definabilityTable)) {
+describe('canOwnPropertyBeShaped', () => {
+  for (const [rowName, row] of Object.entries(shapeabilityTable)) {
     it(`${rowName}: ${row.description} [${row.vectors.join(', ')}]`, () => {
-      expect(canOwnPropertyBeDefined(row.make(), row.key)).toBe(row.expected);
+      expect(canOwnPropertyBeShaped(row.make(), row.key)).toBe(row.expected);
     });
   }
 
-  it('cOPBD/R4: a nullish value → false (guard)', () => {
-    expect(canOwnPropertyBeDefined(null, 'k'), 'null').toBe(false);
-    expect(canOwnPropertyBeDefined(undefined, 'k'), 'undefined').toBe(false);
-    expect(canOwnPropertyBeDefined(), 'omitted').toBe(false);
+  it('cOPBS/R4: a nullish value → false (guard)', () => {
+    expect(canOwnPropertyBeShaped(null, 'k'), 'null').toBe(false);
+    expect(canOwnPropertyBeShaped(undefined, 'k'), 'undefined').toBe(false);
+    expect(canOwnPropertyBeShaped(), 'omitted').toBe(false);
   });
 
-  it('cOPBD/R5: an omitted or invalid key → false (guard, via isValidPropertyKey)', () => {
-    expect(canOwnPropertyBeDefined({ k: 1 }), 'omitted key').toBe(false);
-    expect(
-      canOwnPropertyBeDefined(
-        {},
-        /** @type {PropertyKey} */ (/** @type {unknown} */ ({})),
-      ),
-      'object key',
-    ).toBe(false);
+  // cOPBS/R5 is WITHDRAWN — it pinned a key-validation that denied definitions which
+  // actually work. A6 is the corrected claim.
+  it('cOPBS/A6: a non-PropertyKey key coerces and defines → true', () => {
+    /** @type {[string, unknown][]} */
+    const keys = [
+      ['{}', {}],
+      ['[]', []],
+      ['NaN', NaN],
+      ['Infinity', Infinity],
+      ['1n', 1n],
+      ['true', true],
+      ['null', null],
+      ['undefined', undefined],
+    ];
+    for (const [label, key] of keys) {
+      expect(canOwnPropertyBeShaped({}, key), label).toBe(true);
+    }
+    // the omitted key is the `undefined` case, and coerces to 'undefined'
+    expect(canOwnPropertyBeShaped({ k: 1 }), 'omitted key').toBe(true);
   });
 
-  // The second half of B2: the predicate's `true` is NOT a promise the define
-  // succeeds. Asserting only the verdict would leave the boundary unpinned.
-  it('cOPBD/B2: `true` on a non-extensible target, yet defining that key throws', () => {
-    const target = Object.preventExtensions({});
-    expect(canOwnPropertyBeDefined(target, 'k'), 'predicate is optimistic').toBe(true);
-    expect(() => Object.defineProperty(target, 'k', { value: 1 })).toThrow(TypeError);
+  it('cOPBS/R6: a non-object target → false, matching defineProperty', () => {
+    /** @type {[string, unknown][]} */
+    const primitives = [
+      ['5', 5],
+      ['0', 0],
+      ["'s'", 's'],
+      ["''", ''],
+      ['true', true],
+      ['false', false],
+      ['1n', 1n],
+      ['symbol', Symbol('t')],
+    ];
+    for (const [label, value] of primitives) {
+      expect(canOwnPropertyBeShaped(value, 'k'), label).toBe(false);
+    }
+  });
 
-    // ...while REDEFINING an already-present configurable key does succeed there,
-    // so the optimism is confined to absent keys.
-    const withOwn = Object.preventExtensions(
-      Object.defineProperty({}, 'k', { value: 1, configurable: true }),
-    );
-    expect(canOwnPropertyBeDefined(withOwn, 'k'), 'own configurable').toBe(true);
+  it('cOPBS/B3: a key whose ToPropertyKey throws → false, not thrown', () => {
+    const hostileKey = {
+      [Symbol.toPrimitive]() {
+        throw new TypeError('boom');
+      },
+    };
+    let got;
+    expect(() => {
+      got = canOwnPropertyBeShaped({}, hostileKey);
+    }, 'must absorb').not.toThrow();
+    expect(got).toBe(false);
     expect(() =>
-      Object.defineProperty(withOwn, 'k', { value: 2, configurable: true }),
+      Object.defineProperty(
+        {},
+        /** @type {PropertyKey} */ (/** @type {unknown} */ (hostileKey)),
+        { value: 1 },
+      ),
+    ).toThrow();
+  });
+
+  it('cOPBS/B4: a Proxy trapping defineProperty → true, yet the define throws', () => {
+    const make = () =>
+      new Proxy(
+        {},
+        {
+          defineProperty() {
+            throw new TypeError('refused');
+          },
+        },
+      );
+    expect(canOwnPropertyBeShaped(make(), 'k'), 'optimistic').toBe(true);
+    expect(() => Object.defineProperty(make(), 'k', { value: 1 })).toThrow(TypeError);
+  });
+
+  it('cOPBS/B1: the desc-trap answer is CONSERVATIVE — the define would have succeeded', () => {
+    const make = () =>
+      new Proxy(
+        {},
+        {
+          getOwnPropertyDescriptor() {
+            throw new TypeError('unreadable');
+          },
+        },
+      );
+    expect(canOwnPropertyBeShaped(make(), 'k'), 'absorbed to false').toBe(false);
+    expect(() =>
+      Object.defineProperty(make(), 'k', { value: 1, configurable: true }),
     ).not.toThrow();
   });
 
+  // cOPBS/B2 is WITHDRAWN — it pinned the optimism of a single-descriptor read on a
+  // non-extensible target. The extensibility arm removed it; cOPBS/A7 and cOPBS/A8
+  // are the corrected claims and are driven from the table.
+
+  // B5 is the whole of what a `false` still permits, in three rows. `configurable:
+  // false` freezes a property's SHAPE, not its value, so some defines still land —
+  // but only the third row is a capability a caller actually loses.
+  it('cOPBS/B5: a `false` forbids RESHAPING only — three kinds of define still land', () => {
+    const writable = () =>
+      Object.defineProperty({}, 'k', {
+        value: 1,
+        writable: true,
+        enumerable: false,
+        configurable: false,
+      });
+    const readOnly = () =>
+      Object.defineProperty({}, 'k', {
+        value: 1,
+        writable: false,
+        enumerable: false,
+        configurable: false,
+      });
+
+    expect(canOwnPropertyBeShaped(writable(), 'k'), 'writable row').toBe(false);
+    expect(canOwnPropertyBeShaped(readOnly(), 'k'), 'read-only row').toBe(false);
+
+    // Row 1 — a no-op define. Nothing observable changes, so nothing is forbidden.
+    // Legal even on a frozen property.
+    expect(() => Object.defineProperty(readOnly(), 'k', {})).not.toThrow();
+    expect(() => Object.defineProperty(readOnly(), 'k', { value: 1 })).not.toThrow();
+    expect(() =>
+      Object.defineProperty(readOnly(), 'k', { enumerable: false }),
+    ).not.toThrow();
+
+    // ...and the no-op rule is SameValue, not `===`, so both float cases invert.
+    const zero = () =>
+      Object.defineProperty({}, 'k', { value: 0, writable: false, configurable: false });
+    expect(() => Object.defineProperty(zero(), 'k', { value: 0 })).not.toThrow();
+    expect(
+      () => Object.defineProperty(zero(), 'k', { value: -0 }),
+      '-0 is not SameValue as +0',
+    ).toThrow(TypeError);
+    const nan = () =>
+      Object.defineProperty({}, 'k', {
+        value: NaN,
+        writable: false,
+        configurable: false,
+      });
+    expect(
+      () => Object.defineProperty(nan(), 'k', { value: NaN }),
+      'NaN IS SameValue as NaN',
+    ).not.toThrow();
+
+    // Row 2 — a value write plain assignment could also perform. No capability lost.
+    expect(() => Object.defineProperty(writable(), 'k', { value: 2 })).not.toThrow();
+    const viaAssignment = /** @type {{ k: number }} */ (writable());
+    viaAssignment.k = 2;
+    expect(viaAssignment.k, 'assignment reaches the same state').toBe(2);
+
+    // Row 3 — the one-way `writable: true → false` tightening. THE capability a
+    // caller gives up by trusting the `false`; no assignment can do this.
+    expect(() =>
+      Object.defineProperty(writable(), 'k', { value: 2, writable: false }),
+    ).not.toThrow();
+
+    // Everything that would RESHAPE the slot is refused, which is what `false` means.
+    expect(
+      () => Object.defineProperty(writable(), 'k', { value: 2, configurable: true }),
+      'restoring configurable',
+    ).toThrow(TypeError);
+    expect(
+      () => Object.defineProperty(writable(), 'k', { value: 2, enumerable: true }),
+      'flipping enumerable',
+    ).toThrow(TypeError);
+    expect(
+      () =>
+        Object.defineProperty(writable(), 'k', {
+          get() {
+            return 2;
+          },
+        }),
+      'converting data to accessor',
+    ).toThrow(TypeError);
+  });
+
   // Completeness: the suite must cover every vector the spec section defines.
-  it('covers every `cOPBD/*` vector in UTILITY.spec.md', () => {
+  it('covers every `cOPBS/*` vector in UTILITY.spec.md', () => {
     const covered = new Set(
-      Object.values(definabilityTable).flatMap((row) => row.vectors),
+      Object.values(shapeabilityTable).flatMap((row) => row.vectors),
     );
-    ['cOPBD/R4', 'cOPBD/R5', 'cOPBD/B2'].forEach((id) => covered.add(id));
+    ['cOPBS/R4', 'cOPBS/A6', 'cOPBS/R6', 'cOPBS/B3', 'cOPBS/B4', 'cOPBS/B5'].forEach(
+      (id) => covered.add(id),
+    );
 
     const expected = [
-      'cOPBD/A1',
-      'cOPBD/A2',
-      'cOPBD/A3',
-      'cOPBD/A4',
-      'cOPBD/A5',
-      'cOPBD/R1',
-      'cOPBD/R2',
-      'cOPBD/R3',
-      'cOPBD/R4',
-      'cOPBD/R5',
-      'cOPBD/B1',
-      'cOPBD/B2',
+      'cOPBS/A1',
+      'cOPBS/A2',
+      'cOPBS/A3',
+      'cOPBS/A4',
+      'cOPBS/A5',
+      'cOPBS/R1',
+      'cOPBS/R2',
+      'cOPBS/R3',
+      'cOPBS/A6',
+      'cOPBS/A7',
+      'cOPBS/A8',
+      'cOPBS/R4',
+      'cOPBS/R6',
+      'cOPBS/R7',
+      'cOPBS/B1',
+      'cOPBS/B3',
+      'cOPBS/B4',
+      'cOPBS/B5',
     ];
     expect([...covered].sort()).toEqual(expected.sort());
   });

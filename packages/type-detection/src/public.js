@@ -54,7 +54,7 @@ export {
 } from '#config';
 
 export {
-  canOwnPropertyBeDefined,
+  canOwnPropertyBeShaped,
   getDefinedConstructor,
   getDefinedConstructorName,
   getNextAvailablePropertyDescriptor,

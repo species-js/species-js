@@ -402,6 +402,27 @@ polyfill closures remain `@internal` (fallback-path test hooks).
 
 ## Open architectural questions
 
-_Section currently empty — the primitive module's surface is complete. Further
-nominal-branding or string-tag refinements (e.g. distinguishing `UserId` from `OrderId`
-when both are `string`) belong in `@species-js/type-identity`, not here (decision #001)._
+**Could `isPrimitiveValue` be a single `typeof` test instead of a composition?** (Raised
+2026-08-21, open.) It currently answers by composing two predicates —
+`isNullishPrimitive(args[0]) || isBoxablePrimitive(args[0])` — behind the ADR #079 arity
+gate. A direct form needs no helpers:
+
+    args.length > 0 && (!v || (typeof v !== 'object' && typeof v !== 'function'))
+
+The falsy arm covers every nullish and falsy primitive; the `typeof` pair rejects only
+objects and callables, so boxed primitives stay `false` as they must. Probed against the
+shipped predicate over 29 values — nullish, all six primitive types, falsy and truthy
+alike, boxed `Number` / `String` / `Boolean` / `BigInt` / `Symbol`, `Date`, `RegExp`,
+`Promise`, a null-prototype object and a `Proxy` — **0 divergences**, and it holds the
+#079 boundary (omitted → `false`, explicit `undefined` → `true`).
+
+**Not verified, and the reason this is a question rather than a change:** a falsy _object_
+would divide the two forms, since `!v` would call it primitive. The only such value in the
+language is `document.all` (the `[[IsHTMLDDA]]` exotic, `typeof` `'undefined'`), which is
+absent from Node and so was never in the probe — and this package ships to browsers. The
+composed form's behaviour there is also unmeasured. Worth settling before trading a
+composition that is transparently correct for a `typeof` test that is merely shorter.
+
+Beyond that, the module's surface is complete. Further nominal-branding or string-tag
+refinements (e.g. distinguishing `UserId` from `OrderId` when both are `string`) belong in
+`@species-js/type-identity`, not here (decision #001).

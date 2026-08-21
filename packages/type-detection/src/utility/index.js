@@ -6,7 +6,7 @@
  * Cross-realm-safe, throw-safe primitives for runtime type inspection: weak-key
  * and property-key validation, throw-safe prototype and descriptor reads, own
  * `prototype`-property predicates, type-signature and tag readers, tamper-resistant
- * constructor inspection, type-name resolution, own-property definability, and
+ * constructor inspection, type-name resolution, own-property shapeability, and
  * standard-constructor validation.
  *
  * Used internally by the package's predicates and exposed via subpath for
@@ -16,6 +16,7 @@
 import { TRUSTED_DATA_CONFIRMATION } from '#foundation';
 
 import {
+  globalContext,
   BLANK_DICTIONARY,
   INSTANCE_LESS_CONSTRUCTOR,
   getOwnPropertyDescriptor,
@@ -59,6 +60,10 @@ import { isCallable, isFunction, isNewableFunction } from '#function';
 /** @typedef {import('#function').ClassConstructor} ClassConstructor */
 
 /** @typedef {import('#utility').PredicateFunction} PredicateFunction */
+
+// ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
+
+const isExtensible = globalContext.Object.isExtensible;
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 
@@ -202,7 +207,7 @@ export function getSafePrototypeOf(value) {
  * whose `prototype` comes from `Function.prototype` is the canonical
  * example.
  *
- * Throw-safe: the descriptor read runs inside a `try/catch`, so nullish
+ * Throw-safe: the descriptor-read runs inside a `try/catch`, so nullish
  * input (`getOwnPropertyDescriptor` on `null`/`undefined`) and a hostile
  * `getOwnPropertyDescriptor` Proxy-trap alike yield `false` rather than
  * throwing.
@@ -258,7 +263,7 @@ export function hasOwnWritablePrototype(value) {
  * arrow function, a plain object) also answers `false` — the missing
  * descriptor's `?.writable` is `undefined`, not `false`.
  *
- * Throw-safe: the descriptor read runs inside a `try/catch`, so nullish
+ * Throw-safe: the descriptor-read runs inside a `try/catch`, so nullish
  * input and a hostile descriptor trap yield `false` rather than throwing.
  *
  * @param {unknown} [value] - the value to test; omitted is treated as
@@ -622,14 +627,14 @@ export function hasInertValue(type = null, key, trustedData) {
  * only when that value is a string primitive; `undefined` otherwise.
  *
  * Generic and constructor-agnostic: it takes any `value` and reports the string
- * `name` it declares as own data. Own-descriptor read only (no chain walk); the
+ * `name` it declares as own data. Own-descriptor-read only (no chain walk); the
  * chain-walking counterpart is reserved under the name `getVerifiedNextAvailableName`,
  * mirroring the `getOwnPropertyDescriptor` / {@link getNextAvailablePropertyDescriptor}
  * pair.
  *
  * Inert and throw-safe: an accessor on `name` leaves the descriptor's `value`
  * `undefined` and is rejected by the {@link isStringValue} narrow (the getter is
- * never invoked), and the own-descriptor read is wrapped so a nullish input or a
+ * never invoked), and the own-descriptor-read is wrapped so a nullish input or a
  * hostile `getOwnPropertyDescriptor` Proxy-trap yields `undefined` rather than
  * propagating.
  *
@@ -650,46 +655,64 @@ export function getVerifiedOwnName(value) {
 
 /* @@throw-safe */
 /**
- * Reports whether nothing already sitting at `key` would block defining it as
- * an own property of `value`.
+ * Reports whether the own-property slot at `key` can still take an arbitrary
+ * shape. A property's SHAPE is its descriptor form — its kind (data or
+ * accessor) and its flags. Never its value.
  *
- * Reads the own descriptor through the realm-fixed `getOwnPropertyDescriptor`
- * capture and tests `configurable !== false`. Two details carry the contract:
- * the `?? {}` fallback is what makes an absent or inherited-only key answer
- * `true` — no descriptor means no blocker — and `!== false` rather than
- * `=== true` is what keeps that descriptor-less read from being mistaken for a
- * non-configurable one.
+ * One arm per branch of `defineProperty`. An absent key reads
+ * `isExtensible(value)`, since only object-level extensibility can stop a fresh
+ * slot from taking a shape. A present key reads `configurable !== false` from
+ * the realm-fixed `getOwnPropertyDescriptor` capture — `!== false` rather than
+ * `=== true` so a descriptor whose flag is merely absent is not mistaken for a
+ * non-configurable one. Both flags are one-way doors, so a `false` here is
+ * permanent for that slot.
  *
- * Despite the `Own` in the name this is NOT an `hasOwn*` predicate: it reports
- * the absence of a blocker, not the presence of a property, so it answers
- * `true` where the `hasOwn*` family answers `false`.
+ * Despite the `Own` in the name this is NOT a `hasOwn*` predicate: it reports
+ * whether the slot is malleable, not whether a property occupies it, so an
+ * absent key on an extensible target answers `true` where the `hasOwn*` family
+ * answers `false`.
  *
- * It also cannot see `[[Extensible]]`, which is object-level rather than
- * per-property: on a sealed, frozen or `preventExtensions`-ed target, defining
- * a NEW key throws while this still answers `true`.
+ * The guard tests the TARGET, not the key. `defineProperty` requires an Object
+ * and throws on every primitive, so a non-object answers `false` — the `!value`
+ * arm is what catches `null`, whose `typeof` is `'object'`. The key needs no
+ * validation: both `getOwnPropertyDescriptor` and `defineProperty` run it
+ * through `ToPropertyKey` first, so `{}` reads as `'[object Object]'` and
+ * shapes a slot just as well.
  *
- * Throw-safe: the descriptor read is wrapped, so a hostile
+ * A `false` does not mean every `defineProperty` call fails — it means none can
+ * RESHAPE the slot. Three kinds still succeed, and the `.d.ts` tabulates them:
+ * a no-op define, a value write plain assignment could also perform, and the
+ * one-way `writable: true` to `false` tightening. `[].length` is the everyday
+ * instance, an own property that is writable yet non-configurable.
+ *
+ * Two hostile-`Proxy` states lie outside any descriptor read: a throwing
+ * `getOwnPropertyDescriptor` trap is absorbed to `false` though the define
+ * would have landed, and a `defineProperty` trap that refuses cannot be
+ * foreseen at all.
+ *
+ * Throw-safe: the descriptor-read is wrapped, so a hostile
  * `getOwnPropertyDescriptor` Proxy-trap yields `false` rather than propagating.
  *
- * @param {unknown} [value] - the value the key would be defined on
- * @param {PropertyKey} [key] - the property key to test for a blocker
- * @param {TRUSTED_DATA_CONFIRMATION_FLAG} [trustedData] - call-site hint; skips
- *  the nullish-value and property-key validation the caller has already
- *  performed
- * @returns {boolean} `true` when no own non-configurable property occupies
- *  `key`; `false` when one does, when the guard rejects the input, or when the
- *  descriptor read throws
+ * @param {unknown} [value] - the value whose slot would be shaped; must be an
+ *  object or a callable, since `defineProperty` rejects every primitive
+ * @param {unknown} [key] - the property key to test; any value, coerced
+ * @returns {boolean} `true` when the slot at `key` can take an arbitrary
+ *  descriptor; `false` when a non-configurable property occupies it, when the
+ *  key is absent from a non-extensible target, when `value` is neither an
+ *  object nor a callable, or when the descriptor-read throws
  */
-export function canOwnPropertyBeDefined(value = null, key, trustedData) {
-  if (trustedData !== true && (value === null || !isValidPropertyKey(key))) {
+export function canOwnPropertyBeShaped(value = null, key) {
+  const typeOfValue = typeof value;
+
+  // primitive value guard.
+  if (!value || (typeOfValue !== 'object' && typeOfValue !== 'function')) {
     return false;
   }
   try {
     // Might throw. Nothing guards this specific property-descriptor access.
-    return (
-      (getOwnPropertyDescriptor(value, /** @type {PropertyKey} */ (key)) ?? {})
-        .configurable !== false
-    );
+    const descriptor = getOwnPropertyDescriptor(value, /** @type {PropertyKey} */ (key));
+
+    return descriptor ? descriptor.configurable !== false : isExtensible(value);
   } catch {
     return false;
   }

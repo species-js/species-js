@@ -29,24 +29,53 @@
 > standing-invariant added (`invariants.test.js`); no spec section changed and no vector
 > moved — see Resolved item #7.
 >
-> **Amended 2026-08-20 — `canOwnPropertyBeDefined` added.** A definability probe,
-> introduced while building `type-identity`'s `defineStableTypeIdentity` and promoted to
-> the public surface. Its section and vectors `cOPBD/A1`–`A5`, `R1`–`R5`, `B1`–`B2` are
-> appended below. **Public functions 22 → 23; the `@@throw-safe` marked set 21 → 22.** No
-> existing vector, verdict or count elsewhere is affected.
+> **Amended 2026-08-20 — a definability probe added** (as `canOwnPropertyBeDefined`,
+> renamed the next day; see below). Introduced while building `type-identity`'s
+> `defineStableTypeIdentity` and promoted to the public surface. **Public functions 22 →
+> 23; the `@@throw-safe` marked set 21 → 22.** No existing vector, verdict or count
+> elsewhere is affected.
 >
-> **Status: AMENDED — RE-DECIDED 2026-08-20.** All twelve vectors are driven by
-> `test/utility/spec.test.js` (ten from the `definabilityTable`, plus the two guard
-> vectors and the second half of `cOPBD/B2` — that `defineProperty` really does throw on
-> the target the predicate reports `true` for). A completeness guard in that suite fails
-> if a `cOPBD/*` vector is added here without a test. `throw-safety.test.js` now scores
-> the function across all four hostile rows, so the matrix covers 21 of the 22 marks and
-> `_internal/helpers.test.js` the remaining `@internal` one. Mutation-probed twice:
-> `!== false` → `=== true` reddens exactly `A3`/`A4`/`A5`/`B2` (the vectors that separate
-> this predicate from the `hasOwn*` family), and removing the `try/catch` reddens the
-> desc-trap row. Verified under the full `check` chain — every gate green, 5447 tests
-> workspace-wide. Of the 126 vectors this spec defines, all 126 are driven by the suite
-> (measured 2026-08-20); `utility` has no typecheck-only dimension, so nothing is exempt.
+> **Amended 2026-08-21 — renamed to `canOwnPropertyBeShaped`, and made exact.** Two rounds
+> of correction, recorded together because they share one cause: the function was named
+> and documented as a prediction of `Object.defineProperty`, which it never was. Full
+> reasoning in **ADR #094**; the outcome only, here.
+>
+> _First, the guard was checking the wrong things._ The version shipped 08-20 validated
+> the KEY with `isValidPropertyKey` and admitted any non-`null` target. Both were wrong,
+> and measurably: `defineProperty` coerces every non-`PropertyKey` key through
+> `ToPropertyKey` and defines successfully, so rejecting `{}` or `NaN` denied a definition
+> that works; and it throws `TypeError` on every primitive target, which the
+> `value === null` test let through. The key validation is deleted rather than optimised —
+> it cost a call to produce a wrong answer — and `trustedData` goes with it, since the
+> parameter existed only to skip that check. **`cOPBS/R5` WITHDRAWN**; `A6`, `R6`, `B3`,
+> `B4` appended.
+>
+> _Second, the contract was restated and the name follows it._ The question is not "will
+> `defineProperty` succeed" but "can this slot take an **arbitrary shape**" — shape being
+> a descriptor's kind and flags, never its value. Under that contract an **extensibility
+> arm** was owed for the absent-key branch, and once added the predicate is **exact,
+> 13/13**. Two consequences: the documented optimism of `cOPBS/B2` is **WITHDRAWN** (an
+> optimistic answer is a false claim, which #081's reliability tenet forbids — `A7`/`A8`
+> replace it), and the supposed conservative gap at a non-configurable-but-writable
+> property was never a gap at all, since such a slot genuinely cannot be re-shaped. That
+> state is now `cOPBS/R7`, and `cOPBS/B5` was rewritten from a divergence into the
+> three-row table of what a `false` still permits.
+>
+> **A retracted measurement, kept on the record.** An earlier draft of this banner claimed
+> "209/209 agreement over 209 target×key pairs" without naming the descriptor the oracle
+> defined with. The claim was untestable as written and is withdrawn; the replacement
+> (13/13, oracle named, in the section below) states its probe.
+>
+> **Status: AMENDED — RE-DECIDED 2026-08-21.** Every live `cOPBS/*` vector is driven by
+> `test/utility/spec.test.js`, with a completeness guard that fails if one is added here
+> without a test. `throw-safety.test.js` scores the function across all four hostile rows,
+> so the matrix covers 21 of the 22 marks and `_internal/helpers.test.js` the remaining
+> `@internal` one. **Mutation-probed, each mutation asserted applied first:** reverting to
+> the pre-#094 single-arm body (`(descriptor ?? {}).configurable !== false`) reddens the
+> two `A7` rows and nothing else, so the extensibility arm is exactly what those vectors
+> measure; loosening the present-key arm to admit a writable non-configurable slot
+> (`|| descriptor.writable === true`) reddens `B5` plus the two `R7` rows; and dropping a
+> vector from the completeness guard's list reddens the guard.
 
 ## Module contract
 
@@ -102,8 +131,9 @@ predicates are `isValidWeakKey` (`value is WeakKey`) and `isValidPropertyKey`
   `getNextAvailableSafeDescriptor`.
 - Verified-name reader: `getVerifiedOwnName` (own `name` descriptor `value`, narrowed to a
   string primitive).
-- Definability probe: `canOwnPropertyBeDefined` (boolean; `true` unless an own
-  non-configurable property occupies the key — deliberately NOT a `hasOwn*` predicate).
+- Shapeability probe: `canOwnPropertyBeShaped` (boolean; whether the own-property slot can
+  still take an arbitrary descriptor — `configurable` for a present key, extensibility for
+  an absent one; deliberately NOT a `hasOwn*` predicate).
 - Type-signature readers: `getTypeSignature`, `getTaggedType` (each overloaded: omitted
   arg → `undefined`; a hostile tag getter → `undefined`).
 - Constructor inspection: `getDefinedConstructor`, `getDefinedConstructorName`.
@@ -557,62 +587,126 @@ string primitive. Own-only (no chain walk; `getVerifiedNextAvailableName` reserv
 
 ---
 
-## `canOwnPropertyBeDefined`
+## `canOwnPropertyBeShaped`
 
-`canOwnPropertyBeDefined(value?: unknown, key?: PropertyKey, trustedData?: boolean): boolean`
-—
-`try { return (getOwnPropertyDescriptor(value, key) ?? {}).configurable !== false; } catch { return false; }`,
-behind a guard that rejects a nullish `value` or an invalid `key` unless `trustedData` is
-set. Reports whether anything already sitting at `key` would block defining it as an own
-property. **`@@throw-safe`.**
+`canOwnPropertyBeShaped(value?: unknown, key?: unknown): boolean` —
+`try { const d = getOwnPropertyDescriptor(value, key); return d ? d.configurable !== false : isExtensible(value); } catch { return false; }`,
+behind a guard that rejects any `value` that is not an object or a callable. Reports
+whether the own-property slot at `key` can still take an **arbitrary shape**.
+**`@@throw-safe`.**
+
+**A property's SHAPE is its descriptor form** — its kind (data or accessor) and its flags.
+Never its value. `configurable: false` freezes a property's shape while leaving a writable
+value free to change, and reporting exactly that split is this predicate's contract.
+
+**One arm per branch of `defineProperty`.** The operation itself branches on whether the
+key is already there: an **absent** key succeeds or fails purely on `[[Extensible]]`, with
+the descriptor irrelevant; a **present** key succeeds or fails on `configurable`, with
+extensibility irrelevant. The predicate mirrors that split, which is what makes it exact —
+`isExtensible` for the absent arm, `configurable !== false` for the present one
+(`!== false` rather than `=== true` so a descriptor whose flag is merely absent is not
+mistaken for a non-configurable one). Both flags are one-way doors, so a `false` is
+permanent for that slot.
+
+**Exactness, measured.** Against the question it states — can this slot take an arbitrary
+descriptor — the predicate and `Object.defineProperty` agree on **13 of 13** target×key
+states: present-configurable, absent-extensible, absent under each of `preventExtensions`
+/ `seal` / `freeze`, non-configurable data / accessor / writable-data, sealed and frozen
+present keys, `[].length`, a function's `name`, and an absent symbol key. The oracle
+installs maximally-different descriptors (data→accessor conversion, `configurable: true`
+restoration, `enumerable` inversion); a weaker define is a different question, answered
+under `cOPBS/B5`.
+
+**The guard tests the TARGET, not the key.** `defineProperty` requires an Object and
+throws on every primitive, so a non-object answers `false`; the falsy arm is what catches
+`null`, whose `typeof` is `'object'`. The key is deliberately unconstrained: both
+`getOwnPropertyDescriptor` and `defineProperty` run it through `ToPropertyKey` first, so
+`{}` reads as `'[object Object]'`, `NaN` as `'NaN'`, `1n` as `'1'` — each shapes a slot
+perfectly well. Validating the key would spend a call to deny a slot that can be shaped.
 
 **Not a member of the `hasOwn*` family — the load-bearing distinction.** Those predicates
 assert that a property EXISTS and then qualify it, so they answer `false` for an absent or
-inherited-only key. This one asserts the _absence of a blocker_, so it answers `true` in
-both those cases. The sole `false` from a reachable descriptor is an own property carrying
-`configurable: false`. The `?? {}` fallback is what produces that asymmetry — no
-descriptor means no blocker — and `!== false` rather than `=== true` is what stops a
-descriptor-less read from being mistaken for a non-configurable one.
+inherited-only key. This one reports whether the slot is _malleable_, so an absent or
+inherited-only key on an extensible target answers `true`.
 
-- `cOPBD/A1` — an own configurable data property (`{ k: 1 }`, key `'k'`) → `true`.
-- `cOPBD/A2` — an own configurable **accessor** (`get k()`, `configurable: true`) → `true`
+- `cOPBS/A1` — an own configurable data property (`{ k: 1 }`, key `'k'`) → `true`.
+- `cOPBS/A2` — an own configurable **accessor** (`get k()`, `configurable: true`) → `true`
   (the descriptor kind is irrelevant; only the flag is read, and the getter is never
   invoked).
-- `cOPBD/A3` — a key with no own descriptor (`{}`, key `'k'`) → `true`. Nothing occupies
-  the slot, so nothing blocks defining it.
-- `cOPBD/A4` — a key present only on the prototype chain (`Object.create({ k: 1 })`, key
-  `'k'`) → `true`. The read is own-only; an inherited property is not a blocker.
-- `cOPBD/A5` — a symbol key with no own descriptor → `true` (symbol keys pass
-  `isValidPropertyKey` and read identically).
-- `cOPBD/R1` — an own **non-configurable** data property → `false`. The one blocker.
-- `cOPBD/R2` — an own **non-configurable accessor** → `false` (same flag, either kind).
-- `cOPBD/R3` — a non-configurable **symbol**-keyed property → `false`.
-- `cOPBD/R4` — a nullish `value` (`null`, `undefined`/omitted) → `false` (guard).
-- `cOPBD/R5` — an omitted or invalid `key` (`{}`, an object) → `false` (guard, via
-  `isValidPropertyKey`).
-- `cOPBD/B1` — a `Proxy` whose `getOwnPropertyDescriptor` trap throws → `false`, **not
-  thrown**.
-- `cOPBD/B2` — a **non-extensible** target (`Object.preventExtensions` / `seal` /
-  `freeze`) with an ABSENT key → `true`, yet `Object.defineProperty` on that key
-  **throws**. `[[Extensible]]` is object-level state and invisible to a per-property
-  descriptor read, so the predicate cannot see it. Pinned because the name reads as a
-  promise the check does not make. Redefining an already-present configurable key on a
-  non-extensible target does succeed, so the optimism is confined to absent keys.
+- `cOPBS/A3` — a key with no own descriptor on an **extensible** target (`{}`, key `'k'`)
+  → `true`. Nothing occupies the slot and the object can still grow.
+- `cOPBS/A4` — a key present only on the prototype chain (`Object.create({ k: 1 })`, key
+  `'k'`) → `true`. The read is own-only; an inherited property does not occupy the slot.
+- `cOPBS/A5` — a symbol key with no own descriptor → `true` (a symbol is already a
+  property key and reads identically).
+- `cOPBS/R1` — an own **non-configurable** data property → `false`.
+- `cOPBS/R2` — an own **non-configurable accessor** → `false` (same flag, either kind).
+- `cOPBS/R3` — a non-configurable **symbol**-keyed property → `false`.
+- `cOPBS/R4` — a nullish `value` (`null`, `undefined`/omitted) → `false` (guard).
+- ~~`cOPBS/R5`~~ — **WITHDRAWN 2026-08-20.** It read "an omitted or invalid `key` (`{}`,
+  an object) → `false` (guard, via `isValidPropertyKey`)". The claim was wrong:
+  `defineProperty` coerces every such key and defines successfully, so `false` denied a
+  definition that demonstrably works. The validation is gone and the vector with it; the
+  corrected behaviour is `cOPBS/A6`.
+- `cOPBS/A6` — a non-`PropertyKey` key on an object target (`{}`, `[]`, `NaN`, `1n`,
+  `true`, `null`, `undefined`) → `true`. Each coerces and defines.
+- `cOPBS/R6` — a non-object `value` (`5`, `'s'`, `true`, `1n`, a symbol, `0`, `''`,
+  `false`) → `false`. `defineProperty` throws `TypeError` on every primitive, so the
+  guard's answer matches the operation it predicts.
+- `cOPBS/B1` — a `Proxy` whose `getOwnPropertyDescriptor` trap throws → `false`, **not
+  thrown**. CONSERVATIVE, and the one direction where this predicate under-promises:
+  `defineProperty` on that target succeeds, because it never consults the trapped read.
+  Absorption cannot tell "blocked" from "unreadable" and reports the cautious answer.
+- ~~`cOPBS/B2`~~ — **WITHDRAWN 2026-08-21.** It read "a non-extensible target with an
+  ABSENT key → `true`, yet `Object.defineProperty` on that key throws", pinned as a
+  documented optimism. The extensibility arm removed the optimism rather than documenting
+  it, and an optimistic answer is a false claim, which ADR #081's reliability tenet does
+  not permit a type-detection predicate to make. The corrected behaviour is `cOPBS/A7` and
+  `cOPBS/A8`.
+- `cOPBS/A7` — a **non-extensible** target (`Object.preventExtensions` / `seal` /
+  `freeze`) with an ABSENT key → `false`. The slot can never be shaped, and
+  `defineProperty` agrees by throwing.
+- `cOPBS/A8` — a `preventExtensions` target whose PRESENT key is still configurable →
+  `true`, and the define succeeds. `preventExtensions` leaves existing flags untouched, so
+  extensibility never enters the present-key arm; `seal` and `freeze` differ only because
+  they CLEAR `configurable`, which the ordinary descriptor read already catches.
+- `cOPBS/R7` — an own **non-configurable but WRITABLE** data property
+  (`{ value, writable: true, configurable: false }`, every present key of a **sealed**
+  object, and `[].length`) → `false`. The shape is frozen even though the value is not;
+  what such a slot still accepts is enumerated in `cOPBS/B5`.
+- `cOPBS/B3` — a key whose `ToPropertyKey` throws (`{ [Symbol.toPrimitive]() { throw } }`)
+  → `false`, **not thrown**. Agrees with `defineProperty`, which throws on the same
+  coercion.
+- `cOPBS/B4` — a `Proxy` whose **`defineProperty`** trap throws → `true`, yet the define
+  throws. OPTIMISTIC and irreducible: a trap that runs later is not visible to any read
+  performed now.
+- `cOPBS/B5` — **what a `false` still permits.** `false` means no define can RESHAPE the
+  slot, not that every define fails. Three kinds still land, and only the last is a
+  capability a caller loses by trusting the answer:
 
-**Refuses to claim.** That the define will succeed — only that no _descriptor_ blocks it
-(`cOPBD/B2`). That the property exists, is own, or is enumerable. That a setter, a
-prototype-chain entry, or a `[[Prototype]]` trap will not interfere.
+  | what still succeeds                               | a real capability?            |
+  | ------------------------------------------------- | ----------------------------- |
+  | a no-op define (`{}`, or `SameValue` fields)      | no — nothing changes          |
+  | a value write to a still-writable property        | no — plain assignment does it |
+  | the one-way `writable: true` → `false` tightening | **yes**, and the only one     |
 
-**The `trustedData` path is unvalidated by contract.** With the flag set, the nullish and
-property-key guards are skipped and an invalid `key` is coerced by
-`getOwnPropertyDescriptor` rather than rejected — so the trusted path can answer `true`
-where `cOPBD/R5` answers `false`. That is a caller contract violation, not a specified
-input, and is deliberately given no vector.
+  The no-op rule compares with `SameValue`, not `===`, so both float edge cases invert:
+  `-0` onto `+0` **throws**, while `NaN` onto `NaN` **succeeds**. A no-op is legal even on
+  a frozen property, which is why
+  `Object.defineProperty(Object.freeze({ k: 1 }), 'k', {})` does not throw.
 
-**Cross-realm (axis 2):** realm-safe — the descriptor read goes through the realm-fixed
-`getOwnPropertyDescriptor` capture and inspects only a boolean flag. **Composition note
-(axis 4):** consumed by `type-identity`'s `defineStableTypeIdentity`, which asks the
-can-this-be-defined question of `name` and `Symbol.toStringTag` before sealing either.
+**Refuses to claim.** That an arbitrary define will succeed on a `true` — the two
+hostile-`Proxy` states (`B1` conservative, `B4` optimistic) lie outside any descriptor
+read, and both are irreducible rather than documented shortcuts. It also claims nothing
+about whether the property exists, is own, or is enumerable, nor that a setter or a
+`[[Prototype]]` trap will not interfere. What it does NOT refuse, since the extensibility
+arm landed, is the absent-key case: that is now answered exactly.
+
+**Cross-realm (axis 2):** realm-safe — both arms read realm-fixed captures
+(`getOwnPropertyDescriptor`, `Object.isExtensible`) and inspect only a boolean.
+**Composition note (axis 4):** consumed by `type-identity`'s `defineStableTypeIdentity`,
+which asks the can-this-be-shaped question of `name` and `Symbol.toStringTag` before
+sealing either.
 
 ---
 
@@ -816,5 +910,9 @@ allocation-free vs a per-call closure.
 
 ## Open items
 
-None. `architecture/utility.md` declares the public surface complete with no open
-questions.
+The public surface is complete. One architectural question is open and tracked in
+`architecture/utility.md`: whether a descriptor-aware sibling of `canOwnPropertyBeShaped`
+should exist — one taking the intended descriptor and answering "will THIS define apply"
+rather than "can this slot take an arbitrary shape". ADR #094 records it as unbuilt by
+choice, not overlooked; no consumer asks it today. Nothing in this spec depends on the
+answer.
