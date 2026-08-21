@@ -371,12 +371,18 @@ side depend on only the relevant module.
 
 ## Open architectural questions
 
-- **Q.005 — host-backed hardening tier for `isPromise`.** The
-  `Object.create(Promise.prototype)` graft is structurally unsealable in portable JS
-  (decision #052). A host primitive that reads `[[PromiseState]]` directly (e.g. Node's
-  `util.types.isPromise`) could seal it, but makes behavior environment-divergent — so it
-  is deferred to an opt-in downstream adapter, not the portable foundation. See
-  [`../decisions/open-questions.md`](../decisions/open-questions.md).
+None. The module's last question closed on 2026-08-21.
+
+- **Q.005 — host-backed hardening tier for `isPromise` — DECLINED** by decision #095. A
+  host primitive reading `[[PromiseState]]` (Node's `util.types.isPromise`) would seal the
+  `Object.create(Promise.prototype)` graft that #052 leaves admitted, and it was verified
+  to work. It is declined because it is a Node API on no standards track: unlike #082's
+  native `Error.isError` (ECMA-262, where branching converges as engines catch up), the
+  divergence here would be permanent, and this module deliberately carries **zero**
+  environment probes. The graft admission was measured symmetric across local and foreign
+  realms, so a Node-only fix would repair one arm on one environment. The opt-in
+  downstream adapter remains the home; re-open if a slot-reading promise predicate reaches
+  the language standards track.
 
 _Q.004 (`AbortableThenable<T>` placement) was resolved 2026-06-06 by decision #037: return
 preserved-abortable, refine `Thenable<T>` independently from `PromiseLike<T>`, ship in

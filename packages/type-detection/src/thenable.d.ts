@@ -600,7 +600,11 @@ export function isPromiseLike<T = unknown>(value?: T): value is T & PromiseLike<
  * instance-level subclass layer, demoted to merely `PromiseLike` (decision #063).
  * The bare graft `Object.create(Promise.prototype)` stays admitted: `Promise`
  * exposes no inert slot-reader, so a hollow direct-prototype value cannot be
- * caught (decision #052).
+ * caught (decision #052). Detection verifies SHAPE, not liveness — so a caller
+ * who trusts this `true` and then awaits the value gets a `TypeError` at the
+ * point of use ("Method Promise.prototype.then called on incompatible
+ * receiver"), never at the point of detection. The admission is identical in
+ * the local and the foreign realm.
  *
  * Strict identity narrows to the concrete `Promise` intrinsic. Unlike the
  * subclass-admitting `isPromiseLike` / `isThenable`, it is intentionally

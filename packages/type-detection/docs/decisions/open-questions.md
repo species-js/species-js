@@ -66,7 +66,20 @@ the dependency is in place. Whether `AbortableThenable` ships in `thenable.d.ts`
 (extending the lattice with a fourth tier) or as a separate `abortable-thenable.{js,d.ts}`
 module is open; the question opens once the dependency is in scope.
 
-## Q.005 — Host-backed hardening tier for `isPromise` (and other unsealable types)
+## Q.005 — Host-backed hardening tier for `isPromise` (RESOLVED 2026-08-21 by decision #095)
+
+**Declined.** The tier would work — `util.types.isPromise` rejects the graft, admits a
+real promise, and touches no user getter — but it is a Node API with no standards track,
+so the divergence it installs is permanent rather than transitional. That is the
+difference from #082's native `Error.isError`, which is ECMA-262 and converges.
+Portability is this package's contract, and #052's shape-not-liveness principle is a
+boundary rather than a hole. Measured while deciding: the graft admission is symmetric
+local and cross-realm, and the one portable substitute (`Promise.resolve(x) === x`) is
+disqualified — it runs user code, allocates, and raised an uncaught exception on a hostile
+fixture. The opt-in downstream adapter remains the home; re-open if a slot-reading promise
+predicate reaches the language standards track. Original text follows.
+
+## Q.005 — Host-backed hardening tier for `isPromise` (original)
 
 Decision #052 establishes that `isPromise` cannot portably seal the
 `Object.create(Promise.prototype)` graft: `Promise` exposes no inert internal-slot

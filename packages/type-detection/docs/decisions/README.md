@@ -71,6 +71,7 @@ Open architectural questions live in [open-questions.md](./open-questions.md).
 | [050](./0050-lift-from-like-cascade-strict-identity.md)          | Lift-from-`Like`-cascade: two-axis dispatch at the strict-identity entry point                                                                                      | 2026-06-16 |
 | [052](./0052-promise-prototype-graft-structurally-unsealable.md) | `Promise` prototype-graft is structurally unsealable; accept-and-document                                                                                           | 2026-06-18 |
 | [054](./0054-is-promise-cross-realm-structural-equivalence.md)   | `isPromise` cross-realm arm factored into structural-equivalence; `assumePrototype` generalized (deferral overturned by #055; registry portions superseded by #059) | 2026-06-23 |
+| [095](./0095-no-host-backed-hardening-tier-resolves-q005.md)     | No host-backed hardening tier — portability outranks sealing one graft; resolves Q.005, upholds #052                                                                | 2026-08-21 |
 
 ### type-detection / evented
 
@@ -240,3 +241,4 @@ order with one-line summaries:
 | 2026-08-06 | [085](./0085-curated-public-entry-and-surface-gate.md)                                | Curated public entry at the package root + `surface:check`; overturns #084's deferral                                                                                |
 | 2026-08-06 | [086](./0086-realm-fixed-captures-stay-internal.md)                                   | Realm-fixed captures stay `@internal`; each package captures its own (idempotent vs identity)                                                                        |
 | 2026-08-21 | [094](./0094-shapeability-not-definability-predicate-contract.md)                     | A slot's SHAPE, not a prediction of `defineProperty`: `canOwnPropertyBeShaped`, an extensibility arm, exact 13/13; withdraws the optimistic absent-key vector        |
+| 2026-08-21 | [095](./0095-no-host-backed-hardening-tier-resolves-q005.md)                          | No host-backed hardening tier for `isPromise` — a non-standard native installs permanent divergence; resolves Q.005, upholds #052                                    |

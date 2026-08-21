@@ -442,7 +442,11 @@ export function isPromiseLike(value) {
  * The bare graft `Object.create(Promise.prototype)` stays admitted: `Promise`
  * exposes no inert slot-reader, so a hollow direct-prototype value cannot be
  * caught (decision #052, `isPromise/B2`). The own-shadow gate closes the
- * own-level override, not the hollow graft.
+ * own-level override, not the hollow graft. Detection verifies SHAPE, not
+ * liveness — a caller who trusts this `true` and then awaits the value gets a
+ * `TypeError` at the point of use ("Method Promise.prototype.then called on
+ * incompatible receiver"), never at the point of detection. Measured identical
+ * in the local and the foreign realm (ADR #095).
  *
  * Strict identity narrows to the concrete `Promise` intrinsic. Unlike the
  * subclass-admitting `isPromiseLike` / `isThenable`, it is intentionally
