@@ -380,16 +380,27 @@ single concern depend on only the relevant module.
 
 ## Open architectural questions
 
-- **A package-owned `GenericError` type alias (open, decision #067).** `isGenericError`
-  currently narrows to the built-in `Error`, breaking the `predicate → same-named type`
-  symmetry the other predicates have (`isDOMException → DOMException`,
-  `isError → AnyError`). A `type GenericError = Error` alias would regularize it and let
-  `AnyError = GenericError | DOMException` read in package vocabulary. It is nominal —
-  TypeScript has no negation, and `Error` already excludes `DOMException` structurally —
-  so it would change no runtime vector; a documentation / symmetry call left to the design
-  owner.
-- **Native `Error.isError(new DOMException())` membership (policy flag).** The polyfill
-  guarantees a `DOMException` is admitted by `isError`, but the public binding defers to
-  native when present, and whether native admits a `DOMException` depends on the engine
-  granting it `[[ErrorData]]`. The behavior is asserted runtime-agnostically in
-  `ERROR.spec.md`; a native verdict is not baked in, pending per-engine verification.
+None. Both questions this module tracked were settled on 2026-07-30 by ADR #082, whose
+Consequences state it outright: "no open policy flags remain on the module." The outcomes
+are recorded here so a reader need not reconstruct them from the decision log.
+
+- **A package-owned `GenericError` type alias — DECLINED** (owner decision, 2026-07-29
+  pairing round; recorded in ADR #082 and `ERROR.spec.md` resolved item #4). A
+  `type GenericError = Error` would regularize the `predicate → same-named type` family,
+  but it is purely nominal — TypeScript has no negation, so the alias changes no vector —
+  and it would buy paper symmetry at the price of a rename rippling through six downstream
+  consumers. Won't-do, together with any other type or function rename in this module.
+- **Native `Error.isError(new DOMException())` membership — RESOLVED** by ADR #082
+  (`ERROR.spec.md` resolved item #3). The premise the flag rested on no longer holds:
+  `isError` stopped deferring to native. It is now a **spec-owned** predicate that uses
+  the captured native only as an internal accelerator, bound once at load by the
+  three-branch selection described under "Native-backstopped capture at module-load" — so
+  a real `DOMException` is admitted whether native grants it `[[ErrorData]]` (branch 2,
+  probed at load), withholds it (branch 3, backstopped by `isDOMException`), or is absent
+  entirely (branch 1, the polyfill). Engine-independent for every well-formed value; no
+  per-engine verification is owed.
+
+Two residuals survive under branch 2 only, on values outside the well-formed set — a
+slot-less `DOMException`-shaped fake, and a deliberately-malformed `DOMException` whose
+own-data `name` flattens the inherited getter. These are boundaries, not gaps: both are
+asserted against the deterministic `isAnyError`, never against a baked-in native verdict.
