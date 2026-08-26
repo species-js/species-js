@@ -51,7 +51,7 @@
   "devDependencies": {
     "@arethetypeswrong/cli": "^0.18.5",
     "@changesets/changelog-github": "^1.0.0",
-    "@changesets/cli": "^3.0.0",
+    "@changesets/cli": "^3.0.1",
     "@commitlint/cli": "^21.2.0",
     "@commitlint/config-conventional": "^21.0.1",
     "@eslint/js": "^10.0.1",
@@ -60,7 +60,7 @@
     "@vitest/ui": "^4.1.7",
     "cross-env": "^10.1.0",
     "esbuild": "^0.28.2",
-    "eslint": "~10.8.0",
+    "eslint": "~10.9.0",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-jsdoc": "~64.2.0",
     "globals": "^17.6.0",
