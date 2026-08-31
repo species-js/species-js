@@ -22,6 +22,12 @@
  * hostile `getPrototypeOf` / `getOwnPropertyDescriptor` Proxy-trap
  * yields `false`, never a propagated throw.
  *
+ * A fifth predicate, {@link isObjectOrCallable}, stands apart from that
+ * machinery entirely — a single-`typeof`-read floor spanning this module
+ * and `#function`, admitting either an {@link AnyObject} or a
+ * {@link Callable}. `typeof` is realm-independent and syntactic, so there
+ * is no cross-realm arm and no spoof surface to close.
+ *
  * See the sibling `.d.ts` for type definitions and the per-predicate
  * specification. This `.js` carries the runtime implementation with
  * parallel JSDoc.
@@ -48,6 +54,7 @@ import { isCallable, isClass } from '#function';
 /** @typedef {import('#object').PlainObject} PlainObject */
 /** @typedef {import('#object').DictionaryObject} DictionaryObject */
 /** @typedef {import('#object').PlainOrDictionaryObject} PlainOrDictionaryObject */
+/** @typedef {import('#object').ObjectOrCallable} ObjectOrCallable */
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 //
@@ -672,6 +679,42 @@ export function isPlainOrDictionaryObject(value) {
   }
   // PlainObject — cross-realm fallback; thread the already-read prototype (#059)
   return isAlienRealmPlainObject(value, prototype);
+}
+
+/* @@throw-safe */
+/**
+ * Narrows a value to {@link ObjectOrCallable} — an {@link AnyObject} or a
+ * {@link Callable} — via a single `typeof` read shared across both arms:
+ * `!!value && (t === 'object' || t === 'function')`.
+ *
+ * Fused rather than composed for the same reason as
+ * {@link isPlainOrDictionaryObject}: `isObject(value) || isCallable(value)`
+ * would re-read `typeof value` on the object arm's miss, where one read
+ * already answers both branches.
+ *
+ * Does not admit `document.all` — the one host-exotic value whose `typeof`
+ * reports `'undefined'` despite it being a genuine (if legacy) object. A
+ * `typeof`-based gate cannot see past that lie; see the primitive module's
+ * `isPrimitiveValue` for the sibling boundary this same quirk produces.
+ *
+ * @template [T=unknown]
+ * @param {T} [value] - the value to test; omitted is treated as
+ *  `undefined`, which is neither form
+ * @returns {value is T & ObjectOrCallable} `true` when `value` is a
+ *  non-null object or a function, narrowing `value` to
+ *  `T & ObjectOrCallable`; `false` otherwise
+ * @example
+ * isObjectOrCallable({});           // true
+ * isObjectOrCallable([]);           // true
+ * isObjectOrCallable(() => {});     // true
+ * isObjectOrCallable(class Foo {}); // true
+ * isObjectOrCallable('x');          // false
+ * isObjectOrCallable(null);         // false
+ */
+export function isObjectOrCallable(value) {
+  const typeofValue = typeof value;
+
+  return !!value && (typeofValue === 'object' || typeofValue === 'function');
 }
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----

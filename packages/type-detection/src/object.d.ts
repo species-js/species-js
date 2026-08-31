@@ -3,7 +3,7 @@
  *
  * Object-shape discrimination.
  *
- * Four types and four predicates discriminate the spec-relevant
+ * Five types and five predicates discriminate the spec-relevant
  * categories of "is this value an object, and if so what kind?":
  *
  * - {@link AnyObject} / {@link isObject} — the structural floor: any
@@ -32,6 +32,12 @@
  *   lodash-equivalent semantic in a single-named type and predicate
  *   without losing the distinction the two strict forms provide
  *   individually.
+ *
+ * - {@link ObjectOrCallable} / {@link isObjectOrCallable} — stands apart
+ *   from the `AnyObject` lineage above: the union of {@link AnyObject}
+ *   and `#function`'s {@link Callable}, decided by a single `typeof`
+ *   read. For every value except `document.all` it is the exact
+ *   complement of `#primitive`'s `PrimitiveValue`.
  *
  * `PlainObject` and `DictionaryObject` are structurally disjoint.
  * They cannot be combined into one of the strict forms, since their
@@ -85,7 +91,7 @@
  * it is carried by the runtime predicates and the distinct constants.
  */
 
-import type { NewableFunction } from '#function';
+import type { Callable, NewableFunction } from '#function';
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 //
@@ -239,6 +245,24 @@ export interface DictionaryObject extends AnyObject {
  * meaningful.
  */
 export type PlainOrDictionaryObject = PlainObject | DictionaryObject;
+
+/**
+ * The union of {@link AnyObject} and {@link Callable} — every value
+ * `typeof` reports as `'object'` or `'function'`. The narrow target of
+ * {@link isObjectOrCallable}.
+ *
+ * Unlike {@link PlainOrDictionaryObject}, this union reaches outside the
+ * `AnyObject` lineage: `Callable` is `#function`'s floor, not a subtype
+ * declared here. For every value except `document.all`, it is the exact
+ * complement of `#primitive`'s `PrimitiveValue` —
+ * `isObjectOrCallable(v) === !isPrimitiveValue(v)` — because a value's
+ * `typeof` result alone decides both verdicts, and no result is admitted
+ * by both or by neither. `document.all` is the sole value both floor
+ * predicates reject: its `typeof` reports `'undefined'` while it is a
+ * genuine (if legacy) host object, so it belongs to neither union. See
+ * {@link isObjectOrCallable}.
+ */
+export type ObjectOrCallable = AnyObject | Callable;
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 //
@@ -670,5 +694,32 @@ export function isDictionaryObject<T = unknown>(value?: T): value is T & Diction
 export function isPlainOrDictionaryObject<T = unknown>(
   value?: T,
 ): value is T & PlainOrDictionaryObject;
+
+/* @@throw-safe */
+/**
+ * Narrows a value to {@link ObjectOrCallable} — either an
+ * {@link AnyObject} or a {@link Callable}.
+ *
+ * Reach for this when an API genuinely accepts both shapes uniformly
+ * (e.g. anything indexable-or-invocable). Reach for {@link isObject} or
+ * `isCallable` (`#function`) alone when the distinction matters.
+ *
+ * Does not admit `document.all` — the one legacy host object whose
+ * `typeof` reports `'undefined'`. See {@link ObjectOrCallable}.
+ *
+ * @typeParam T - the caller-side type of `value`; defaults to `unknown`
+ * @param value - the value to test; omitted is treated as `undefined`,
+ *  which is neither form
+ * @returns `true` when the value is a non-null object or a function,
+ *  narrowing `value` to `T & ObjectOrCallable`; `false` otherwise
+ * @example
+ * isObjectOrCallable({});           // true
+ * isObjectOrCallable([]);           // true
+ * isObjectOrCallable(() => {});     // true
+ * isObjectOrCallable(class Foo {}); // true
+ * isObjectOrCallable('x');          // false
+ * isObjectOrCallable(null);         // false
+ */
+export function isObjectOrCallable<T = unknown>(value?: T): value is T & ObjectOrCallable;
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----

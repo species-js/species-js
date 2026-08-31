@@ -344,8 +344,43 @@ rejecting subclasses (decision #023), `isEventTarget` / `isAbortSignal` rejectin
 subclasses (#028), and `AbortError` requiring the suffix-match (#035). See decisions #041
 and #046.
 
+## Cross-module: the object-or-callable floor
+
+`ObjectOrCallable` / `isObjectOrCallable` stand apart from the four-shape `AnyObject`
+lineage above — they are not a subtype of `AnyObject`, but its union with `#function`'s
+`Callable`:
+
+```
+ObjectOrCallable   (isObjectOrCallable)   — AnyObject | Callable
+```
+
+The implementation is a single-`typeof`-read fusion, the same idiom as
+`isPlainOrDictionaryObject` (`!!value && (t === 'object' || t === 'function')` rather than
+`isObject(value) || isCallable(value)`, which would re-read `typeof` on the object arm's
+miss). Unlike every other predicate in this module, it carries no cross-realm arm and no
+spoof surface: `typeof` is a syntactic operator, realm-independent and un-trappable
+(`Proxy` has no `typeof` handler), so there is nothing for a hostile realm or a spoofed
+tag to corrupt.
+
+**It is the exact complement of `#primitive`'s `isPrimitiveValue`, with one shared
+exception.** For every value in the language but one,
+`isObjectOrCallable(v) === !isPrimitiveValue(v)` — a value's `typeof` result alone decides
+both verdicts, and the two floor predicates were built from complementary `typeof`-result
+sets (`isBoxablePrimitive`'s rejection set is exactly `isObjectOrCallable`'s admission
+condition, `'undefined' | 'function' | 'object'`), so no value is admitted by both or by
+neither. The one exception is `document.all`: its `typeof` reports `'undefined'` while it
+is a genuine (if legacy) host object, so it fails `isObjectOrCallable`'s `typeof` check
+AND fails `isPrimitiveValue`'s nullish-identity check — rejected by both, admitted by
+neither. See `architecture/primitive.md`'s resolved `isPrimitiveValue` question for the
+sibling analysis this same quirk produced.
+
+**Provenance.** Added to serve `@species-js/type-identity`'s
+`doesCarryStableTypeIdentity`, which resolves a value's prototype from either a
+constructor's own `prototype` slot or `Object.getPrototypeOf(value)` and must accept
+whichever of the two shapes — a plain-object prototype or (for an ES3 function acting as a
+constructor) a callable one — comes back before reading descriptors off it.
+
 ## Open architectural questions
 
-_Section currently empty — the object module's surface is complete. The `identity`
-migration that the equip-js source carried alongside `object` belongs to
-`@species-js/type-identity`, not here._
+_Section currently empty. The `identity` migration that the equip-js source carried
+alongside `object` belongs to `@species-js/type-identity`, not here._

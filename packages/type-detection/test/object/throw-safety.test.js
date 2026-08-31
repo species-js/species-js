@@ -20,8 +20,8 @@
  *
  * ## Axis 5 — completeness oracle over the `@@throw-safe` markers
  *
- * The module marks 9 exports `@@throw-safe` (ADRs #073/#076; OBJECT.spec.md
- * `## Throw-safety (axis 5)`): the 4 public predicates PLUS the 5 exported
+ * The module marks 10 exports `@@throw-safe` (ADRs #073/#076; OBJECT.spec.md
+ * `## Throw-safety (axis 5)`): the 5 public predicates PLUS the 5 exported
  * `@internal` helpers. This suite triple-locks that oracle:
  *   1. the `@@throw-safe` markers parsed out of `src/object.js` === the canonical
  *      {@link THROW_SAFE_MARKED} list (catches SOURCE drift);
@@ -35,11 +35,14 @@
  * throwing read — a trivial pass. Each probe therefore routes the hostile value
  * into the argument position that triggers that export's characteristic read
  * (`getTypeSignature`, `getSafePrototypeOf`, the constructor walk, the member-surface
- * `getOwnPropertyDescriptors`), so non-propagation is genuinely exercised. The
- * verdicts are non-uniform across the 9 heterogeneous exports, so axis 5 pins only
- * the invariant that holds for every cell — the call does not throw; the specific
- * honest verdicts stay pinned in the axis-3 matrix and `_internal/helpers.test.js`
- * (`dIOPC/B1`, `iOPE/B1`).
+ * `getOwnPropertyDescriptors`), so non-propagation is genuinely exercised. The one
+ * exception is `isObjectOrCallable`: a single `typeof` read with no property or
+ * prototype access at all, so every hostile row reaches it unchanged and there is no
+ * throw path to route around — its row is trivially, unconditionally `true` (every
+ * hostile fixture here is an object, not a function). The verdicts are non-uniform
+ * across the 10 heterogeneous exports, so axis 5 pins only the invariant that holds
+ * for every cell — the call does not throw; the specific honest verdicts stay pinned
+ * in the axis-3 matrix and `_internal/helpers.test.js` (`dIOPC/B1`, `iOPE/B1`).
  */
 
 import { readFileSync } from 'node:fs';
@@ -51,6 +54,7 @@ import {
   isPlainObject,
   isDictionaryObject,
   isPlainOrDictionaryObject,
+  isObjectOrCallable,
   doesImplementObjectPrototypeContract,
   hasPlainObjectIdentitySignal,
   hasDictionaryObjectIdentitySignal,
@@ -106,6 +110,10 @@ const markedProbes = {
   isPlainObject: (h) => isPlainObject(h),
   isDictionaryObject: (h) => isDictionaryObject(h),
   isPlainOrDictionaryObject: (h) => isPlainOrDictionaryObject(h),
+  // no threaded argument to route into — `isObjectOrCallable` is a single
+  // `typeof` read with no property/prototype access, so every hostile row
+  // below reaches it unchanged, and it has no throw path to exercise at all.
+  isObjectOrCallable: (h) => isObjectOrCallable(h),
 };
 
 describe('object — throw-safety invariant (axis 3, hostile × predicate matrix)', () => {
@@ -137,11 +145,11 @@ describe('object — throw-safety invariant (axis 3, hostile × predicate matrix
 });
 
 describe('object — throw-safety completeness oracle (axis 5, hostile × marked-export)', () => {
-  it('completeness (source): the `@@throw-safe` markers in src/object.js === the 9-name oracle', () => {
+  it('completeness (source): the `@@throw-safe` markers in src/object.js === the 10-name oracle', () => {
     expect(markedNamesFromSource().sort()).toEqual(markedSorted);
   });
 
-  it('completeness (test): the scored marked-export set === the 9-name oracle', () => {
+  it('completeness (test): the scored marked-export set === the 10-name oracle', () => {
     expect(Object.keys(markedProbes).sort()).toEqual(markedSorted);
   });
 
@@ -155,7 +163,7 @@ describe('object — throw-safety completeness oracle (axis 5, hostile × marked
           }
           // asserting the probe returns IS the throw-safety proof: a propagated
           // throw surfaces here as a test error. The verdict is non-uniform across
-          // the 9 exports, so its VALUE is not pinned here — only non-propagation.
+          // the 10 exports, so its VALUE is not pinned here — only non-propagation.
           expect(() => probe(make()), `${name} threw`).not.toThrow();
         });
       }

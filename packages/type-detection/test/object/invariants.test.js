@@ -35,6 +35,11 @@
  *   F. Determinism — repeated calls on the same instance agree (no hidden state).
  *   G. Strictness witnesses — the lattice does not collapse: a PlainObject-not-Dict,
  *      a Dict-not-Plain, and an AnyObject-that-is-neither all exist.
+ *   H. Cross-module union equivalence — `isObjectOrCallable(v)` === `isObject(v) ||
+ *      isCallable(v)` (`#function`) for EVERY `v`, including function forms and the
+ *      falsy floor. `isObjectOrCallable` stands apart from the `AnyObject` lineage
+ *      above (laws A–G); this is its own fusion-vs-disjunction law, the same shape
+ *      as law B but crossing into `#function`.
  *
  * Throw-safety (that no predicate throws on hostile input) is the axis-5 concern —
  * see `throw-safety.test.js`; this suite assumes it and asserts relationships.
@@ -47,6 +52,8 @@ import {
   isPlainObject,
   isDictionaryObject,
   isPlainOrDictionaryObject,
+  isObjectOrCallable,
+  isCallable,
 } from '#index';
 
 import {
@@ -251,4 +258,55 @@ describe('object — structural invariants (G: the lattice does not collapse)', 
     expect(isDictionaryObject(v)).toBe(false);
     expect(isPlainOrDictionaryObject(v)).toBe(false);
   });
+});
+
+describe('object — structural invariants (H: cross-module union — isObjectOrCallable === isObject || isCallable)', () => {
+  for (const [label, make] of corpus) {
+    it(`${label}: isObjectOrCallable === isObject || isCallable`, () => {
+      const v = make();
+      expect(isObjectOrCallable(v)).toBe(isObject(v) || isCallable(v));
+    });
+  }
+
+  /** @type {Array<[string, unknown]>} */
+  const functionForms = [
+    ['arrow function', () => undefined],
+    [
+      'class',
+      class Foo {
+        run() {
+          return 0;
+        }
+      },
+    ],
+    [
+      'named function',
+      function named() {
+        return undefined;
+      },
+    ],
+    [
+      'async function',
+      async function () {
+        await Promise.resolve();
+      },
+    ],
+    [
+      'generator function',
+      function* () {
+        yield undefined;
+      },
+    ],
+  ];
+  for (const [label, fn] of functionForms) {
+    it(`${label}: isObjectOrCallable === isObject || isCallable`, () => {
+      expect(isObjectOrCallable(fn)).toBe(isObject(fn) || isCallable(fn));
+    });
+  }
+
+  for (const value of falsyFloor) {
+    it(`${String(value)}: isObjectOrCallable === isObject || isCallable`, () => {
+      expect(isObjectOrCallable(value)).toBe(isObject(value) || isCallable(value));
+    });
+  }
 });

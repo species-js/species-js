@@ -548,9 +548,9 @@ export const crossCuttingRejections = {
 
 // ----- axis-5 completeness oracle: the `@@throw-safe`-marked exports -----
 /**
- * The 9 `@@throw-safe`-marked exports — the axis-5 completeness oracle
+ * The 10 `@@throw-safe`-marked exports — the axis-5 completeness oracle
  * (OBJECT.spec.md `## Throw-safety (axis 5)`; ADRs #073/#076), in source order:
- * the 4 public predicates PLUS the 5 exported `@internal` helpers.
+ * the 5 public predicates PLUS the 5 exported `@internal` helpers.
  * `throw-safety.test.js` cross-checks this list BOTH against the markers parsed
  * out of `src/object.js` (source drift) AND against the imported object set (test
  * drift), then routes a hostile value into each export's own read surface and
@@ -566,6 +566,7 @@ export const THROW_SAFE_MARKED = [
   'isPlainObject',
   'isDictionaryObject',
   'isPlainOrDictionaryObject',
+  'isObjectOrCallable',
 ];
 
 // ----- throw-safety matrix (axis 3): hostile-input-class × predicate -----
