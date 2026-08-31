@@ -108,6 +108,7 @@ export {
 export {
   isDictionaryObject,
   isObject,
+  isObjectOrCallable,
   isPlainObject,
   isPlainOrDictionaryObject,
 } from '#object';

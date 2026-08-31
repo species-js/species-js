@@ -166,12 +166,14 @@ export type {
 export {
   isDictionaryObject,
   isObject,
+  isObjectOrCallable,
   isPlainObject,
   isPlainOrDictionaryObject,
 } from '#object';
 export type {
   AnyObject,
   DictionaryObject,
+  ObjectOrCallable,
   PlainObject,
   PlainOrDictionaryObject,
 } from '#object';
