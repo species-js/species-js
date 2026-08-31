@@ -169,11 +169,18 @@ it solves:
   parameter-default-to-`null` idiom (#025), which could not distinguish an omitted call
   from an explicit `undefined`.
 - **`isPrimitiveValue`** composes
-  `isNullishPrimitive(args[0]) || isBoxablePrimitive(args[0])`, admitting the full
-  ECMA-262 §4.4.4 primitive set — the seven primitive types. `undefined` is in its
-  accept-set too, so it likewise gates on `args.length` first and rejects an omitted call
-  (decision #079); it forwards presence rather than funnelling a named `value`, which
-  would erase the omission at the boundary.
+  `(args[0] ?? null) === null || isBoxablePrimitive(args[0])`, admitting the full ECMA-262
+  §4.4.4 primitive set — the seven primitive types. `undefined` is in its accept-set too,
+  so it likewise gates on `args.length` first and rejects an omitted call (decision #079);
+  it forwards presence rather than funneling a named `value`, which would erase the
+  omission at the boundary. The nullish arm inlines `isNullishPrimitive`'s strict-identity
+  check rather than calling it, sparing that call's own rest-parameter allocation on every
+  non-nullish input. The strictness is load-bearing, not stylistic: `document.all`, the
+  one falsy value in the language whose `typeof` is `'undefined'`, is not strictly `null`
+  or `undefined`, so `?? null` leaves it untouched and the nullish arm rejects it — it
+  falls through to `isBoxablePrimitive`, which rejects the `'undefined'` signature. A
+  truthiness-based arm (`!args[0] || …`) would short-circuit `true` on `document.all`
+  alone and misclassify it as primitive; see the resolved open question below.
 
 The three `typeof`-floor predicates have **no spoof surface to seal**. Unlike the
 boxed-primitive predicates that need the engine-attested `[[XData]]` slot probe to close
@@ -403,25 +410,24 @@ polyfill closures remain `@internal` (fallback-path test hooks).
 ## Open architectural questions
 
 **Could `isPrimitiveValue` be a single `typeof` test instead of a composition?** (Raised
-2026-08-21, open.) It currently answers by composing two predicates —
-`isNullishPrimitive(args[0]) || isBoxablePrimitive(args[0])` — behind the ADR #079 arity
-gate. A direct form needs no helpers:
+2026-08-21, **declined 2026-08-31** — the divergence flagged as unverified is real.) The
+direct form under consideration was:
 
     args.length > 0 && (!v || (typeof v !== 'object' && typeof v !== 'function'))
 
-The falsy arm covers every nullish and falsy primitive; the `typeof` pair rejects only
-objects and callables, so boxed primitives stay `false` as they must. Probed against the
-shipped predicate over 29 values — nullish, all six primitive types, falsy and truthy
-alike, boxed `Number` / `String` / `Boolean` / `BigInt` / `Symbol`, `Date`, `RegExp`,
-`Promise`, a null-prototype object and a `Proxy` — **0 divergences**, and it holds the
-#079 boundary (omitted → `false`, explicit `undefined` → `true`).
+which is the De Morgan dual of `!isObjectOrCallable(v)` (`#object`'s `typeof`-based
+object-or-callable gate) — the same shortcut surfaced independently as a draft
+implementation and was checked against exactly the value this section named as unverified:
+`document.all`. It divides the two forms as predicted. `document.all` is falsy, so the
+direct form's `!v` arm short-circuits `true` and misclassifies a host exotic object as
+primitive. The shipped composition avoids this because its nullish arm is a strict
+identity check (`(args[0] ?? null) === null`), not a truthiness check — `document.all` is
+not strictly `null` or `undefined`, so the check correctly falls through to
+`isBoxablePrimitive`, which rejects the `'undefined'` signature.
 
-**Not verified, and the reason this is a question rather than a change:** a falsy _object_
-would divide the two forms, since `!v` would call it primitive. The only such value in the
-language is `document.all` (the `[[IsHTMLDDA]]` exotic, `typeof` `'undefined'`), which is
-absent from Node and so was never in the probe — and this package ships to browsers. The
-composed form's behaviour there is also unmeasured. Worth settling before trading a
-composition that is transparently correct for a `typeof` test that is merely shorter.
+The composition is transparently correct and the direct form is not merely shorter but
+wrong on a real, spec-legal value in the browser environment this package ships to. Kept
+as-is; do not re-propose the truthiness-based shortcut.
 
 Beyond that, the module's surface is complete. Further nominal-branding or string-tag
 refinements (e.g. distinguishing `UserId` from `OrderId` when both are `string`) belong in

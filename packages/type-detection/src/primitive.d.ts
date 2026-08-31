@@ -87,8 +87,8 @@
  *   #025) to collapse both nullish forms to `null` for a single
  *   strict-equality test.
  * - **`isPrimitiveValue`** — admits the full primitive union
- *   {@link PrimitiveValue} (the seven ECMA-262 primitive types) via
- *   `isNullishPrimitive || isBoxablePrimitive`.
+ *   {@link PrimitiveValue} (the seven ECMA-262 primitive types) via a
+ *   strict nullish-identity check composed with `isBoxablePrimitive`.
  *
  * ## Generic boxed-primitive umbrella
  *
@@ -1217,13 +1217,14 @@ export function isBoxablePrimitive(value?: unknown): value is BoxablePrimitive;
  * Narrows a value to the full primitive union {@link PrimitiveValue} — any
  * of the seven ECMA-262 primitive types.
  *
- * Composes `isNullishPrimitive || isBoxablePrimitive`. A supplied argument
- * is admitted when it is any of the seven primitive types; an omitted call
- * answers `false`, since `undefined` counts as a primitive only when it is
- * actually supplied — there is otherwise no value to classify. Short-circuit
- * `||` runs `isNullishPrimitive` first; for non-nullish inputs (the common
- * case) the cost is that leading call plus `isBoxablePrimitive`'s single
- * `typeof` read and `Set.has` lookup.
+ * A supplied argument is admitted when it is any of the seven primitive
+ * types; an omitted call answers `false`, since `undefined` counts as a
+ * primitive only when it is actually supplied — there is otherwise no
+ * value to classify. The nullish and boxable-primitive arms compose via a
+ * strict identity check, not truthiness — `document.all`, the one falsy
+ * value in the language whose `typeof` is `'undefined'`, is correctly
+ * rejected as the non-primitive host object it is, rather than
+ * misclassified as nullish.
  *
  * @param value - the value to test
  * @returns `true` when the value is any of the seven primitive types,

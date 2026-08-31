@@ -48,6 +48,19 @@
 > / `isPrimitiveValue` sections each gain an omitted → `false` boundary vector (`/B1`). A
 > stale "the authored `value?: unknown` predicates" characterization is also reconciled
 > (two predicates are now `(...args)`-overloaded).
+>
+> **Post-freeze amendment 2026-08-31:** `isPrimitiveValue`'s composition formula corrected
+> to match the implementation — the nullish arm now inlines `isNullishPrimitive`'s
+> strict-identity check (`(args[0] ?? null) === null`) rather than calling it, sparing a
+> redundant rest-parameter allocation; behavior is unchanged. Also adds
+> `isPrimitiveValue/B2`, mirroring `isBoxablePrimitive/B1`: `document.all`
+> (`typeof 'undefined'`, non-nullish by strict identity) is correctly rejected —
+> browser-only, untestable under Node (no userland construction can produce a
+> `typeof 'undefined'` value other than the literal `undefined`; the `[[IsHTMLDDA]]`
+> internal slot behind `document.all` is host-assigned only, unreachable from script).
+> Resolves the architecture doc's `isPrimitiveValue` open question (raised 2026-08-21,
+> declined 2026-08-31). Purely additive + a formula correction; no existing behavioral
+> vector changes.
 
 ## Module contract
 
@@ -427,7 +440,8 @@ rejected set is `{ 'undefined', 'function', 'object' }`.
 ### `isPrimitiveValue`
 
 Arity-gated `(...args)` —
-`args.length > 0 && (isNullishPrimitive(args[0]) || isBoxablePrimitive(args[0]))`.
+`args.length > 0 && ((args[0] ?? null) === null || isBoxablePrimitive(args[0]))`. The
+nullish arm inlines `isNullishPrimitive`'s strict-identity check rather than calling it.
 `undefined` is in the accept-set, so an omitted call is rejected (no value supplied); see
 #079.
 
@@ -436,6 +450,10 @@ Arity-gated `(...args)` —
 - `isPrimitiveValue/R1` — `{}`, `() => {}`, `[]`, any boxed form → false.
 - `isPrimitiveValue/B1` — omitted call `isPrimitiveValue()` → false (no argument,
   `args.length === 0`), distinct from the admitted explicit `undefined` (#079).
+- `isPrimitiveValue/B2` — `document.all` (`typeof 'undefined'`, legacy) is correctly
+  rejected: it is not strictly `null`/`undefined`, so the nullish arm fails, and
+  `typeof 'undefined'` sits in `isBoxablePrimitive`'s rejection set — browser-only, hard
+  to exercise in the node test env.
 
 ### `isBoxedPrimitive`
 

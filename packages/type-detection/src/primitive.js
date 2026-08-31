@@ -1207,11 +1207,21 @@ export function isBoxablePrimitive(value) {
  * Detects argument presence via `args.length` first: `undefined` is a
  * member of the accept-set — it is a primitive value — so an omitted call
  * must answer `false` rather than admit a value that was never supplied.
- * A present argument is then classified by composing
- * `isNullishPrimitive(args[0]) || isBoxablePrimitive(args[0])`, with
- * short-circuit `||` running the `isNullishPrimitive` check first. For
- * non-nullish inputs (the common case) the cost is that leading call plus
- * `isBoxablePrimitive`'s single `typeof` read and `Set.has` lookup.
+ * A present argument is then classified by
+ * `(args[0] ?? null) === null || isBoxablePrimitive(args[0])` — the
+ * nullish arm inlines {@link isNullishPrimitive}'s strict-identity check
+ * rather than calling it, sparing that call's own rest-parameter
+ * allocation on every non-nullish input (the common case).
+ *
+ * The inlined check is strict identity (`=== null`), not truthiness
+ * (`!value`) — the two diverge on `document.all`, the one falsy value in
+ * the language whose `typeof` is `'undefined'`. `document.all ?? null`
+ * leaves it untouched (it is not strictly `null` or `undefined`), so the
+ * nullish arm rejects it and evaluation falls through to
+ * `isBoxablePrimitive`, whose exclusion set rejects the `'undefined'`
+ * signature in turn. A truthiness-based shortcut (`!value || …`) would
+ * short-circuit `true` on `document.all` alone, misclassifying a host
+ * exotic object as a primitive.
  *
  * @param {...unknown} args - the first argument (`args[0]`) is the value
  *  to test; its presence is detected via `args.length`
@@ -1230,7 +1240,7 @@ export function isBoxablePrimitive(value) {
  * isPrimitiveValue(new String('x')); // false (already boxed)
  */
 export function isPrimitiveValue(...args) {
-  return args.length > 0 && (isNullishPrimitive(args[0]) || isBoxablePrimitive(args[0]));
+  return args.length > 0 && ((args[0] ?? null) === null || isBoxablePrimitive(args[0]));
 }
 
 /**
