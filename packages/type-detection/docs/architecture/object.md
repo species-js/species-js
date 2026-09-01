@@ -33,6 +33,12 @@ The four shapes correspond to four common consumer needs:
 - **`PlainOrDictionaryObject`** — the lodash-equivalent case. "I want any 'real' object
   (no class machinery), whether prototype-bearing or prototype-less."
 
+A fifth public predicate, `isObjectOrCallable`, sits outside this lattice entirely: it
+admits functions, which all four above reject, so it is not a shape of "non-null,
+non-function object" at all but the union of `AnyObject` with `#function`'s `Callable`.
+See
+["Cross-module: the object-or-callable floor"](#cross-module-the-object-or-callable-floor).
+
 ## The structural discriminator: `constructor` property
 
 The type-level discrimination matches the runtime discrimination:
@@ -362,17 +368,21 @@ spoof surface: `typeof` is a syntactic operator, realm-independent and un-trappa
 (`Proxy` has no `typeof` handler), so there is nothing for a hostile realm or a spoofed
 tag to corrupt.
 
-**It is the exact complement of `#primitive`'s `isPrimitiveValue`, with one shared
-exception.** For every value in the language but one,
-`isObjectOrCallable(v) === !isPrimitiveValue(v)` — a value's `typeof` result alone decides
-both verdicts, and the two floor predicates were built from complementary `typeof`-result
-sets (`isBoxablePrimitive`'s rejection set is exactly `isObjectOrCallable`'s admission
-condition, `'undefined' | 'function' | 'object'`), so no value is admitted by both or by
-neither. The one exception is `document.all`: its `typeof` reports `'undefined'` while it
-is a genuine (if legacy) host object, so it fails `isObjectOrCallable`'s `typeof` check
-AND fails `isPrimitiveValue`'s nullish-identity check — rejected by both, admitted by
-neither. See `architecture/primitive.md`'s resolved `isPrimitiveValue` question for the
-sibling analysis this same quirk produced.
+**It is the near-exact complement of `#primitive`'s `isPrimitiveValue`.** For every
+supplied value but `document.all`, `isObjectOrCallable(v) === !isPrimitiveValue(v)`. The
+two floor predicates approach the same `typeof` partition from opposite sides:
+`isObjectOrCallable` admits a truthy `'object'` or `'function'`, while
+`isBoxablePrimitive` admits everything outside `{'undefined', 'function', 'object'}`.
+Those two sets are not complements — they leave a gap holding every falsy `'object'` and
+every `'undefined'` — and what closes it is `isPrimitiveValue`'s **nullish arm**, which
+claims exactly the two values in that gap the language defines: `null` and `undefined`.
+
+`document.all` sits in the same gap without being nullish — falsy, `typeof 'undefined'`,
+yet a genuine (if legacy) host object. The `typeof` check refuses it, and the strict
+nullish-identity check refuses it too, so both predicates answer `false` and it belongs to
+neither union. An omitted call is likewise `false` on both (no value to classify, #079).
+See `architecture/primitive.md`'s resolved `isPrimitiveValue` question for the sibling
+analysis this quirk produced.
 
 **Provenance.** Added to serve `@species-js/type-identity`'s
 `doesCarryStableTypeIdentity`, which resolves a value's prototype from either a

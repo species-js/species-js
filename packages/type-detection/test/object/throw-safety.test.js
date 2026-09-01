@@ -12,11 +12,12 @@
  * propagate a throw (`docs/spec/README.md` → "Throw-safety — the universal
  * invariant"; the OBJECT.spec.md Module-contract _Throw-safety_ paragraph). Each
  * cell asserts BOTH that the call does not throw AND the honest by-contract verdict
- * (the `isObject` floor admits an object-typed hostile `Proxy`; a throwing-tag plain
- * object splits by realm — local fast-path admits, foreign structural arm rejects).
- * A completeness guard fails if any hostile row omits a predicate column. This
- * replaces the former scattered per-input boundary vectors (the old
- * `isPlainObject/B1`–`B3`, `isDictionaryObject/B1`, `isPlainOrDictionaryObject/B1`).
+ * (the `isObject` and `isObjectOrCallable` floors admit an object-typed hostile
+ * `Proxy`; a throwing-tag plain object splits by realm — local fast-path admits,
+ * foreign structural arm rejects). A completeness guard fails if any hostile row
+ * omits a predicate column. This replaces the former scattered per-input boundary
+ * vectors (the old `isPlainObject/B1`–`B3`, `isDictionaryObject/B1`,
+ * `isPlainOrDictionaryObject/B1`).
  *
  * ## Axis 5 — completeness oracle over the `@@throw-safe` markers
  *
@@ -35,14 +36,13 @@
  * throwing read — a trivial pass. Each probe therefore routes the hostile value
  * into the argument position that triggers that export's characteristic read
  * (`getTypeSignature`, `getSafePrototypeOf`, the constructor walk, the member-surface
- * `getOwnPropertyDescriptors`), so non-propagation is genuinely exercised. The one
- * exception is `isObjectOrCallable`: a single `typeof` read with no property or
- * prototype access at all, so every hostile row reaches it unchanged and there is no
- * throw path to route around — its row is trivially, unconditionally `true` (every
- * hostile fixture here is an object, not a function). The verdicts are non-uniform
- * across the 10 heterogeneous exports, so axis 5 pins only the invariant that holds
- * for every cell — the call does not throw; the specific honest verdicts stay pinned
- * in the axis-3 matrix and `_internal/helpers.test.js` (`dIOPC/B1`, `iOPE/B1`).
+ * `getOwnPropertyDescriptors`), so non-propagation is genuinely exercised. The two
+ * `typeof` floors (`isObject`, `isObjectOrCallable`) need no such routing — they
+ * perform no property or prototype access, so every hostile row reaches them
+ * unchanged. The verdicts are non-uniform across the 10 heterogeneous exports, so
+ * axis 5 pins only the invariant that holds for every cell — the call does not throw;
+ * the specific honest verdicts stay pinned in the axis-3 matrix and
+ * `_internal/helpers.test.js` (`dIOPC/B1`, `iOPE/B1`).
  */
 
 import { readFileSync } from 'node:fs';
@@ -72,6 +72,7 @@ const predicates = {
   isPlainObject,
   isDictionaryObject,
   isPlainOrDictionaryObject,
+  isObjectOrCallable,
 };
 const predicateNames = Object.keys(predicates).sort();
 
@@ -110,9 +111,6 @@ const markedProbes = {
   isPlainObject: (h) => isPlainObject(h),
   isDictionaryObject: (h) => isDictionaryObject(h),
   isPlainOrDictionaryObject: (h) => isPlainOrDictionaryObject(h),
-  // no threaded argument to route into — `isObjectOrCallable` is a single
-  // `typeof` read with no property/prototype access, so every hostile row
-  // below reaches it unchanged, and it has no throw path to exercise at all.
   isObjectOrCallable: (h) => isObjectOrCallable(h),
 };
 

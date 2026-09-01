@@ -43,12 +43,15 @@
 > markers; the R2 cross-artifact pass found the canon already truthful (no
 > mechanism-drift) — no admit/reject vector changed, the **FROZEN 2026-06-18** oracle
 > stands; see Resolved items #7. Amended 2026-08-31 — a fifth type + predicate,
-> `ObjectOrCallable` / `isObjectOrCallable`, joins the surface (10 `.js` exports, was 9;
-> surface count 9 → 10). It stands apart from the `AnyObject` lineage above — the union
-> with `#function`'s `Callable`, decided by one `typeof` read, admitting functions where
-> every other predicate here rejects them. New `## isObjectOrCallable` section; surface
-> inventory and the re-confirmation gate updated. No existing admit/reject verdict
-> changed; purely additive — see Resolved items #8.
+> `ObjectOrCallable` / `isObjectOrCallable`, joins the surface (9 → 10 `.js` exports). It
+> stands apart from the `AnyObject` lineage above — the union with `#function`'s
+> `Callable`, decided by one `typeof` read, admitting functions where every other
+> predicate here rejects them. New `## isObjectOrCallable` section; surface inventory,
+> axis-3 matrix and axis-5 oracle updated. Re-reviewed the same day: four claims corrected
+> — three provably false statements about the `document.all` boundary and the complement
+> relation to `isPrimitiveValue`, plus the restoration of the house-standard "Exported
+> types without a predicate" heading, which the first pass had rewritten on a misreading.
+> No existing admit/reject verdict changed; purely additive — see Resolved items #8.
 
 ## Module contract
 
@@ -81,10 +84,10 @@ subtype over branding), #041/#046 (strict-vs-lodash), #044 (six-marker anchor), 
 
 Every predicate answers a boolean on **every** input, including hostile ones, and never
 propagates a throw: `isObject` / `isPlainObject` / `isDictionaryObject` /
-`isPlainOrDictionaryObject` return their honest verdict on any throw on any path, and
-every `@internal` helper returns its sentinel (`false` for the boolean probes) so the
-composing predicate collapses to `false`. The hostile-input classes this module's reads
-are exposed to, and the throw-safe reader each routes through:
+`isPlainOrDictionaryObject` / `isObjectOrCallable` return their honest verdict on any
+throw on any path, and every `@internal` helper returns its sentinel (`false` for the
+boolean probes) so the composing predicate collapses to `false`. The hostile-input classes
+this module's reads are exposed to, and the throw-safe reader each routes through:
 
 - **prototype-trap** (a `Proxy` whose `getPrototypeOf` throws) → `getSafePrototypeOf`;
 - **descriptor-trap** (a `Proxy` whose `getOwnPropertyDescriptor` throws — on the value,
@@ -95,11 +98,11 @@ are exposed to, and the throw-safe reader each routes through:
   `getOwnPropertyDescriptors` inside `doesImplementObjectPrototypeContract` (marker 6);
 - **tag-getter-throw** (a throwing `Symbol.toStringTag`) → `getTypeSignature`.
 
-Two honest-by-contract verdicts follow, not leaks. **`isObject`** is the realm-independent
-floor — a `typeof` check, zero prototype/descriptor/tag reads — so an object-typed hostile
-`Proxy` is admitted (`true`), never thrown. A **throwing-tag plain object** splits by
-realm: the local-realm `prototype === objectPrototype` fast-path admits it
-(`isPlainObject` / `isPlainOrDictionaryObject` → `true`) because the fast-path
+Two honest-by-contract verdicts follow, not leaks. **`isObject` and `isObjectOrCallable`**
+are the realm-independent floors — a `typeof` check, zero prototype/descriptor/tag reads —
+so an object-typed hostile `Proxy` is admitted (`true`), never thrown. A **throwing-tag
+plain object** splits by realm: the local-realm `prototype === objectPrototype` fast-path
+admits it (`isPlainObject` / `isPlainOrDictionaryObject` → `true`) because the fast-path
 short-circuits **before** any tag read, whereas the same value from a foreign realm fails
 the fast-path and falls to the structural arm, which reads the tag via `getTypeSignature`
 and **rejects** (`false`) — a realm asymmetry, same value, opposite plain-object verdict.
@@ -145,15 +148,12 @@ the realm-independent logic directly — no `vm` realm needed). The seam
 helpers it composes (each helper unit test re-derives the same threaded arguments the seam
 hands it).
 
-**Exported types** (each paired with the predicate of the same role above — every one also
-has a value-level predicate, so none is "type-only" in the surface sense): `AnyObject`,
-`PlainObject`, `DictionaryObject`, `PlainOrDictionaryObject`, `ObjectOrCallable`. (The
-heading previously read "Exported types without a predicate", which was never true of any
-of these four — corrected 2026-08-31, no content change.)
+**Exported types without a predicate:** `AnyObject`, `PlainObject`, `DictionaryObject`,
+`PlainOrDictionaryObject`, `ObjectOrCallable` — type-only, verified by `tsc`, no runtime
+vector.
 
-Re-confirmation gate: 10 `.js` exports = 10 `.d.ts` function/value declarations (plus the
-5 type-only `.d.ts` exports above, which have no `.js` counterpart by convention), no
-surface gap; `architecture/object.md` matches the code (no drift).
+Re-confirmation gate: 10 `.js` exports = 10 `.d.ts` value declarations, no surface gap; 5
+type exports match; `architecture/object.md` matches the code (no drift).
 
 ## Cross-cutting vectors
 
@@ -412,17 +412,17 @@ lineage above: it is not a refinement of `isObject`, it is `isObject`'s union wi
 
 **Cross-realm (axis 2):** trivially realm-safe (`typeof` is realm-independent). **Spoof
 (axis 3):** none — a syntactic operator, un-trappable by `Proxy` (no `typeof` handler
-exists), so no hostile-input vector is needed beyond the universal not-thrown invariant
-(axis 5, below — the predicate is tagged `@@throw-safe` and carries no possible throw path
-at all: `typeof` and `!!` never invoke a trap or a coercion method). **Composition note
-(axis 4):** none — a floor predicate, composes nothing.
+exists). It is tagged `@@throw-safe` and carries no throw path at all (`typeof` and `!!`
+invoke neither a trap nor a coercion method), and it is scored in the axis-3 hostile ×
+predicate matrix like every other public predicate — `true` on all six rows, since no
+hostile fixture is callable. **Composition note (axis 4):** none — a floor predicate,
+composes nothing.
 
 **Relationship to `#primitive`'s `isPrimitiveValue` (cross-module, non-normative here —
 see `architecture/object.md` → "Cross-module: the object-or-callable floor"):** for every
-value except `document.all`, `isObjectOrCallable(v) === !isPrimitiveValue(v)` — the two
-floor predicates partition the language exactly, because a value's `typeof` result alone
-decides both verdicts and the two predicates were built from complementary `typeof`-result
-sets. `document.all` is rejected by both, admitted by neither.
+supplied value but `document.all`, `isObjectOrCallable(v) === !isPrimitiveValue(v)`, since
+`typeof` alone decides both verdicts. `document.all` is rejected by both (see `/B1`); an
+omitted call is likewise `false` on both, having no value to classify (#079).
 
 ---
 
@@ -568,19 +568,14 @@ order): the 5 public predicates PLUS the 5 exported `@internal` helpers.
 `isAlienRealmPlainObject`, `isPlainObject`, `isDictionaryObject`,
 `isPlainOrDictionaryObject`, `isObjectOrCallable`.
 
-The five public predicates additionally carry the honest by-contract verdict per hostile
-class (the `isObject` floor admits an object-typed hostile `Proxy`; a throwing-tag plain
-object splits by realm — local fast-path admits, foreign structural arm rejects;
-`isObjectOrCallable` admits every one of the six hostile-Proxy rows unconditionally, since
-none of them is callable and its own read surface has no throw path to begin with) — the
-axis-3 `hostile × predicate` matrix (`throw-safety.test.js`) — **`isObjectOrCallable` is
-scored only in axis 5, not axis 3**, since axis 3's matrix is scoped to the four
-`AnyObject`-lineage predicates by its own module-contract framing; axis 5's broader
-`@@throw-safe` oracle is where its throw-safety is pinned instead. Axis-5 extends that
-suite to the five `@internal` helpers, routing the hostile value into each export's own
-read surface (several gate on a threaded `constructor` / `name`, so a naive single-value
-call would short-circuit before the hostile value reached the throwing read), and
-triple-locks the scored set against BOTH the `@@throw-safe` markers parsed from
+All five public predicates additionally carry the honest by-contract verdict per hostile
+class in the axis-3 `hostile × predicate` matrix (`throw-safety.test.js`): the `isObject`
+and `isObjectOrCallable` floors admit an object-typed hostile `Proxy`, and a throwing-tag
+plain object splits by realm — local fast-path admits, foreign structural arm rejects.
+Axis-5 extends that suite to the five `@internal` helpers, routing the hostile value into
+each export's own read surface (several gate on a threaded `constructor` / `name`, so a
+naive single-value call would short-circuit before the hostile value reached the throwing
+read), and triple-locks the scored set against BOTH the `@@throw-safe` markers parsed from
 `src/object.js` (source drift) AND the imported set (test drift). Source, oracle, and
 tests are triple-locked. The member-surface `ownKeys` trap stays additionally pinned as
 the helper-level `dIOPC/B1` boundary (the predicate path fails marker 1 before marker 6
@@ -773,25 +768,41 @@ runs).
    (mechanical + the package-wide #076 marker convention applied to a module that predated
    it).
 
-8. **`ObjectOrCallable` / `isObjectOrCallable` added (2026-08-31) — RESOLVED.** A new
-   type + predicate, `ObjectOrCallable = AnyObject | Callable` /
-   `isObjectOrCallable<T = unknown>(value?: T): value is T & ObjectOrCallable`, joins the
-   surface at the owner's direction (introduced to serve `@species-js/type-identity`'s
-   `doesCarryStableTypeIdentity`, which must accept a resolved prototype that is either a
-   plain object or — for an ES3 constructor function — callable). It stands apart from the
-   `AnyObject` lineage documented above: a single-`typeof`-read fusion (same idiom as
-   `isPlainOrDictionaryObject`) admitting the union of `isObject` and `#function`'s
-   `isCallable`, with no cross-realm arm and no spoof surface (`typeof` is syntactic and
-   un-trappable). New `## isObjectOrCallable` section; surface inventory (9 → 10 `.js`
-   exports), the "Exported types" heading correction (it never actually described a type
-   without a predicate — a pre-existing inaccuracy, fixed in the same pass, no content
-   change to the other four), and the axis-5 completeness oracle (9 → 10 marked exports)
-   all updated. Verified empirically against `isObject(v) || isCallable(v)` over 23
-   vectors (0 divergences) before documenting, including every function form and Proxies
-   over both object and callable targets. Also verified: for every value except
-   `document.all`, `isObjectOrCallable(v) === !isPrimitiveValue(v)` (0 divergences over 30
-   vectors) — see the predicate's own section and `architecture/object.md`. No existing
-   admit/reject verdict changed; purely additive. No ADR (mechanical addition of a floor
-   predicate following an established package-wide idiom; not a new design decision).
+8. **`ObjectOrCallable` / `isObjectOrCallable` added (2026-08-31) — RESOLVED.**
+   `ObjectOrCallable = AnyObject | Callable` and its predicate join the surface at the
+   owner's direction, to serve `@species-js/type-identity`'s `doesCarryStableTypeIdentity`
+   (which must accept a resolved prototype that is either a plain object or — for an ES3
+   constructor function — callable). A single-`typeof`-read fusion, same idiom as
+   `isPlainOrDictionaryObject`, standing apart from the `AnyObject` lineage: no
+   cross-realm arm, no spoof surface.
+
+   Verified before documenting: agreement with `isObject(v) || isCallable(v)` over 23
+   vectors, and the complement relation to `isPrimitiveValue` over 30 — 0 divergences
+   each. Updated: a new `## isObjectOrCallable` section, the surface inventory (9 → 10
+   `.js` exports), the axis-5 oracle (9 → 10 marked exports), and the axis-3 matrix (4 → 5
+   predicate columns).
+
+   No existing admit/reject verdict changed; purely additive. No ADR — a floor predicate
+   following an established package-wide idiom, not a new design decision.
+
+   **Amended later the same day** (see the header banner). Four claims were corrected
+   after review, three of them provably false:
+
+   - The complement relation holds over _supplied_ values, not "every value" — an omitted
+     call answers `false` on both sides.
+   - `document.all` is the only **object** that is falsy and `typeof 'undefined'`; the
+     earlier "the one falsy value in the language" was false, since `undefined` shares
+     both traits.
+   - The mechanism behind the complement is `isPrimitiveValue`'s nullish arm closing the
+     gap the two `typeof` sets leave — not, as first written, an equality between
+     `isBoxablePrimitive`'s rejection set and this predicate's admission condition, which
+     are provably different (`'undefined'` is in the former, not the latter).
+   - The **"Exported types without a predicate" heading was restored**. The first pass
+     rewrote it as a claimed fix, reading the phrase literally and reporting a
+     "pre-existing inaccuracy". There was none: the phrase is a house-wide section label
+     used identically in `PRIMITIVE`, `FUNCTION`, `EVENTED`, `ERROR` and `THENABLE`, all
+     of which file types that _do_ have predicates under it (`Callable`, `Thenable`,
+     `AnyError`, every `XValue`). It marks the type half of the surface — `tsc`-verified,
+     no runtime vector — and the rewrite had broken parity with five sibling specs.
 
 No open items.

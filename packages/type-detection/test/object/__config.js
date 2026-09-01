@@ -576,20 +576,22 @@ export const THROW_SAFE_MARKED = [
 // throw. `throw-safety.test.js` asserts BOTH not-thrown AND the honest by-contract
 // verdict for every cell; the invariant is met ⟺ every cell is filled.
 //
-// `isObject` is the realm-independent FLOOR — a `typeof` check, zero prototype /
-// descriptor / tag reads — so every (object-typed) hostile input is honestly an
-// object: its column is `true` throughout, never thrown. The two tag-getter rows
-// are the realm-asymmetry pair: the local fast-path admits (never reads the tag),
-// the foreign structural arm reads the tag and rejects. (The member-surface
-// `ownKeys`-trap is a HELPER-level boundary — `dIOPC/B1`, like thenable's
-// `hPIS/B1` — not a public-predicate row: the predicate path fails marker 1
-// before marker 6 runs.)
+// `isObject` and `isObjectOrCallable` are the realm-independent FLOORS — a `typeof`
+// check, zero prototype / descriptor / tag reads — so every (object-typed) hostile
+// input is honestly an object: both columns are `true` throughout, never thrown.
+// They agree on every row here because no hostile fixture is callable; the two
+// predicates part company only on functions, which the axis-1 suite covers. The two
+// tag-getter rows are the realm-asymmetry pair: the local fast-path admits (never
+// reads the tag), the foreign structural arm reads the tag and rejects. (The
+// member-surface `ownKeys`-trap is a HELPER-level boundary — `dIOPC/B1`, like
+// thenable's `hPIS/B1` — not a public-predicate row: the predicate path fails
+// marker 1 before marker 6 runs.)
 
 /**
  * @typedef {object} ThrowSafetyRow
  * @property {string} surface - the throw-surface class this row exercises
  * @property {() => unknown} make - fresh hostile-value factory
- * @property {{ isObject: boolean, isPlainObject: boolean, isDictionaryObject: boolean, isPlainOrDictionaryObject: boolean }} expected - honest verdict per predicate (all must NOT throw)
+ * @property {{ isObject: boolean, isPlainObject: boolean, isDictionaryObject: boolean, isPlainOrDictionaryObject: boolean, isObjectOrCallable: boolean }} expected - honest verdict per predicate (all must NOT throw)
  */
 
 /** @type {Record<string, ThrowSafetyRow>} */
@@ -602,6 +604,7 @@ export const throwSafetyMatrix = {
       isPlainObject: F,
       isDictionaryObject: F,
       isPlainOrDictionaryObject: F,
+      isObjectOrCallable: T,
     },
   },
   descriptorTrapOnPrototype: {
@@ -613,6 +616,7 @@ export const throwSafetyMatrix = {
       isPlainObject: F,
       isDictionaryObject: F,
       isPlainOrDictionaryObject: F,
+      isObjectOrCallable: T,
     },
   },
   surgicalConstructorTrap: {
@@ -624,6 +628,7 @@ export const throwSafetyMatrix = {
       isPlainObject: F,
       isDictionaryObject: F,
       isPlainOrDictionaryObject: F,
+      isObjectOrCallable: T,
     },
   },
   blanketConstructorTrap: {
@@ -635,6 +640,7 @@ export const throwSafetyMatrix = {
       isPlainObject: F,
       isDictionaryObject: F,
       isPlainOrDictionaryObject: F,
+      isObjectOrCallable: T,
     },
   },
   localTagGetterThrow: {
@@ -646,6 +652,7 @@ export const throwSafetyMatrix = {
       isPlainObject: T,
       isDictionaryObject: F,
       isPlainOrDictionaryObject: T,
+      isObjectOrCallable: T,
     },
   },
   alienTagGetterThrow: {
@@ -657,6 +664,7 @@ export const throwSafetyMatrix = {
       isPlainObject: F,
       isDictionaryObject: F,
       isPlainOrDictionaryObject: F,
+      isObjectOrCallable: T,
     },
   },
 };

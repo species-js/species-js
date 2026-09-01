@@ -175,12 +175,12 @@ it solves:
   it forwards presence rather than funneling a named `value`, which would erase the
   omission at the boundary. The nullish arm inlines `isNullishPrimitive`'s strict-identity
   check rather than calling it, sparing that call's own rest-parameter allocation on every
-  non-nullish input. The strictness is load-bearing, not stylistic: `document.all`, the
-  one falsy value in the language whose `typeof` is `'undefined'`, is not strictly `null`
-  or `undefined`, so `?? null` leaves it untouched and the nullish arm rejects it — it
-  falls through to `isBoxablePrimitive`, which rejects the `'undefined'` signature. A
-  truthiness-based arm (`!args[0] || …`) would short-circuit `true` on `document.all`
-  alone and misclassify it as primitive; see the resolved open question below.
+  non-nullish input. The strictness is load-bearing, not stylistic: `document.all` — the
+  only object that is both falsy and `typeof 'undefined'` — is not strictly `null` or
+  `undefined`, so `?? null` leaves it untouched and the nullish arm rejects it; it falls
+  through to `isBoxablePrimitive`, which rejects the `'undefined'` signature. A
+  truthiness-based arm (`!args[0] || …`) would short-circuit `true` on it alone and
+  misclassify it as primitive; see the resolved open question below.
 
 The three `typeof`-floor predicates have **no spoof surface to seal**. Unlike the
 boxed-primitive predicates that need the engine-attested `[[XData]]` slot probe to close

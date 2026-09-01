@@ -36,7 +36,7 @@
  * - {@link ObjectOrCallable} / {@link isObjectOrCallable} — stands apart
  *   from the `AnyObject` lineage above: the union of {@link AnyObject}
  *   and `#function`'s {@link Callable}, decided by a single `typeof`
- *   read. For every value except `document.all` it is the exact
+ *   read. For every supplied value but `document.all` it is the exact
  *   complement of `#primitive`'s `PrimitiveValue`.
  *
  * `PlainObject` and `DictionaryObject` are structurally disjoint.
@@ -253,14 +253,14 @@ export type PlainOrDictionaryObject = PlainObject | DictionaryObject;
  *
  * Unlike {@link PlainOrDictionaryObject}, this union reaches outside the
  * `AnyObject` lineage: `Callable` is `#function`'s floor, not a subtype
- * declared here. For every value except `document.all`, it is the exact
- * complement of `#primitive`'s `PrimitiveValue` —
- * `isObjectOrCallable(v) === !isPrimitiveValue(v)` — because a value's
- * `typeof` result alone decides both verdicts, and no result is admitted
- * by both or by neither. `document.all` is the sole value both floor
- * predicates reject: its `typeof` reports `'undefined'` while it is a
- * genuine (if legacy) host object, so it belongs to neither union. See
- * {@link isObjectOrCallable}.
+ * declared here. For every supplied value but `document.all` it is the
+ * exact complement of `#primitive`'s `PrimitiveValue` —
+ * `isObjectOrCallable(v) === !isPrimitiveValue(v)` — because `typeof`
+ * alone decides both verdicts and no result is admitted by both or by
+ * neither. Two cases sit outside that identity: `document.all`, falsy and
+ * `typeof 'undefined'` yet a genuine (if legacy) host object, which both
+ * floor predicates reject; and an omitted call, which both answer `false`
+ * for want of a value to classify. See {@link isObjectOrCallable}.
  */
 export type ObjectOrCallable = AnyObject | Callable;
 

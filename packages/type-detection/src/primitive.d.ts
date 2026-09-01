@@ -1221,10 +1221,9 @@ export function isBoxablePrimitive(value?: unknown): value is BoxablePrimitive;
  * types; an omitted call answers `false`, since `undefined` counts as a
  * primitive only when it is actually supplied — there is otherwise no
  * value to classify. The nullish and boxable-primitive arms compose via a
- * strict identity check, not truthiness — `document.all`, the one falsy
- * value in the language whose `typeof` is `'undefined'`, is correctly
- * rejected as the non-primitive host object it is, rather than
- * misclassified as nullish.
+ * strict identity check, not truthiness, so `document.all` — the only
+ * object that is both falsy and `typeof 'undefined'` — is correctly
+ * rejected as the host object it is, rather than misclassified as nullish.
  *
  * @param value - the value to test
  * @returns `true` when the value is any of the seven primitive types,

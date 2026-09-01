@@ -1214,14 +1214,13 @@ export function isBoxablePrimitive(value) {
  * allocation on every non-nullish input (the common case).
  *
  * The inlined check is strict identity (`=== null`), not truthiness
- * (`!value`) — the two diverge on `document.all`, the one falsy value in
- * the language whose `typeof` is `'undefined'`. `document.all ?? null`
- * leaves it untouched (it is not strictly `null` or `undefined`), so the
- * nullish arm rejects it and evaluation falls through to
- * `isBoxablePrimitive`, whose exclusion set rejects the `'undefined'`
- * signature in turn. A truthiness-based shortcut (`!value || …`) would
- * short-circuit `true` on `document.all` alone, misclassifying a host
- * exotic object as a primitive.
+ * (`!value`) — the two diverge on `document.all`, the only object that is
+ * both falsy and `typeof 'undefined'`. It is not strictly `null` or
+ * `undefined`, so `?? null` leaves it untouched and the nullish arm
+ * rejects it; evaluation then falls through to `isBoxablePrimitive`, whose
+ * exclusion set rejects the `'undefined'` signature in turn. A
+ * truthiness-based shortcut (`!value || …`) would short-circuit `true` on
+ * it alone, misclassifying a host exotic as a primitive.
  *
  * @param {...unknown} args - the first argument (`args[0]`) is the value
  *  to test; its presence is detected via `args.length`
