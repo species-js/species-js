@@ -25,46 +25,42 @@
 
 import {
   globalContext,
-  hasOwn,
   getPrototypeOf,
   defineProperty,
   getOwnPropertyDescriptor,
-  frozenEntryDescriptor,
-  sealedEntryAccessor,
-} from '@species-js/type-detection/config';
+} from '#config';
 
 import {
+  objectHasOwn,
+  frozenEntryDescriptor,
+  sealedEntryAccessor,
   hasOwnWritablePrototype,
   hasOwnNonWritablePrototype,
   canOwnPropertyBeShaped,
   getDefinedConstructor,
-} from '@species-js/type-detection/utility';
-
-import {
   isCallable,
   isNewableFunction,
   getFunctionSource,
-} from '@species-js/type-detection/function';
-
-import { isObjectOrCallable, isPlainObject } from '@species-js/type-detection/object';
-
-import { isError } from '@species-js/type-detection/error';
-import { isString } from '@species-js/type-detection/primitive';
+  isObjectOrCallable,
+  isPlainObject,
+  isError,
+  isString,
+} from '@species-js/type-detection';
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 
-/** @typedef {import('@species-js/type-detection/utility').PropertyDescriptor} PropertyDescriptor */
+/** @typedef {import('@species-js/type-detection').PropertyDescriptor} PropertyDescriptor */
 
-/** @typedef {import('@species-js/type-detection/error').AnyError} AnyError */
-/** @typedef {import('@species-js/type-detection/object').AnyObject} AnyObject */
+/** @typedef {import('@species-js/type-detection').AnyError} AnyError */
+/** @typedef {import('@species-js/type-detection').AnyObject} AnyObject */
 
-/** @typedef {import('@species-js/type-detection/function').Callable} Callable */
-/** @typedef {import('@species-js/type-detection/function').NewableFunction} NewableFunction */
+/** @typedef {import('@species-js/type-detection').Callable} Callable */
+/** @typedef {import('@species-js/type-detection').NewableFunction} NewableFunction */
 
-/** @typedef {import('@species-js/type-detection/function').ES3Function} ES3Function */
-/** @typedef {import('@species-js/type-detection/function').ClassConstructor} ClassConstructor */
+/** @typedef {import('@species-js/type-detection').ES3Function} ES3Function */
+/** @typedef {import('@species-js/type-detection').ClassConstructor} ClassConstructor */
 
-/** @typedef {import('@species-js/type-detection/primitive').BoxablePrimitive} BoxablePrimitive */
+/** @typedef {import('@species-js/type-detection').BoxablePrimitive} BoxablePrimitive */
 
 /** @typedef {import('#index').IdentityDefinitionResult} IdentityDefinitionResult */
 /** @typedef {import('#index').ErrorWithCauseConstructor} ErrorWithCauseConstructor */
@@ -149,8 +145,11 @@ export function resolveErrorWithCause(ProvidedError) {
    * attaches `cause` as the own property the native form would have installed.
    * The descriptor flags match, so the two are indistinguishable to a consumer.
    *
-   * `hasOwn` rather than a truthiness test, because the native form
-   * distinguishes an absent `cause` from one explicitly set to `undefined`.
+   * An own-property test rather than a truthiness test, because the native
+   * form distinguishes an absent `cause` from one explicitly set to
+   * `undefined`. `objectHasOwn` is type-detection's ES2020-floor-safe retype —
+   * a value-add, and so the one capture ADR #086 sanctions reaching across a
+   * package boundary for.
    *
    * @param {string} [message] - the error message
    * @param {{ cause?: unknown }} [options] - carries `cause` when present
@@ -159,7 +158,7 @@ export function resolveErrorWithCause(ProvidedError) {
   function ErrorWithCause(message, options) {
     const error = new ProvidedError(message);
 
-    if (isPlainObject(options) && hasOwn(options, 'cause')) {
+    if (isPlainObject(options) && objectHasOwn(options, 'cause')) {
       defineProperty(error, 'cause', {
         value: options.cause,
         enumerable: false,

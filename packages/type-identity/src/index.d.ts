@@ -15,7 +15,7 @@
  * {@link IdentityDefinitionResult}.
  */
 
-import type { AnyError } from '@species-js/type-detection/error';
+import type { AnyError } from '@species-js/type-detection';
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 //
