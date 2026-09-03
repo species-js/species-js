@@ -37,7 +37,9 @@
  *
  * 4. **No prose surface still carries the OLD claim.** Module blocks, JSDoc,
  *    both READMEs, `package.json` descriptions, `CLAUDE.md` — and project-local
- *    tool config that git ignores.
+ *    tool config that git ignores. Matched against a whitespace-flattened form
+ *    of each file, so a claim the ~78-column wrap split across two lines is
+ *    still found; see {@link normalizeProse}.
  *
  * ## Two corpora, and why they differ
  *
@@ -137,6 +139,80 @@ function collectPresentFiles(dir = ROOT, collected = []) {
     }
   }
   return collected;
+}
+
+/**
+ * Flattens a prose surface to one whitespace-normalized line, keeping the
+ * offset at which each source line's contribution begins.
+ *
+ * A claim is a SENTENCE, and every prose surface here is hard-wrapped at ~78
+ * columns, so a claim of more than a few words is almost always split across
+ * lines — with a JSDoc gutter between the halves inside a comment block.
+ * Matching line by line therefore reported "swept" for nearly every phrase
+ * worth sweeping. That is the false clean this whole script exists to prevent,
+ * so producing one here was worse than the miss it caused.
+ *
+ * Each line is stripped of a leading JSDoc gutter or markdown list marker,
+ * collapsed internally, and joined to the next with a single space. Blank lines
+ * are dropped rather than joined as empty segments, so a claim is still found
+ * when an edit split it across a paragraph break.
+ *
+ * Offsets are recorded per SEGMENT rather than per character: a hit still
+ * reports a real line number — which a naive whole-file `replace` would have
+ * thrown away — without an array the length of the file.
+ *
+ * @param {string} text - file contents
+ * @returns {{ prose: string, segments: { start: number, line: number }[] }} the
+ *  lowercased flattened text, and each segment's offset with its 1-based line
+ */
+function normalizeProse(text) {
+  /** @type {string[]} */
+  const parts = [];
+  /** @type {{ start: number, line: number }[]} */
+  const segments = [];
+  let length = 0;
+
+  text.split('\n').forEach((raw, index) => {
+    const stripped = raw
+      .replace(/^\s*(?:\*+\/?|[-+]|\d+\.)\s?/, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+
+    if (stripped === '') {
+      return;
+    }
+    if (parts.length > 0) {
+      parts.push(' ');
+      length += 1;
+    }
+    segments.push({ start: length, line: index + 1 });
+    parts.push(stripped);
+    length += stripped.length;
+  });
+  return { prose: parts.join('').toLowerCase(), segments };
+}
+
+/**
+ * The source line a flattened-text offset came from.
+ *
+ * A linear scan, not a binary search: the segment list is one file's non-blank
+ * lines and the scan runs once per HIT, which is a number the caller is about
+ * to fix by hand.
+ *
+ * @param {{ start: number, line: number }[]} segments - from {@link normalizeProse}
+ * @param {number} at - offset into the flattened text
+ * @returns {number} the 1-based source line
+ */
+function lineOfOffset(segments, at) {
+  let line = 1;
+
+  for (const segment of segments) {
+    if (segment.start > at) {
+      break;
+    }
+    line = segment.line;
+  }
+  return line;
 }
 
 /**
@@ -285,16 +361,18 @@ const claimHits = [];
 const presentFiles = phrases.length > 0 ? collectPresentFiles() : [];
 
 for (const phrase of phrases) {
-  const needle = phrase.toLowerCase();
+  // - the SAME normalization on both sides, which is what makes a phrase
+  //   pasted straight out of a JSDoc block — gutter, wrap and all — match as
+  //   well as one typed as a single sentence. Collapsing whitespace on the
+  //   needle alone is not enough: the pasted form still carries its `*`.
+  const needle = normalizeProse(phrase).prose;
 
   for (const file of presentFiles) {
-    readFileSync(join(ROOT, file), 'utf8')
-      .split('\n')
-      .forEach((line, index) => {
-        if (line.toLowerCase().includes(needle)) {
-          claimHits.push(`"${phrase}" → ${file}:${index + 1}`);
-        }
-      });
+    const { prose, segments } = normalizeProse(readFileSync(join(ROOT, file), 'utf8'));
+
+    for (let at = prose.indexOf(needle); at !== -1; at = prose.indexOf(needle, at + 1)) {
+      claimHits.push(`"${phrase}" → ${file}:${lineOfOffset(segments, at)}`);
+    }
   }
 }
 
