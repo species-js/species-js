@@ -7,9 +7,14 @@
 # the total.
 #
 # One flag per publishable package, each fed by its own upload step in
-# `.github/workflows/ci.yml`. A package earns an entry here when it gains a
-# real surface; the private scaffolds have none and are deliberately absent,
-# since a package with one trivial test would only dilute the numbers.
+# `.github/workflows/ci.yml`. A package earns an entry here on the commit that
+# makes it PUBLISHABLE — a frozen spec, a suite derived from it, and coverage
+# clearing the workspace thresholds (ADR #092, as amended 2026-09-03).
+#
+# Surface alone is NOT the trigger, and the earlier wording said it was. Both
+# private scaffolds had a real surface while carrying a single importability
+# test each, so following that instruction would have added flags reporting on
+# nothing and diluted the aggregate.
 
 coverage:
   status:

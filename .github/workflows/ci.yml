@@ -100,8 +100,14 @@ jobs:
       # in `codecov.yml`, and each package's README carries its own badge.
       #
       # The private scaffolds are deliberately absent — one trivial test each
-      # would only dilute the numbers. Add a package here, in `codecov.yml`,
-      # and in its README when it gains a real surface.
+      # would only dilute the numbers.
+      #
+      # A package joins in FOUR places at once, on the commit that makes it
+      # PUBLISHABLE — a frozen spec, a suite derived from it, and coverage
+      # clearing the workspace thresholds (ADR #092, as amended 2026-09-03):
+      # here, in `codecov.yml`, in its own README, and in the root README's
+      # Coverage column. Surface alone is NOT the trigger; the earlier wording
+      # said it was, and both scaffolds passed it while proving nothing.
       #
       # `fail_ci_if_error` is TRUE on purpose. A silently failing upload leaves
       # the badge grey forever and nothing goes red — the same
