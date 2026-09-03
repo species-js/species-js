@@ -208,7 +208,8 @@ function resolveNamespaceMember(source, key) {
 }
 
 /**
- * The reduce callback that writes one resolved member onto the target.
+ * The reduce callback that writes one resolved member onto the target, or
+ * rejects the build when that member cannot be resolved.
  *
  * `target` is always a fresh prototype-less object and every `key` is distinct,
  * so each definition creates a property that does not yet exist. No

@@ -75,11 +75,11 @@ export const objectFreeze = o.freeze;
 /**
  * `Object.defineProperty`, realm-fixed at module-load.
  *
- * The only write the builder makes — once per resolved export (a member with no
- * readable value is skipped), then once each for the two well-known symbols,
- * all before the freeze. Held here so a post-load
- * reassignment of the global `Object` cannot redirect what lands on the
- * namespace.
+ * The only write the builder makes — once per own key of `exports`, then once
+ * each for the two well-known symbols, all before the freeze. A member that
+ * cannot be resolved to a value fails the build rather than being passed over,
+ * so every key is written or none is. Held here so a post-load reassignment of
+ * the global `Object` cannot redirect what lands on the namespace.
  *
  * @internal
  */

@@ -67,7 +67,9 @@ export interface CustomNamespace {
  * as the receiver — and the result is stored. The namespace is therefore a
  * snapshot: later changes to `exports` never reach it, and reading a member can
  * never run source code. Building one is correspondingly **not**
- * side-effect-free, since every getter on `exports` runs exactly once.
+ * side-effect-free, since every getter on `exports` runs exactly once. Nor is
+ * it transactional: a call that throws has already run every getter up to the
+ * offending key, in own-key order.
  *
  * `enumerable` is the one flag a member keeps from its source, and the only
  * control the caller has over the result. Everything else is fixed by what a
