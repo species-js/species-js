@@ -23,6 +23,14 @@
  * two structural symbols are always hidden, so identity never rides along on a
  * copy of the namespace.
  *
+ * No `toString` is defined, deliberately. It would have to join
+ * {@link reservedNamespaceKeys} as the first STRING-keyed member of that set,
+ * and unlike the two symbols — which no author legitimately exports —
+ * `toString` is an ordinary name a formatting module might well export. The
+ * string form already comes from `Symbol.toPrimitive`, which outranks
+ * `toString` in every implicit conversion, so an author who exports one keeps
+ * it without displacing the namespace's own representation.
+ *
  * Reads over `exports` use the RAW key and descriptor forms rather than
  * type-detection's `getSafe*` twins, and a getter is invoked unguarded. That is
  * the deliberate half of the raw/throw-safe pairing: a source that cannot be

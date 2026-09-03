@@ -40,6 +40,20 @@
  * object the namespace was built from, never varies between reads, and never
  * throws.
  *
+ * There is no `toString`, own or inherited — the prototype is `null` and the
+ * string form comes from `Symbol.toPrimitive`. Every implicit conversion
+ * therefore works (`String(ns)`, a template literal, `ns + ''`, `[ns].join('')`,
+ * `JSON.stringify(ns)`), but an explicit `ns.toString()` throws a `TypeError`
+ * unless the exports supplied a member of that name. Reach for `String(ns)`.
+ * A member named `toString` is accepted and answers the explicit call, while
+ * `Symbol.toPrimitive` still governs the conversions above.
+ *
+ * One tooling consequence: `@typescript-eslint/no-base-to-string` reports that a
+ * namespace stringifies as `[object Object]`, because it reads the declared type
+ * and does not consider `Symbol.toPrimitive`. The runtime answer is
+ * `"[namespace '<name>']"`; declaring a `toString` here to quiet the rule would
+ * make a throwing call typecheck.
+ *
  * The two structural symbols are non-enumerable, so `{ ...namespace }` and
  * `Object.assign({}, namespace)` copy the contents without the identity — the
  * result is an ordinary object, not something that answers

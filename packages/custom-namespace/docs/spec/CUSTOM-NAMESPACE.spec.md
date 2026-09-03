@@ -8,9 +8,9 @@
 > (the artifact vocabulary) and ADR #086 (where captures live). This package has no
 > `docs/architecture/` yet.
 >
-> **Status: FROZEN 2026-09-03** — owner-reviewed. This is the base for the axis-1
-> (contract) suite. Amend it in place with a dated banner (#054) rather than rewriting: a
-> spec that contradicts the code is worse than an amended one.
+> **Status: FROZEN 2026-09-04** — owner-reviewed. This is the base for the axis-1
+> (contract) suite. From here on, amend it in place with a dated banner (#054) rather than
+> rewriting: a spec that contradicts the code is worse than an amended one.
 
 ### How to read this
 
@@ -23,16 +23,18 @@ The class letter says what kind of claim it is. `A` — accepted. `R` — refuse
 boundary worth pinning, usually where the specified behavior is the surprising one. `T` —
 a type-level claim, checked by `pnpm run typecheck` rather than at runtime.
 
-Every vector here was checked by **running it** on 2026-09-03, not by reading the code.
-The probe that ran them was itself mutation-tested first — two deliberate breakages each
+Every vector here was checked by **running it** when it was written, not by reading the
+code. The probe that ran them was itself mutation-tested first — deliberate breakages each
 had to redden the vectors naming them — because a probe that cannot fail proves nothing.
-The probe was then deleted, per the decidability-run convention.
+The probes were then deleted, per the decidability-run convention.
 
 Three claims did not survive that check. They were fixed in `7842905` rather than written
 down here as though specified.
 
-> **The package has no test suite beyond an importability check.** This spec is the oracle
-> the axis-1 (contract) suite will be written to. Nothing below is defended by CI today.
+> **The axis-1 suite exists and is the standing form of these checks** —
+> `test/spec.test.js` plus `test/type-contract.js`, asserting 52 of the 53 vectors below.
+> The single exclusion is `type/T5`; see Open item 3. The suite was mutation-probed three
+> ways, and `pnpm run typecheck` gates the `type/T*` band.
 
 ## Module contract
 
@@ -269,6 +271,10 @@ complete and only fails much later, at the one access that matters.
 - `ns/B2` — own-key order follows the ECMAScript rule: integer-like keys first in
   ascending numeric order, then string keys in insertion order, then symbols.
   `{ b: 1, 2: 2, a: 3, 1: 4 }` yields `['1', '2', 'b', 'a']`.
+- `ns/B3` — the namespace has **no `toString`**, own or inherited. Every implicit
+  conversion still succeeds — `String(ns)`, a template literal, `ns + '!'`,
+  `[ns].join('')`, `JSON.stringify(ns)` — but an explicit `ns.toString()` throws
+  `TypeError`, unless the author exported a member of that name.
 - `ns/R1` — `isDictionaryObject(ns)` → **`false`**.
 
 The three string forms agree (`ns/A4`) because all three engine hints answer the same
@@ -283,6 +289,26 @@ The freeze happens last, after both symbol definitions, which a frozen target wo
 rejected. It guarantees the namespace's own shape: which members exist, and that they
 cannot be reassigned, redefined or deleted. It makes no claim about the values they hold
 (`ns/B1`).
+
+**No `toString` is a decision, not an omission (`ns/B3`).** Adding one would cost a third
+reserved key — and a string-keyed one. Reserving `Symbol.toPrimitive` and
+`Symbol.toStringTag` costs nothing, because no author legitimately exports those;
+reserving `toString` would take an ordinary identifier out of the author's surface, and a
+formatting module exporting `toString` is entirely reasonable. A package whose purpose is
+to group the author's exports should not charge that rent to serve callers who write
+`.toString()` where `String()` would do.
+
+The current behavior is also strictly better than the artifact it models. A real ES module
+namespace has a null prototype, no `toString` **and** no `Symbol.toPrimitive`, so
+`String(moduleNamespace)` throws outright; ours converts in every implicit form. And an
+author who exports `toString` gets it: the member answers `ns.toString()` while
+`Symbol.toPrimitive` still governs `String(ns)`, so the two coexist rather than compete.
+
+One consumer-tooling consequence follows and is not a defect in either party.
+`@typescript-eslint/no-base-to-string` reports that a namespace stringifies as
+`[object Object]`, because it reads the declared type and does not consider
+`Symbol.toPrimitive`. The only type-level cure would be declaring a `toString` the runtime
+does not have — a lie that would make a throwing call typecheck.
 
 **`ns/R1` is correct, not a composition gap.** type-detection's dictionary check requires
 a type signature of `'[object Object]'`, precisely so it can reject an object
