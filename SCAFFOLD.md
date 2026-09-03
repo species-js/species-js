@@ -262,8 +262,9 @@ invisible to both. The flag is the fix; a gate would only mechanize a problem th
 removes.
 
 Applied to all four packages at once, including the three where it cannot yet bite:
-`function-introspection`, `type-identity` and `custom-domain` emit no shared chunks today,
-so they had zero orphans — which is exactly the shape a half-applied rule hides behind.
+`function-introspection`, `type-identity` and `custom-namespace` emit no shared chunks
+today, so they had zero orphans — which is exactly the shape a half-applied rule hides
+behind.
 
 ### `cross-env` for env vars
 
@@ -363,7 +364,7 @@ with `utility` as the demonstration subdomain. The placeholder `utility.{js,d.ts
 carries no implementation yet but exercises the full pipeline (tsconfig `files`, `exports`
 map, vite multi-entry) end to end.
 
-The other three packages (`function-introspection`, `type-identity`, `custom-domain`)
+The other three packages (`function-introspection`, `type-identity`, `custom-namespace`)
 remain on the single-module shell and will adopt this layout when their domain surface
 grows.
 
@@ -558,7 +559,7 @@ and would otherwise trip the project parser.
 of eight allowed values:
 
 ```
-type-detection | function-introspection | type-identity | custom-domain
+type-detection | function-introspection | type-identity | custom-namespace
 ci | deps | scaffold | docs
 ```
 
@@ -816,11 +817,11 @@ Packages are versioned and published via `@changesets/cli`:
 **Why Changesets over release-please:** inter-package dependencies require granular
 control. When `@species-js/type-detection` ships a breaking change, changesets
 automatically bumps the dependency ranges in `function-introspection`, `type-identity`,
-and `custom-domain`. The `updateInternalDependencies: "patch"` setting in
+and `custom-namespace`. The `updateInternalDependencies: "patch"` setting in
 `.changeset/config.json` controls the cascade granularity.
 
 **Why not fixed versioning:** packages version independently. A patch to `type-detection`
-should not force a version bump on `custom-domain` if `custom-domain` is unaffected.
+should not force a version bump on `custom-namespace` if `custom-namespace` is unaffected.
 
 ### `prepublishOnly` per package
 

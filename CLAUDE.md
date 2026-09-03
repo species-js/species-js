@@ -11,7 +11,7 @@ depend on these packages.
 | `@species-js/type-detection`         | Runtime type checking, cross-realm discrimination                               | none           |
 | `@species-js/function-introspection` | Function classification — bound functions, arrows, concise methods              | type-detection |
 | `@species-js/type-identity`          | Type branding, constructor sealing, multi-layer validation                      | type-detection |
-| `@species-js/custom-domain`          | Frozen prototype-less namespace objects grouping exports behind one named value | type-detection |
+| `@species-js/custom-namespace`       | Frozen prototype-less namespace objects grouping exports behind one named value | type-detection |
 
 ## Code conventions
 

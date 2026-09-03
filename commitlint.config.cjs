@@ -9,7 +9,7 @@ module.exports = {
         'type-detection',
         'function-introspection',
         'type-identity',
-        'custom-domain',
+        'custom-namespace',
         // Cross-cutting scopes
         'ci',
         'deps',

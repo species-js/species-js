@@ -1,5 +1,5 @@
 {
-  "name": "@species-js/custom-domain",
+  "name": "@species-js/custom-namespace",
   "version": "0.0.0",
   "private": true,
   "description": "Frozen, prototype-less namespace objects for grouping a module's exports behind one named value.",
@@ -11,7 +11,7 @@
   "repository": {
     "type": "git",
     "url": "git+https://github.com/species-js/species-js.git",
-    "directory": "packages/custom-domain"
+    "directory": "packages/custom-namespace"
   },
   "publishConfig": {
     "access": "public"

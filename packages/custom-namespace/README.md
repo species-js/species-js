@@ -1,4 +1,4 @@
-# @species-js/custom-domain
+# @species-js/custom-namespace
 
 Frozen, prototype-less namespace objects for grouping a module's exports behind one named
 value.
@@ -9,7 +9,7 @@ runtime type infrastructure.
 ## Install
 
 ```sh
-pnpm add @species-js/custom-domain
+pnpm add @species-js/custom-namespace
 ```
 
 ## Runtime support

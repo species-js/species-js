@@ -249,7 +249,7 @@ Conventional commits (enforced via commitlint). Examples:
 
 ```
 feat(type-detection): add cross-realm WeakSet discriminator
-fix(custom-domain): seal prototype before freezing
+fix(custom-namespace): seal prototype before freezing
 chore(deps): bump vitest to 4.2.0
 ```
 

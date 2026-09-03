@@ -47,7 +47,7 @@ export default defineConfig({
         return `${entryName}.js`;
       },
       formats: isNode ? ['es', 'cjs'] : isUmd ? ['umd'] : ['es'],
-      ...(isUmd && { name: 'SpeciesJS.CustomDomain' }),
+      ...(isUmd && { name: 'SpeciesJS.CustomNamespace' }),
     },
     minify: isUmd ? 'esbuild' : false,
     outDir: `dist/${buildTarget}`,
