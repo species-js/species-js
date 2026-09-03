@@ -202,6 +202,15 @@ authority stays with the user.
 - **Session start** — restore context from memory, wait for direction before starting new
   work. Within a session, normal pair-programming flow applies: AI proposes, user confirms
   or redirects, AI executes.
+- **Session end** — run the memory discipline UNPROMPTED: memorize what emerged, forget
+  what is genuinely gone for good, reorganize only where it pays for itself. The three
+  phases live in the memory store; this file carries the trigger, because this file is
+  what every session loads and the store is not.
+- **This file versus the memory store — place by AUDIENCE, not topic.** Anything a human
+  contributor would also need belongs here: conventions, commands, procedures over repo
+  artifacts. Anything about the AI's own working relationship — failure records, the live
+  frontier, session pacing — belongs in memory. A rule that fails that test but must still
+  fire at a known moment gets a one-line trigger here and its procedure there.
 - **AI handles volume** — specs, tests, documentation, mechanical audits, cross-file
   consistency work, repetitive refactors, scoped migrations. Offloading volume is the
   point; it keeps the user's focus where it belongs — on design coherence and semantic
