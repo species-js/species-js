@@ -35,17 +35,32 @@
  *
  * Additionally, when phrases are supplied as arguments:
  *
- * 4. **No prose surface still carries the OLD claim.** Searches every `.js`,
- *    `.ts`, `.md` and `.json` in the workspace — module blocks, JSDoc, both
- *    READMEs, `package.json` descriptions and `CLAUDE.md` alike.
+ * 4. **No prose surface still carries the OLD claim.** Module blocks, JSDoc,
+ *    both READMEs, `package.json` descriptions, `CLAUDE.md` — and project-local
+ *    tool config that git ignores.
+ *
+ * ## Two corpora, and why they differ
+ *
+ * The structural checks read what a COMMIT would carry (`git ls-files --cached
+ * --others --exclude-standard`) — they are about the repo's source pairs, and a
+ * hand-rolled walk kept re-discovering generated output as phantom findings.
+ *
+ * The claim sweep reads what is PRESENT ON DISK, generated trees excluded by
+ * name. A claim is swept when the old wording is gone from the project, not
+ * merely from the part of it git tracks. The narrower corpus once reported a
+ * package rename fully swept while five stale paths sat in an ignored
+ * `.claude/settings.local.json` — a false clean, which is strictly worse than
+ * the miss it was meant to prevent, because the whole point is to replace
+ * judgment.
  *
  * ## Guarding against a green run that measured nothing
  *
  * A sweep that matches no files is indistinguishable from a clean sweep unless
- * the corpus size is reported, so every run prints how many files it scanned and
- * exits non-zero when that count is zero. Re-export barrels (`export { … } from`)
- * carry no declarations of their own; they are counted and reported separately
- * rather than passing check 3 silently — `surface:check` is what covers those.
+ * the corpus size is reported, so every run prints how many files it scanned —
+ * both counts when a claim is swept — and exits non-zero when the count is zero.
+ * Re-export barrels (`export { … } from`) carry no declarations of their own;
+ * they are counted and reported separately rather than passing check 3 silently
+ * — `surface:check` is what covers those.
  *
  * ## TRIP CONDITION
  *
@@ -56,11 +71,20 @@
  */
 
 import { execFileSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
-import { join, extname } from 'node:path';
+import { readdirSync, readFileSync, statSync } from 'node:fs';
+import { join, extname, relative } from 'node:path';
 
 const ROOT = new URL('..', import.meta.url).pathname;
 const PROSE_EXTENSIONS = new Set(['.js', '.mjs', '.ts', '.md', '.json']);
+
+// - Generated or vendored trees. Everything else on disk is in scope for the
+//   CLAIM sweep, including files git ignores: project-local tool config
+//   (`.claude/`, `.vscode/`) references project paths and goes stale on a
+//   rename exactly like committed prose does, while being invisible to
+//   `git ls-files`. That blind spot let a package rename report "swept" with
+//   five stale paths still on disk.
+const GENERATED_DIRS = new Set(['node_modules', 'dist', 'coverage', '.git', '.vite']);
+const GENERATED_PATHS = new Set(['docs/api']);
 
 /**
  * Every file the sweep considers a prose surface, repo-relative.
@@ -81,6 +105,38 @@ function collectFiles() {
   })
     .split('\n')
     .filter((path) => path !== '' && PROSE_EXTENSIONS.has(extname(path)));
+}
+
+/**
+ * Every prose surface present on disk, repo-relative — the CLAIM sweep's corpus.
+ *
+ * Deliberately wider than {@link collectFiles}: a claim is swept when the old
+ * wording is gone from the PROJECT, not merely from what a commit would carry.
+ * Ignored-but-present files are included and generated trees excluded by name,
+ * which is the pairing the two corpora exist to express.
+ *
+ * @param {string} [dir] - directory to walk
+ * @param {string[]} [collected] - accumulator
+ * @returns {string[]} repo-relative paths
+ */
+function collectPresentFiles(dir = ROOT, collected = []) {
+  for (const entry of readdirSync(dir)) {
+    if (GENERATED_DIRS.has(entry)) {
+      continue;
+    }
+    const full = join(dir, entry);
+    const rel = relative(ROOT, full);
+
+    if (GENERATED_PATHS.has(rel)) {
+      continue;
+    }
+    if (statSync(full).isDirectory()) {
+      collectPresentFiles(full, collected);
+    } else if (PROSE_EXTENSIONS.has(extname(entry))) {
+      collected.push(rel);
+    }
+  }
+  return collected;
 }
 
 /**
@@ -226,10 +282,12 @@ const phrases = process.argv.slice(2).filter((a) => a.trim() !== '');
 /** @type {string[]} */
 const claimHits = [];
 
+const presentFiles = phrases.length > 0 ? collectPresentFiles() : [];
+
 for (const phrase of phrases) {
   const needle = phrase.toLowerCase();
 
-  for (const file of files) {
+  for (const file of presentFiles) {
     readFileSync(join(ROOT, file), 'utf8')
       .split('\n')
       .forEach((line, index) => {
@@ -243,7 +301,11 @@ for (const phrase of phrases) {
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 
 const scanned =
-  `scanned ${files.length} prose surfaces, ${pairsCompared} .js/.d.ts pairs` +
+  `scanned ${files.length} prose surfaces` +
+  (phrases.length > 0
+    ? ` (${presentFiles.length} incl. git-ignored, for the claim sweep)`
+    : '') +
+  `, ${pairsCompared} .js/.d.ts pairs` +
   `${barrelsSkipped > 0 ? `, ${barrelsSkipped} re-export barrel${barrelsSkipped === 1 ? '' : 's'} left to surface:check` : ''}`;
 
 if (problems.length > 0 || claimHits.length > 0) {
