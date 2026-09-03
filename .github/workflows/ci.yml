@@ -50,6 +50,10 @@ jobs:
       - name: Format check
         run: pnpm run format:check
 
+      - name: Docs sweep
+        if: matrix.os == 'ubuntu-latest'
+        run: pnpm run docs:sweep
+
       - name: Docs check
         run: pnpm run docs:check
 

@@ -1,0 +1,277 @@
+// @ts-check
+
+/**
+ * Documentation sweep — the terminating condition for a documentation-hardening
+ * round.
+ *
+ * ## Why it exists
+ *
+ * Every rule in this repo about documentation is a rule about a SET: a claim
+ * lives in several files, a `.js` block has a `.d.ts` twin, a typedef import has
+ * call sites. The recurring failure is not writing a wrong sentence — it is
+ * fixing one member of the set, looking at the file in hand, and calling it
+ * done. One package's one-line description survived in FIVE files after being
+ * corrected in one; a Node-floor claim once survived in five READMEs the same
+ * way. (Neither phrase is quoted here — a sweep tool that contains the very
+ * strings it hunts reports itself forever.)
+ *
+ * Judgment cannot close that gap, because the members where the change does not
+ * yet bite look exactly like the ones already handled. Only an instrument can:
+ * this script turns "I believe I got them all" into an exit code.
+ *
+ * ## What it asserts
+ *
+ * Always, over every package source pair:
+ *
+ * 1. **No duplicate `@param <name>` inside one JSDoc block.** An edit that
+ *    inserts prose ahead of the tag block silently doubles the tags; neither
+ *    `tsc` nor `eslint` reports it.
+ * 2. **No dead `@typedef {import(…)} X`.** `noUnusedLocals` does not reach JSDoc
+ *    typedefs. A typedef whose name appears nowhere else in the file is residue
+ *    from a removed cast.
+ * 3. **Every value a `.js` exports is declared in its sibling `.d.ts`.** The
+ *    `.d.ts` is the canonical surface; a value it omits is undocumented in the
+ *    generated API docs and absent from the typed contract.
+ *
+ * Additionally, when phrases are supplied as arguments:
+ *
+ * 4. **No prose surface still carries the OLD claim.** Searches every `.js`,
+ *    `.ts`, `.md` and `.json` in the workspace — module blocks, JSDoc, both
+ *    READMEs, `package.json` descriptions and `CLAUDE.md` alike.
+ *
+ * ## Guarding against a green run that measured nothing
+ *
+ * A sweep that matches no files is indistinguishable from a clean sweep unless
+ * the corpus size is reported, so every run prints how many files it scanned and
+ * exits non-zero when that count is zero. Re-export barrels (`export { … } from`)
+ * carry no declarations of their own; they are counted and reported separately
+ * rather than passing check 3 silently — `surface:check` is what covers those.
+ *
+ * ## TRIP CONDITION
+ *
+ * Delete this script if the `.js` / `.d.ts` pair convention is ever replaced by
+ * generated declarations, which would make checks 1–3 the generator's problem.
+ *
+ * @module scripts/sweep-docs
+ */
+
+import { execFileSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
+import { join, extname } from 'node:path';
+
+const ROOT = new URL('..', import.meta.url).pathname;
+const PROSE_EXTENSIONS = new Set(['.js', '.mjs', '.ts', '.md', '.json']);
+
+/**
+ * Every file the sweep considers a prose surface, repo-relative.
+ *
+ * The corpus is whatever a commit would carry — tracked files plus untracked
+ * ones git would not ignore. A hand-rolled directory walk kept re-discovering
+ * generated output (`docs/api` is a typedoc build containing a COPY of
+ * `CLAUDE.md`), and every such copy is a phantom hit that trains a reader to
+ * ignore the tool.
+ *
+ * @returns {string[]} repo-relative paths
+ */
+function collectFiles() {
+  return execFileSync('git', ['ls-files', '--cached', '--others', '--exclude-standard'], {
+    cwd: ROOT,
+    encoding: 'utf8',
+    maxBuffer: 32 * 1024 * 1024,
+  })
+    .split('\n')
+    .filter((path) => path !== '' && PROSE_EXTENSIONS.has(extname(path)));
+}
+
+/**
+ * Splits a source text into its JSDoc blocks, keeping each block's start line.
+ *
+ * @param {string} text - file contents
+ * @returns {{ startLine: number, body: string }[]} the blocks
+ */
+function jsdocBlocks(text) {
+  const blocks = [];
+  const lines = text.split('\n');
+  /** @type {string[] | null} */
+  let current = null;
+  let startLine = 0;
+
+  lines.forEach((line, index) => {
+    if (current === null && line.trimStart().startsWith('/**')) {
+      current = [line];
+      startLine = index + 1;
+    } else if (current !== null) {
+      current.push(line);
+
+      if (line.includes('*/')) {
+        blocks.push({ startLine, body: current.join('\n') });
+        current = null;
+      }
+    }
+  });
+  return blocks;
+}
+
+const files = collectFiles();
+
+if (files.length === 0) {
+  console.error(
+    '✗ the sweep matched no files — the corpus walk is broken, not the docs.',
+  );
+  process.exit(2);
+}
+
+/** @type {string[]} */
+const problems = [];
+
+// ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
+//
+//  1 + 2 — per-file JSDoc hygiene
+//
+// ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
+
+const sourceFiles = files.filter((f) => /\.(js|mjs|ts)$/.test(f));
+
+for (const file of sourceFiles) {
+  const text = readFileSync(join(ROOT, file), 'utf8');
+
+  for (const { startLine, body } of jsdocBlocks(text)) {
+    /** @type {Map<string, number>} */
+    const seen = new Map();
+
+    // - the trailing `(?![\w$.])` matters twice over. `@param value.message`
+    //   documents a MEMBER of an already-declared `value`, not a second one, so
+    //   the dot has to disqualify the match. And the class must exclude
+    //   identifier characters too, or the engine simply backtracks to a shorter
+    //   name — `value.message` then matches as `valu`, which is worse than the
+    //   false positive it was meant to remove.
+    for (const match of body.matchAll(
+      /^\s*\*\s*@param\s+(?:\{[^}]*\}\s*)?\[?([A-Za-z_$][\w$]*)(?![\w$.])/gm,
+    )) {
+      const name = match[1];
+      seen.set(name, (seen.get(name) ?? 0) + 1);
+    }
+    for (const [name, count] of seen) {
+      if (count > 1) {
+        problems.push(
+          `${file}:${startLine} — @param '${name}' declared ${count}× in one block`,
+        );
+      }
+    }
+  }
+
+  // - anchored to the canonical one-line house form. Matching loose `@typedef`
+  //   text would also hit this script's own regex literal and any prose that
+  //   MENTIONS the convention — an instrument that flags its own documentation
+  //   is not one anybody keeps running.
+  const TYPEDEF_LINE =
+    /^\s*\/\*\*\s*@typedef\s*\{import\([^)]*\)\.[\w$]+\}\s*([A-Za-z_$][\w$]*)\s*\*\/\s*$/gm;
+
+  for (const match of text.matchAll(TYPEDEF_LINE)) {
+    const name = match[1];
+    const uses = text.match(new RegExp(`\\b${name}\\b`, 'g'))?.length ?? 0;
+
+    // - two occurrences is the typedef's own `{import(…).Name} Name` pair.
+    if (uses <= 2) {
+      problems.push(`${file} — @typedef '${name}' is never used (dead typedef import)`);
+    }
+  }
+}
+
+// ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
+//
+//  3 — .js value exports must be declared in the sibling .d.ts
+//
+// ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
+
+const DECLARED = /^export\s+(?:async\s+)?(?:function|const|class)\s+([A-Za-z_$][\w$]*)/gm;
+
+let pairsCompared = 0;
+let barrelsSkipped = 0;
+
+for (const file of sourceFiles.filter((f) => f.endsWith('.js') && f.includes('/src/'))) {
+  const siblingPath = join(ROOT, file.replace(/\.js$/, '.d.ts'));
+  let sibling;
+
+  try {
+    sibling = readFileSync(siblingPath, 'utf8');
+  } catch {
+    continue;
+  }
+  const jsText = readFileSync(join(ROOT, file), 'utf8');
+  const jsNames = [...jsText.matchAll(DECLARED)].map((m) => m[1]);
+
+  if (jsNames.length === 0 && /^export\s*\{/m.test(jsText)) {
+    barrelsSkipped += 1;
+    continue;
+  }
+  pairsCompared += 1;
+
+  for (const name of jsNames) {
+    if (!new RegExp(`\\b${name}\\b`).test(sibling)) {
+      problems.push(
+        `${file} — exports '${name}' but the sibling .d.ts does not declare it`,
+      );
+    }
+  }
+}
+
+// ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
+//
+//  4 — the claim sweep
+//
+// ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
+
+const phrases = process.argv.slice(2).filter((a) => a.trim() !== '');
+/** @type {string[]} */
+const claimHits = [];
+
+for (const phrase of phrases) {
+  const needle = phrase.toLowerCase();
+
+  for (const file of files) {
+    readFileSync(join(ROOT, file), 'utf8')
+      .split('\n')
+      .forEach((line, index) => {
+        if (line.toLowerCase().includes(needle)) {
+          claimHits.push(`"${phrase}" → ${file}:${index + 1}`);
+        }
+      });
+  }
+}
+
+// ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
+
+const scanned =
+  `scanned ${files.length} prose surfaces, ${pairsCompared} .js/.d.ts pairs` +
+  `${barrelsSkipped > 0 ? `, ${barrelsSkipped} re-export barrel${barrelsSkipped === 1 ? '' : 's'} left to surface:check` : ''}`;
+
+if (problems.length > 0 || claimHits.length > 0) {
+  console.error(
+    `✗ documentation sweep found ${problems.length + claimHits.length} issue(s)\n`,
+  );
+
+  for (const problem of problems) {
+    console.error(`    ${problem}`);
+  }
+  for (const hit of claimHits) {
+    console.error(`    ${hit}`);
+  }
+  console.error(`\n  ${scanned}`);
+  // - the guidance has to follow what actually failed, not what was asked for.
+  //   Reporting "a claim still appears" over four dead typedefs sends the reader
+  //   hunting for a phrase that is not there.
+  console.error(
+    claimHits.length > 0
+      ? `\n  → a claim that still appears anywhere has not been swept. Fix every hit, then re-run.`
+      : `\n  → fix each finding, then re-run.`,
+  );
+  process.exit(1);
+}
+
+console.warn(
+  `✓ documentation sweep clean — ${scanned}` +
+    (phrases.length > 0
+      ? `; no occurrence of ${phrases.map((p) => `"${p}"`).join(', ')}`
+      : ''),
+);

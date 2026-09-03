@@ -744,7 +744,7 @@ weekly.
 ### Single command name: `check`
 
 The root provides `check`
-(`toolchain:check + gates:check + typecheck + lint + format:check + docs:check + decisions:check + surface:check + entries:check + audit + test:coverage`)
+(`toolchain:check + gates:check + typecheck + lint + format:check + docs:sweep + docs:check + decisions:check + surface:check + entries:check + audit + test:coverage`)
 as the single validation command. It is a **superset** of CI's gating sequence rather than
 an exact match — `toolchain:check` is deliberately local-only (see its row below) — so
 "passes locally" implies "passes CI" for every gating step, but not the reverse. There is
