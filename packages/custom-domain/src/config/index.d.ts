@@ -61,8 +61,8 @@ export declare const objectAssign: typeof Object.assign;
  * The builder's last act. Every member is already non-writable and
  * non-configurable, so locking extensibility is all that remains — but
  * `freeze` rather than `preventExtensions` deliberately, so the guarantee does
- * not rest on the member flags staying right. Loosen the recomposition and the
- * object stays frozen anyway.
+ * not rest on the member flags staying right. Loosen the resolver and the object
+ * stays frozen anyway.
  *
  * @internal
  */
@@ -71,8 +71,9 @@ export declare const objectFreeze: typeof Object.freeze;
 /**
  * `Object.defineProperty`, realm-fixed at module-load.
  *
- * The only write the builder makes — once per copied export, then once each for
- * the two well-known symbols, all before the freeze. Held here so a post-load
+ * The only write the builder makes — once per resolved export (a member with no
+ * readable value is skipped), then once each for the two well-known symbols,
+ * all before the freeze. Held here so a post-load
  * reassignment of the global `Object` cannot redirect what lands on the
  * namespace.
  *
@@ -83,9 +84,10 @@ export declare const defineProperty: typeof Object.defineProperty;
 /**
  * `Object.getOwnPropertyDescriptor`, realm-fixed at module-load.
  *
- * Reads a source member's descriptor so it can be recomposed non-writable and
- * non-configurable on the namespace. A descriptor read rather than a property
- * read, so a getter on the source is carried across rather than invoked.
+ * Reads a source member's descriptor so the resolver can tell a data member
+ * from an accessor without touching the property. A descriptor read never
+ * triggers a getter, which is what keeps invoking one a deliberate decision the
+ * resolver takes rather than a side effect of inspecting.
  *
  * The raw form, not a throw-safe wrapper: a hostile `Proxy` trap surfaces to
  * the caller instead of yielding a namespace that is quietly missing a member.

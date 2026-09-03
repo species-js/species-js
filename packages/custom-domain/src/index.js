@@ -4,19 +4,32 @@
  * @module @species-js/custom-domain
  *
  * Prototype-less namespace objects that group a module's exports behind one
- * named, identifiable value — sealed, so the grouping cannot be added to or
+ * named, identifiable value — frozen, so the grouping cannot be added to or
  * taken apart once built.
  *
  * One public entry, {@link createCustomNamespace}, composed from three
- * module-local helpers: a `Symbol.toPrimitive` implementation, a descriptor
- * recomposer, and the reduce callback that writes each member. None of the
- * three is exported — every branch they carry is reachable through the entry,
- * and a direct test would pin inputs the entry normalizes away.
+ * module-local helpers: a `Symbol.toPrimitive` implementation, a member
+ * resolver, and the reduce callback that writes each member. None of the three
+ * is exported — every branch they carry is reachable through the entry, and a
+ * direct test would pin inputs the entry normalizes away.
  *
- * The builder reads `exports` through the RAW key and descriptor forms rather
- * than type-detection's `getSafe*` twins. That is the deliberate half of the
- * raw/throw-safe pairing: a namespace quietly missing a member is worse than
- * one that fails to build.
+ * The builder RESOLVES rather than copies. Every own key of `exports` is
+ * reduced to a value once, at build time — a data member by its value, an
+ * accessor by invoking its getter — and written as a frozen data property whose
+ * only variable is its visibility. The namespace is a snapshot, not a view:
+ * nothing it exposes re-enters the source afterward.
+ *
+ * The caller keeps exactly one axis of control, `enumerable`; the builder's own
+ * two structural symbols are always hidden, so identity never rides along on a
+ * copy of the namespace.
+ *
+ * Reads over `exports` use the RAW key and descriptor forms rather than
+ * type-detection's `getSafe*` twins, and a getter is invoked unguarded. That is
+ * the deliberate half of the raw/throw-safe pairing: a source that cannot be
+ * enumerated, described or read fails the build, because a namespace quietly
+ * missing a member is worse than one that never gets built. The single
+ * member-level omission that is NOT a failure is a member with no readable
+ * value at all — see {@link createNamespacePropDescriptor}.
  *
  * See the sibling `.d.ts` for the consumer-facing contract; this file carries
  * the implementation and the reasoning a maintainer needs.
@@ -31,11 +44,13 @@ import {
 } from '#config';
 
 import {
-  objectCreate,
+  frozenEntryDescriptor,
   frozenDataDescriptor,
+  objectCreate,
+  objectHasOwn,
   getOwnPropertyKeys,
-  isBooleanValue,
   isPlainOrDictionaryObject,
+  isCallable,
   isString,
 } from '@species-js/type-detection';
 
@@ -56,13 +71,14 @@ const toStringTagSymbol = globalContext.Symbol.toStringTag;
 /**
  * The two keys the builder defines itself, and therefore refuses to copy.
  *
- * A source carrying either would be silently overwritten — or, since the copied
- * member is non-configurable, would make the later definition throw from deep
- * inside the build. Rejecting them up front turns both into one stated rule.
+ * A source carrying either would be resolved into a non-configurable member and
+ * then collide with the builder's own definition, throwing from deep inside the
+ * build with a message naming an internal redefinition rather than the caller's
+ * mistake. Rejecting the key up front turns that into one stated rule.
  *
  * Keyed over `string | symbol` so the mixed key list `getOwnPropertyKeys`
  * returns can be probed directly; the members themselves are always symbols.
- * @type {Set<(string | symbol)>}
+ * @type {Set<string | symbol>}
  * @internal
  */
 const reservedNamespaceKeys = new Set([toPrimitiveSymbol, toStringTagSymbol]);
@@ -109,59 +125,106 @@ function toPrimitive(name, hint) {
 }
 
 /**
- * Module-local, and deliberately not exported — what it returns is observable
- * through `getOwnPropertyDescriptor` on a built namespace.
+ * Resolves one own member of `source` to the frozen data descriptor the
+ * namespace will carry, or to `null` when that member has no readable value.
  *
- * The read is unguarded by choice, matching the raw half of type-detection's
- * raw/throw-safe pairing. A `key` from `getOwnPropertyKeys` is one the source
- * reported a moment earlier, which is not the same as one it will still
- * describe: a `Proxy` may report a key from `ownKeys` and then answer
- * `undefined` — or throw — from `getOwnPropertyDescriptor`. Both surface to
- * the caller rather than yielding a quietly incomplete namespace.
- * @param {object} source - The source to read the property-descriptor from.
- * @param {string | symbol} key - The property key that targets the source's descriptor.
- * @returns {PropertyDescriptor} The recomposed descriptor — the source's, with
- *  any setter dropped and both `writable` and `configurable` forced `false`.
- * @throws {unknown} at a malicious `getOwnPropertyDescriptor` proxy-trap
+ * Module-local, and deliberately not exported — every branch is reachable
+ * through {@link createCustomNamespace}.
+ *
+ * RESOLVE, not copy. A data descriptor contributes its `value`; an accessor has
+ * its getter invoked once, here, with `source` as receiver so a getter reading
+ * sibling members still sees them. Either way the member lands as a frozen data
+ * property, so the namespace holds exactly one member shape and no live accessor
+ * survives into it. That is what makes the namespace a snapshot: a later read
+ * cannot re-enter the source, vary, or throw.
+ *
+ * `enumerable` is the ONE flag the source keeps, and the reason is a difference
+ * in kind. `writable`, `configurable` and the accessor pair are overridden
+ * because they are what a namespace IS — read-only, sealed, resolved — so
+ * overriding them discards nothing the author meant. `enumerable` carries
+ * authorial intent instead: "this is part of my surface" or "this is internal",
+ * orthogonal to everything the namespace enforces. An object literal makes every
+ * member enumerable, so honoring the flag costs the ordinary caller nothing,
+ * while reaching for `Object.defineProperty` to clear it is never accidental.
+ * The builder overrides what you did not have to spell out and preserves the one
+ * thing you did.
+ *
+ * The `null` arm is the one member-level omission that is not a failure. A
+ * setter-only accessor — or one carrying neither half — has nothing to resolve,
+ * and is left off rather than written as a key that could never answer. Such a
+ * key would be indistinguishable on read from a genuinely `undefined` export
+ * while still appearing in `in` and the own-key listings, so omitting it is the
+ * honest outcome.
+ *
+ * Nothing here is guarded. A hostile `getOwnPropertyDescriptor` trap, a key
+ * `ownKeys` reported that no descriptor describes, and a getter that throws all
+ * propagate to the caller of {@link createCustomNamespace}.
+ * @param {object} source - The object whose own member is being resolved.
+ * @param {string | symbol} key - The own property key to resolve.
+ * @returns {PropertyDescriptor | null} A frozen data descriptor carrying the
+ *  resolved value; `null` when the member has no readable value.
+ * @throws {unknown} at a malicious `getOwnPropertyDescriptor` proxy-trap, or
+ *  from a source getter invoked here
  * @throws {TypeError} when the source reports no descriptor for a key its own
  *  `ownKeys` listed
  * @internal
  */
-function createNSPropDescriptor(source, key) {
-  const {
-    // destructure `set` ... omit it at the recomposition (regardless of its existence).
-    set: _omitted1,
-    // destructure `configurable` ...omitted, but hardwired as false at the recomposition.
-    configurable: _omitted2,
-    // destructure `writable` ... in case it exists, recompose it always a non-writable.
-    writable,
-    // the descriptor rest ... provide it as new descriptor-base at recomposition-time.
-    ...descriptor
-  } = /** @type {PropertyDescriptor} */ (getOwnPropertyDescriptor(source, key));
+function createNamespacePropDescriptor(source, key) {
+  const descriptor = /** @type {PropertyDescriptor} */ (
+    getOwnPropertyDescriptor(source, key)
+  );
 
-  return {
-    ...descriptor,
-    ...(isBooleanValue(writable) ? { writable: false } : {}),
-    configurable: false,
-  };
+  // - the one flag the source gets to keep. `frozenDataDescriptor` is the
+  //   visible pair, `frozenEntryDescriptor` the hidden one; both are otherwise
+  //   identical, so the member shape stays uniform and only visibility varies.
+  const flags =
+    descriptor.enumerable === true ? frozenDataDescriptor : frozenEntryDescriptor;
+
+  if (objectHasOwn(descriptor, 'value')) {
+    return {
+      ...flags,
+      value: descriptor.value,
+    };
+  }
+  const { get } = descriptor;
+
+  // - `objectHasOwn(descriptor, 'get')` would also admit a setter-only
+  //   accessor, whose `get` is present but `undefined`; the callable test
+  //   answers the question that actually matters and lets that case fall
+  //   through to the valueless return rather than into a TypeError on a
+  //   non-callable.
+  if (isCallable(get)) {
+    return {
+      ...flags,
+      value: get.call(source),
+    };
+  }
+  return null;
 }
 
 /**
- * The `target` is always a fresh prototype-less object and every `key` is
- * distinct, so each definition creates a property that does not yet exist. No
- * redefinition rule applies, and no descriptor shape the source can produce
- * makes the write illegal — which is why the recomposition above is free to
- * hardwire its flags.
+ * The reduce callback that writes one resolved member onto the target.
+ *
+ * `target` is always a fresh prototype-less object and every `key` is distinct,
+ * so each definition creates a property that does not yet exist. No
+ * redefinition rule applies, and no descriptor the resolver can produce makes
+ * the write illegal — which is why the resolver is free to hardwire its flags.
+ *
+ * A `null` from the resolver means the member had no readable value; that key
+ * is skipped rather than written.
  * @param {{ source: object, target: object }} accumulator - The source/target pair.
- * @param {string | symbol} key - The property key to copy.
+ * @param {string | symbol} key - The own property key to resolve and write.
  * @returns {{ source: object, target: object }} The same accumulator for chaining.
- * @throws {unknown} propagated from {@link createNSPropDescriptor}'s unguarded
- *  descriptor read
+ * @throws {unknown} propagated from {@link createNamespacePropDescriptor} — an
+ *  unguarded descriptor read or getter invocation
  * @internal
  */
 function aggregateNamespaceTarget({ source, target }, key) {
-  defineProperty(target, key, createNSPropDescriptor(source, key));
+  const descriptor = createNamespacePropDescriptor(source, key);
 
+  if (descriptor !== null) {
+    defineProperty(target, key, descriptor);
+  }
   return { source, target };
 }
 
@@ -172,16 +235,18 @@ function aggregateNamespaceTarget({ source, target }, key) {
  * the provided name.
  *
  * The returned object has:
- * - All own properties from `exports` copied as read-only
- * - `Symbol.toStringTag` set to `'CustomNamespace'`
+ * - Every own member of `exports` resolved once to a frozen value, keeping the
+ *   source's `enumerable` flag
+ * - `Symbol.toStringTag` set to `'CustomNamespace'`, hidden
  * - `Symbol.toPrimitive` returning `"[namespace '<name>']"` for every hint the
- *   engine supplies, so `String(ns)`, `` `${ns}` `` and `ns + ''` agree
+ *   engine supplies, so `String(ns)`, `` `${ns}` `` and `ns + ''` agree; hidden
  *
  * A builder, not a predicate — it either yields a complete namespace or fails.
- * The reads over `exports` are therefore the raw, unguarded forms, so an
- * unreadable source surfaces instead of yielding a namespace that looks whole
- * and is not. `exports` is expected to be the author's own module surface at
- * definition time, which is what makes failing loudly the cheap option.
+ * The reads over `exports` are therefore the raw, unguarded forms and getters
+ * run unprotected, so an unreadable source surfaces instead of yielding a
+ * namespace that looks whole and is not. `exports` is expected to be the
+ * author's own module surface at definition time, which is what makes failing
+ * loudly the cheap option — and what makes running its getters here acceptable.
  *
  * `exports` is required and validated by `isPlainOrDictionaryObject` rather
  * than the stricter `isPlainObject`, so an `Object.assign(Object.create(null),
@@ -196,8 +261,10 @@ function aggregateNamespaceTarget({ source, target }, key) {
  * @param {string} name - The namespace name. The `.d.ts` types it `string`,
  *  which is the contract; at runtime a non-string is tolerated rather than
  *  coerced — `isString` gates the trim, so anything else falls to `''`.
- * @param {Record<PropertyKey, unknown>} exports - The exports to copy onto
- *  the namespace. At least one own property is required.
+ * @param {Record<PropertyKey, unknown>} exports - The exports to resolve onto
+ *  the namespace. At least one own property is required — note the guard counts
+ *  KEYS, so a source whose every member is valueless passes it and still yields
+ *  an empty namespace.
  * @returns {CustomNamespace} The created namespace object.
  * @throws {TypeError} when `exports` is neither a plain object nor a
  *  prototype-less dictionary
@@ -205,13 +272,14 @@ function aggregateNamespaceTarget({ source, target }, key) {
  * @throws {TypeError} when `exports` carries `Symbol.toPrimitive` or
  *  `Symbol.toStringTag` — the namespace defines both itself
  * @throws {unknown} at a malicious `ownKeys` or `getOwnPropertyDescriptor`
- *  proxy-trap on `exports`, which the shape check admits
+ *  proxy-trap on `exports`, which the shape check admits, or from any `exports`
+ *  getter invoked while resolving
  */
 export function createCustomNamespace(name, exports) {
-  // - the three rejections run argument-shape first, then contents, and the
-  //   first blocker wins. The order is contract, not incidental: a caller
+  // - the three rejections below run argument-shape first, then contents, and
+  //   the first blocker wins. The order is contract, not incidental: a caller
   //   fixing one rejection must not be handed a different one for the same
-  //   mistake.
+  //   mistake. Per-member failures come later, during the reduce, in key order.
 
   if (!isPlainOrDictionaryObject(exports)) {
     throw new TypeError(
@@ -236,21 +304,27 @@ export function createCustomNamespace(name, exports) {
     );
   }
 
-  const { target: namespace } = /** @type {Record<string, object>} */ (
+  const { target: namespace } = /** @type {{ source: object, target: object }} */ (
     exportKeys.reduce(aggregateNamespaceTarget, {
       source: exports,
       target: objectCreate(null),
     })
   );
+  // - both structural entries are HIDDEN, never `frozenDataDescriptor`. A real
+  //   ES module namespace declares its `Symbol.toStringTag` non-enumerable for
+  //   the same reason: identity must not travel on a copy. Enumerable brands
+  //   would ride along on `{ ...namespace }` and hand back a plain object that
+  //   answers `[object CustomNamespace]` — the builder forging its own mark.
+  //   Property lookup ignores `enumerable`, so both still function.
   defineProperty(namespace, toPrimitiveSymbol, {
-    ...frozenDataDescriptor,
+    ...frozenEntryDescriptor,
     value: (
       (value) => (/** @type {string} */ hint) =>
         toPrimitive(value, hint)
     )((isString(name) && String(name).trim()) || ''),
   });
   defineProperty(namespace, toStringTagSymbol, {
-    ...frozenDataDescriptor,
+    ...frozenEntryDescriptor,
     value: 'CustomNamespace',
   });
 
