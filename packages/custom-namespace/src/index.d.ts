@@ -1,5 +1,5 @@
 /**
- * @module @species-js/custom-domain
+ * @module @species-js/custom-namespace
  *
  * Frozen, prototype-less namespace objects — a module's exports grouped behind
  * one named, identifiable value.
@@ -116,22 +116,37 @@ export interface CustomNamespace {
  * ## Rejection order
  *
  * Fixed, and part of the contract — the first blocker wins, so one mistake
- * always reports the same way. Three whole-argument checks run before anything
- * is read:
+ * always reports the same way. Four whole-argument checks run in argument
+ * order, before anything is read:
  *
- * 1. `exports` is neither a plain object nor a prototype-less dictionary
- * 2. `exports` has no own property
- * 3. `exports` carries a reserved key
+ * 1. `name` is not a string
+ * 2. `exports` is neither a plain object nor a prototype-less dictionary
+ * 3. `exports` has no own property
+ * 4. `exports` carries a reserved key
  *
  * Per-member failures come after those, while resolving, in own-key order — a
  * descriptor that cannot be read, or a getter that throws.
  *
- * @param name - The namespace name. One that trims to empty yields
- *  `"[namespace '']"`.
+ * The returned type is `CustomNamespace & Readonly<T>`, so a member keeps the
+ * type it had on `exports` instead of collapsing to `unknown`. `T` is
+ * constrained to `object` rather than to an index-signature type, because an
+ * `interface` — the idiomatic way to declare a module's surface — carries no
+ * implicit index signature and would otherwise be rejected outright. The
+ * narrower shape rules are enforced at runtime, not in the type.
+ *
+ * Two divergences between the type and the runtime, both deliberate:
+ * `CustomNamespace`'s open index signature means an unknown key reads as
+ * `unknown` rather than erroring, which is what keeps the type usable as a
+ * parameter for any namespace; and a member the builder omits for having no
+ * readable value still appears in `keyof T`.
+ *
+ * @param name - The namespace name. A non-string is rejected rather than
+ *  coerced; one that trims to empty is accepted and yields `"[namespace '']"`.
  * @param exports - The exports to resolve onto the namespace. At least one own
- *  property is required; note that the check counts KEYS, so a source who's
+ *  property is required; note that the check counts KEYS, so a source whose
  *  every member is valueless satisfies it and still yields an empty namespace.
- * @returns The created namespace object.
+ * @returns The created namespace object, with its member types preserved.
+ * @throws {TypeError} when `name` is not a string
  * @throws {TypeError} when `exports` is neither a plain object nor a
  *  prototype-less dictionary
  * @throws {TypeError} when `exports` has no own property
@@ -140,9 +155,9 @@ export interface CustomNamespace {
  * @throws {unknown} at a malicious `ownKeys` or `getOwnPropertyDescriptor`
  *  proxy-trap on `exports`, or from any `exports` getter invoked while resolving
  */
-export function createCustomNamespace(
+export function createCustomNamespace<T extends object>(
   name: string,
-  exports: Record<PropertyKey, unknown>,
-): CustomNamespace;
+  exports: T,
+): CustomNamespace & Readonly<T>;
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----

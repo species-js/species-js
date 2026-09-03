@@ -1,7 +1,7 @@
 // @ts-check
 
 /**
- * @module @species-js/custom-domain
+ * @module @species-js/custom-namespace
  *
  * Prototype-less namespace objects that group a module's exports behind one
  * named, identifiable value — frozen, so the grouping cannot be added to or
@@ -29,7 +29,7 @@
  * enumerated, described or read fails the build, because a namespace quietly
  * missing a member is worse than one that never gets built. The single
  * member-level omission that is NOT a failure is a member with no readable
- * value at all — see {@link createNamespacePropDescriptor}.
+ * value at all — see {@link resolveNamespaceMember}.
  *
  * See the sibling `.d.ts` for the consumer-facing contract; this file carries
  * the implementation and the reasoning a maintainer needs.
@@ -169,7 +169,7 @@ function toPrimitive(name, hint) {
  *  `ownKeys` listed
  * @internal
  */
-function createNamespacePropDescriptor(source, key) {
+function resolveNamespaceMember(source, key) {
   const descriptor = /** @type {PropertyDescriptor} */ (
     getOwnPropertyDescriptor(source, key)
   );
@@ -215,12 +215,12 @@ function createNamespacePropDescriptor(source, key) {
  * @param {{ source: object, target: object }} accumulator - The source/target pair.
  * @param {string | symbol} key - The own property key to resolve and write.
  * @returns {{ source: object, target: object }} The same accumulator for chaining.
- * @throws {unknown} propagated from {@link createNamespacePropDescriptor} — an
+ * @throws {unknown} propagated from {@link resolveNamespaceMember} — an
  *  unguarded descriptor read or getter invocation
  * @internal
  */
 function aggregateNamespaceTarget({ source, target }, key) {
-  const descriptor = createNamespacePropDescriptor(source, key);
+  const descriptor = resolveNamespaceMember(source, key);
 
   if (descriptor !== null) {
     defineProperty(target, key, descriptor);
@@ -258,14 +258,22 @@ function aggregateNamespaceTarget({ source, target }, key) {
  * An already-built namespace does NOT qualify, under either predicate: its
  * `Symbol.toStringTag` brand disqualifies it as a dictionary. A namespace is a
  * terminal artifact, not raw material for another one.
- * @param {string} name - The namespace name. The `.d.ts` types it `string`,
- *  which is the contract; at runtime a non-string is tolerated rather than
- *  coerced — `isString` gates the trim, so anything else falls to `''`.
- * @param {Record<PropertyKey, unknown>} exports - The exports to resolve onto
- *  the namespace. At least one own property is required — note the guard counts
- *  KEYS, so a source whose every member is valueless passes it and still yields
- *  an empty namespace.
- * @returns {CustomNamespace} The created namespace object.
+ * `T` is constrained to `object`, not to an index-signature type: an
+ * `interface` carries no implicit index signature, so `Record<PropertyKey,
+ * unknown>` rejected the idiomatic way a consumer declares a module surface
+ * (`TS2345`) while a type alias and an object literal passed. The shape rules
+ * are enforced at runtime here, deliberately, rather than in the parameter
+ * type. The `Readonly<T>` half of the return is what keeps a member's type from
+ * collapsing to the `unknown` of `CustomNamespace`'s index signature.
+ * @template {object} T
+ * @param {string} name - The namespace name. A non-string is REJECTED, not
+ *  coerced; a string that trims to empty is accepted and yields
+ *  `"[namespace '']"`. `isString` admits a boxed `String`.
+ * @param {T} exports - The exports to resolve onto the namespace. At least one
+ *  own property is required — note the guard counts KEYS, so a source whose
+ *  every member is valueless passes it and still yields an empty namespace.
+ * @returns {CustomNamespace & Readonly<T>} The created namespace object.
+ * @throws {TypeError} when `name` is not a string
  * @throws {TypeError} when `exports` is neither a plain object nor a
  *  prototype-less dictionary
  * @throws {TypeError} when `exports` has no own property
@@ -276,10 +284,19 @@ function aggregateNamespaceTarget({ source, target }, key) {
  *  getter invoked while resolving
  */
 export function createCustomNamespace(name, exports) {
-  // - the three rejections below run argument-shape first, then contents, and
-  //   the first blocker wins. The order is contract, not incidental: a caller
-  //   fixing one rejection must not be handed a different one for the same
-  //   mistake. Per-member failures come later, during the reduce, in key order.
+  // - the four rejections below run in argument order, shape before contents,
+  //   and the first blocker wins. The order is contract, not incidental: a
+  //   caller fixing one rejection must not be handed a different one for the
+  //   same mistake. Per-member failures come later, during the reduce, in key
+  //   order.
+
+  // - a bad TYPE throws; a degenerate VALUE does not. `'   '` is a caller
+  //   deliberately choosing an anonymous namespace and trims to `''`, while a
+  //   non-string is a mistake the builder used to swallow into that same `''`.
+  //   `isString` admits a boxed `String`, which `String(name)` then unboxes.
+  if (!isString(name)) {
+    throw new TypeError(`'name' must be a string.`);
+  }
 
   if (!isPlainOrDictionaryObject(exports)) {
     throw new TypeError(
@@ -321,7 +338,7 @@ export function createCustomNamespace(name, exports) {
     value: (
       (value) => (/** @type {string} */ hint) =>
         toPrimitive(value, hint)
-    )((isString(name) && String(name).trim()) || ''),
+    )(String(name).trim()),
   });
   defineProperty(namespace, toStringTagSymbol, {
     ...frozenEntryDescriptor,
@@ -331,7 +348,7 @@ export function createCustomNamespace(name, exports) {
   // - last, after both symbol definitions, which a frozen target would reject.
   //   A real ES module namespace is non-extensible too; leaving this one open
   //   would mean the shape a detector inspects is not the shape built here.
-  return /** @type {CustomNamespace} */ (objectFreeze(namespace));
+  return /** @type {CustomNamespace & Readonly<T>} */ (objectFreeze(namespace));
 }
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
