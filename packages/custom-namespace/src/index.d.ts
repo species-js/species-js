@@ -87,8 +87,9 @@ export interface CustomNamespace {
  * is a plain object that does not answer `[object CustomNamespace]`.
  *
  * A member with no readable value — a setter-only accessor, or one carrying
- * neither getter nor setter — is omitted rather than exposed as a key that
- * could never answer. This is the only omission that is not an error.
+ * neither getter nor setter — is rejected, not skipped. Such a key could never
+ * answer, and a namespace silently missing a member its author declared is the
+ * outcome this builder exists to rule out.
  *
  * The namespace is frozen before it is returned, so it is non-extensible as
  * well: nothing can be attached to it afterward. `Object.isSealed` and
@@ -125,7 +126,8 @@ export interface CustomNamespace {
  * 4. `exports` carries a reserved key
  *
  * Per-member failures come after those, while resolving, in own-key order — a
- * descriptor that cannot be read, or a getter that throws.
+ * member with no readable value, a descriptor that cannot be read, or a getter
+ * that throws.
  *
  * The returned type is `CustomNamespace & Readonly<T>`, so a member keeps the
  * type it had on `exports` instead of collapsing to `unknown`. `T` is
@@ -134,17 +136,16 @@ export interface CustomNamespace {
  * implicit index signature and would otherwise be rejected outright. The
  * narrower shape rules are enforced at runtime, not in the type.
  *
- * Two divergences between the type and the runtime, both deliberate:
+ * One deliberate divergence between the type and the runtime:
  * `CustomNamespace`'s open index signature means an unknown key reads as
  * `unknown` rather than erroring, which is what keeps the type usable as a
- * parameter for any namespace; and a member the builder omits for having no
- * readable value still appears in `keyof T`.
+ * parameter for any namespace.
  *
  * @param name - The namespace name. A non-string is rejected rather than
  *  coerced; one that trims to empty is accepted and yields `"[namespace '']"`.
  * @param exports - The exports to resolve onto the namespace. At least one own
- *  property is required; note that the check counts KEYS, so a source whose
- *  every member is valueless satisfies it and still yields an empty namespace.
+ *  property is required, and every one of them must resolve to a value, so the
+ *  namespace can never come back empty.
  * @returns The created namespace object, with its member types preserved.
  * @throws {TypeError} when `name` is not a string
  * @throws {TypeError} when `exports` is neither a plain object nor a
@@ -152,6 +153,8 @@ export interface CustomNamespace {
  * @throws {TypeError} when `exports` has no own property
  * @throws {TypeError} when `exports` carries `Symbol.toPrimitive` or
  *  `Symbol.toStringTag`
+ * @throws {TypeError} when an `exports` member has no readable value — a
+ *  setter-only accessor, or one carrying neither getter nor setter
  * @throws {unknown} at a malicious `ownKeys` or `getOwnPropertyDescriptor`
  *  proxy-trap on `exports`, or from any `exports` getter invoked while resolving
  */

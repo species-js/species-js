@@ -27,9 +27,9 @@
  * type-detection's `getSafe*` twins, and a getter is invoked unguarded. That is
  * the deliberate half of the raw/throw-safe pairing: a source that cannot be
  * enumerated, described or read fails the build, because a namespace quietly
- * missing a member is worse than one that never gets built. The single
- * member-level omission that is NOT a failure is a member with no readable
- * value at all — see {@link resolveNamespaceMember}.
+ * missing a member is worse than one that never gets built. That rule has no
+ * exception: a member with no readable value at all is refused on the same
+ * ground rather than left off — see {@link aggregateNamespaceTarget}.
  *
  * See the sibling `.d.ts` for the consumer-facing contract; this file carries
  * the implementation and the reasoning a maintainer needs.
@@ -127,6 +127,8 @@ function toPrimitive(name, hint) {
 /**
  * Resolves one own member of `source` to the frozen data descriptor the
  * namespace will carry, or to `null` when that member has no readable value.
+ * That `null` is a rejection signal, not a skip: it becomes a throw in
+ * {@link aggregateNamespaceTarget}.
  *
  * Module-local, and deliberately not exported — every branch is reachable
  * through {@link createCustomNamespace}.
@@ -149,12 +151,14 @@ function toPrimitive(name, hint) {
  * The builder overrides what you did not have to spell out and preserves the one
  * thing you did.
  *
- * The `null` arm is the one member-level omission that is not a failure. A
- * setter-only accessor — or one carrying neither half — has nothing to resolve,
- * and is left off rather than written as a key that could never answer. Such a
- * key would be indistinguishable on read from a genuinely `undefined` export
- * while still appearing in `in` and the own-key listings, so omitting it is the
- * honest outcome.
+ * The `null` arm reports a member that cannot be resolved at all — a
+ * setter-only accessor, or one carrying neither half. Both alternatives to
+ * failing were considered and rejected: writing the key would be
+ * indistinguishable on read from a genuinely `undefined` export while still
+ * answering `in` and the own-key listings, and leaving it off is that same
+ * defect one step quieter, a namespace missing a member its author declared.
+ * The build fails instead, and the policy lives in
+ * {@link aggregateNamespaceTarget} so this function stays a classifier.
  *
  * Nothing here is guarded. A hostile `getOwnPropertyDescriptor` trap, a key
  * `ownKeys` reported that no descriptor describes, and a getter that throws all
@@ -162,7 +166,8 @@ function toPrimitive(name, hint) {
  * @param {object} source - The object whose own member is being resolved.
  * @param {string | symbol} key - The own property key to resolve.
  * @returns {PropertyDescriptor | null} A frozen data descriptor carrying the
- *  resolved value; `null` when the member has no readable value.
+ *  resolved value; `null` when the member has no readable value, which
+ *  {@link aggregateNamespaceTarget} turns into a rejection
  * @throws {unknown} at a malicious `getOwnPropertyDescriptor` proxy-trap, or
  *  from a source getter invoked here
  * @throws {TypeError} when the source reports no descriptor for a key its own
@@ -210,11 +215,15 @@ function resolveNamespaceMember(source, key) {
  * redefinition rule applies, and no descriptor the resolver can produce makes
  * the write illegal — which is why the resolver is free to hardwire its flags.
  *
- * A `null` from the resolver means the member had no readable value; that key
- * is skipped rather than written.
+ * A `null` from the resolver means the member has no readable value, and the
+ * build is rejected there rather than continuing without it. Failing at the
+ * first offending key, in own-key order, is what keeps every member-level
+ * failure alike: a valueless member, an unreadable descriptor and a throwing
+ * getter all surface the same way.
  * @param {{ source: object, target: object }} accumulator - The source/target pair.
  * @param {string | symbol} key - The own property key to resolve and write.
  * @returns {{ source: object, target: object }} The same accumulator for chaining.
+ * @throws {TypeError} when the resolver reports a member with no readable value
  * @throws {unknown} propagated from {@link resolveNamespaceMember} — an
  *  unguarded descriptor read or getter invocation
  * @internal
@@ -222,9 +231,13 @@ function resolveNamespaceMember(source, key) {
 function aggregateNamespaceTarget({ source, target }, key) {
   const descriptor = resolveNamespaceMember(source, key);
 
-  if (descriptor !== null) {
-    defineProperty(target, key, descriptor);
+  if (descriptor === null) {
+    throw new TypeError(
+      `'exports' member ${String(key)} must be readable — an accessor without a getter resolves to no value.`,
+    );
   }
+  defineProperty(target, key, descriptor);
+
   return { source, target };
 }
 
@@ -270,8 +283,8 @@ function aggregateNamespaceTarget({ source, target }, key) {
  *  coerced; a string that trims to empty is accepted and yields
  *  `"[namespace '']"`. `isString` admits a boxed `String`.
  * @param {T} exports - The exports to resolve onto the namespace. At least one
- *  own property is required — note the guard counts KEYS, so a source whose
- *  every member is valueless passes it and still yields an empty namespace.
+ *  own property is required, and every one of them must resolve to a value, so
+ *  the namespace can never come back empty.
  * @returns {CustomNamespace & Readonly<T>} The created namespace object.
  * @throws {TypeError} when `name` is not a string
  * @throws {TypeError} when `exports` is neither a plain object nor a
@@ -279,6 +292,8 @@ function aggregateNamespaceTarget({ source, target }, key) {
  * @throws {TypeError} when `exports` has no own property
  * @throws {TypeError} when `exports` carries `Symbol.toPrimitive` or
  *  `Symbol.toStringTag` — the namespace defines both itself
+ * @throws {TypeError} when an `exports` member has no readable value — a
+ *  setter-only accessor, or one carrying neither half
  * @throws {unknown} at a malicious `ownKeys` or `getOwnPropertyDescriptor`
  *  proxy-trap on `exports`, which the shape check admits, or from any `exports`
  *  getter invoked while resolving
