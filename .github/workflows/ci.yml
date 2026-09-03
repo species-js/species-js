@@ -50,7 +50,9 @@ jobs:
       - name: Format check
         run: pnpm run format:check
 
-      - name: Docs sweep
+      # Structural half only. The claim sweep needs the round's old wording as
+      # arguments and is run by hand; see the script header.
+      - name: Docs structure
         if: matrix.os == 'ubuntu-latest'
         run: pnpm run docs:sweep
 

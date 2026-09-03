@@ -41,6 +41,23 @@
  *    of each file, so a claim the ~78-column wrap split across two lines is
  *    still found; see {@link normalizeProse}.
  *
+ * ## Why check 4 cannot be automated, and what that costs
+ *
+ * The phrases ARE the round's changed wording, which exists only in the head of
+ * whoever changed it. Nothing in CI can supply them, so CI runs this bare and
+ * checks 1-3 are the whole of what a green build asserts about documentation.
+ * Check 4 is invoked by hand, per round, per claim — the procedure is in
+ * `CLAUDE.md` under "Documentation hardening".
+ *
+ * The success line therefore names which half ran. A bare run must not read as
+ * a swept round; that overstatement is the very defect the script exists to
+ * catch, and it went unnoticed here for a month of green builds.
+ *
+ * The standing gap is that a wording retired in one round can creep back in a
+ * later one with nobody sweeping for it. See SCAFFOLD.md, "The retired-wording
+ * ratchet", for the deferred follow-up and the two constraints it has to
+ * respect.
+ *
  * ## Two corpora, and why they differ
  *
  * The structural checks read what a COMMIT would carry (`git ls-files --cached
@@ -409,9 +426,13 @@ if (problems.length > 0 || claimHits.length > 0) {
   process.exit(1);
 }
 
+// - the two runs report differently ON PURPOSE. A bare run proves the STRUCTURE
+//   is sound and nothing at all about any claim, and CI only ever makes a bare
+//   run — so a success line reading "documentation sweep clean" there would be
+//   the same overstatement this script exists to catch, printed by the script
+//   itself. Say which half ran.
 console.warn(
-  `✓ documentation sweep clean — ${scanned}` +
-    (phrases.length > 0
-      ? `; no occurrence of ${phrases.map((p) => `"${p}"`).join(', ')}`
-      : ''),
+  phrases.length > 0
+    ? `✓ documentation sweep clean — structure and claim — ${scanned}; no occurrence of ${phrases.map((p) => `"${p}"`).join(', ')}`
+    : `✓ structural checks clean — ${scanned}. No claim was swept: pass the OLD wording as arguments to sweep one.`,
 );
