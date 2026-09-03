@@ -44,9 +44,6 @@ import { isCallable, isClass } from '#function';
 /** @typedef {typeof import('#config').INSTANCE_LESS_CONSTRUCTOR} NEVER_INVOKED_CONSTRUCTOR */
 /** @typedef {import('#config').BlankDictionary} BlankDictionary */
 
-/** @typedef {import('#function').Callable} Callable */
-/** @typedef {import('#function').NewableFunction} NewableFunction */
-
 /** @typedef {import('#thenable').Thenable<unknown>} Thenable */
 /** @typedef {import('#thenable').PromiseLike<unknown>} PromiseLike */
 
