@@ -52,7 +52,6 @@ import {
 /** @typedef {import('@species-js/type-detection').PropertyDescriptor} PropertyDescriptor */
 
 /** @typedef {import('@species-js/type-detection').AnyError} AnyError */
-/** @typedef {import('@species-js/type-detection').AnyObject} AnyObject */
 
 /** @typedef {import('@species-js/type-detection').Callable} Callable */
 /** @typedef {import('@species-js/type-detection').NewableFunction} NewableFunction */
