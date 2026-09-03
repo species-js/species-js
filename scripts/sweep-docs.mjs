@@ -36,10 +36,11 @@
  * Additionally, when phrases are supplied as arguments:
  *
  * 4. **No prose surface still carries the OLD claim.** Module blocks, JSDoc,
- *    both READMEs, `package.json` descriptions, `CLAUDE.md` — and project-local
- *    tool config that git ignores. Matched against a whitespace-flattened form
- *    of each file, so a claim the ~78-column wrap split across two lines is
- *    still found; see {@link normalizeProse}.
+ *    both READMEs, `package.json` descriptions, `CLAUDE.md`, the workflows and
+ *    `codecov.yml` — and project-local tool config that git ignores. Matched
+ *    against a whitespace-flattened form of each file, so a claim the
+ *    ~78-column wrap split across two lines is still found; see
+ *    {@link normalizeProse}.
  *
  * ## Why check 4 cannot be automated, and what that costs
  *
@@ -94,7 +95,12 @@ import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, extname, relative } from 'node:path';
 
 const ROOT = new URL('..', import.meta.url).pathname;
-const PROSE_EXTENSIONS = new Set(['.js', '.mjs', '.ts', '.md', '.json']);
+// - `.yml` / `.yaml` earn their place: the workflows and `codecov.yml` carry
+//   dozens of lines of REASONING, including the trigger conditions a
+//   maintainer is told to act on. Two of those instructions went stale on
+//   2026-09-03 when ADR #092 amended its trigger, and a sweep for the retired
+//   wording reported clean because YAML was not in the corpus at all.
+const PROSE_EXTENSIONS = new Set(['.js', '.mjs', '.ts', '.md', '.json', '.yml', '.yaml']);
 
 // - Generated or vendored trees. Everything else on disk is in scope for the
 //   CLAIM sweep, including files git ignores: project-local tool config
@@ -103,7 +109,32 @@ const PROSE_EXTENSIONS = new Set(['.js', '.mjs', '.ts', '.md', '.json']);
 //   `git ls-files`. That blind spot let a package rename report "swept" with
 //   five stale paths still on disk.
 const GENERATED_DIRS = new Set(['node_modules', 'dist', 'coverage', '.git', '.vite']);
-const GENERATED_PATHS = new Set(['docs/api']);
+
+// - `pnpm-lock.yaml` is COMMITTED, so unlike `docs/api` git does not hide it.
+//   It is 3600 lines of machine-generated resolution data that no human writes
+//   a claim into, and admitting it would swamp the corpus with a file whose
+//   every match is noise.
+const GENERATED_PATHS = new Set(['docs/api', 'pnpm-lock.yaml']);
+
+/**
+ * Whether a repo-relative path is generated output, by exact match or as a
+ * descendant of a generated directory.
+ *
+ * Applied to BOTH corpora. `docs/api` never reached the tracked-files corpus
+ * because git ignores it, so the check used to live only in the on-disk walk —
+ * a committed generated file needs it in both places.
+ *
+ * @param {string} rel - repo-relative path
+ * @returns {boolean} true when the path is generated output
+ */
+function isGeneratedPath(rel) {
+  for (const generated of GENERATED_PATHS) {
+    if (rel === generated || rel.startsWith(`${generated}/`)) {
+      return true;
+    }
+  }
+  return false;
+}
 
 /**
  * Every file the sweep considers a prose surface, repo-relative.
@@ -123,7 +154,10 @@ function collectFiles() {
     maxBuffer: 32 * 1024 * 1024,
   })
     .split('\n')
-    .filter((path) => path !== '' && PROSE_EXTENSIONS.has(extname(path)));
+    .filter(
+      (path) =>
+        path !== '' && PROSE_EXTENSIONS.has(extname(path)) && !isGeneratedPath(path),
+    );
 }
 
 /**
@@ -146,7 +180,7 @@ function collectPresentFiles(dir = ROOT, collected = []) {
     const full = join(dir, entry);
     const rel = relative(ROOT, full);
 
-    if (GENERATED_PATHS.has(rel)) {
+    if (isGeneratedPath(rel)) {
       continue;
     }
     if (statSync(full).isDirectory()) {
@@ -169,7 +203,9 @@ function collectPresentFiles(dir = ROOT, collected = []) {
  * worth sweeping. That is the false clean this whole script exists to prevent,
  * so producing one here was worse than the miss it caused.
  *
- * Each line is stripped of a leading JSDoc gutter or markdown list marker,
+ * Each line is stripped of a leading JSDoc gutter, a YAML or markdown `#`
+ * (only when followed by whitespace, so a `#privateField` is untouched), or a
+ * markdown list marker,
  * collapsed internally, and joined to the next with a single space. Blank lines
  * are dropped rather than joined as empty segments, so a claim is still found
  * when an edit split it across a paragraph break.
@@ -191,7 +227,7 @@ function normalizeProse(text) {
 
   text.split('\n').forEach((raw, index) => {
     const stripped = raw
-      .replace(/^\s*(?:\*+\/?|[-+]|\d+\.)\s?/, '')
+      .replace(/^\s*(?:\*+\/?|#+(?=\s)|[-+]|\d+\.)\s?/, '')
       .replace(/\s+/g, ' ')
       .trim();
 
