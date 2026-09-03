@@ -46,11 +46,28 @@ question.
 a `smoke.probes.mjs`; the gate reports a package without one as a problem rather than
 skipping it, because presence-only coverage is half a gate.
 
-`type-identity` and `custom-domain` are marked `private: true`. Both are one-line
+`type-identity` and `custom-namespace` are marked `private: true`. Both are one-line
 scaffolds exporting nothing, and the gate refused to pass them — correctly, since a
 publishable package whose entry exports nothing makes every comparison vacuous. `private`
 is the honest state until they have content, and it also removes them from the release.
 Reverse it in the same commit that gives either one a real surface.
+
+> **Context updated 2026-09-03 — the decision itself is untouched.** Both packages have
+> since grown real surfaces: `type-identity` defines three identity entries on one result
+> contract, and `custom-namespace` (named `custom-domain` when this was written — #096)
+> builds, resolves and freezes namespace objects. Neither is a one-line scaffold any more.
+>
+> `private: true` still stands for both, and the gating rule above is unchanged. What the
+> paragraph got wrong is its **trigger**: "a real surface" was written as a proxy for
+> "ready to publish", and the two have come apart. Both packages now have surfaces and
+> neither is publishable — each carries a one-line importability test, no spec, and
+> coverage thresholds that stay inert precisely because they are `private`.
+>
+> The honest trigger is therefore **the first commit that makes a package publishable**,
+> not the first that gives it a surface: a spec, a suite written to it, and coverage under
+> the workspace thresholds. Flipping `private` on surface alone would have published two
+> untested packages and, worse, would have switched their thresholds on in the same commit
+> that removed the reason they were exempt.
 
 Verified by mutation, on artifacts rather than source: an export removed from a bundle, a
 predicate stubbed to a constant, a UMD whose dependency call throws, an extra name
