@@ -262,8 +262,9 @@ invisible to both. The flag is the fix; a gate would only mechanize a problem th
 removes.
 
 Applied to all four packages at once, including the three where it cannot yet bite:
-`function-introspection`, `type-identity` and `custom-domain` emit no shared chunks today,
-so they had zero orphans — which is exactly the shape a half-applied rule hides behind.
+`function-introspection`, `type-identity` and `custom-namespace` emit no shared chunks
+today, so they had zero orphans — which is exactly the shape a half-applied rule hides
+behind.
 
 ### `cross-env` for env vars
 
@@ -363,7 +364,7 @@ with `utility` as the demonstration subdomain. The placeholder `utility.{js,d.ts
 carries no implementation yet but exercises the full pipeline (tsconfig `files`, `exports`
 map, vite multi-entry) end to end.
 
-The other three packages (`function-introspection`, `type-identity`, `custom-domain`)
+The other three packages (`function-introspection`, `type-identity`, `custom-namespace`)
 remain on the single-module shell and will adopt this layout when their domain surface
 grows.
 
@@ -558,7 +559,7 @@ and would otherwise trip the project parser.
 of eight allowed values:
 
 ```
-type-detection | function-introspection | type-identity | custom-domain
+type-detection | function-introspection | type-identity | custom-namespace
 ci | deps | scaffold | docs
 ```
 
@@ -744,7 +745,7 @@ weekly.
 ### Single command name: `check`
 
 The root provides `check`
-(`toolchain:check + gates:check + typecheck + lint + format:check + docs:check + decisions:check + surface:check + entries:check + audit + test:coverage`)
+(`toolchain:check + gates:check + typecheck + lint + format:check + docs:sweep + docs:check + decisions:check + surface:check + entries:check + audit + test:coverage`)
 as the single validation command. It is a **superset** of CI's gating sequence rather than
 an exact match — `toolchain:check` is deliberately local-only (see its row below) — so
 "passes locally" implies "passes CI" for every gating step, but not the reverse. There is
@@ -753,24 +754,51 @@ no `validate` alias. One name, one purpose.
 That superset relation is no longer maintained by hand: `gates:check` enforces it, after a
 gate once went unrun in CI for weeks (see its row).
 
-| Step              | What it catches                                                                                                                                                                                                             |
-| ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `toolchain:check` | Installed tool versions drifting from the lockfile CI installs. **Local-only** — a guaranteed no-op under CI's `--frozen-lockfile`. Also runs at pre-commit, where it can still prevent the drift rather than report it     |
-| `gates:check`     | A gate in `check` / `check:full` that nothing in CI invokes — so it passes locally while CI never runs it. One-directional by design; see the script header before extending it                                             |
-| `typecheck`       | Type errors across every package                                                                                                                                                                                            |
-| `lint`            | Style/correctness rules (type-aware via typescript-eslint)                                                                                                                                                                  |
-| `format:check`    | Prettier drift (files written outside the normal Git workflow)                                                                                                                                                              |
-| `docs:check`      | typedoc strict validation — broken `{@link}`, undocumented exports, unexported referenced types                                                                                                                             |
-| `decisions:check` | An ADR supersession with no reciprocal annotation at its target, leaving the target reading as current when it is not                                                                                                       |
-| `surface:check`   | A curated `src/public.{js,d.ts}` disagreeing with the `@internal` tagging it re-exports — a published internal, or a documented-public export no consumer can reach (#085)                                                  |
-| `entries:check`   | A published subpath resolving to a file the build never emits — `exports` ↔ legacy fields ↔ vite `lib.entry` drift, and #089's workspace-dependency pair. Static parity; artifact existence stays in `check:publish` (#091) |
-| `audit`           | Advisories in **production** dependencies at high+ severity. Near-vacuous by construction here — read "Supply-chain audit" above before relying on it                                                                       |
-| `test:coverage`   | Test failures **and** per-package coverage threshold violations                                                                                                                                                             |
+| Step              | What it catches                                                                                                                                                                                                                                                                                                   |
+| ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `toolchain:check` | Installed tool versions drifting from the lockfile CI installs. **Local-only** — a guaranteed no-op under CI's `--frozen-lockfile`. Also runs at pre-commit, where it can still prevent the drift rather than report it                                                                                           |
+| `gates:check`     | A gate in `check` / `check:full` that nothing in CI invokes — so it passes locally while CI never runs it. Also a chain step naming a script that does not exist, which used to shrink the gate population while still passing (2026-09-04). One-directional by design; see the script header before extending it |
+| `typecheck`       | Type errors across every package                                                                                                                                                                                                                                                                                  |
+| `lint`            | Style/correctness rules (type-aware via typescript-eslint)                                                                                                                                                                                                                                                        |
+| `format:check`    | Prettier drift (files written outside the normal Git workflow)                                                                                                                                                                                                                                                    |
+| `docs:sweep`      | JSDoc hygiene (duplicate `@param`, dead `@typedef {import(…)}`) and `.js` exports missing from the sibling `.d.ts`. **Structural half only** — the claim sweep takes the round's old wording as arguments and is run by hand                                                                                      |
+| `docs:check`      | typedoc strict validation — broken `{@link}`, undocumented exports, unexported referenced types                                                                                                                                                                                                                   |
+| `decisions:check` | An ADR supersession with no reciprocal annotation at its target, leaving the target reading as current when it is not                                                                                                                                                                                             |
+| `surface:check`   | A curated `src/public.{js,d.ts}` disagreeing with the `@internal` tagging it re-exports — a published internal, or a documented-public export no consumer can reach (#085)                                                                                                                                        |
+| `entries:check`   | A published subpath resolving to a file the build never emits — `exports` ↔ legacy fields ↔ vite `lib.entry` drift, and #089's workspace-dependency pair. Static parity; artifact existence stays in `check:publish` (#091)                                                                                       |
+| `audit`           | Advisories in **production** dependencies at high+ severity. Near-vacuous by construction here — read "Supply-chain audit" above before relying on it                                                                                                                                                             |
+| `test:coverage`   | Test failures **and** per-package coverage threshold violations                                                                                                                                                                                                                                                   |
 
 CI invokes the same underlying scripts individually for clearer step-level reporting;
 locally, `pnpm run check` is the daily driver. The pre-push Husky hook also calls
 `pnpm run check`, so anything that escaped earlier hooks (e.g. `--no-verify` commits,
 files written outside the normal Git workflow) is caught before code leaves the machine.
+
+#### The retired-wording ratchet — deferred work
+
+`docs:sweep`'s claim sweep (check 4) cannot be automated: the phrases are the round's
+changed wording, known only to whoever changed it. CI therefore runs the script bare, and
+a green build asserts checks 1-3 and nothing about any claim. That leaves one standing gap
+— **a wording retired in one round can creep back in a later one with nobody sweeping for
+it**, because the only sweep that would catch it happened months earlier.
+
+The fix is a checked-in list of retired wordings, mined from the commit history, swept on
+every run. It is deferred, not declined. Two constraints it has to respect, both learned
+already:
+
+- **It is a ratchet, not a replacement.** Every entry is a wording deliberately taken out
+  of service, so a reappearance is unambiguously wrong and the check can be a hard gate
+  with no false positives. But it only guards claims already retired; the current round's
+  wording is still swept by hand, per round, per claim.
+- **The list file must be excluded from the sweep's own corpus** (`GENERATED_PATHS` in
+  `scripts/sweep-docs.mjs`). A file of retired phrases is the purest form of the hazard
+  the script header already records — a sweep tool that contains the strings it hunts
+  reports itself forever.
+
+A diff-derived variant was considered and rejected as a GATE: a removed prose line is an
+old claim by definition, but the `.js`/`.d.ts` pair convention means the siblings
+legitimately share phrasing, so a deliberate one-sided rewording would fire every time. It
+could only ever be a non-blocking advisory, and a noisy advisory is ignored within a week.
 
 ### `check:full` — the "really sure" command
 
@@ -816,11 +844,11 @@ Packages are versioned and published via `@changesets/cli`:
 **Why Changesets over release-please:** inter-package dependencies require granular
 control. When `@species-js/type-detection` ships a breaking change, changesets
 automatically bumps the dependency ranges in `function-introspection`, `type-identity`,
-and `custom-domain`. The `updateInternalDependencies: "patch"` setting in
+and `custom-namespace`. The `updateInternalDependencies: "patch"` setting in
 `.changeset/config.json` controls the cascade granularity.
 
 **Why not fixed versioning:** packages version independently. A patch to `type-detection`
-should not force a version bump on `custom-domain` if `custom-domain` is unaffected.
+should not force a version bump on `custom-namespace` if `custom-namespace` is unaffected.
 
 ### `prepublishOnly` per package
 

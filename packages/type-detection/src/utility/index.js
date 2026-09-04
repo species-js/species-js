@@ -46,7 +46,6 @@ import { isCallable, isFunction, isNewableFunction } from '#function';
 /** @typedef {import('#utility').WeakKey} WeakKey */
 /** @typedef {import('#utility').DefinedConstructorAccessorOptions} DefinedConstructorAccessorOptions */
 
-/** @typedef {import('#utility').PropertyDescriptorMap} PropertyDescriptorMap */
 /** @typedef {import('#utility').PropertyDescriptor} PropertyDescriptor */
 /** @typedef {import('#utility').ConstructorName} ConstructorName */
 /** @typedef {import('#utility').TypeSignature} TypeSignature */

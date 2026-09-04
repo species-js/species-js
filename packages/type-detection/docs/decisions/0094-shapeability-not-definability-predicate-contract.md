@@ -78,8 +78,8 @@ public surface is unchanged in size.
 "will THIS descriptor apply" question exactly, at the cost of roughly forty lines
 mirroring the spec, with drift risk. It exists to close a gap that this decision shows is
 not a gap, and no consumer asks it: both packages still to come — `type-identity` and
-`custom-domain` — are sealing packages, which ask the arbitrary-shape question. Recorded
-as unbuilt by choice in `architecture/utility.md`, not as an oversight.
+`custom-namespace` — are sealing packages, which ask the arbitrary-shape question.
+Recorded as unbuilt by choice in `architecture/utility.md`, not as an oversight.
 
 **Rejected: splitting into `canOwnPropertyBeAdded` + `canOwnPropertyBeRedefined`**, one
 per branch. Each half would be exact, and the names would carry no double duty. But once

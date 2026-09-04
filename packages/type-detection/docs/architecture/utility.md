@@ -184,7 +184,7 @@ conservative and needed narrowing — dissolved. A caller who wants to know whet
 SPECIFIC weaker descriptor would apply still cannot ask: that needs the intended
 descriptor as a parameter plus the `ValidateAndApplyPropertyDescriptor` compatibility
 rules, which is a different function with a different name. No consumer wants it today,
-and both packages still to come (`type-identity`, `custom-domain`) are sealing packages
+and both packages still to come (`type-identity`, `custom-namespace`) are sealing packages
 that ask the arbitrary-shape question. Left unbuilt deliberately, not overlooked.
 
 A second, smaller question rides along: `defineStableTypeIdentity` recomputes

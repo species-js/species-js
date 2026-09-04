@@ -6,12 +6,12 @@ depend on these packages.
 
 ## Packages
 
-| Package                              | Purpose                                                            | Dependencies   |
-| ------------------------------------ | ------------------------------------------------------------------ | -------------- |
-| `@species-js/type-detection`         | Runtime type checking, cross-realm discrimination                  | none           |
-| `@species-js/function-introspection` | Function classification — bound functions, arrows, concise methods | type-detection |
-| `@species-js/type-identity`          | Type branding, constructor sealing, multi-layer validation         | type-detection |
-| `@species-js/custom-domain`          | Prototype-less namespace objects for sealed method grouping        | type-detection |
+| Package                              | Purpose                                                                         | Dependencies   |
+| ------------------------------------ | ------------------------------------------------------------------------------- | -------------- |
+| `@species-js/type-detection`         | Runtime type checking, cross-realm discrimination                               | none           |
+| `@species-js/function-introspection` | Function classification — bound functions, arrows, concise methods              | type-detection |
+| `@species-js/type-identity`          | Type branding, constructor sealing, multi-layer validation                      | type-detection |
+| `@species-js/custom-namespace`       | Frozen prototype-less namespace objects grouping exports behind one named value | type-detection |
 
 ## Code conventions
 
@@ -111,13 +111,14 @@ depend on these packages.
 ## Commands
 
 ```sh
-pnpm run check          # toolchain + gates + typecheck + lint + format + docs + decisions + surface + entries + audit + test:coverage (the one command)
+pnpm run check          # toolchain + gates + typecheck + lint + format + docs:sweep + docs + decisions + surface + entries + audit + test:coverage (the one command)
 pnpm run check:full     # check + build + smoke + pack:check + check:publish (full CI mirror; slower)
 pnpm run toolchain:check # installed tool versions === lockfile pins (also runs at pre-commit)
 pnpm run gates:check    # every gate in check/check:full is actually invoked by CI
 pnpm run decisions:check # every ADR supersession carries a reciprocal annotation
 pnpm run surface:check  # curated public entry === the @internal tagging it re-exports
 pnpm run entries:check  # exports map === legacy fields === vite build entries
+pnpm run docs:sweep     # JSDoc hygiene + .js/.d.ts export parity; takes phrases to sweep a claim
 pnpm run smoke:check    # every built artifact loads and its exports execute (needs build)
 pnpm run typecheck      # tsc per package
 pnpm run lint           # eslint
@@ -149,6 +150,48 @@ Run tests for a single package: `pnpm --filter @species-js/type-detection run te
 - After contract changes, run downstream tests empirically — never claim compatibility
   from code-trace alone
 
+## Documentation hardening
+
+A hardening round is finished when an **instrument** says so, not when the file in hand
+reads correctly. Every documentation rule here governs a SET — a claim with several homes,
+a `.js` block with a `.d.ts` twin, a typedef with call sites — and the members where a
+change does not yet bite look exactly like the ones already handled.
+
+**The unit of work is the CLAIM, not the file.** Before calling a wording change done,
+grep the OLD wording across the workspace and paste the result. A package's one-line
+description lives in **five** places — both `@module` blocks, `packages/<name>/README.md`,
+the root `README.md` table, `package.json` `description`, and the table in this file.
+
+```sh
+pnpm run docs:sweep                      # structural checks (always)
+pnpm run docs:sweep "the old wording"    # + every prose surface still carrying a claim
+```
+
+`docs:sweep` asserts what `tsc` and `eslint` structurally cannot: no duplicate `@param`
+inside one block, no dead `@typedef {import(…)}`, and every value a `.js` exports declared
+in its sibling `.d.ts`. It prints its corpus size and fails on an empty corpus, so a green
+run cannot mean "matched nothing".
+
+**Checklist for a hardening round:**
+
+1. **Mechanical pass first** — `docs:sweep`, then confirm every declaration has docs and
+   types. Don't skip the boring pass for the interesting one.
+2. **Semantic pass second** — does each block describe what the code _does_? Verify by
+   EXECUTING the claim, not by reasoning about it; a self-consistent rationale is not
+   evidence.
+3. **Names against behavior** — does the identifier still describe the work after a
+   refactor? A name that describes the return type instead of the operation is drift.
+4. **Both audiences** — `.js` for maintainers (mechanics, rationale, rejected
+   alternatives), `.d.ts` for the generated public API docs (contract, throws,
+   guarantees). They may differ in phrasing and detail, never in semantics. Watch for the
+   inversion where the `.d.ts` — the _published_ surface — ends up the thinner of the two.
+5. **Claim sweep last** — `docs:sweep "<old wording>"` for every claim the round changed.
+   Non-empty output means not done.
+6. **`pnpm run docs:check`** — typedoc is NOT in the default local gate, and a
+   cross-module `{@link}` fails only there.
+
+Prose is US English (`behavior`, `-ize`), matching the existing corpus.
+
 ## Collaboration model
 
 We pair. User has first and last word on architectural decisions; AI is the throughput
@@ -159,6 +202,15 @@ authority stays with the user.
 - **Session start** — restore context from memory, wait for direction before starting new
   work. Within a session, normal pair-programming flow applies: AI proposes, user confirms
   or redirects, AI executes.
+- **Session end** — run the memory discipline UNPROMPTED: memorize what emerged, forget
+  what is genuinely gone for good, reorganize only where it pays for itself. The three
+  phases live in the memory store; this file carries the trigger, because this file is
+  what every session loads and the store is not.
+- **This file versus the memory store — place by AUDIENCE, not topic.** Anything a human
+  contributor would also need belongs here: conventions, commands, procedures over repo
+  artifacts. Anything about the AI's own working relationship — failure records, the live
+  frontier, session pacing — belongs in memory. A rule that fails that test but must still
+  fire at a known moment gets a one-line trigger here and its procedure there.
 - **AI handles volume** — specs, tests, documentation, mechanical audits, cross-file
   consistency work, repetitive refactors, scoped migrations. Offloading volume is the
   point; it keeps the user's focus where it belongs — on design coherence and semantic
@@ -187,9 +239,10 @@ authority stays with the user.
 See `SCAFFOLD.md` for all configuration rationale. Per-package architecture and decisions
 live under `packages/<name>/docs/`:
 
-- `packages/<name>/docs/architecture/` — one file per module (mental model, cross-realm
-  safety, predicate composition, open questions). `README.md` indexes the module files and
-  lists cross-cutting patterns.
+- `packages/<name>/docs/architecture/` — the conceptual map (mental model, cross-realm
+  safety, predicate composition, open questions). One file per module, indexed by
+  `README.md`, which also carries the cross-cutting patterns — but the split earns itself
+  per MODULE (#097's threshold), so a package documenting one puts the map in `README.md`.
 - `packages/<name>/docs/decisions/` — one ADR file per decision (`NNNN-slug.md`).
   `README.md` indexes by domain and chronologically; `open-questions.md` tracks unresolved
   policy/scope questions.

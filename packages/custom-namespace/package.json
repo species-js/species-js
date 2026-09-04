@@ -1,8 +1,7 @@
 {
-  "name": "@species-js/custom-domain",
+  "name": "@species-js/custom-namespace",
   "version": "0.0.0",
-  "private": true,
-  "description": "Customizable prototype-less namespace objects for sealed method grouping.",
+  "description": "Frozen, prototype-less namespace objects for grouping a module's exports behind one named value.",
   "type": "module",
   "license": "MIT",
   "engines": {
@@ -11,7 +10,7 @@
   "repository": {
     "type": "git",
     "url": "git+https://github.com/species-js/species-js.git",
-    "directory": "packages/custom-domain"
+    "directory": "packages/custom-namespace"
   },
   "publishConfig": {
     "access": "public"
@@ -22,7 +21,8 @@
   "unpkg": "./dist/umd/index.umd.js",
   "jsdelivr": "./dist/umd/index.umd.js",
   "imports": {
-    "#index": "./src/index.js"
+    "#index": "./src/index.js",
+    "#config": "./src/config/index.js"
   },
   "exports": {
     ".": {

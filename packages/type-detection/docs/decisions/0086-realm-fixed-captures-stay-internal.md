@@ -85,8 +85,8 @@ polyfill fallback, a curated preset. A property read off `Object` is neither.
   than a list: the **value-adds** downstream should use, never the raw captures or the
   sentinels. This sharpens the two-tier framing reached in the `CONFIG.spec`
   reconciliation of 2026-07-29.
-- **Forward rule for the remaining four packages** (`type-identity`, `custom-domain`, and
-  the downstream projects): each owns its realm-fixed captures. Reach across a package
+- **Forward rule for the remaining four packages** (`type-identity`, `custom-namespace`,
+  and the downstream projects): each owns its realm-fixed captures. Reach across a package
   boundary only for identity or a value-add, and expect the curated surface to say no
   otherwise — which is now a compile error rather than a convention.
 - Relates to #075 (`config` as a runtime leaf) and #064 (shape carriers and the

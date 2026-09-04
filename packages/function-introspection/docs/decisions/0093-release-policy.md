@@ -27,10 +27,10 @@ On `0.x` the caret is already restrictive — `^0.1.0` admits `0.1.x` only — s
 patch propagation without the latitude a caret carries at `1.x`.
 
 **The rule applies to EVERY consuming package, private ones included.** `type-identity`
-and `custom-domain` publish nothing today, so their specifier is inert — which is exactly
-why a half-applied rule survives unnoticed. `type-identity` is the next arc; the moment it
-gains a surface and goes public, an exact pin would ship without anyone thinking to look.
-Uniform now costs nothing and leaves nothing to remember.
+and `custom-namespace` publish nothing today, so their specifier is inert — which is
+exactly why a half-applied rule survives unnoticed. `type-identity` is the next arc; the
+moment it gains a surface and goes public, an exact pin would ship without anyone thinking
+to look. Uniform now costs nothing and leaves nothing to remember.
 
 ## 1b. Subpaths deliberately expose `@internal`, and the tag says so
 
