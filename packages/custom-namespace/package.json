@@ -1,7 +1,6 @@
 {
   "name": "@species-js/custom-namespace",
   "version": "0.0.0",
-  "private": true,
   "description": "Frozen, prototype-less namespace objects for grouping a module's exports behind one named value.",
   "type": "module",
   "license": "MIT",

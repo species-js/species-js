@@ -69,6 +69,23 @@ Reverse it in the same commit that gives either one a real surface.
 > untested packages and, worse, would have switched their thresholds on in the same commit
 > that removed the reason they were exempt.
 
+> **Context updated 2026-09-04 — the decision itself is untouched.** The trigger above has
+> now fired once. `custom-namespace` met it — a spec frozen 2026-09-04, the contract suite
+> derived from it, and 100% coverage against thresholds of 85/90/90 — and its
+> `private: true` was removed in the same commit that added its Codecov flag, its CI
+> upload step, its own README badge and the root README's Coverage cell.
+>
+> The paragraph above says `private: true` stands for **both** packages. That now holds
+> for `type-identity` alone, which still has no `docs/` tree, no spec, and a single
+> importability test. Nothing about the gating rule changed; one of its two subjects
+> graduated.
+>
+> Un-privating activated three gates for that package: the coverage thresholds
+> (`vite.config.js` derives `isPublished` from the `private` key), `entries:check` and
+> `smoke:check` — both of which skip `private === true`. `pack:check` and `check:publish`
+> were already covering it, since `pnpm -r exec` runs in every workspace package
+> regardless of `private`.
+
 Verified by mutation, on artifacts rather than source: an export removed from a bundle, a
 predicate stubbed to a constant, a UMD whose dependency call throws, an extra name
 escaping the curated entry, and a deleted artifact — 5/5 caught, green again on restore.

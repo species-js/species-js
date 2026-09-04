@@ -40,6 +40,9 @@ flag_management:
     - name: function-introspection
       paths:
         - packages/function-introspection/
+    - name: custom-namespace
+      paths:
+        - packages/custom-namespace/
 
 comment:
   layout: 'reach, diff, flags, files'
