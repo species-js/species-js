@@ -2,6 +2,13 @@
 
 **Date:** 2026-08-06
 
+**Enforcement scope superseded by #099 (2026-09-04).** The curated entry and the gate
+below stand. What #099 changes is WHICH packages the gate reaches: `surface:check` keyed
+on the existence of `src/public.d.ts` and skipped every other package in silence, so it
+covered two of four while reporting green. #099 has it resolve the entry from
+`exports["."].types` instead, making coverage universal and the vacuous-pass state
+unreachable rather than guarded.
+
 **Context.** Three decisions have now circled the same question from different sides. #070
 kept `utility` re-exporting `TRUSTED_DATA_CONFIRMATION` so "the public surface stays
 byte-identical" — migration safety for a structural change to a shipping surface. #084

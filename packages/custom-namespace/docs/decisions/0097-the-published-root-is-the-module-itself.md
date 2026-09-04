@@ -2,6 +2,14 @@
 
 **Date:** 2026-09-04
 
+**Threshold superseded by #099 (2026-09-04).** The DECISION below stands — this package
+publishes `src/index.js` and gets no `public.{js,d.ts}`. What #099 retires is the
+generalized per-MODULE rule and, with it, the silent `surface:check` skip this record
+accepted as harmless. That skip was already occupied: `type-identity`'s entry exported
+`@internal` values on the day this was written, which is the trip condition stated in
+Consequences below. #099 replaces the threshold with an invariant the gate reads directly,
+so a package no longer needs to meet a structural precondition to be checked.
+
 **Context.** Both already published packages `type-detection` and `function-introspection`
 carry each a two-file root. `src/index.js` is a WIDE barrel that stars every module, keeps
 the `@internal` machinery reachable for the test suites, and is deliberately never built.
