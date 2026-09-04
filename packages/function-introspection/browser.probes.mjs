@@ -189,6 +189,96 @@ export const probes = [
       return isAny(methodNamedAsync) === true && isAny(arrow) === false;
     },
   },
+
+  // - B5 to B8 exist because of what WebKit answered on 2026-09-04.
+  //   JavaScriptCore keeps the target's NAME in the native form where V8 and
+  //   SpiderMonkey emit it anonymously, so `condense(f.bind())` is
+  //   `function f(){[native code]}` there rather than the foundation constant.
+  //   That constant is compared by `===` in `bound.js` and by `!==` in two
+  //   `concise.js` guards, so an engine where the equality never holds is an
+  //   engine where those guards may quietly stop discriminating. The four
+  //   probes below are the inputs that reach them; every expectation is the
+  //   value V8 actually answers, measured rather than assumed.
+  {
+    name: 'B5 · a bound function is not a concise method',
+    run: (ns) =>
+      holds([
+        ['plainConcise(named.bind)', ns.isPlainConciseMethod(named.bind(null)), false],
+        ['anyConcise(named.bind)', ns.isAnyConciseMethod(named.bind(null)), false],
+        ['plainConcise(method.bind)', ns.isPlainConciseMethod(method.bind(null)), false],
+        ['anyConcise(method.bind)', ns.isAnyConciseMethod(method.bind(null)), false],
+        // positive control — without it every expectation here is `false` and
+        // a predicate stubbed to that constant passes while reading nothing
+        ['anyConcise(method)', ns.isAnyConciseMethod(method), true],
+      ]),
+  },
+  {
+    name: 'B6 · a Proxy-wrapped callable is not a concise method',
+    run: (ns) =>
+      holds([
+        [
+          'plainConcise(Proxy over named)',
+          ns.isPlainConciseMethod(new Proxy(named, {})),
+          false,
+        ],
+        [
+          'anyConcise(Proxy over named)',
+          ns.isAnyConciseMethod(new Proxy(named, {})),
+          false,
+        ],
+        // the sharper case: the target IS a concise method, so only the
+        // native-form reading keeps the Proxy out
+        [
+          'plainConcise(Proxy over method)',
+          ns.isPlainConciseMethod(new Proxy(method, {})),
+          false,
+        ],
+        [
+          'anyConcise(Proxy over method)',
+          ns.isAnyConciseMethod(new Proxy(method, {})),
+          false,
+        ],
+        // the positive control — the unwrapped method is still admitted
+        ['plainConcise(method)', ns.isPlainConciseMethod(method), true],
+      ]),
+  },
+  {
+    name: 'B7 · bound indication and its STRENGTH both survive',
+    run: (ns) =>
+      holds([
+        ['indicates(named.bind)', ns.doesIndicateBoundFunction(named.bind(null)), true],
+        [
+          'strongly(named.bind)',
+          ns.doesStronglyIndicateBoundFunction(named.bind(null)),
+          true,
+        ],
+        ['indicates(named)', ns.doesIndicateBoundFunction(named), false],
+      ]),
+  },
+  {
+    name: 'B8 · the mark/strength split holds for a Proxy, and a native is neither',
+    run: (ns) =>
+      holds([
+        // a Proxy over a concise method carries the MARK but not the strength
+        [
+          'indicates(Proxy over method)',
+          ns.doesIndicateBoundFunction(new Proxy(method, {})),
+          true,
+        ],
+        [
+          'strongly(Proxy over method)',
+          ns.doesStronglyIndicateBoundFunction(new Proxy(method, {})),
+          false,
+        ],
+        [
+          'indicates(Proxy over named)',
+          ns.doesIndicateBoundFunction(new Proxy(named, {})),
+          false,
+        ],
+        ['indicates(Math.max)', ns.doesIndicateBoundFunction(Math.max), false],
+        ['plainConcise(Math.max)', ns.isPlainConciseMethod(Math.max), false],
+      ]),
+  },
 ];
 
 // - the runner injects this file into the page as a module `<script>` after the
