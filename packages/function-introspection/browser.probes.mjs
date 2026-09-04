@@ -153,6 +153,49 @@ export const probes = [
     },
   },
 
+  {
+    // The discriminator for WHERE JSC's rendered name comes from.
+    //
+    // `toString` returns `[[SourceText]]`, which `defineProperty` cannot reach
+    // — a renamed function still stringifies to its original characters on
+    // every engine. But JSC renders `plain.bind(null)` as
+    // `function plain(){[native code]}` even though that target's source text
+    // is ANONYMOUS, so for the native form it must be reading a name rather
+    // than the source. This asks which name.
+    //
+    // The expectations below are V8's, so this probe passes on V8 and
+    // SpiderMonkey and FAILS on JSC — and what it reports there is the answer.
+    // `foo`/`bar` means the mutable `name` property is read, and any
+    // name-tolerant fix must treat that portion as caller-controlled.
+    // `anon`/`declaredName` means an internal slot fixed at creation, which
+    // `defineProperty` cannot forge.
+    name: 'A5 · whether the rendered native name follows the mutable `name` property',
+    run: (ns) => {
+      const condense = /** @type {(v: unknown) => string | undefined} */ (
+        /** @type {unknown} */ (ns.getCondensedFunctionSource)
+      );
+      // Fresh fixtures, declared here on purpose: renaming the module-scope
+      // `plain` or `named` would corrupt A3, B5 and B7, which read them.
+      const anon = function () {};
+      const decl = function declaredName() {};
+
+      Object.defineProperty(anon, 'name', { value: 'foo', configurable: true });
+      Object.defineProperty(decl, 'name', { value: 'bar', configurable: true });
+
+      return holds([
+        ['anon.name after rename', anon.name, 'foo'],
+        ['decl.name after rename', decl.name, 'bar'],
+        // `[[SourceText]]` ignores the rename everywhere — the control that
+        // proves the rename did not simply fail to apply
+        ['decl source text', condense(decl), 'function declaredName(){}'],
+        ['anon source text', condense(anon), 'function(){}'],
+        // the discriminator itself
+        ['anon.bind(null)', condense(anon.bind(null)), NATIVE_ANONYMOUS],
+        ['decl.bind(null)', condense(decl.bind(null)), NATIVE_ANONYMOUS],
+      ]);
+    },
+  },
+
   // ----- Layer B — the verdicts that rest on layer A -----
   {
     name: 'B1 · bound-function indication survives the engine source form',
