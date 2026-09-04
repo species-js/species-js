@@ -32,3 +32,4 @@ applies. #096 is the first written from inside it.
 | --------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- | ---------- |
 | [096](./0096-the-artifact-is-a-namespace-not-a-domain.md) | The artifact is a namespace; `domain` names the role, not the thing — package renamed from `custom-domain`, vocabulary kept | 2026-09-03 |
 | [097](./0097-the-published-root-is-the-module-itself.md)  | The published root is `src/index.js`; the barrel/`public` split earns itself per MODULE, not per export                     | 2026-09-04 |
+| [098](./0098-a-namespace-is-recognized-by-reference.md)   | No `isCustomNamespace` — the caller holds the namespace, and a structural check reads a shape rather than an origin         | 2026-09-04 |

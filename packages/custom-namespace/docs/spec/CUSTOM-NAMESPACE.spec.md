@@ -318,7 +318,9 @@ does not have — a lie that would make a throwing call typecheck.
 a type signature of `'[object Object]'`, precisely so it can reject an object
 hand-decorated with an own `Symbol.toStringTag` to lie about its `[[Class]]`. A branded
 namespace is that shape by construction. A predicate admitting both would be the defect.
-The recognizer a consumer actually needs is Open item 1.
+The recognizer a consumer might reach for next is declined by ADR #098: the caller already
+holds the namespace it built, and a structural check would read a shape rather than an
+origin.
 
 ## C — The `Symbol.toPrimitive` implementation (`prim/*`)
 
@@ -413,8 +415,8 @@ than vectors for exactly that reason.
 - **It does not verify that `exports` is a module surface.** "The author's own exports at
   definition time" is the intended use and the justification for running getters. It is
   not a checked precondition.
-- **It does not detect namespaces.** There is no `isCustomNamespace` here yet; see Open
-  item 1.
+- **It does not detect namespaces.** There is no `isCustomNamespace`, by decision rather
+  than by omission — the caller holds what the builder returned (ADR #098).
 - **It makes no cross-realm claim.** A namespace built in another realm has the same
   structural shape, but nothing here reads or compares realm identity. The module has no
   cross-realm surface because it has no predicate. The question becomes live only once a
@@ -422,17 +424,12 @@ than vectors for exactly that reason.
 
 ## Open items
 
-1. **`isCustomNamespace` is owed.** `ns/R1` is why a consumer cannot use
-   `isDictionaryObject` to recognize a namespace, and that behavior is correct, so the
-   answer is a dedicated recognizer: structural, on null prototype, brand and `String()`
-   shape, optionally with a realm `WeakSet` for same-realm certainty. Deliberately not
-   built yet — the split between a generic half and any domain-specific half should be
-   settled by a consumer that exists, not guessed from one that does not. The owner ruled
-   on 2026-09-03 that no current code is blocked by its absence.
-2. **Spec filename.** This file is named for the package, because its entry module is
-   `src/index.js`, whereas every sibling spec in the workspace is named for a module
-   (`FUNCTION`, `BOUND`). If a second module here ever earns a spec, the convention should
-   be revisited rather than extended by accident.
+1. ~~**`isCustomNamespace` is owed.**~~ **DECLINED 2026-09-04, ADR #098** — see Resolved
+   item 5. Kept in place so the numbering stays stable.
+2. ~~**Spec filename.**~~ **MOOT 2026-09-04** — the question was what to do if a second
+   module ever earned a spec, and #098 removed the only candidate. If one arrives by
+   another route, the convention is still worth revisiting rather than extending by
+   accident.
 3. ~~**`type/T5` is unverified.**~~ **RESOLVED 2026-09-04** — it earned the fixture; see
    Resolved item 3. Kept in place so the numbering stays stable.
 4. **No `docs/architecture/` exists for this package.** This spec currently carries the
@@ -474,3 +471,11 @@ than vectors for exactly that reason.
    predates `ns/B3` and was not revised when that vector was appended. Recorded rather
    than quietly corrected, because an uncounted count is how a spec starts drifting from
    the suite that cites it.
+
+5. **The owed recognizer was declined, not built** (Open item 1, ADR #098, 2026-09-04).
+   Freezing the spec settled what `isCustomNamespace` would look like, which is not the
+   same as settling whether it should exist. Asking what it was for answered the second
+   question: the caller already holds the namespace it built, a structural check can only
+   report a shape rather than an origin, and the one layer a spoof cannot pass — a
+   builder-side `WeakSet` — is that same reference, kept in the package instead of by the
+   caller. The ADR carries the probe and the re-open trigger.
