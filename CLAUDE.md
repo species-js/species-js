@@ -239,9 +239,10 @@ authority stays with the user.
 See `SCAFFOLD.md` for all configuration rationale. Per-package architecture and decisions
 live under `packages/<name>/docs/`:
 
-- `packages/<name>/docs/architecture/` — one file per module (mental model, cross-realm
-  safety, predicate composition, open questions). `README.md` indexes the module files and
-  lists cross-cutting patterns.
+- `packages/<name>/docs/architecture/` — the conceptual map (mental model, cross-realm
+  safety, predicate composition, open questions). One file per module, indexed by
+  `README.md`, which also carries the cross-cutting patterns — but the split earns itself
+  per MODULE (#097's threshold), so a package documenting one puts the map in `README.md`.
 - `packages/<name>/docs/decisions/` — one ADR file per decision (`NNNN-slug.md`).
   `README.md` indexes by domain and chronologically; `open-questions.md` tracks unresolved
   policy/scope questions.
