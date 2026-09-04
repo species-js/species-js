@@ -11,6 +11,10 @@
 > **Status: FROZEN 2026-09-04** — owner-reviewed. This is the base for the axis-1
 > (contract) suite. From here on, amend it in place with a dated banner (#054) rather than
 > rewriting: a spec that contradicts the code is worse than an amended one.
+>
+> **Amended 2026-09-04** — `type/T5` went from unverified to asserted, and the vector
+> count was corrected from 53 to 54. Both are recorded under Resolved items; the count was
+> written before `ns/B3` was appended and never revised. No vector's meaning changed.
 
 ### How to read this
 
@@ -32,9 +36,9 @@ Three claims did not survive that check. They were fixed in `7842905` rather tha
 down here as though specified.
 
 > **The axis-1 suite exists and is the standing form of these checks** —
-> `test/spec.test.js` plus `test/type-contract.js`, asserting 52 of the 53 vectors below.
-> The single exclusion is `type/T5`; see Open item 3. The suite was mutation-probed three
-> ways, and `pnpm run typecheck` gates the `type/T*` band.
+> `test/spec.test.js` plus `test/type-contract.js`, asserting **all 54** vectors below.
+> The suite was mutation-probed three ways, and `pnpm run typecheck` gates the `type/T*`
+> band.
 
 ## Module contract
 
@@ -367,17 +371,20 @@ Checked by `pnpm run typecheck`, not by a runtime vector.
 - `type/T3` — assigning to a member is a type error.
 - `type/T4` — assigning to `[Symbol.toStringTag]` is a type error.
 - `type/T5` — `T` is constrained to `object` rather than to an index-signature type, so an
-  `interface` is accepted. **Not verified** — see below.
+  `interface` is accepted, and its members survive the intersection.
 
 `type/T2` is what keeps `CustomNamespace` usable as a parameter type for any namespace.
 
 `type/T3` and `type/T4` are asserted with `@ts-expect-error`, which fails in both
 directions: if the assignment were permitted, the unused directive would itself error.
 
-`type/T5` could not be executed. Reproducing it needs a real `interface` declaration,
-which the package's JSDoc-typed probe cannot express. It is recorded as provenance for a
-rejected alternative — `Record<PropertyKey, unknown>`, which produced `TS2345` against an
-interface — not as a checked vector. See Open item 3.
+`type/T5` asserts both halves of the constraint choice. The accepted half passes an
+`interface`-typed bag and reads a member back at its declared type; the rejected half
+calls a generic constrained to `Record<PropertyKey, unknown>` under `@ts-expect-error`, so
+the abandoned alternative stays executable rather than remembered. The `interface` itself
+lives in `test/__types.d.ts`, because JSDoc's `@typedef` yields a type alias and
+TypeScript gives an alias the implicit index signature an `interface` never gets — the
+very difference under test.
 
 ## Realm-fixed captures (`cap/*`)
 
@@ -426,8 +433,8 @@ than vectors for exactly that reason.
    `src/index.js`, whereas every sibling spec in the workspace is named for a module
    (`FUNCTION`, `BOUND`). If a second module here ever earns a spec, the convention should
    be revisited rather than extended by accident.
-3. **`type/T5` is unverified.** Either it earns a real `interface` fixture in the contract
-   suite, or it is demoted to prose in the entry's doc block.
+3. ~~**`type/T5` is unverified.**~~ **RESOLVED 2026-09-04** — it earned the fixture; see
+   Resolved item 3. Kept in place so the numbering stays stable.
 4. **No `docs/architecture/` exists for this package.** This spec currently carries the
    mental model itself. If an architecture doc is written, the "Why this spec is shaped
    differently" section should point at it rather than duplicate it.
@@ -449,3 +456,21 @@ than vectors for exactly that reason.
 
    **The spec was deliberately not written first.** A spec distills documentation, and
    documentation that has not been executed is a rumor.
+
+3. **`type/T5` is verified after all** (Open item 3, 2026-09-04). The obstacle was
+   believed to be structural — a real `interface` cannot be written in JSDoc, and this
+   package authors no `.ts` sources — but the second half of that does not follow: a
+   declarations-only `test/__types.d.ts` needs no `.js` twin, and the fixture reaches it
+   by a relative specifier, as test-support modules already do elsewhere. The vector now
+   asserts both halves, the accepted constraint and the rejected one.
+
+   Verifying it mattered more than the one vector. A JSDoc `import()` that fails to
+   resolve degrades to `any` in silence, so the first attempt compiled clean while
+   asserting nothing at all; only mutating the interface member — and getting `TS2322` —
+   showed the reference was real.
+
+4. **The vector count was wrong** (2026-09-04). The suite banner read "52 of the 53"; the
+   file has always held 54, and 53 were asserted before `type/T5` joined them. The banner
+   predates `ns/B3` and was not revised when that vector was appended. Recorded rather
+   than quietly corrected, because an uncounted count is how a spec starts drifting from
+   the suite that cites it.

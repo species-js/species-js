@@ -22,9 +22,9 @@ contributor floor.
 
 Its behavior is pinned by a frozen specification —
 [`docs/spec/CUSTOM-NAMESPACE.spec.md`](./docs/spec/CUSTOM-NAMESPACE.spec.md) — and by the
-contract suite derived from it, which asserts 53 of its 54 vectors. The one exclusion is a
-type-level claim that cannot be reproduced without a real `interface` declaration, and the
-spec records it as unverified rather than implying otherwise.
+contract suite derived from it, which asserts all 54 of its vectors — the runtime ones
+under `vitest`, and the five type-level ones under `tsc`, which fails the package's
+typecheck if any of them stops holding.
 
 No npm release has been cut yet; the release chain of ADR #093 is decided and not
 executed.

@@ -6,17 +6,18 @@
  *
  * ## Why this file exists
  *
- * Four of the spec's vectors are claims about the DECLARED contract rather than
+ * Five of the spec's vectors are claims about the DECLARED contract rather than
  * about runtime behavior: that a member keeps the type it had on `exports`, that
- * an unknown key reads as `unknown`, and that neither a member nor the brand can
- * be assigned. None of them can be asserted with `expect` — they are true or
- * false at compile time, and a runtime suite cannot see them at all.
+ * an unknown key reads as `unknown`, that neither a member nor the brand can be
+ * assigned, and that the `T extends object` constraint admits an `interface`.
+ * None of them can be asserted with `expect` — they are true or false at compile
+ * time, and a runtime suite cannot see them at all.
  *
  * They also have nowhere else to live. type-detection's `config` round needed no
  * such fixture because the package's own source exercises its boundary-retypes
  * on every call. Here the claims are about the CONSUMER-facing return type,
  * `CustomNamespace & Readonly<T>`, and nothing inside `src/` ever consumes the
- * builder's own output. Without this file the four vectors would be recorded in
+ * builder's own output. Without this file the five vectors would be recorded in
  * a frozen spec and checked by nothing, which is the failure mode the spec was
  * written to prevent.
  *
@@ -32,13 +33,22 @@
  * `@ts-expect-error` directives produced `TS2540`. A fixture nobody has seen
  * fail is not yet a gate.
  *
- * ## What is deliberately absent
+ * `type/T5` was probed the same way on 2026-09-04, for a reason particular to
+ * it: it reads a type across a file boundary, and an unresolved `import()` in
+ * JSDoc degrades to `any` SILENTLY — the fixture would compile while asserting
+ * nothing. Mistyping the interface member produced `TS2322`, so the reference
+ * resolves to the real declaration.
  *
- * `type/T5` — that `T extends object` admits an `interface`. Reproducing it
- * needs a real `interface` declaration, which JSDoc cannot express, and this
- * package authors no `.ts` sources. The spec records it as unverified rather
- * than implying otherwise (spec Open item 3).
+ * ## Why there is a sibling `__types.d.ts`
+ *
+ * `type/T5` is a claim about the DECLARATION FORM of the exports bag, and JSDoc
+ * cannot state it: `@typedef` produces a type alias, and TypeScript gives an
+ * object type alias the implicit index signature an `interface` never gets. The
+ * one `interface` this package needs therefore lives in a declarations-only
+ * sibling, which the block below reads.
  */
+
+/** @typedef {import('./__types').NamespaceExports} NamespaceExports */
 
 import { createCustomNamespace } from '#index';
 
@@ -79,6 +89,32 @@ namespace.a = 2;
 // @ts-expect-error - the tag is readonly
 namespace[Symbol.toStringTag] = 'Other';
 
+// type/T5 — `T extends object` admits an `interface`, and members declared on
+// one survive the intersection exactly as an object literal's do. A consumer
+// writing `interface MyExports` in TypeScript is the case this stands for.
+/** @type {NamespaceExports} */
+const interfaceExports = { a: 1 };
+const fromInterface = createCustomNamespace('t', interfaceExports);
+/** @type {number} */
+const interfaceMember = fromInterface.a;
+
+// - the second half of T5 is the constraint that was REJECTED, kept here as an
+//   executable record rather than as prose. `narrowlyConstrained` stands in for
+//   a `createCustomNamespace` declared `T extends Record<PropertyKey, unknown>`
+//   — the form tried and abandoned, because an interface has no implicit index
+//   signature and so fails it with TS2345. The directive asserts both ways like
+//   the two above: were that constraint ever to admit an interface, the
+//   suppression would go unused and tsc would report it.
+/**
+ * @template {Record<PropertyKey, unknown>} T
+ * @param {T} exports - a candidate exports bag
+ * @returns {T} the same value
+ */
+const narrowlyConstrained = (exports) => exports;
+
+// @ts-expect-error - an interface satisfies `object` but not an index signature
+narrowlyConstrained(interfaceExports);
+
 // - inert by design: nothing imports this, and the object exists only so the
 //   three consts above count as read. Without it `no-unused-vars` would reject
 //   the file, and deleting the consts to satisfy the linter would delete the
@@ -87,4 +123,5 @@ export const typeContractFixture = {
   memberNumber,
   memberString,
   absentMember,
+  interfaceMember,
 };
