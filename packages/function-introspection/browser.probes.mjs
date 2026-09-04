@@ -48,6 +48,35 @@ const methodNamedAsync = { async() {} }.async;
 const NATIVE_ANONYMOUS = 'function(){[native code]}';
 
 /**
+ * Names a caller can install through `defineProperty`, none of them a valid
+ * identifier.
+ *
+ * `name` is `configurable: true` on every function, so its value is chosen by
+ * whoever holds the reference — and A5 established that JavaScriptCore renders
+ * that value into the native source form. These are the strings that would
+ * break a pattern permissive enough to accept "any name": one carrying
+ * balanced punctuation, one carrying the marker itself, and the empty string.
+ */
+const ADVERSARIAL_NAMES = ['(){} evil', 'foo(){}', '', '[native code]'];
+
+/**
+ * A bound function whose target carries `name`.
+ *
+ * Fresh per call, because each probe renames its own target and a shared one
+ * would leak the last name into the next assertion.
+ *
+ * @param {string} name - the name to install before binding
+ * @returns {Function} the bound function
+ */
+const boundWithName = (name) => {
+  const target = function () {};
+
+  Object.defineProperty(target, 'name', { value: name, configurable: true });
+
+  return target.bind(null);
+};
+
+/**
  * @typedef {{ name: string, run: (ns: Record<string, (...args: unknown[]) => unknown>) => boolean | string }} Probe
  */
 
@@ -196,6 +225,43 @@ export const probes = [
     },
   },
 
+  {
+    // What a name-tolerant pattern would have to survive. A5 showed JSC
+    // renders the caller's `name`; this asks whether it renders it VERBATIM.
+    // If it does, `function (){} evil(){[native code]}` is a string a caller
+    // can produce at will, and a pattern with `.*` in the name slot would
+    // match it — so the slot needs a character class, not a wildcard.
+    name: 'A6 · what an adversarial `name` renders as',
+    run: (ns) => {
+      const condense = /** @type {(v: unknown) => string | undefined} */ (
+        /** @type {unknown} */ (ns.getCondensedFunctionSource)
+      );
+
+      // The control: an UNBOUND target keeps its `[[SourceText]]` whatever its
+      // `name` says. Without a claim expecting something other than the native
+      // constant, a condensate stubbed to that constant would pass this probe
+      // while reading nothing.
+      const unbound = function () {};
+
+      Object.defineProperty(unbound, 'name', {
+        value: '(){} evil',
+        configurable: true,
+      });
+
+      return holds([
+        ...ADVERSARIAL_NAMES.map(
+          (name) =>
+            /** @type {[string, unknown, unknown]} */ ([
+              `bound target named ${JSON.stringify(name)}`,
+              condense(boundWithName(name)),
+              NATIVE_ANONYMOUS,
+            ]),
+        ),
+        ['unbound target, adversarial name', condense(unbound), 'function(){}'],
+      ]);
+    },
+  },
+
   // ----- Layer B — the verdicts that rest on layer A -----
   {
     name: 'B1 · bound-function indication survives the engine source form',
@@ -320,6 +386,38 @@ export const probes = [
         ],
         ['indicates(Math.max)', ns.doesIndicateBoundFunction(Math.max), false],
         ['plainConcise(Math.max)', ns.isPlainConciseMethod(Math.max), false],
+      ]),
+  },
+  {
+    // The question that actually matters. CONCISE's standing law L3 says every
+    // failure of this module is a MISS — it may decline to recognize, it may
+    // never wrongly admit. On JSC the source a caller can influence is fed to
+    // the same shape matchers, so this asks whether a chosen `name` can buy an
+    // ADMISSION. A miss here would be a divergence; a false positive would
+    // break the invariant the `is` prefix is priced on (#090).
+    name: 'B9 · an adversarial `name` cannot buy a false positive',
+    run: (ns) =>
+      holds([
+        ...ADVERSARIAL_NAMES.flatMap((name) => {
+          const label = JSON.stringify(name);
+
+          return /** @type {[string, unknown, unknown][]} */ ([
+            [
+              `plainConcise(bound ${label})`,
+              ns.isPlainConciseMethod(boundWithName(name)),
+              false,
+            ],
+            [
+              `anyConcise(bound ${label})`,
+              ns.isAnyConciseMethod(boundWithName(name)),
+              false,
+            ],
+            [`arrow(bound ${label})`, ns.isArrowFunction(boundWithName(name)), false],
+          ]);
+        }),
+        // positive control — every expectation above is `false`, so without
+        // this a predicate stubbed to that constant would pass reading nothing
+        ['anyConcise(method)', ns.isAnyConciseMethod(method), true],
       ]),
   },
 ];
