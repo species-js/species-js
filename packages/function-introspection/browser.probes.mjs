@@ -51,6 +51,11 @@ const plain = function () {};
 const named = function namedFunction() {};
 const method = { m() {} }.m;
 const methodNamedAsync = { async() {} }.async;
+/** @type {(a: unknown) => Promise<unknown>} */
+const asyncArrow = async (a) => a;
+const asyncMethod = { async m() {} }.m;
+const generatorMethod = { *m() {} }.m;
+const asyncGeneratorMethod = { async *m() {} }.m;
 
 /** The condensed form of an anonymous native function — the module's foundation. */
 const NATIVE_ANONYMOUS = 'function(){[native code]}';
@@ -157,7 +162,7 @@ const holds = (claims) => {
 
 /** @type {Probe[]} */
 export const probes = [
-  // ----- Layer A — the condensed source, character for character -----
+  // ----- Layer A — the engine SURVEY: what each engine returns, recorded -----
   {
     // The three examples published in `utility/index.d.ts`. A consumer reads
     // these; an engine that breaks them makes the published docs wrong there.
@@ -368,7 +373,7 @@ export const probes = [
     },
   },
 
-  // ----- Layer B — the verdicts that rest on layer A -----
+  // ----- Layer B — the library CONTRACT: identical on every engine -----
   {
     name: 'B1 · bound-function indication survives the engine source form',
     run: (ns) => {
@@ -525,6 +530,81 @@ export const probes = [
         // this a predicate stubbed to that constant would pass reading nothing
         ['anyConcise(method)', ns.isAnyConciseMethod(method), true],
       ]),
+  },
+
+  // - B10 to B12 close the measurement gap. Six of the eleven public exports
+  //   had cross-engine evidence; these five had none, and "no probe touched
+  //   it" is not the same as "it is fine". Every expectation is V8's measured
+  //   answer, taken before the probes were written.
+  {
+    name: 'B10 · the arrow pair, which read no native form at all',
+    run: (ns) =>
+      holds([
+        ['asyncArrow is an async arrow', ns.isAsyncArrowFunction(asyncArrow), true],
+        ['a plain arrow is not', ns.isAsyncArrowFunction(arrow), false],
+        ['a plain arrow IS any-arrow', ns.isAnyArrowFunction(arrow), true],
+        ['an async arrow IS any-arrow', ns.isAnyArrowFunction(asyncArrow), true],
+        ['a function expression is not', ns.isAnyArrowFunction(plain), false],
+        ['a concise method is not', ns.isAnyArrowFunction(method), false],
+      ]),
+  },
+  {
+    // Also asserts CONCISE's law L2 across the flavours — no value is admitted
+    // by more than one — which is the property a shared source reader is most
+    // likely to lose if an engine hands it a different string.
+    name: 'B11 · each concise flavour admits its own shape and refuses the others',
+    run: (ns) =>
+      holds([
+        ['async', ns.isConciseAsyncMethod(asyncMethod), true],
+        ['generator', ns.isConciseGeneratorMethod(generatorMethod), true],
+        ['asyncGenerator', ns.isConciseAsyncGeneratorMethod(asyncGeneratorMethod), true],
+        ['async is not a generator', ns.isConciseGeneratorMethod(asyncMethod), false],
+        ['generator is not async', ns.isConciseAsyncMethod(generatorMethod), false],
+        [
+          'asyncGenerator is not plain async',
+          ns.isConciseAsyncMethod(asyncGeneratorMethod),
+          false,
+        ],
+        ['a plain method is none of them', ns.isConciseAsyncMethod(method), false],
+      ]),
+  },
+  {
+    // The one that matters. B9 showed `'(){} evil'` buying an admission from
+    // `isPlainConciseMethod` and `isAnyConciseMethod` on JSC; this asks whether
+    // the same input buys one from any of the five that were never measured.
+    // A `true` in any of the fifteen below is another L3 break.
+    name: 'B12 · the JSC-exposed inputs, against all five unmeasured predicates',
+    run: (ns) => {
+      const hostile = {
+        'bound method': method.bind(null),
+        'Proxy over method': new Proxy(method, {}),
+        'adversarially named bound fn': boundWithName('(){} evil'),
+      };
+      const predicates = {
+        asyncArrow: ns.isAsyncArrowFunction,
+        anyArrow: ns.isAnyArrowFunction,
+        conciseAsync: ns.isConciseAsyncMethod,
+        conciseGenerator: ns.isConciseGeneratorMethod,
+        conciseAsyncGenerator: ns.isConciseAsyncGeneratorMethod,
+      };
+
+      return holds([
+        ...Object.entries(hostile).flatMap(([inputLabel, value]) =>
+          Object.entries(predicates).map(
+            ([predicateLabel, predicate]) =>
+              /** @type {[string, unknown, unknown]} */ ([
+                `${predicateLabel}(${inputLabel})`,
+                predicate(value),
+                false,
+              ]),
+          ),
+        ),
+        // positive controls, one per family — without them a pair of
+        // predicates stubbed to `false` would pass all fifteen claims above
+        ['anyArrow(arrow)', ns.isAnyArrowFunction(arrow), true],
+        ['conciseAsync(asyncMethod)', ns.isConciseAsyncMethod(asyncMethod), true],
+      ]);
+    },
   },
 ];
 
