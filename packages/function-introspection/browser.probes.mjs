@@ -48,8 +48,31 @@ const methodNamedAsync = { async() {} }.async;
 const NATIVE_ANONYMOUS = 'function(){[native code]}';
 
 /**
- * @typedef {{ name: string, run: (ns: Record<string, (...args: unknown[]) => unknown>) => boolean }} Probe
+ * @typedef {{ name: string, run: (ns: Record<string, (...args: unknown[]) => unknown>) => boolean | string }} Probe
  */
+
+/**
+ * Answers `true` when every claim holds, otherwise a report of what differed.
+ *
+ * A probe that can only answer `false` names the engine that disagreed and
+ * nothing else — which, for a check whose entire purpose is to learn what
+ * another engine emits, is one dispatch short of the answer. WebKit's first
+ * run cost exactly that round trip. Reporting the observed string turns a red
+ * run into a finding.
+ *
+ * @param {[string, unknown, unknown][]} claims - label, actual, expected
+ * @returns {true | string} true when all hold, else the differences
+ */
+const holds = (claims) => {
+  const broken = claims
+    .filter(([, actual, expected]) => actual !== expected)
+    .map(
+      ([label, actual, expected]) =>
+        `${label}: got ${JSON.stringify(actual)}, expected ${JSON.stringify(expected)}`,
+    );
+
+  return broken.length === 0 ? true : broken.join('\n      ');
+};
 
 /** @type {Probe[]} */
 export const probes = [
@@ -63,11 +86,11 @@ export const probes = [
         /** @type {unknown} */ (ns.getCondensedFunctionSource)
       );
 
-      return (
-        condense(Proxy.bind(null)) === NATIVE_ANONYMOUS &&
-        condense(Proxy) === 'function Proxy(){[native code]}' &&
-        condense(arrow) === '(a)=> a'
-      );
+      return holds([
+        ['Proxy.bind(null)', condense(Proxy.bind(null)), NATIVE_ANONYMOUS],
+        ['Proxy', condense(Proxy), 'function Proxy(){[native code]}'],
+        ['(a) => a', condense(arrow), '(a)=> a'],
+      ]);
     },
   },
   {
@@ -80,10 +103,14 @@ export const probes = [
         /** @type {unknown} */ (ns.getCondensedFunctionSource)
       );
 
-      return (
-        condense(Math.max) === 'function max(){[native code]}' &&
-        condense(Function.prototype.bind) === 'function bind(){[native code]}'
-      );
+      return holds([
+        ['Math.max', condense(Math.max), 'function max(){[native code]}'],
+        [
+          'Function.prototype.bind',
+          condense(Function.prototype.bind),
+          'function bind(){[native code]}',
+        ],
+      ]);
     },
   },
   {
@@ -97,14 +124,14 @@ export const probes = [
         /** @type {unknown} */ (ns.getCondensedFunctionSource)
       );
 
-      return (
-        condense(named.bind(null)) === NATIVE_ANONYMOUS &&
-        condense(plain.bind(null)) === NATIVE_ANONYMOUS &&
+      return holds([
+        ['named.bind(null)', condense(named.bind(null)), NATIVE_ANONYMOUS],
+        ['plain.bind(null)', condense(plain.bind(null)), NATIVE_ANONYMOUS],
         // the negative half: the UNBOUND original must not answer the native
         // form, or a condensate stubbed to that constant would pass the two
         // assertions above while reading nothing.
-        condense(named) === 'function namedFunction(){}'
-      );
+        ['named (unbound)', condense(named), 'function namedFunction(){}'],
+      ]);
     },
   },
   {
@@ -117,10 +144,12 @@ export const probes = [
         /** @type {unknown} */ (ns.getCondensedFunctionSource)
       );
 
-      return (
-        condense(new Proxy(named, {})) === NATIVE_ANONYMOUS &&
-        condense(arrow) !== NATIVE_ANONYMOUS
-      );
+      return holds([
+        ['Proxy over a named fn', condense(new Proxy(named, {})), NATIVE_ANONYMOUS],
+        // the negative half, expressed as an equality so the report shows the
+        // value rather than only that a `!==` held
+        ['an arrow must NOT read as native', condense(arrow), '(a)=> a'],
+      ]);
     },
   },
 

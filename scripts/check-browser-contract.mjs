@@ -198,9 +198,17 @@ async function runProbes(browser, target) {
 
         return probes.map((probe) => {
           try {
+            // A probe answers `true`, or a STRING describing what it actually
+            // saw. A bare `false` names the engine that disagreed and nothing
+            // else, which is one round trip short of useful when the whole
+            // point is to learn what another engine emits.
             const answer = probe.run(namespace);
 
-            return { name: probe.name, ok: answer === true };
+            return {
+              name: probe.name,
+              ok: answer === true,
+              ...(typeof answer === 'string' && { error: answer }),
+            };
           } catch (reason) {
             return {
               name: probe.name,
@@ -305,7 +313,7 @@ for (const engine of engines) {
           failures += 1;
           console.warn(
             `  ✗ ${target.name} · ${result.name}` +
-              (result.error ? ` — threw: ${result.error}` : ''),
+              (result.error ? `\n      ${result.error}` : ''),
           );
         }
       }
