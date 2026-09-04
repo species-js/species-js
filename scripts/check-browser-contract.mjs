@@ -157,13 +157,20 @@ function collectTargets() {
  * themselves to `globalThis`: a module's exports are not reachable from
  * `page.evaluate`, which sees the page's global scope only.
  *
+ * The engine NAME is threaded through to each probe, because a layer-A probe
+ * asserts an engine PROFILE rather than a portable contract: what JSC returns
+ * from `Function.prototype.toString` differs from V8 as a matter of fact, not
+ * of correctness, so the expected value is per engine. Layer B stays portable.
+ *
  * @param {import('playwright').Browser} browser - the launched engine
  * @param {{ name: string, global: string, bundle: string, probes: string }} target
  *  - the package under test
+ * @param {string} engine - `chromium` | `firefox` | `webkit`, handed to probes
+ *  so they can select their per-engine expectation
  * @returns {Promise<{ name: string, ok: boolean, error?: string }[]>} one
  *  result per probe
  */
-async function runProbes(browser, target) {
+async function runProbes(browser, target, engine) {
   const page = await browser.newPage();
 
   try {
@@ -182,7 +189,7 @@ async function runProbes(browser, target) {
     });
 
     return await page.evaluate(
-      ({ globalPath }) => {
+      ({ globalPath, engine }) => {
         /** @type {unknown} */
         let namespace = globalThis;
 
@@ -192,9 +199,10 @@ async function runProbes(browser, target) {
         if (!namespace) {
           throw new Error(`the bundle published no global at \`${globalPath}\``);
         }
-        const probes = /** @type {{ name: string, run: (ns: unknown) => unknown }[]} */ (
-          /** @type {Record<string, unknown>} */ (globalThis).__speciesBrowserProbes
-        );
+        const probes =
+          /** @type {{ name: string, run: (ns: unknown, ctx: { engine: string }) => unknown }[]} */ (
+            /** @type {Record<string, unknown>} */ (globalThis).__speciesBrowserProbes
+          );
 
         return probes.map((probe) => {
           try {
@@ -202,7 +210,7 @@ async function runProbes(browser, target) {
             // saw. A bare `false` names the engine that disagreed and nothing
             // else, which is one round trip short of useful when the whole
             // point is to learn what another engine emits.
-            const answer = probe.run(namespace);
+            const answer = probe.run(namespace, { engine });
 
             return {
               name: probe.name,
@@ -218,7 +226,7 @@ async function runProbes(browser, target) {
           }
         });
       },
-      { globalPath: target.global },
+      { globalPath: target.global, engine },
     );
   } finally {
     await page.close();
@@ -303,7 +311,7 @@ for (const engine of engines) {
 
   try {
     for (const target of targets) {
-      const results = await runProbes(browser, target);
+      const results = await runProbes(browser, target, engine);
 
       executed += results.length;
       for (const result of results) {
@@ -328,10 +336,11 @@ if (failures > 0) {
   console.error(
     `✗ ${failures} of ${executed} probe runs failed across ` +
       `${engines.length} engine(s).\n\n` +
-      '  Read the failure by LAYER. An `A` probe alone means the documented\n' +
-      '  source strings are V8-specific while classification still holds — a\n' +
-      '  documentation defect. `A` and `B` together is a real classification\n' +
-      '  bug on that engine.\n',
+      '  Read the failure by LAYER. `A` probes assert an engine PROFILE — a\n' +
+      '  recorded fact about what that engine returns — so an `A` failure\n' +
+      '  means THE ENGINE CHANGED, and the profile needs re-recording after\n' +
+      '  you confirm the new value. `B` probes assert the library contract,\n' +
+      '  identically on every engine, so a `B` failure is a DEFECT.\n',
   );
   process.exit(1);
 }

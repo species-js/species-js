@@ -18,20 +18,28 @@
  * `concise` reads source through that normalization, so if it is wrong on an
  * engine, every predicate downstream is wrong there too — silently.
  *
- * ## Two layers, and why the distinction matters
+ * ## Two layers, and why they assert different KINDS of thing
  *
- * **Layer A** pins the condensed source character for character, including the
- * three examples published in `utility/index.d.ts`. These are claims a consumer
- * can read, so an engine that breaks them makes the documentation wrong for
- * that engine.
+ * **Layer A is an engine SURVEY.** It records, per engine, what
+ * `Function.prototype.toString` yields for the forms this package reads. Those
+ * values are facts about engines, not correctness claims — JSC names a bound
+ * function's target where V8 and SpiderMonkey render it anonymously, and
+ * neither is wrong. So layer A carries a PROFILE per engine, and a layer-A
+ * failure means **the engine changed**: confirm the new value, then re-record.
  *
- * **Layer B** pins the predicate verdicts that rest on layer A.
+ * Asserting V8's answers everywhere was the first shape of this file, and it
+ * made every JSC run red for something that is not a defect. A red meaning two
+ * incompatible things is a red that stops being read.
  *
- * Read a failure by which layer moved. A failing on its own means the
- * documented strings are V8-specific while the library still classifies
- * correctly — a documentation defect. A and B failing together is a real
- * classification bug on that engine. B failing while A holds would mean the
- * divergence is somewhere other than the source form.
+ * **Layer B is the library CONTRACT**, and it is identical on every engine. A
+ * layer-B failure is a DEFECT — the module answering differently depending on
+ * where it runs. That is what B7, B8 and B9 currently report on WebKit.
+ *
+ * The condensate itself is not on trial in either layer. It is a deterministic
+ * transform and it does exactly what it is specified to do; what differs is the
+ * string handed to it. Its consumers — the two `!== FOUNDATION` guards in
+ * `concise.js` and the `===` in `bound.js` — are where an engine difference
+ * turns into a wrong answer.
  */
 
 // Typed from ABOVE, never inline — these fixtures are read through
@@ -60,6 +68,24 @@ const NATIVE_ANONYMOUS = 'function(){[native code]}';
 const ADVERSARIAL_NAMES = ['(){} evil', 'foo(){}', '', '[native code]'];
 
 /**
+ * What JavaScriptCore renders for each of those names, after condensing.
+ *
+ * Recorded from WebKit 26.5 rather than derived, because the condensing is
+ * visible in them and worth reading: the space in `'(){} evil'` disappears on
+ * both sides (adjacent to `)` and to `}`), while `'foo(){}'` keeps the space
+ * after `function` because `foo` is a word character. The first entry is the
+ * string that buys an admission — see B9.
+ *
+ * @type {Record<string, string>}
+ */
+const WEBKIT_ADVERSARIAL_FORMS = {
+  '(){} evil': 'function(){}evil(){[native code]}',
+  'foo(){}': 'function foo(){}(){[native code]}',
+  '': 'function(){[native code]}',
+  '[native code]': 'function[native code](){[native code]}',
+};
+
+/**
  * A bound function whose target carries `name`.
  *
  * Fresh per call, because each probe renames its own target and a shared one
@@ -77,8 +103,34 @@ const boundWithName = (name) => {
 };
 
 /**
- * @typedef {{ name: string, run: (ns: Record<string, (...args: unknown[]) => unknown>) => boolean | string }} Probe
+ * @typedef {{ engine: string }} EngineContext
  */
+
+/**
+ * @typedef {{ name: string, run: (ns: Record<string, (...args: unknown[]) => unknown>, ctx: EngineContext) => boolean | string }} Probe
+ */
+
+/**
+ * Selects the expectation recorded for the engine under test.
+ *
+ * Layer A asserts an engine PROFILE, not a portable contract. What an engine
+ * returns from `Function.prototype.toString` for a bound function is a fact
+ * about that engine, not a correctness question — JSC names the target where
+ * V8 and SpiderMonkey do not, and neither is wrong. Asserting V8's answer
+ * everywhere made every JSC run red for something that is not a defect, which
+ * costs the red its meaning.
+ *
+ * With profiles, a layer-A failure means exactly one thing: **the engine
+ * changed**. That is worth a red, and it is a different red from layer B's.
+ *
+ * @template T
+ * @param {string} engine - the engine under test
+ * @param {{ default: T } & Partial<Record<string, T>>} profiles - the recorded
+ *  values, keyed by engine, with `default` covering the unlisted ones
+ * @returns {T} the value recorded for this engine
+ */
+const perEngine = (engine, profiles) =>
+  engine in profiles ? /** @type {T} */ (profiles[engine]) : profiles.default;
 
 /**
  * Answers `true` when every claim holds, otherwise a report of what differed.
@@ -109,14 +161,23 @@ export const probes = [
   {
     // The three examples published in `utility/index.d.ts`. A consumer reads
     // these; an engine that breaks them makes the published docs wrong there.
-    name: 'A1 · the documented condensate examples hold',
-    run: (ns) => {
+    name: 'A1 · the documented condensate examples, per engine',
+    run: (ns, { engine }) => {
       const condense = /** @type {(v: unknown) => string | undefined} */ (
         /** @type {unknown} */ (ns.getCondensedFunctionSource)
       );
 
       return holds([
-        ['Proxy.bind(null)', condense(Proxy.bind(null)), NATIVE_ANONYMOUS],
+        [
+          'Proxy.bind(null)',
+          condense(Proxy.bind(null)),
+          // JSC keeps the bound target's name; the `.d.ts` example records
+          // only the V8 form, which is the documentation defect this pins.
+          perEngine(engine, {
+            default: NATIVE_ANONYMOUS,
+            webkit: 'function Proxy(){[native code]}',
+          }),
+        ],
         ['Proxy', condense(Proxy), 'function Proxy(){[native code]}'],
         ['(a) => a', condense(arrow), '(a)=> a'],
       ]);
@@ -147,15 +208,31 @@ export const probes = [
     // function anonymously; an engine that instead emits a `bound f` name
     // would condense to something the foundation comparison misses, and
     // `doesIndicateBoundFunction` reads exactly this.
-    name: 'A3 · a bound function condenses to the ANONYMOUS native form',
-    run: (ns) => {
+    name: 'A3 · how a bound function stringifies, per engine',
+    run: (ns, { engine }) => {
       const condense = /** @type {(v: unknown) => string | undefined} */ (
         /** @type {unknown} */ (ns.getCondensedFunctionSource)
       );
 
       return holds([
-        ['named.bind(null)', condense(named.bind(null)), NATIVE_ANONYMOUS],
-        ['plain.bind(null)', condense(plain.bind(null)), NATIVE_ANONYMOUS],
+        [
+          'named.bind(null)',
+          condense(named.bind(null)),
+          perEngine(engine, {
+            default: NATIVE_ANONYMOUS,
+            webkit: 'function namedFunction(){[native code]}',
+          }),
+        ],
+        [
+          'plain.bind(null)',
+          condense(plain.bind(null)),
+          // `plain` is an ANONYMOUS expression whose `.name` came from
+          // NamedEvaluation — proof JSC reads a name, not `[[SourceText]]`.
+          perEngine(engine, {
+            default: NATIVE_ANONYMOUS,
+            webkit: 'function plain(){[native code]}',
+          }),
+        ],
         // the negative half: the UNBOUND original must not answer the native
         // form, or a condensate stubbed to that constant would pass the two
         // assertions above while reading nothing.
@@ -167,14 +244,23 @@ export const probes = [
     // A Proxy exotic object with [[Call]] has no [[SourceText]], so the spec
     // sends it to the NativeFunction form — a place engines could disagree
     // about the name slot just as they might for a bound function.
-    name: 'A4 · a Proxy over a user function condenses to the anonymous form',
-    run: (ns) => {
+    name: 'A4 · how a Proxy over a user function stringifies, per engine',
+    run: (ns, { engine }) => {
       const condense = /** @type {(v: unknown) => string | undefined} */ (
         /** @type {unknown} */ (ns.getCondensedFunctionSource)
       );
 
       return holds([
-        ['Proxy over a named fn', condense(new Proxy(named, {})), NATIVE_ANONYMOUS],
+        [
+          'Proxy over a named fn',
+          condense(new Proxy(named, {})),
+          // NOT the target's name — JSC names the exotic itself, so the value
+          // is not reconstructible from the wrapped function.
+          perEngine(engine, {
+            default: NATIVE_ANONYMOUS,
+            webkit: 'function ProxyObject(){[native code]}',
+          }),
+        ],
         // the negative half, expressed as an equality so the report shows the
         // value rather than only that a `!==` held
         ['an arrow must NOT read as native', condense(arrow), '(a)=> a'],
@@ -198,8 +284,8 @@ export const probes = [
     // name-tolerant fix must treat that portion as caller-controlled.
     // `anon`/`declaredName` means an internal slot fixed at creation, which
     // `defineProperty` cannot forge.
-    name: 'A5 · whether the rendered native name follows the mutable `name` property',
-    run: (ns) => {
+    name: 'A5 · where the rendered native name comes from, per engine',
+    run: (ns, { engine }) => {
       const condense = /** @type {(v: unknown) => string | undefined} */ (
         /** @type {unknown} */ (ns.getCondensedFunctionSource)
       );
@@ -218,9 +304,26 @@ export const probes = [
         // proves the rename did not simply fail to apply
         ['decl source text', condense(decl), 'function declaredName(){}'],
         ['anon source text', condense(anon), 'function(){}'],
-        // the discriminator itself
-        ['anon.bind(null)', condense(anon.bind(null)), NATIVE_ANONYMOUS],
-        ['decl.bind(null)', condense(decl.bind(null)), NATIVE_ANONYMOUS],
+        // The discriminator. JSC's recorded profile is the RENAMED value, which
+        // is what establishes that it reads the mutable `name` property rather
+        // than a slot fixed at creation — `anon`/`declaredName` would have been
+        // the other answer.
+        [
+          'anon.bind(null)',
+          condense(anon.bind(null)),
+          perEngine(engine, {
+            default: NATIVE_ANONYMOUS,
+            webkit: 'function foo(){[native code]}',
+          }),
+        ],
+        [
+          'decl.bind(null)',
+          condense(decl.bind(null)),
+          perEngine(engine, {
+            default: NATIVE_ANONYMOUS,
+            webkit: 'function bar(){[native code]}',
+          }),
+        ],
       ]);
     },
   },
@@ -231,8 +334,8 @@ export const probes = [
     // If it does, `function (){} evil(){[native code]}` is a string a caller
     // can produce at will, and a pattern with `.*` in the name slot would
     // match it — so the slot needs a character class, not a wildcard.
-    name: 'A6 · what an adversarial `name` renders as',
-    run: (ns) => {
+    name: 'A6 · what an adversarial `name` renders as, per engine',
+    run: (ns, { engine }) => {
       const condense = /** @type {(v: unknown) => string | undefined} */ (
         /** @type {unknown} */ (ns.getCondensedFunctionSource)
       );
@@ -254,7 +357,10 @@ export const probes = [
             /** @type {[string, unknown, unknown]} */ ([
               `bound target named ${JSON.stringify(name)}`,
               condense(boundWithName(name)),
-              NATIVE_ANONYMOUS,
+              perEngine(engine, {
+                default: NATIVE_ANONYMOUS,
+                webkit: WEBKIT_ADVERSARIAL_FORMS[name],
+              }),
             ]),
         ),
         ['unbound target, adversarial name', condense(unbound), 'function(){}'],
