@@ -120,6 +120,8 @@ pnpm run surface:check  # curated public entry === the @internal tagging it re-e
 pnpm run entries:check  # exports map === legacy fields === vite build entries
 pnpm run docs:sweep     # JSDoc hygiene + .js/.d.ts export parity; takes phrases to sweep a claim
 pnpm run smoke:check    # every built artifact loads and its exports execute (needs build)
+pnpm run browser:check  # the UMD probes in Chromium/Firefox/WebKit (needs build:umd + playwright);
+                        # in NEITHER check chain — its own scheduled workflow, see SCAFFOLD.md
 pnpm run typecheck      # tsc per package
 pnpm run lint           # eslint
 pnpm run test           # vitest (all packages)

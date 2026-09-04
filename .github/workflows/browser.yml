@@ -1,0 +1,64 @@
+name: Browser contract
+
+# Deliberately NOT part of the per-push CI. Engine divergence changes when
+# engines ship, not when we commit — our own changes are already covered on V8
+# by `test:coverage`, `smoke:check` and the Node-18 UMD job. Installing three
+# browser engines costs roughly a gigabyte, so paying it on every push would buy
+# a signal that almost never moves.
+#
+# The schedule is what catches the real failure mode: an engine release changing
+# `Function.prototype.toString` output, or a host object's shape, underneath a
+# library that reads both. `workflow_dispatch` covers the two cases where the
+# answer is wanted immediately — a change to the source-reading modules, and the
+# run before a release.
+#
+# This workflow is invisible to `gates:check`, which reads `ci.yml` only and
+# derives its gate population from the `check` chains. `browser:check` is in
+# neither chain, so there is nothing for that gate to miss; see the script
+# header for why that is a decision rather than an oversight.
+on:
+  schedule:
+    # Mondays, 05:00 UTC — after the week's engine releases have landed and
+    # before anyone is likely to be pushing.
+    - cron: '0 5 * * 1'
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  contract:
+    name: Chromium · Firefox · WebKit
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
+
+      - name: Setup Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: '.nvmrc'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # `--with-deps` installs the system libraries WebKit and Firefox need on a
+      # bare runner image; without it both fail to launch with a missing-shared-
+      # object error that reads nothing like a browser problem.
+      - name: Install browser engines
+        run: pnpm exec playwright install --with-deps chromium firefox webkit
+
+      # The probes load the UMD bundle, which inlines every dependency — so this
+      # is the only build target the check needs.
+      - name: Build the UMD bundles
+        run: pnpm run build:umd
+
+      - name: Run the browser contract probes
+        run: pnpm run browser:check

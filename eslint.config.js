@@ -183,6 +183,7 @@ export default tseslint.config(
       '*.config.mjs',
       'scripts/**/*.mjs',
       '**/smoke.probes.mjs',
+      '**/browser.probes.mjs',
     ],
     ...tseslint.configs.disableTypeChecked,
   },
@@ -193,6 +194,7 @@ export default tseslint.config(
       '*.config.mjs',
       'scripts/**/*.mjs',
       '**/smoke.probes.mjs',
+      '**/browser.probes.mjs',
     ],
     rules: {
       'jsdoc/require-jsdoc': 'off',

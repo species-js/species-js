@@ -833,6 +833,37 @@ sub-builds dominate) which is why it's not the default — but for the rare "ple
 a CI surprise" moment, it's the one command. The regular `check` stays the fast inner-loop
 default.
 
+### `browser:check` — the one gate in neither chain
+
+Every gate above runs on V8: the suites under Node, `smoke:check` under Node, the
+consumer-floor job under Node 18. The packages nevertheless declare a browser matrix, and
+that claim was carried by an ES2020 build target and a syntax scan — neither of which
+executes anything.
+
+`browser:check` executes each package's `browser.probes.mjs` against its built UMD bundle
+in **Chromium, Firefox and WebKit**, driven by Playwright. The UMD is what makes this
+cheap: it inlines every dependency, so a plain `<script>` is the whole loader — the same
+property that lets `smoke:check` evaluate it in a bare `vm`.
+
+It sits in **neither `check` nor `check:full`**, and that is a decision. Engine divergence
+changes when engines ship, not when we commit, so it runs from
+`.github/workflows/browser.yml` on a weekly schedule and on demand, rather than charging a
+~1 GB engine install to every push. Because `gates:check` derives its population from the
+two chains and reads `ci.yml` alone, this check is invisible to it — no allowlist entry is
+needed, and none would go stale.
+
+```sh
+pnpm run build:umd && pnpm run browser:check
+SPECIES_BROWSER_ONLY=webkit pnpm run browser:check   # one engine
+```
+
+The probes are layered so a failure says what broke. **Layer A** pins the condensed
+function source character for character, including the examples published in
+`function-introspection`'s `.d.ts`; **layer B** pins the predicate verdicts that rest on
+it. A alone failing means the documented strings are V8-specific while classification
+still holds — a documentation defect. A and B together is a real classification bug on
+that engine.
+
 ---
 
 ## Release management
