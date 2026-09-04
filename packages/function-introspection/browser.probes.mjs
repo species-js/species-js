@@ -66,7 +66,7 @@ const ADVERSARIAL_NAMES = ['(){} evil', 'foo(){}', '', '[native code]'];
  * would leak the last name into the next assertion.
  *
  * @param {string} name - the name to install before binding
- * @returns {Function} the bound function
+ * @returns {(...args: unknown[]) => unknown} the bound function
  */
 const boundWithName = (name) => {
   const target = function () {};
