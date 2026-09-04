@@ -55,10 +55,15 @@ jobs:
       - name: Install browser engines
         run: pnpm exec playwright install --with-deps chromium firefox webkit
 
-      # The probes load the UMD bundle, which inlines every dependency — so this
-      # is the only build target the check needs.
-      - name: Build the UMD bundles
-        run: pnpm run build:umd
+      # The FULL build, not `build:umd` alone. The UMD inlines its dependency,
+      # and it resolves `@species-js/type-detection` through that package's
+      # `exports` map — which routes to `dist/node/`. So the dependents cannot
+      # be bundled until type-detection's node build exists, and a UMD-only run
+      # fails all three with "Failed to resolve entry for package". Confirmed
+      # on the first dispatch of this workflow; `ci.yml` runs the full build
+      # ahead of `smoke:check` for the same reason.
+      - name: Build
+        run: pnpm run build
 
       - name: Run the browser contract probes
         run: pnpm run browser:check

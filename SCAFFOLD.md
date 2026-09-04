@@ -853,9 +853,14 @@ two chains and reads `ci.yml` alone, this check is invisible to it — no allowl
 needed, and none would go stale.
 
 ```sh
-pnpm run build:umd && pnpm run browser:check
+pnpm run build && pnpm run browser:check
 SPECIES_BROWSER_ONLY=webkit pnpm run browser:check   # one engine
 ```
+
+The **full** build, not `build:umd` alone: a UMD bundle inlines its dependency but still
+resolves it through that package's `exports` map, which routes to `dist/node/`. So the
+three dependents cannot be bundled until type-detection's node build exists — the same
+reason `ci.yml` runs `build` ahead of `smoke:check`.
 
 The probes are layered so a failure says what broke. **Layer A** pins the condensed
 function source character for character, including the examples published in

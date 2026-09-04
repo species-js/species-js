@@ -38,9 +38,14 @@
  * ## Usage
  *
  * ```sh
- * pnpm run build:umd && pnpm run browser:check
+ * pnpm run build && pnpm run browser:check
  * SPECIES_BROWSER_ONLY=webkit pnpm run browser:check   # one engine
  * ```
+ *
+ * The FULL build, not `build:umd`. A UMD bundle inlines its dependency but
+ * still RESOLVES it through that package's `exports` map, which routes to
+ * `dist/node/` — so the three dependents cannot be bundled until
+ * type-detection's node build exists.
  */
 
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
