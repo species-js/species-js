@@ -11,6 +11,21 @@
  * `.github/workflows/ci.yml`, or sit in ALLOWLIST below with a stated reason.
  * That is the whole contract.
  *
+ * One precondition is checked first: **every name the chain invokes must exist
+ * as a script.** This is not an extension of the contract but a hole in it —
+ * the purpose is that no gate silently fails to run, and a gate that does not
+ * exist fails to run in the most complete way available. It also compares
+ * `package.json` to itself rather than to the workflow, so it does not begin
+ * the CI/script consistency linter the note below warns against.
+ *
+ * Found on 2026-09-04 by accident: a stray paste renamed the `docs:sweep` key,
+ * and this script reported **green** while its gate population dropped from 15
+ * to 14. `collectGates` filtered undefined delegates out of the walk, so a
+ * deleted gate simply left the population — and a smaller population still
+ * passes every assertion made about it. `check` itself would have failed at
+ * that step, and CI would have gone red, but the gate whose entire job is
+ * "no gate silently fails to run" had nothing to say about it.
+ *
  * It is **not** a mirror check, and the distinction is load-bearing. CI is not
  * equal to `check`: it omits `toolchain:check`, adds `check:full`'s build /
  * pack / publish steps, and gates five steps to `ubuntu-latest`. A script
@@ -112,6 +127,8 @@ function collectGates(scripts) {
   /** @type {Set<string>} */
   const gates = new Set();
   /** @type {Set<string>} */
+  const missingScripts = new Set();
+  /** @type {Set<string>} */
   const seen = new Set();
 
   /** @param {string} name - the script to expand */
@@ -126,12 +143,23 @@ function collectGates(scripts) {
       return;
     }
 
-    const delegates = delegatesOf(body).filter((sub) => typeof scripts[sub] === 'string');
-    if (delegates.length === 0) {
+    /* - a name the chain invokes but `scripts` does not define would make the
+         aggregate fail at RUNTIME, and silently dropping it here shrinks the
+         gate population while the check still passes. Collected, not filtered. */
+    const delegates = delegatesOf(body);
+
+    for (const sub of delegates) {
+      if (typeof scripts[sub] !== 'string') {
+        missingScripts.add(`${name} → ${sub}`);
+      }
+    }
+    const defined = delegates.filter((sub) => typeof scripts[sub] === 'string');
+
+    if (defined.length === 0) {
       gates.add(name);
       return;
     }
-    for (const sub of delegates) {
+    for (const sub of defined) {
       walk(sub);
     }
   };
@@ -143,7 +171,7 @@ function collectGates(scripts) {
   for (const root of ROOTS) {
     gates.delete(root);
   }
-  return gates;
+  return { gates, missingScripts };
 }
 
 const pkg = JSON.parse(readFileSync(join(repoRoot, 'package.json'), 'utf8'));
@@ -151,7 +179,23 @@ const pkg = JSON.parse(readFileSync(join(repoRoot, 'package.json'), 'utf8'));
 const scripts = pkg.scripts ?? {};
 const workflow = readFileSync(join(repoRoot, '.github/workflows/ci.yml'), 'utf8');
 
-const gates = collectGates(scripts);
+const { gates, missingScripts } = collectGates(scripts);
+
+// - reported BEFORE the coverage loop. A chain step naming a script that does
+//   not exist makes `check` fail the moment it is run, so there is nothing
+//   useful to say about CI coverage until it is fixed.
+if (missingScripts.size > 0) {
+  console.error(
+    '✗ the `check` chain invokes scripts that `package.json` does not define —\n' +
+      '  `check` would fail at that step, and the gate population is silently\n' +
+      '  one smaller than it looks:\n',
+  );
+  for (const reference of missingScripts) {
+    console.error(`    ${reference}`);
+  }
+  console.error('\n  → restore the script name, or remove it from the chain\n');
+  process.exit(1);
+}
 
 /** @type {string[]} */
 const uncovered = [];
