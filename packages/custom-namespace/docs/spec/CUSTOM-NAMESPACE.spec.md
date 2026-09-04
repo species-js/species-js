@@ -5,8 +5,9 @@
 > package follows that model and does not restate it.
 >
 > Written from `src/index.d.ts`, `src/index.js`, `src/config/index.{js,d.ts}`, ADR #096
-> (the artifact vocabulary) and ADR #086 (where captures live). This package has no
-> `docs/architecture/` yet.
+> (the artifact vocabulary) and ADR #086 (where captures live). The conceptual map lives
+> in [`../architecture/README.md`](../architecture/README.md), written afterward from this
+> spec's vectors.
 >
 > **Status: FROZEN 2026-09-04** — owner-reviewed. This is the base for the axis-1
 > (contract) suite. From here on, amend it in place with a dated banner (#054) rather than
@@ -432,9 +433,8 @@ than vectors for exactly that reason.
    accident.
 3. ~~**`type/T5` is unverified.**~~ **RESOLVED 2026-09-04** — it earned the fixture; see
    Resolved item 3. Kept in place so the numbering stays stable.
-4. **No `docs/architecture/` exists for this package.** This spec currently carries the
-   mental model itself. If an architecture doc is written, the "Why this spec is shaped
-   differently" section should point at it rather than duplicate it.
+4. ~~**No `docs/architecture/` exists for this package.**~~ **RESOLVED 2026-09-04** — see
+   Resolved item 6. Kept in place so the numbering stays stable.
 
 ## Resolved items
 
@@ -479,3 +479,12 @@ than vectors for exactly that reason.
    report a shape rather than an origin, and the one layer a spoof cannot pass — a
    builder-side `WeakSet` — is that same reference, kept in the package instead of by the
    caller. The ADR carries the probe and the re-open trigger.
+
+6. **The architecture map was written** (Open item 4, 2026-09-04) —
+   [`../architecture/README.md`](../architecture/README.md). It answers _how it works_ and
+   states no verdicts; each claim cites the vector here that pins it. This spec keeps the
+   mental model it needs to make its own dimensions legible, and the map carries the rest.
+
+   Six of its first-draft citations named the wrong vector — written from the source with
+   IDs attached from memory, which is how a doc ends up internally coherent and wrong. All
+   22 were then checked against this file individually.
