@@ -359,14 +359,21 @@ import { getPrototypeOf } from '@species-js/type-detection/utility'; // via subp
 
 ### Current adoption
 
-Of the four packages, only `type-detection` currently uses the multi-subdomain layout —
-with `utility` as the demonstration subdomain. The placeholder `utility.{js,d.ts}` pair
-carries no implementation yet but exercises the full pipeline (tsconfig `files`, `exports`
-map, vite multi-entry) end to end.
+Two of the four packages use the multi-subdomain layout. `type-detection` publishes eight
+subpaths — `config`, `utility`, `function`, `primitive`, `error`, `object`, `evented`,
+`thenable` — and `function-introspection` four: `utility`, `bound`, `arrow`, `concise`.
+Both mix the two structural choices above, taking file pairs for the flat subdomains and
+folders for `utility`; `type-detection` also folders `config` and `foundation`.
 
-The other three packages (`function-introspection`, `type-identity`, `custom-namespace`)
-remain on the single-module shell and will adopt this layout when their domain surface
-grows.
+`custom-namespace` and `type-identity` remain single-module, each with one `.` export.
+They will adopt the layout if their surface grows, and neither is waiting on anything to
+do so.
+
+**A subdomain is not automatically a published subpath.** `type-detection`'s `foundation`
+is reachable internally as `#foundation` and stays out of its `exports` map, as does
+`#config` in the three packages that are not `type-detection`. Publication is a separate
+decision from layout — ADR #085 governs what the curated root exposes, and #097 the point
+at which a package earns a barrel/`public` split at all.
 
 ---
 
