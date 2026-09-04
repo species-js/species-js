@@ -446,9 +446,17 @@ export function isAnyConciseMethod(value) {
     if (matchesStartSequencesOfConciseAsyncGeneratorMethodSource(source)) {
       return isAsyncGeneratorFunction(value);
     }
-    // - please DO NOT alter/change any of
-    //   the implemented logic of the next
-    //   following code within this clause.
+    // - the `if (isAsyncFct) return false;` below must stay a STATEMENT. As an
+    //   `else` or a ternary it silently stops admitting a plain method NAMED
+    //   `async` — `({ async(){} }).async`, whose source carries the leading
+    //   async token while its tag is not `AsyncFunction`. The statement form
+    //   lets that value fall through to the plain-method block; the ternary
+    //   form answers `false` for it. Same words, inverted reach. Standing law
+    //   L1 catches the regression, and only one corpus row exercises the shape.
+    //
+    //   `isAsyncFct` is read once, ahead of the shape test, because both arms
+    //   need it and a rejecting tag read on this input is the module's single
+    //   expensive case — `bnd/B3`, ~30 µs against ~0.3 µs.
 
     const isAsyncFct = isAsyncFunction(value);
 
