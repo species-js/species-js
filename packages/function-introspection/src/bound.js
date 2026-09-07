@@ -136,12 +136,21 @@ function doesRealmKeepBoundTargetName() {
  * first call and the answer is reused, since a `bind` plus two source reads per
  * predicate call would cost more than every mark it guards. Nothing runs at
  * module-eval time — the module evaluates without touching the global object.
+ *
+ * The cache is filled by a nullish coalesce around an assignment rather than by
+ * the logical-assignment operator, which is ES2021 and reaches the built
+ * artifact unlowered — `smoke:check` rejects it against the ES2020 floor
+ * `engines.node` promises. This spelling satisfies that floor and
+ * `prefer-nullish-coalescing` at once, where an explicit `undefined` check
+ * satisfies only the first.
  */
 export const hasJavaScriptCoreBindBehavior = (() => {
   /** @type {boolean | undefined} */
   let indication;
 
-  return () => (indication ??= doesRealmKeepBoundTargetName());
+  return () => {
+    return indication ?? (indication = doesRealmKeepBoundTargetName());
+  };
 })();
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
