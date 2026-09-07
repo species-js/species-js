@@ -74,7 +74,9 @@ const BOUND_NAME_PREFIX = 'bound ';
  * Read where exactly ONE prefix is stripped from a `name` already known to
  * carry it. A double-bound `'bound bound plain'` therefore yields
  * `'bound plain'`, its target's own bound name, which is what a name-rendering
- * engine puts in the native source form.
+ * engine puts in the native source form — measured on WebKit 26.5, where
+ * `named.bind(null).bind(null)` renders `function bound namedFunction(){[native
+ * code]}` (probe A8).
  *
  * @internal
  */
@@ -255,6 +257,13 @@ export function createExpectedJSCSpecificFunctionSourceFromBoundName(boundName) 
  * A comparison against the anonymous foundation cannot fire on such an engine,
  * so the expected source is RECONSTRUCTED from the own `name` and compared
  * against what the value actually renders.
+ *
+ * The reconstruction is sound because the engine renders the TARGET's name, and
+ * `bind` derives the value's own `name` from that same target name — the two
+ * are the same string with one `'bound '` prefix between them. Measured on
+ * WebKit 26.5 (probe A9): renaming a bound function AFTER binding does not move
+ * the rendered name, so the slot is caller-chosen only before `bind` runs and
+ * cannot be steered behind this predicate's back afterwards.
  *
  * That inverts mark 3's role. In the sibling it is merely the cheapest read; in
  * here it is a PRECONDITION, because the expected source cannot be assembled

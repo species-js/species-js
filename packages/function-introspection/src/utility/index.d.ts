@@ -35,6 +35,8 @@ export const CONDENSED_NATIVE_SOURCE_FOUNDATION: 'function(){[native code]}';
  * a single line where JavaScriptCore and SpiderMonkey break it across three —
  * so comparing a raw source is engine-specific. Condensing around punctuation
  * collapses those forms onto {@link CONDENSED_NATIVE_SOURCE_FOUNDATION}.
+ * Measured on Chromium 151, Firefox 153 and WebKit 26.5 (probe A10): one line,
+ * three, three.
  *
  * Interior whitespace survives deliberately. The space inside `[native code]`
  * cannot occur in real source — it would parse as two identifiers — so keeping
@@ -62,12 +64,12 @@ export function getFunctionSourceCondensate(
  *
  * Never throws: a source the reader cannot produce is reported as `undefined`.
  *
- * @param value - the callable whose source to read
- * @returns the condensed source; `undefined` when the source cannot be read
- *
  * The condensate normalizes LAYOUT, not the name slot. What an engine puts
  * between `function` and `(` is its own choice, and the results below differ
  * accordingly — measured on Chromium 151, Firefox 153 and WebKit 26.5.
+ *
+ * @param value - the callable whose source to read
+ * @returns the condensed source; `undefined` when the source cannot be read
  *
  * @example
  * ```ts

@@ -18,6 +18,14 @@
  * `concise` reads source through that normalization, so if it is wrong on an
  * engine, every predicate downstream is wrong there too — silently.
  *
+ * A10 has since executed it, and it holds: Firefox 153 and WebKit 26.5 both
+ * span three lines where Chromium 151 spans one. Worth recording how nearly it
+ * was mis-corrected — every other probe condenses before comparing, and under
+ * condensed output Firefox looks identical to V8 in every respect, which reads
+ * as evidence that the SpiderMonkey half of the claim was wrong. It is not.
+ * The normalization was doing its job, invisibly, which is the same reason the
+ * claim survived so long unverified.
+ *
  * ## Two layers, and why they assert different KINDS of thing
  *
  * **Layer A is an engine SURVEY.** It records, per engine, what
@@ -33,7 +41,14 @@
  *
  * **Layer B is the library CONTRACT**, and it is identical on every engine. A
  * layer-B failure is a DEFECT — the module answering differently depending on
- * where it runs. That is what B7, B8 and B9 currently report on WebKit.
+ * where it runs. B8 and B9 currently report two on WebKit: the cascade's
+ * `Proxy` boundary, and the false positive in `concise.js` that breaks
+ * CONCISE's law L3.
+ *
+ * B7 reported a third until `bound` grew a second reading of mark 2. It was
+ * one member of a family — every bound form whose target carries a name failed
+ * there, not just the one B7 sampled — which is why B14 now asserts the family
+ * rather than an instance.
  *
  * The condensate itself is not on trial in either layer. It is a deterministic
  * transform and it does exactly what it is specified to do; what differs is the
@@ -456,31 +471,76 @@ export const probes = [
     // double-bound value are the forms `bound.js` reconstructs an expected
     // source for, and neither has ever been observed off V8.
     name: 'A8 · how every bound form stringifies, per engine',
-    run: (ns) => {
+    run: (ns, { engine }) => {
       const condense = /** @type {(v: unknown) => string | undefined} */ (
         /** @type {unknown} */ (ns.getCondensedFunctionSource)
       );
 
       return holds([
-        ['arrow.bind(null)', condense(arrow.bind(null)), NATIVE_ANONYMOUS],
-        ['method.bind(null)', condense(method.bind(null)), NATIVE_ANONYMOUS],
+        [
+          'arrow.bind(null)',
+          condense(arrow.bind(null)),
+          perEngine(engine, {
+            default: NATIVE_ANONYMOUS,
+            webkit: 'function arrow(){[native code]}',
+          }),
+        ],
+        [
+          'method.bind(null)',
+          condense(method.bind(null)),
+          perEngine(engine, {
+            default: NATIVE_ANONYMOUS,
+            webkit: 'function m(){[native code]}',
+          }),
+        ],
         [
           'namedGenerator.bind(null)',
           condense(namedGenerator.bind(null)),
-          NATIVE_ANONYMOUS,
+          perEngine(engine, {
+            default: NATIVE_ANONYMOUS,
+            webkit: 'function namedGeneratorFunction(){[native code]}',
+          }),
         ],
-        ['NamedClass.bind(null)', condense(NamedClass.bind(null)), NATIVE_ANONYMOUS],
-        // the native pair — the forms whose bound and unbound renderings are
-        // reported to collapse onto one string on JavaScriptCore
-        ['Math.max.bind(null)', condense(Math.max.bind(null)), NATIVE_ANONYMOUS],
-        ['Array.bind(null)', condense(Array.bind(null)), NATIVE_ANONYMOUS],
+        [
+          'NamedClass.bind(null)',
+          condense(NamedClass.bind(null)),
+          perEngine(engine, {
+            default: NATIVE_ANONYMOUS,
+            webkit: 'function NamedClass(){[native code]}',
+          }),
+        ],
+        // the native pair. On WebKit `Math.max.bind(null)` renders EXACTLY what
+        // `Math.max` renders — A2 records the same string for the unbound one —
+        // so on that engine the source carries no bound/unbound distinction for
+        // a native at all.
+        [
+          'Math.max.bind(null)',
+          condense(Math.max.bind(null)),
+          perEngine(engine, {
+            default: NATIVE_ANONYMOUS,
+            webkit: 'function max(){[native code]}',
+          }),
+        ],
+        [
+          'Array.bind(null)',
+          condense(Array.bind(null)),
+          perEngine(engine, {
+            default: NATIVE_ANONYMOUS,
+            webkit: 'function Array(){[native code]}',
+          }),
+        ],
         // double-bound: its target is itself a bound function named
-        // `'bound namedFunction'`, so a name-rendering engine reveals here
-        // which name it reaches for
+        // `'bound namedFunction'`, and WebKit renders that name verbatim. This
+        // is what makes stripping exactly ONE `'bound '` prefix correct in
+        // `createExpectedJSCSpecificFunctionSourceFromBoundName` — a rule that
+        // was reasoned before this probe and is measured by it.
         [
           'named.bind(null).bind(null)',
           condense(named.bind(null).bind(null)),
-          NATIVE_ANONYMOUS,
+          perEngine(engine, {
+            default: NATIVE_ANONYMOUS,
+            webkit: 'function bound namedFunction(){[native code]}',
+          }),
         ],
         // positive controls — every expectation above is one constant on V8, so
         // without these a condensate stubbed to it would pass reading nothing
@@ -490,33 +550,39 @@ export const probes = [
     },
   },
   {
-    // Which name a name-rendering engine reads. A5 could not separate "the
-    // target's name" from "the bound value's own name, minus its prefix",
-    // because before a post-bind rename those are the same string.
+    // Which name a name-rendering engine reads — SETTLED here, and it is the
+    // TARGET's. A5 could not separate that from "the bound value's own name,
+    // minus its prefix", because before a post-bind rename those are the same
+    // string. Renaming afterwards moves one and not the other, and WebKit 26.5
+    // renders `provenanceTarget` in both rows below: unmoved by a rename of the
+    // value itself, including one that installs a fresh `'bound '` prefix.
     //
-    // Read the WebKit report like this:
-    //   `function provenanceTarget(){…}` → the TARGET's name
-    //   `function renamed(){…}`          → the value's OWN name, verbatim
-    //   `function other(){…}`            → the OWN name minus `'bound '`
-    //
-    // It decides whether `createExpectedJSCSpecificFunctionSourceFromBoundName`
-    // reconstructs the right string for a renamed or double-bound value.
+    // Two consequences worth keeping. The rendered name slot is caller-chosen
+    // only BEFORE binding, never after — so `bound.js`'s reconstruction reads a
+    // name the caller can pick, but not one they can change behind its back.
+    // And a value whose own name was overwritten after binding cannot be
+    // reconstructed at all on this engine: mark 3 is gone and the rendered name
+    // no longer corresponds to anything readable on the value.
     name: 'A9 · which name a name-rendering engine reads, per engine',
-    run: (ns) => {
+    run: (ns, { engine }) => {
       const condense = /** @type {(v: unknown) => string | undefined} */ (
         /** @type {unknown} */ (ns.getCondensedFunctionSource)
       );
+      const targetNameForm = perEngine(engine, {
+        default: NATIVE_ANONYMOUS,
+        webkit: 'function provenanceTarget(){[native code]}',
+      });
 
       return holds([
         [
           'bound, renamed "renamed"',
           condense(boundThenRenamed('renamed')),
-          NATIVE_ANONYMOUS,
+          targetNameForm,
         ],
         [
           'bound, renamed "bound other"',
           condense(boundThenRenamed('bound other')),
-          NATIVE_ANONYMOUS,
+          targetNameForm,
         ],
         // the control: `[[SourceText]]` ignores every rename on every engine,
         // so the UNBOUND target must still read as written
@@ -529,25 +595,25 @@ export const probes = [
     },
   },
   {
-    // The oldest unexecuted claim in the package. `utility/index.js` states that
-    // "V8 emits a single line where JavaScriptCore and SpiderMonkey break it
-    // across three", and the condensate exists to normalize exactly that. Every
-    // other probe condenses first, which is precisely what hides the answer.
+    // The oldest unexecuted claim in the package, and it holds. `utility/
+    // index.js` states that "V8 emits a single line where JavaScriptCore and
+    // SpiderMonkey break it across three"; measured, Firefox 153 and WebKit 26.5
+    // both span three lines where Chromium 151 spans one.
+    //
+    // It went unverified for so long because every other probe condenses first,
+    // and condensing is exactly what erases this difference — which is what the
+    // condensate is FOR. Reading only condensed output had made Firefox look
+    // like it matched V8 in every respect. It does not; the normalization was
+    // doing its job silently.
     name: 'A10 · how many lines the RAW native form spans, per engine',
     run: (ns, { engine }) => {
       void ns;
 
+      const nativeFormLines = perEngine(engine, { default: 1, firefox: 3, webkit: 3 });
+
       return holds([
-        [
-          'Math.max (unbound native)',
-          rawSourceLines(Math.max),
-          perEngine(engine, { default: 1 }),
-        ],
-        [
-          'named.bind(null) (bound)',
-          rawSourceLines(named.bind(null)),
-          perEngine(engine, { default: 1 }),
-        ],
+        ['Math.max (unbound native)', rawSourceLines(Math.max), nativeFormLines],
+        ['named.bind(null) (bound)', rawSourceLines(named.bind(null)), nativeFormLines],
         // the control: ordinary source is not reformatted by any engine, so a
         // one-line arrow stays one line and a reader that always answered `1`
         // would be caught by the two-line function below
