@@ -11,20 +11,27 @@
  * `[[Construct]]`, an anonymous `[native code]` source, a `'bound '` name
  * prefix.
  *
- * Both predicates share one entrance-level and read the same three marks beyond
- * it; they differ only in how many marks they require. The `doesIndicate`
- * prefix says the answer is evidence rather than proof, and the qualifier says
- * how much evidence stands behind it.
+ * Both predicates share one entrance-level, and the `doesIndicate` prefix says
+ * the answer is evidence rather than proof. Beyond that they now differ in kind
+ * rather than in degree, and the difference is the function source.
  *
- * How mark 2 is READ depends on the realm. JavaScriptCore renders the target's
- * name into the native source form where V8 and SpiderMonkey render it
- * anonymously, so a single equality cannot serve both. The conjunction is
- * therefore built twice and dispatched per call through
- * {@link hasJavaScriptCoreBindBehavior}, whose own answer is probed once and
- * memoized. Nothing in this module runs at evaluation time. The two answers may
- * differ across engines by design: this module reports the evidence its realm
- * exposes, and suppressing what one engine reveals to match another's blindness
- * would make the stronger answer a lie.
+ * The cascade never reads it. Both marks it does read are specified by the
+ * language — `bind` grants a construct slot when its target is a constructor,
+ * and it always prefixes the name with `'bound '` — so the cascade answers the
+ * same in every engine by derivation. That is a contract a consumer can rely on
+ * without asking which browser they are in (ADR #100).
+ *
+ * The conjunction does read it, and pays the engine's price for the extra
+ * precision. `Function.prototype.toString` is implementation-defined for an
+ * exotic: JavaScriptCore puts the bound target's name where V8 and SpiderMonkey
+ * put nothing, so a single equality cannot serve both. It is therefore built
+ * twice and dispatched per call through {@link hasJavaScriptCoreBindBehavior},
+ * whose own answer is probed once and memoized. Nothing here runs at evaluation
+ * time.
+ *
+ * So one predicate is portable and one is realm-aware, deliberately. Making the
+ * strong one uniform would mean discarding evidence an engine really offers;
+ * making the cascade realm-aware bought nothing but ambiguity.
  */
 
 import {
@@ -163,34 +170,53 @@ export const hasJavaScriptCoreBindBehavior = (() => {
  *
  * The entrance-level qualifies a candidate before any mark is read — a verified
  * function with no own `prototype`, which `bind` never grants, so nothing
- * outside that shape can be bound. Past it, three marks are tried in descending
- * reliability and any single one answers `true`:
+ * outside that shape can be bound. Past it, two marks are tried and either one
+ * answers `true`:
  *
  * 1. A `[[Construct]]` slot. Beyond the entrance-level only a bound
  *    constructable and the `Proxy` constructor hold one, and `Proxy` is
  *    subtracted by {@link doesMatchProxyConstructor} — so the mark cannot be
  *    produced by ordinary means. It says nothing either way about the bound
  *    forms that were never constructable to begin with.
- * 2. The condensed anonymous native source. Where it fires it survives a bound
- *    function whose `name` was overwritten, which is the one case no other mark
- *    reaches. It fires only on an engine that renders a bound function
- *    anonymously; on JavaScriptCore the rendered form keeps the target's name
- *    and this equality misses every bound value whose target has one.
- * 3. A `'bound '` prefix on the own `name`. Forgeable — `name` is
- *    `configurable` on every function — and the mark that carries the answer
- *    wherever mark 2 cannot fire, which is the whole reason it exists.
+ * 2. A `'bound '` prefix on the own `name`. Forgeable, since `name` is
+ *    `configurable` on every function, and it carries most of the answers.
  *
- * Ordered by decisiveness rather than cost, because any mark ends the question.
- * `hasConstructSlot` allocates a `Proxy` and performs a `new`, making it the
- * most expensive read, but the short-circuit spends it only where it settles
- * the answer outright. {@link doesStronglyIndicateBoundFunction} requires all
- * three and therefore orders them the other way round.
+ * ## Why the native source form is not a third mark
+ *
+ * Reading it would ask whether the value stringifies as an anonymous native
+ * function. Bound functions do — but so does every callable `Proxy`, and so
+ * does `Function.prototype`. It tests for an exotic callable without source
+ * text, which is a strictly larger set than "bound", so as a positive mark it
+ * admits values that were never bound at all (ADR #100).
+ *
+ * It also cannot be read the same way everywhere. `Function.prototype.toString`
+ * is implementation-defined for an exotic, and JavaScriptCore puts the bound
+ * target's name where V8 and SpiderMonkey put nothing. It was the only
+ * engine-dependent input this predicate had.
+ *
+ * Both surviving marks come from the specification instead — `bind` grants the
+ * construct slot when its target is a constructor, and it always prefixes the
+ * name. So this answer is the same in every engine by derivation, not because
+ * three of them were measured and agreed.
+ *
+ * The price is one case, and a narrow one: a bound arrow, concise method,
+ * generator or non-constructable native whose `name` was overwritten is now
+ * reported `false`. A bound ordinary function or class survives the same
+ * erasure, because it keeps its construct slot and mark 1 still reaches it.
+ * The lost case was only ever caught where the engine rendered anonymously, so
+ * it never held on Safari, and a caller who erases the evidence now gets an
+ * answer that says so.
+ *
+ * Ordered by decisiveness rather than cost, because either mark ends the
+ * question. `hasConstructSlot` allocates a `Proxy` and performs a `new`, making
+ * it the more expensive read, but the short-circuit spends it only where it
+ * settles the answer outright. {@link doesStronglyIndicateBoundFunction} keeps
+ * all three marks and orders them the other way round.
  *
  * Composed entirely from throw-safe readers. `hasOwnPrototype` reads an own
- * descriptor inside a `try`/`catch`. `getVerifiedOwnName` additionally refuses
- * an accessor, so a hostile `name` getter is never invoked.
- * {@link getCondensedFunctionSource} reports `undefined` instead of
- * propagating when the source cannot be read.
+ * descriptor inside a `try`/`catch`, and `getVerifiedOwnName` refuses an
+ * accessor, so a hostile `name` getter is never invoked. No source is read at
+ * all, which removes the last reader that could differ by engine.
  *
  * No `arguments.length` gate is needed: `undefined` is outside the accept set
  * (`isFunction(undefined)` is `false`), so an omitted call is honest by
@@ -198,7 +224,7 @@ export const hasJavaScriptCoreBindBehavior = (() => {
  *
  * @param {unknown} [value] - the value to test; omitted is treated as
  *  `undefined`, which carries no bound markers
- * @returns {boolean} `true` when any bound mark beyond the qualifying
+ * @returns {boolean} `true` when either bound mark beyond the qualifying
  *  entrance-level is present; `false` otherwise
  */
 export function doesIndicateBoundFunction(value) {
@@ -208,14 +234,8 @@ export function doesIndicateBoundFunction(value) {
     !hasOwnPrototype(value) &&
     // - reliable detection, but does apply just to constructable types
     ((hasConstructSlot(value) && !doesMatchProxyConstructor(value)) ||
-      // - strong evidence (BUT, JavaScriptCore renders the TARGET's name into
-      //   the native source form, so this equality misses every bound value
-      //   whose target carries a name — not only built-ins, whose bound and
-      //   unbound forms additionally collapse onto one string there. All of
-      //   them fall through to the least reliable 3rd gate of the spoofable
-      //   "bound " function-name prefix.)
-      getCondensedFunctionSource(value) === CONDENSED_NATIVE_SOURCE_FOUNDATION ||
-      // - spoofable indicator
+      // - spoofable indicator, and the only one left: the native source form
+      //   is deliberately NOT read here (ADR #100)
       (getVerifiedOwnName(value) ?? '').startsWith(BOUND_NAME_PREFIX))
   );
 }

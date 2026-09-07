@@ -83,16 +83,21 @@ describe('bound — adversarial (axis 3)', () => {
   });
 
   describe('documented boundaries — asserted, not wished away', () => {
-    it('`Function.prototype` is anonymous AND native, so the cascade admits it [dIBF/B1, dSIBF/R10]', () => {
+    it('`Function.prototype` is unnamed, so neither predicate admits it [dIBF/B1, dSIBF/R10]', () => {
       const value = functionPrototype();
-      expect(doesIndicateBoundFunction(value)).toBe(true);
+      expect(doesIndicateBoundFunction(value)).toBe(false);
       expect(doesStronglyIndicateBoundFunction(value)).toBe(false);
     });
 
-    it('a bare `Proxy` produces the native source honestly [dIBF/B2, dSIBF/R13]', () => {
+    it("a bare `Proxy` forwards its target's ordinary name and is refused [dIBF/B2, dSIBF/R13]", () => {
       const value = bareProxyOverArrow();
-      expect(doesIndicateBoundFunction(value)).toBe(true);
+      expect(doesIndicateBoundFunction(value)).toBe(false);
       expect(doesStronglyIndicateBoundFunction(value)).toBe(false);
+    });
+
+    it('a `Proxy` over a BOUND function forwards a bound name and is admitted', () => {
+      const value = /** @type {Callable} */ (new Proxy(boundPlain(), {}));
+      expect(doesIndicateBoundFunction(value)).toBe(true);
     });
 
     it('a bare `Proxy` over a CLASS forwards the own `prototype` and is rejected [dIBF/R9]', () => {
@@ -124,11 +129,16 @@ describe('bound — adversarial (axis 3)', () => {
       expect(doesStronglyIndicateBoundFunction(value)).toBe(false);
     });
 
-    it('mark 3 never decides for a REAL bound value on this engine — which is why B4 is simulated', () => {
-      // Every genuinely bound form here satisfies mark 2, so the cascade
-      // short-circuits before mark 3 is consulted. B4 exists because that is an
-      // engine property, not a language guarantee: where built-ins stringify
-      // identically bound or unbound, mark 2 fails and mark 3 is all that remains.
+    it('every genuinely bound form satisfies mark 2 on this engine — which is why B4 is simulated', () => {
+      // What this pins is an ENGINE property, not a language guarantee: on V8 a
+      // bound value loses its target's name from the source, so the conjunction
+      // can read the anonymous form here. Where an engine keeps that name the
+      // same values fail mark 2, which is what the JavaScriptCore reading of
+      // `doesStronglyIndicateBoundFunction` exists for, and why B4 has to be
+      // simulated rather than produced.
+      //
+      // The cascade no longer consults this at all (ADR #100), so mark 3 now
+      // decides for every bound value without a construct slot.
       for (const [label, make] of Object.entries({
         boundPlain,
         boundArrow,

@@ -9,20 +9,22 @@
  * `[[Construct]]`, an anonymous `[native code]` source, a `'bound '` name
  * prefix.
  *
- * Both predicates share one entrance-level and read the same three marks beyond
- * it; they differ only in how many marks they require. The `doesIndicate`
- * prefix says the answer is evidence rather than proof, and the qualifier says
- * how much evidence stands behind it.
+ * Both predicates share one entrance-level, and the `doesIndicate` prefix says
+ * the answer is evidence rather than proof. What separates them is whether they
+ * read the function source.
  *
- * One of those marks is read differently per engine. JavaScriptCore — Safari,
- * and every browser on iOS — renders a bound function's target name into the
- * native source form where V8 and SpiderMonkey render it anonymously. The
- * cascade absorbs that in its weakest mark; the conjunction cannot, and is
- * selected between two implementations by
- * {@link hasJavaScriptCoreBindBehavior}. So
- * {@link doesStronglyIndicateBoundFunction} may answer differently on Safari
- * than on Chrome for the same value, by design: each realm is answered with
- * the evidence it exposes.
+ * {@link doesIndicateBoundFunction} does not. Its two marks are both specified
+ * by the language, so it answers identically on every conforming engine — a
+ * contract a consumer can rely on without knowing which browser they are in.
+ *
+ * {@link doesStronglyIndicateBoundFunction} does, and buys precision with
+ * portability. `Function.prototype.toString` is implementation-defined for an
+ * exotic: JavaScriptCore — Safari, and every browser on iOS — renders a bound
+ * function's target name where V8 and SpiderMonkey render nothing. It is
+ * therefore selected between two implementations by
+ * {@link hasJavaScriptCoreBindBehavior}, and may answer differently on Safari
+ * than on Chrome for the same value. That is deliberate: each realm is answered
+ * with the evidence it actually exposes.
  */
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
@@ -33,41 +35,46 @@
  *
  * An entrance-level qualifies a candidate before any mark is read — the value
  * is a function, and it has no own `prototype`, which `bind` never grants. Past
- * it, three marks are tried in descending reliability and any single one
- * answers `true`:
+ * it, two marks are tried and either one answers `true`:
  *
  * 1. **A `[[Construct]]` slot.** Beyond the entrance-level only a bound
  *    constructable and the `Proxy` constructor hold one, and `Proxy` is
  *    subtracted, so ordinary code cannot produce this mark. It says nothing
  *    either way about bound forms that were never constructable.
- * 2. **The anonymous `[native code]` source.** Compared after whitespace
- *    condensing, which normalizes how engines lay the form out but not what
- *    they put in its name slot. Where it fires it is the only mark that
- *    survives a bound function whose `name` was overwritten. It does not fire
- *    on JavaScriptCore for any bound value whose target carries a name.
- * 3. **A `'bound '` prefix on the own `name`.** Forgeable, and reached only
- *    where the first two miss — which on JavaScriptCore is most bound values,
- *    and is why this mark exists.
+ * 2. **A `'bound '` prefix on the own `name`.** Forgeable, since `name` is
+ *    `configurable` on every function, and it carries most of the answers.
+ *
+ * ## The same answer in every engine
+ *
+ * Both marks are specified by the language: `bind` grants the construct slot
+ * when its target is a constructor, and it always prefixes the name. Nothing
+ * here reads the function source, which is the one thing engines spell
+ * differently — `Function.prototype.toString` is implementation-defined for an
+ * exotic, and JavaScriptCore puts the bound target's name where V8 and
+ * SpiderMonkey put nothing.
+ *
+ * So this predicate answers identically on every conforming engine, including
+ * ones nobody has tested it on. {@link doesStronglyIndicateBoundFunction} does
+ * read the source, and is realm-aware in exchange for the extra precision.
  *
  * ## Boundaries
  *
- * - **A `Proxy` is reported as bound.** Any prototype-less callable wrapped in
- *   a bare `Proxy` satisfies mark 2. A `Proxy` has no `[[SourceText]]` slot, so
- *   it stringifies to the same anonymous native form a bound function does. No
- *   handler or forgery is involved, and no source-based test can separate the
- *   two.
- * - **`Function.prototype` is reported as bound.** It is genuinely anonymous
- *   and genuinely native, so it satisfies mark 2 on its own terms.
- * - **Mark 3 admits a rename.** Any prototype-less callable — an arrow, a
- *   concise method — whose `name` is redefined to start with `'bound '` is
- *   reported as bound. `name` is `configurable` on every function.
+ * - **A rename is admitted.** Any prototype-less callable — an arrow, a concise
+ *   method — whose `name` is redefined to start with `'bound '` is reported as
+ *   bound. `name` is `configurable` on every function, so the second mark is
+ *   forgeable by design.
+ * - **A `Proxy` is admitted when it forwards a bound name.** Wrapping a bound
+ *   function in a `Proxy` keeps the `'bound …'` name visible, and the thing
+ *   behind the proxy really is bound. A `Proxy` over an UNBOUND callable is
+ *   rejected, because it forwards that target's ordinary name.
+ * - **Erasing the name erases the answer.** A bound arrow, concise method or
+ *   generator whose `name` was overwritten is reported `false` — nothing is
+ *   left to read. A bound ordinary function or class survives it, because the
+ *   construct slot is not a name.
+ *   {@link doesStronglyIndicateBoundFunction} misses both.
  * - **Says nothing about the target.** The bound target function, its `this`
  *   binding, and its partially applied arguments live in internal slots with
  *   no observable channel.
- *
- * {@link doesStronglyIndicateBoundFunction} closes the second and third of
- * those by requiring every mark, at a cost in recall. The first survives both:
- * it is structural, not a matter of how many marks are demanded.
  *
  * The reliable tell — `[[BoundTargetFunction]]` — is unobservable, which is
  * why this answer is evidence rather than proof and why the return type grants
@@ -84,13 +91,14 @@
  * doesIndicateBoundFunction(() => {}); // false
  * doesIndicateBoundFunction(undefined); // false
  *
- * doesIndicateBoundFunction(new Proxy(() => {}, {})); // true — a documented boundary
+ * doesIndicateBoundFunction(new Proxy(() => {}, {})); // false — never bound
+ * doesIndicateBoundFunction(new Proxy(greet.bind(null), {})); // true
  * ```
  *
  * @param value - the value to test; omitted is treated as `undefined`, which
  *  carries no bound markers
- * @returns `true` when any bound mark beyond the qualifying entrance-level is
- *  present; `false` otherwise
+ * @returns `true` when either bound mark beyond the qualifying entrance-level
+ *  is present; `false` otherwise
  */
 export function doesIndicateBoundFunction(value?: unknown): boolean;
 
@@ -99,10 +107,12 @@ export function doesIndicateBoundFunction(value?: unknown): boolean;
  * Reports whether the value carries EVERY bound mark, where
  * {@link doesIndicateBoundFunction} asks for any one of them.
  *
- * The same entrance-level and the same three marks, conjoined rather than
- * cascaded, which trades recall for precision. Reach for this one when a false
- * positive costs more than a miss; reach for the cascade when a miss costs
- * more.
+ * The same entrance-level, plus a third mark the cascade does not read: the
+ * function's own source. Requiring all three trades recall for precision, and
+ * portability with it. Reach for this one when a false positive costs more than
+ * a miss and the answer may differ by engine; reach for the cascade when a miss
+ * costs more, or when the same answer everywhere matters more than the extra
+ * precision.
  *
  * The `[[Construct]]` mark is applied conditionally rather than required — a
  * bound arrow or bound concise method never had a construct slot, so demanding

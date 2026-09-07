@@ -93,6 +93,18 @@ export const probes = [
       ns.doesIndicateBoundFunction(plain) === false,
   },
   {
+    // The contract ADR #100 introduced, checked over the BUILT bundle: the
+    // cascade reads no function source, so a proxy is judged by the name it
+    // forwards and by nothing else. Bundling rewrites source text, which is
+    // exactly the kind of change a source-reading predicate would notice and
+    // this one must not.
+    name: 'doesIndicateBoundFunction judges a Proxy by the name it forwards',
+    run: (ns) =>
+      ns.doesIndicateBoundFunction(new Proxy(arrow, {})) === false &&
+      ns.doesIndicateBoundFunction(new Proxy(plain.bind(null), {})) === true &&
+      ns.doesIndicateBoundFunction(Function.prototype) === false,
+  },
+  {
     name: 'doesStronglyIndicateBoundFunction requires all three marks',
     run: (ns) =>
       ns.doesStronglyIndicateBoundFunction(plain.bind(null)) === true &&

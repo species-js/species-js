@@ -4,10 +4,11 @@
 > [type-detection's spec README](../../../type-detection/docs/spec/README.md); this
 > package follows the same model and does not restate it. Vectors are reasoned from the
 > canon (`bound.js`, `bound.d.ts`, `utility/index.{js,d.ts}`, decisions #087 and #088).
-> Status: **FROZEN 2026-08-06 · AMENDED 2026-08-07 · AMENDED 2026-08-11** — decidability
-> check passed: every vector below was executed against the real predicates through the
-> `#index` barrel before freezing, including the cross-realm pairs (`node:vm`) and the two
-> forgery shapes. This spec is the base for the axis-1 suite; axes 2–5 derive alongside.
+> Status: **FROZEN 2026-08-06 · AMENDED 2026-08-07 · AMENDED 2026-08-11 · AMENDED
+> 2026-09-07** — decidability check passed: every vector below was executed against the
+> real predicates through the `#index` barrel before freezing, including the cross-realm
+> pairs (`node:vm`) and the two forgery shapes. This spec is the base for the axis-1
+> suite; axes 2–5 derive alongside.
 >
 > The 2026-08-07 amendment adds `dIBF/B4` and `dSIBF/R14` — the shape mark 3 exists for,
 > which no vector had covered — and corrects the disagreement set from four values to
@@ -17,6 +18,13 @@
 > the axis-5 table out to [`UTILITY.spec.md`](./UTILITY.spec.md)**, now that `concise` is
 > a second consumer of those helpers. No vector was re-derived, no verdict changed, and
 > every identifier is unchanged at the new location. See Resolved item 6.
+>
+> The 2026-09-07 amendment is the first to **change verdicts**.
+> `doesIndicateBoundFunction` stopped reading the function source, so three vectors flip
+> and the disagreement set drops from five to three. The reasoning is ADR #100; the
+> affected vectors are marked inline and listed in Resolved item 7. This became possible —
+> and necessary — once `browser.probes.mjs` could execute the engine question instead of
+> citing an observation.
 
 ## Module contract
 
@@ -110,8 +118,14 @@ Applies to both predicates identically; neither reads a mark until both hold.
 ## `doesIndicateBoundFunction`
 
 `doesIndicateBoundFunction(value?: unknown): boolean` — entrance-level, then mark 1 OR
-mark 2 OR mark 3, in that order. Ordered by **decisiveness**, because any mark ends the
-question.
+mark 3. Ordered by **decisiveness**, because either mark ends the question.
+
+**Mark 2 is not read here (AMENDED 2026-09-07, ADR #100).** It tests whether the value
+stringifies as an anonymous native function, which is true of bound functions but equally
+true of every callable `Proxy` and of `Function.prototype` — a strictly larger set than
+"bound". It is also the only input this predicate had that engines spell differently. The
+two marks that remain are both mandated by the language, so this predicate now answers the
+same on every conforming engine.
 
 **Admits**
 
@@ -131,15 +145,23 @@ question.
   bound `Proxy` is named `'bound Proxy'` and is therefore not subtracted.
 - `dIBF/A10` — `plain.bind(null).bind(null)` → true — double-bound; `name` is
   `'bound bound plain'`.
-- `dIBF/A11` — a bound function whose `name` was overwritten → true — mark 3 lost, marks 1
-  and 2 carry it.
+- `dIBF/A11` — a bound CONSTRUCTABLE whose `name` was overwritten → true — mark 3 lost,
+  mark 1 carries it alone. **AMENDED 2026-09-07:** mark 2 used to carry it too, which is
+  why the same erasure on a NON-constructable target is now a rejection — see `dIBF/R10`.
 - `dIBF/A12` — a cross-realm bound function and a cross-realm bound `Proxy` (`node:vm`) →
   true — no realm-fixed identity is consulted.
-- `dIBF/B1` — `Function.prototype` → true — **documented boundary**. Genuinely anonymous
-  and genuinely native, so mark 2 holds on its own terms.
-- `dIBF/B2` — a bare `Proxy` over a prototype-less callable → true — **documented
-  boundary**. A `Proxy` has no `[[SourceText]]`, so it produces the anonymous native
-  source honestly. No handler is involved.
+- ~~`dIBF/B1` — `Function.prototype` → true — **documented boundary**.~~ **WITHDRAWN
+  2026-09-07:** it was admitted because mark 2 held on its own terms. With mark 2 unread
+  and an empty `name`, it is rejected — see `dIBF/R11`. `Function.prototype` is not a
+  bound function, so this boundary closed rather than moved.
+- ~~`dIBF/B2` — a bare `Proxy` over a prototype-less callable → true — **documented
+  boundary**.~~ **WITHDRAWN 2026-09-07:** the rationale was that a `Proxy` has no
+  `[[SourceText]]` and so produces the anonymous native form honestly. That is a V8 and
+  SpiderMonkey fact, not a language one — JavaScriptCore renders
+  `'function ProxyObject(){[native code]}'`, and answered `false` where the others
+  answered `true`. With mark 2 unread, a proxy is judged by the name it forwards: over an
+  unbound callable it is rejected (`dIBF/R12`), over a BOUND one it is still admitted
+  (`dIBF/A13`), which is the truthful reading in both cases.
 - `dIBF/B3` — an arrow renamed to `'bound x'` → true — **documented boundary**. Mark 3 is
   forgeable; `name` is `configurable` on every function.
 - `dIBF/B4` — a **named** native renamed to `'bound max'` → true — **documented boundary,
@@ -156,8 +178,10 @@ question.
 - `dIBF/R1` — a plain function, a class, a generator function → false — entrance-level
   (`X3`).
 - `dIBF/R2` — an arrow, a concise method → false — prototype-less, but no mark holds.
-- `dIBF/R3` — `Math.max`, `parseInt` → false — native but named, so the source is
-  `'function max(){[native code]}'`, not the anonymous form.
+- `dIBF/R3` — `Math.max`, `parseInt` → false — no construct slot past the entrance-level
+  and no `'bound '` name. **AMENDED 2026-09-07:** the rejection used to be attributed to
+  the source not being the anonymous form; it now follows from the two marks alone, which
+  is why it holds on every engine rather than on the ones that render natives named.
 - `dIBF/R4` — `Array`, `URL` → false — own `prototype`.
 - `dIBF/R5` — the `Proxy` constructor → false — the only standard callable that is
   constructable with no own `prototype`, subtracted by `doesMatchProxyConstructor`.
@@ -170,6 +194,23 @@ question.
   reproduce.
 - `dIBF/R9` — a bare `Proxy` over a class → false — the proxy forwards the target's own
   `prototype`, so the entrance-level rejects it.
+- `dIBF/R10` — a bound arrow, concise method or generator whose `name` was overwritten →
+  false — **ADDED 2026-09-07, and the price of the amendment**. It never had a construct
+  slot and the caller erased the only other mark, so nothing is left to read. It was
+  admitted before only where the engine rendered anonymously, so it was never caught on
+  JavaScriptCore. Contrast `dIBF/A11`, where the target IS constructable.
+- `dIBF/R11` — `Function.prototype` → false — **ADDED 2026-09-07**, formerly `dIBF/B1`.
+  Native and unnamed, and not a bound function.
+- `dIBF/R12` — a bare `Proxy` over an unbound prototype-less callable → false — **ADDED
+  2026-09-07**, formerly `dIBF/B2`. It forwards its target's ordinary `name`, and nothing
+  about it says `bind`.
+
+**Admits, added 2026-09-07**
+
+- `dIBF/A13` — a `Proxy` over a BOUND function → true. It forwards the target's
+  `'bound …'` name, and the value behind the proxy really is bound. This is the vector
+  that keeps `dIBF/R12` from over-reaching, and the browser probes assert it on all three
+  engines.
 
 ## `doesStronglyIndicateBoundFunction`
 
@@ -211,39 +252,43 @@ where a slot exists.
 
 **Subset law (frozen).**
 `doesStronglyIndicateBoundFunction(v) ⟹ doesIndicateBoundFunction(v)` for every `v`. This
-is what the qualifier claims and it is structural: identical entrance-level, and a
-conjunction of the same three marks cannot admit what a disjunction of them rejects.
-Verified with zero violations over the 38-value corpus.
+is what the qualifier claims and it remains structural after the 2026-09-07 amendment: the
+conjunction requires mark 3, and the cascade admits anything carrying it. Verified with
+zero violations over the corpus.
 
-**The disagreement set — exactly five values**, all in the same direction:
+**The disagreement set — exactly three values** (AMENDED 2026-09-07, was five), all in the
+same direction:
 
-| value                                   | cascade | strong | why the divergence is intended                   |
-| --------------------------------------- | ------- | ------ | ------------------------------------------------ |
-| `Function.prototype`                    | true    | false  | precision gained — empty `name` fails mark 3     |
-| an arrow renamed `'bound x'`            | true    | false  | precision gained — own source fails mark 2       |
-| a **bare** `Proxy` over a callable      | true    | false  | precision gained — forwarded `name` fails mark 3 |
-| a bound function whose `name` was reset | true    | false  | recall lost — the price of requiring every mark  |
-| a named native renamed `'bound max'`    | true    | false  | engine-relative — see below                      |
+| value                                        | cascade | strong | why the divergence is intended                  |
+| -------------------------------------------- | ------- | ------ | ----------------------------------------------- |
+| an arrow renamed `'bound x'`                 | true    | false  | precision gained — own source fails mark 2      |
+| a bound CONSTRUCTABLE whose `name` was reset | true    | false  | recall lost — the price of requiring every mark |
+| a named native renamed `'bound max'`         | true    | false  | engine-relative — see below                     |
+
+Two values left the set when the cascade stopped reading the source: `Function.prototype`
+and a bare `Proxy` over a callable are now refused by both predicates. Neither is a bound
+function, so the pair agreeing on `false` is the correct outcome, not a lost distinction.
 
 **The cascade degrades to a weaker answer; the conjunction degrades to silence** — that is
 the choice a consumer makes between them.
 
-**Engine dependence.** The first four rows read the same on every engine: three precision
-gains and one recall cost. The fifth does not, because mark 2 asks whether the source is
-the ANONYMOUS native form. On V8 a bound built-in loses its target's name there, so mark 2
-always holds and **mark 3 never decides** — every value that fires mark 3 has already
-fired mark 2, and the cascade short-circuits first. On an engine whose built-ins stringify
-identically bound or unbound, mark 2 fails for genuinely bound built-ins and mark 3 is the
-only mark that can admit them. That is why it exists.
+**Engine dependence, and where it now lives.** The cascade has none: both marks it reads
+are mandated by the language, so it answers identically everywhere. All remaining engine
+dependence belongs to the conjunction, which reads the source.
 
-The consequence is concrete: **on such an engine `doesStronglyIndicateBoundFunction`
-rejects genuinely bound built-ins.** Both `bound.js` and `bound.d.ts` state this; it is
-recorded here because the spec is the oracle, and the table alone reads as
-engine-independent.
+`Function.prototype.toString` is implementation-defined for an exotic. JavaScriptCore
+renders the bound target's name where V8 and SpiderMonkey render nothing, so the
+conjunction is built twice and dispatched per realm. Measured, not cited: WebKit 26.5
+renders `plain.bind(null)` as `'function plain(){[native code]}'`, and the effect is not
+confined to built-ins — it reaches every bound value whose target carries a name. Before
+the split, that made the conjunction reject essentially every bound value on that engine.
 
-`dIBF/B4` simulates the shape, not the provenance — a single-engine runner cannot produce
-the real value. It pins the decision path (marks 1 and 2 fail, mark 3 admits), not the
-engine claim, which rests on the three-browser observation recorded in `bound.js`.
+Row three is the value that reads differently by engine even now. On V8 it is a forgery a
+renamed `Math.max` produces; on JavaScriptCore it is indistinguishable from a genuinely
+bound built-in, so the conjunction admits it there. `dIBF/B4` simulates the shape, not the
+provenance — a single-engine runner cannot produce the real value — and the engine claim
+behind it is now asserted by `browser.probes.mjs` rather than by an observation recorded
+in a comment.
 
 ## Helper specification (axis 4)
 
@@ -324,3 +369,28 @@ Verified before freezing: no throws across the marked set.
    back in step with the test architecture rather than changing either. The marker
    contract for a narrowed parameter (Module contract, Resolved item 1) stays here as
    package policy, cited from `UTILITY.spec.md` rather than duplicated.
+
+7. **The cascade stopped reading the function source (2026-09-07).** The first amendment
+   here to change verdicts rather than add or move them. Reasoning in full: ADR #100.
+
+   The short version. Mark 2 asks whether a value stringifies as an anonymous native
+   function. Bound functions do — and so does every callable `Proxy`, and so does
+   `Function.prototype`. As a positive mark in a disjunction it therefore admitted values
+   that were never bound, and it was also the one input this predicate had that engines
+   spell differently. Removing it costs one case and buys three.
+
+   What flipped: `dIBF/B1` and `dIBF/B2` withdrawn (now `dIBF/R11` and `dIBF/R12`),
+   `dIBF/R10` added as the price, `dIBF/A13` added as the vector that keeps `R12` honest,
+   `dIBF/A11` narrowed to constructable targets, and the disagreement set reduced from
+   five to three.
+
+   **Why this could not have been decided in August.** The old text called the engine
+   dependence "not testable here" and reasoned about it from a comment.
+   `browser.probes.mjs` now executes it in three engines, and its answer was bigger than
+   the note assumed — on JavaScriptCore mark 2 misses every bound value whose target has a
+   name, not only built-ins. A decision resting on measurement replaced one resting on an
+   anecdote.
+
+   **Amendment, not an append** — `dIBF/B1`, `dIBF/B2` and the "exactly five" count were
+   frozen claims and are now corrected, with the withdrawn vectors kept visible and struck
+   through rather than deleted (#054).

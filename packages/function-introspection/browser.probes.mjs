@@ -41,14 +41,18 @@
  *
  * **Layer B is the library CONTRACT**, and it is identical on every engine. A
  * layer-B failure is a DEFECT — the module answering differently depending on
- * where it runs. B8 and B9 currently report two on WebKit: the cascade's
- * `Proxy` boundary, and the false positive in `concise.js` that breaks
- * CONCISE's law L3.
+ * where it runs. B9 is the one that remains on WebKit: the false positive in
+ * `concise.js` that breaks CONCISE's law L3.
  *
- * B7 reported a third until `bound` grew a second reading of mark 2. It was
- * one member of a family — every bound form whose target carries a name failed
- * there, not just the one B7 sampled — which is why B14 now asserts the family
- * rather than an instance.
+ * Two others were resolved rather than silenced, and in opposite ways. B7
+ * failed because the strong predicate could not read mark 2 on JSC at all; it
+ * was one member of a family — every bound form whose target carries a name —
+ * which is why B14 now asserts the family rather than an instance, and why the
+ * fix was a second reading of the source. B8 failed for the mirror reason: it
+ * asserted a V8 accident as a portable contract, since V8 renders a callable
+ * `Proxy` anonymously and JSC does not. There the fix was to stop reading the
+ * source in the cascade at all (ADR #100), which made both engines agree on the
+ * answer JSC already gave.
  *
  * The condensate itself is not on trial in either layer. It is a deterministic
  * transform and it does exactly what it is specified to do; what differs is the
@@ -732,13 +736,26 @@ export const probes = [
       ]),
   },
   {
+    // B8's first claim used to expect `true`, and it was the one probe here that
+    // asserted a V8 accident as a portable contract: V8 renders a callable Proxy
+    // anonymously, so mark 2 fired for a value that was never bound. JSC names
+    // the exotic and answered `false` — the more truthful of the two. Since ADR
+    // #100 the cascade reads no source at all and both engines answer `false`,
+    // which makes this a real contract rather than a divergence.
     name: 'B8 · the mark/strength split holds for a Proxy, and a native is neither',
     run: (ns) =>
       holds([
-        // a Proxy over a concise method carries the MARK but not the strength
+        // a Proxy over an UNBOUND callable forwards that target's ordinary name
         [
           'indicates(Proxy over method)',
           ns.doesIndicateBoundFunction(new Proxy(method, {})),
+          false,
+        ],
+        // ...while a Proxy over a BOUND one forwards a `'bound '` name, which is
+        // the case this change could silently have broken
+        [
+          'indicates(Proxy over a bound function)',
+          ns.doesIndicateBoundFunction(new Proxy(named.bind(null), {})),
           true,
         ],
         [

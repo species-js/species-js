@@ -2,6 +2,13 @@
 
 **Date:** 2026-08-06
 
+**Disagreement count superseded by #100 (2026-09-07).** The DECISION below stands — the
+`doesIndicate` prefix, the plain `boolean`, the qualified-variant naming. What changed is
+one figure in the Consequences: `doesIndicateBoundFunction` no longer reads the native
+source, so the two predicates now disagree on **three** values rather than five, and
+`Function.prototype` and a bare `Proxy` are refused by both. The paragraph below is left
+as written; `BOUND.spec.md` carries the current set.
+
 **Context.** #087 places terminal classification here regardless of trust grade, so this
 package holds predicates whose evidence ranges from spec-guaranteed to trivially forgeable
 — `doesIndicateBoundFunction` reads a `name` prefix that any caller can redefine. A

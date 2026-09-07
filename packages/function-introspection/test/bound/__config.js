@@ -11,7 +11,7 @@
  * differing only in whether ANY or EVERY mark is required. The matrix therefore
  * scores both in one row, which makes the subset law
  * (`doesStronglyIndicateBoundFunction ⟹ doesIndicateBoundFunction`) and the
- * five-value disagreement set auditable at a glance rather than asserted in
+ * two-value disagreement set auditable at a glance rather than asserted in
  * prose.
  *
  * `spec.test.js` drives the matrix; the targeted axis suites (cross-realm,
@@ -130,6 +130,10 @@ export const bareProxyOverArrow = () =>
 export const bareProxyOverClass = () =>
   /** @type {Callable} */ (/** @type {unknown} */ (new Proxy(ClassTarget, {})));
 export const renamedBoundFunction = () => renamed(plainTarget.bind(null), 'innocent');
+// the same erasure on a target that never had a construct slot — the one case
+// the cascade gave up when it stopped reading the function source (ADR #100)
+export const renamedBoundConciseMethod = () =>
+  renamed(methodHost.concise.bind(null), 'innocent');
 export const renamedArrow = () => renamed(() => undefined, 'bound plainTarget');
 export const renamedPlainFunction = () =>
   renamed(function unbound() {
@@ -280,17 +284,17 @@ export const specMatrix = {
     vectors: ['dIBF/A12', 'dSIBF/A11'],
   },
 
-  // --- the five-value disagreement set (BOUND.spec.md → Relationship) ---
+  // --- the disagreement set, and the three rows that left it (ADR #100) ---
   functionPrototype: {
-    description: '`Function.prototype` — anonymous and native, but unnamed',
+    description: '`Function.prototype` — native and unnamed, and never bound',
     make: functionPrototype,
-    expected: CASCADE_ONLY,
+    expected: NEITHER,
     vectors: ['dIBF/B1', 'dSIBF/R10'],
   },
   bareProxyOverArrow: {
-    description: 'a bare `Proxy` over an arrow — no `[[SourceText]]`, forwarded `name`',
+    description: "a bare `Proxy` over an arrow — it forwards the target's ordinary name",
     make: bareProxyOverArrow,
-    expected: CASCADE_ONLY,
+    expected: NEITHER,
     vectors: ['dIBF/B2', 'dSIBF/R13'],
   },
   renamedArrow: {
@@ -300,10 +304,18 @@ export const specMatrix = {
     vectors: ['dIBF/B3', 'dSIBF/R11'],
   },
   renamedBoundFunction: {
-    description: 'a genuine bound function whose `name` was overwritten',
+    description:
+      'a bound CONSTRUCTABLE whose `name` was overwritten — mark 1 still carries it',
     make: renamedBoundFunction,
     expected: CASCADE_ONLY,
     vectors: ['dIBF/A11', 'dSIBF/R12'],
+  },
+  renamedBoundConciseMethod: {
+    description:
+      'a bound NON-constructable whose `name` was overwritten — nothing is left to read',
+    make: renamedBoundConciseMethod,
+    expected: NEITHER,
+    vectors: ['dIBF/R10', 'dSIBF/R12'],
   },
   foreignNamedNativeRenamed: {
     description: 'a named native renamed to `bound max` — mark 3 decides alone',
@@ -505,11 +517,11 @@ export const throwSafetyMatrix = {
     make: revokedCallableProxy,
     expected: NEITHER,
   },
-  // These two proxy an ARROW, so they are also the documented `Proxy` boundary:
-  // a proxy has no `[[SourceText]]`, so mark 2 is satisfied honestly and the
-  // cascade admits them. The trap makes `hasOwnPrototype` fail closed to `false`,
-  // which passes the entrance-level rather than blocking it. Stated explicitly so
-  // the verdict is not later mistaken for a leak and "fixed".
+  // These two proxy an ARROW. The trap makes `hasOwnPrototype` fail closed to
+  // `false`, so they pass the entrance-level rather than being blocked there —
+  // stated explicitly so the verdict is not later mistaken for a leak and
+  // "fixed". Both predicates then refuse them: the name read fails closed too,
+  // and since ADR #100 the cascade has nothing else to consult.
   throwingDescriptorTrap: {
     surface: 'throwing `getOwnPropertyDescriptor` trap',
     make: () =>
@@ -518,7 +530,7 @@ export const throwSafetyMatrix = {
           throw new Error('hostile descriptor trap');
         },
       }),
-    expected: CASCADE_ONLY,
+    expected: NEITHER,
   },
   throwingGetTrap: {
     surface: 'throwing `get` trap',
@@ -538,7 +550,7 @@ export const throwSafetyMatrix = {
           throw new Error('hostile ownKeys trap');
         },
       }),
-    expected: CASCADE_ONLY,
+    expected: NEITHER,
   },
   throwingNameAccessor: {
     surface: 'own accessor `name` whose getter throws',

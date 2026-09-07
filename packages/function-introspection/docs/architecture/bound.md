@@ -31,16 +31,25 @@ preserves the target's `[[Prototype]]`, so binding `Function.prototype` yields a
 that inherits no `call`/`apply`/`bind` and fails the callability check. Being bound does
 not imply being a verified function.
 
-## The three marks, and why order differs per predicate
+## Three marks, but only two of them are portable
 
 1. **A `[[Construct]]` slot**, with the `Proxy` constructor subtracted. Past the
    entrance-level almost nothing else holds one.
-2. **The condensed anonymous native source.** The mark that survives a bound function
-   whose `name` was overwritten.
+2. **The condensed native source.** Read only by the precision-first predicate.
 3. **A `'bound '` prefix on the own `name`.** Forgeable — `name` is `configurable` on
-   every function — and reached only where the first two miss.
+   every function.
 
-The two predicates order these marks **oppositely, and the asymmetry is deliberate.**
+Marks 1 and 3 come from the language: `bind` grants the construct slot when its target is
+a constructor, and it always prefixes the name. Mark 2 does not.
+`Function.prototype.toString` is implementation-defined for an exotic, and JavaScriptCore
+puts the bound target's name where V8 and SpiderMonkey put nothing.
+
+That split is now the architecture. The **recall-first predicate reads marks 1 and 3
+only**, so it answers the same on every conforming engine — including engines nobody has
+run it on. The **precision-first predicate also reads mark 2**, and buys precision with
+portability: it is built twice and dispatched per realm. See ADR #100.
+
+The two predicates order their marks **oppositely, and the asymmetry is deliberate.**
 
 The recall-first predicate is a cascade, so any mark ends the question. It orders by
 **decisiveness**: the `[[Construct]]` probe allocates a `Proxy` and performs a `new`,
@@ -67,17 +76,24 @@ subtraction, which only bites where a slot exists.
 
 No realm-fixed identity is consulted. All three marks are structural — a descriptor shape,
 a source string, a name prefix — so a foreign bound function is read exactly as a local
-one is. The `Proxy` subtraction is likewise structural, which is what lets it recognize a
-foreign `Proxy` constructor it has never seen.
+one is. Cross-REALM and cross-ENGINE are separate questions: every mark travels across
+realms, but only marks 1 and 3 travel across engines. The `Proxy` subtraction is likewise
+structural, which is what lets it recognize a foreign `Proxy` constructor it has never
+seen.
 
 ## Open architectural questions
 
-**Mark 3 is engine-dependent, and the dependence is not testable here.** On V8 every
-genuinely bound value also fires mark 2, so mark 3 never decides for a real bound
-function. It exists for engines whose built-ins stringify identically bound or unbound —
-Safari among them, per a three-browser observation this project cannot reproduce under
-Node. The spec records the vector that pins mark 3's decision path; the engine claim
-itself rests on that observation.
+**Resolved 2026-09-07 — the engine dependence is measured, not assumed.** This section
+used to call mark 3's engine dependence untestable here, and to say that the third mark
+was never what settled a real bound value. Both statements were true of a V8-only test
+suite and false of the library. `browser.probes.mjs` now executes the question in
+Chromium, Firefox and WebKit, and what it found was larger than the old note supposed: on
+JavaScriptCore mark 2 misses **every** bound value whose target carries a name, not only
+built-ins. Mark 3 decides constantly there.
+
+The resolution split the two predicates by whether they read the source at all — see the
+marks section above and ADR #100. Nothing about the engine claim now rests on an
+observation this project cannot reproduce.
 
 **Whether the pair should ever collapse to one export.** Two predicates over one subject
 is justified while consumers genuinely differ on recall-versus-precision. Nothing yet

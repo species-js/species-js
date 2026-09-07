@@ -35,11 +35,17 @@ import { specMatrix, crossCuttingRejections } from './__config.js';
 const predicates = { doesIndicateBoundFunction, doesStronglyIndicateBoundFunction };
 const predicateNames = Object.keys(predicates).sort();
 
-/** The five candidates on which the two predicates are specified to differ. */
+/**
+ * The candidates on which the two predicates are specified to differ.
+ *
+ * Two are forgeries the cascade admits and the conjunction refuses; the third
+ * is a bound constructable whose name was erased, which only the construct-slot
+ * mark still reaches. Two candidates LEFT this set when the cascade stopped
+ * reading the function source (ADR #100) — a bare `Proxy` and
+ * `Function.prototype` are now refused by both.
+ */
 const DISAGREEMENT_SET = [
-  'bareProxyOverArrow',
   'foreignNamedNativeRenamed',
-  'functionPrototype',
   'renamedArrow',
   'renamedBoundFunction',
 ];
@@ -62,7 +68,7 @@ describe('bound — spec/contract matrix', () => {
     }
   });
 
-  it('the two predicates disagree on exactly the specified five candidates', () => {
+  it('the two predicates disagree on exactly the specified candidates', () => {
     const declared = Object.entries(specMatrix)
       .filter(
         ([, { expected }]) =>
