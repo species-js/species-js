@@ -107,6 +107,56 @@ const boundWithName = (name) => {
   return target.bind(null);
 };
 
+/** A named generator — a bound form with no `[[Construct]]` slot. */
+const namedGenerator = function* namedGeneratorFunction() {};
+
+/**
+ * A named class — a bound form that keeps its `[[Construct]]` slot.
+ *
+ * Carries a member so it is not an empty class, which the lint rule reads as a
+ * namespace object written in the wrong shape.
+ */
+class NamedClass {
+  /** @returns {number} a value, so the body is not empty either */
+  read() {
+    return 1;
+  }
+}
+
+/** The target A9 binds and then renames, to learn WHICH name is rendered. */
+const provenanceTarget = function provenanceTarget() {};
+
+/**
+ * A genuinely bound function whose own `name` is overwritten AFTER binding.
+ *
+ * The discriminator A5 could not settle. A5 renamed the TARGET and watched the
+ * rendered name follow, which is equally consistent with "the engine reads the
+ * target's name" and with "the engine reads the bound value's own name minus
+ * its `'bound '` prefix" — before a post-bind rename the two are the same
+ * string. Renaming afterwards separates them.
+ *
+ * @param {string} name - the name to install after binding
+ * @returns {(...args: unknown[]) => unknown} the renamed bound function
+ */
+const boundThenRenamed = (name) => {
+  const bound = provenanceTarget.bind(null);
+
+  Object.defineProperty(bound, 'name', { value: name, configurable: true });
+
+  return bound;
+};
+
+/**
+ * The raw, UNCONDENSED source's line count — the only reading that can settle
+ * the "V8 emits a single line where JavaScriptCore and SpiderMonkey break it
+ * across three" claim, since condensing is what erases the difference.
+ *
+ * @param {unknown} value - the callable to read
+ * @returns {number} how many lines its source spans
+ */
+const rawSourceLines = (value) =>
+  Function.prototype.toString.call(value).split('\n').length;
+
 /**
  * @typedef {{ engine: string }} EngineContext
  */
@@ -373,6 +423,146 @@ export const probes = [
     },
   },
 
+  // - A7 to A10 record the protocol the earlier profiles left implicit. A3 and
+  //   A5 established that JavaScriptCore renders A name into the native form,
+  //   but not WHICH name, not what it does for a bound NATIVE or a double-bound
+  //   value, and not whether the raw form really spans three lines — a claim
+  //   `utility/index.js` makes about two engines and that nothing has executed.
+  //
+  //   Their `default` profile is V8's, measured under Node against the real
+  //   implementations. `webkit` and `firefox` are DELIBERATELY unrecorded: the
+  //   first dispatch is expected to fail on them, and `holds` prints the
+  //   observed strings, which ARE the protocol. Recording them turns these
+  //   green, after which a red means the engine changed — layer A's usual
+  //   meaning.
+  {
+    name: 'A7 · what the realm probe answers, per engine',
+    run: (ns, { engine }) => {
+      const hasJSCBehavior = /** @type {() => boolean} */ (
+        /** @type {unknown} */ (ns.hasJavaScriptCoreBindBehavior)
+      );
+
+      return holds([
+        [
+          'hasJavaScriptCoreBindBehavior()',
+          hasJSCBehavior(),
+          perEngine(engine, { default: false, webkit: true }),
+        ],
+      ]);
+    },
+  },
+  {
+    // The gap A3 left: it measured two USER functions. A bound native and a
+    // double-bound value are the forms `bound.js` reconstructs an expected
+    // source for, and neither has ever been observed off V8.
+    name: 'A8 · how every bound form stringifies, per engine',
+    run: (ns) => {
+      const condense = /** @type {(v: unknown) => string | undefined} */ (
+        /** @type {unknown} */ (ns.getCondensedFunctionSource)
+      );
+
+      return holds([
+        ['arrow.bind(null)', condense(arrow.bind(null)), NATIVE_ANONYMOUS],
+        ['method.bind(null)', condense(method.bind(null)), NATIVE_ANONYMOUS],
+        [
+          'namedGenerator.bind(null)',
+          condense(namedGenerator.bind(null)),
+          NATIVE_ANONYMOUS,
+        ],
+        ['NamedClass.bind(null)', condense(NamedClass.bind(null)), NATIVE_ANONYMOUS],
+        // the native pair — the forms whose bound and unbound renderings are
+        // reported to collapse onto one string on JavaScriptCore
+        ['Math.max.bind(null)', condense(Math.max.bind(null)), NATIVE_ANONYMOUS],
+        ['Array.bind(null)', condense(Array.bind(null)), NATIVE_ANONYMOUS],
+        // double-bound: its target is itself a bound function named
+        // `'bound namedFunction'`, so a name-rendering engine reveals here
+        // which name it reaches for
+        [
+          'named.bind(null).bind(null)',
+          condense(named.bind(null).bind(null)),
+          NATIVE_ANONYMOUS,
+        ],
+        // positive controls — every expectation above is one constant on V8, so
+        // without these a condensate stubbed to it would pass reading nothing
+        ['Math.max (unbound)', condense(Math.max), 'function max(){[native code]}'],
+        ['arrow (unbound)', condense(arrow), '(a)=> a'],
+      ]);
+    },
+  },
+  {
+    // Which name a name-rendering engine reads. A5 could not separate "the
+    // target's name" from "the bound value's own name, minus its prefix",
+    // because before a post-bind rename those are the same string.
+    //
+    // Read the WebKit report like this:
+    //   `function provenanceTarget(){…}` → the TARGET's name
+    //   `function renamed(){…}`          → the value's OWN name, verbatim
+    //   `function other(){…}`            → the OWN name minus `'bound '`
+    //
+    // It decides whether `createExpectedJSCSpecificFunctionSourceFromBoundName`
+    // reconstructs the right string for a renamed or double-bound value.
+    name: 'A9 · which name a name-rendering engine reads, per engine',
+    run: (ns) => {
+      const condense = /** @type {(v: unknown) => string | undefined} */ (
+        /** @type {unknown} */ (ns.getCondensedFunctionSource)
+      );
+
+      return holds([
+        [
+          'bound, renamed "renamed"',
+          condense(boundThenRenamed('renamed')),
+          NATIVE_ANONYMOUS,
+        ],
+        [
+          'bound, renamed "bound other"',
+          condense(boundThenRenamed('bound other')),
+          NATIVE_ANONYMOUS,
+        ],
+        // the control: `[[SourceText]]` ignores every rename on every engine,
+        // so the UNBOUND target must still read as written
+        [
+          'provenanceTarget (unbound)',
+          condense(provenanceTarget),
+          'function provenanceTarget(){}',
+        ],
+      ]);
+    },
+  },
+  {
+    // The oldest unexecuted claim in the package. `utility/index.js` states that
+    // "V8 emits a single line where JavaScriptCore and SpiderMonkey break it
+    // across three", and the condensate exists to normalize exactly that. Every
+    // other probe condenses first, which is precisely what hides the answer.
+    name: 'A10 · how many lines the RAW native form spans, per engine',
+    run: (ns, { engine }) => {
+      void ns;
+
+      return holds([
+        [
+          'Math.max (unbound native)',
+          rawSourceLines(Math.max),
+          perEngine(engine, { default: 1 }),
+        ],
+        [
+          'named.bind(null) (bound)',
+          rawSourceLines(named.bind(null)),
+          perEngine(engine, { default: 1 }),
+        ],
+        // the control: ordinary source is not reformatted by any engine, so a
+        // one-line arrow stays one line and a reader that always answered `1`
+        // would be caught by the two-line function below
+        ['arrow (ordinary source)', rawSourceLines(arrow), 1],
+        [
+          'a deliberately two-line function',
+          rawSourceLines(function twoLines() {
+            return 1;
+          }),
+          3,
+        ],
+      ]);
+    },
+  },
+
   // ----- Layer B — the library CONTRACT: identical on every engine -----
   {
     name: 'B1 · bound-function indication survives the engine source form',
@@ -603,6 +793,61 @@ export const probes = [
         // predicates stubbed to `false` would pass all fifteen claims above
         ['anyArrow(arrow)', ns.isAnyArrowFunction(arrow), true],
         ['conciseAsync(asyncMethod)', ns.isConciseAsyncMethod(asyncMethod), true],
+      ]);
+    },
+  },
+
+  // - B13 and B14 are the contract the two-implementation split creates. Before
+  //   it, "a bound value is strongly indicated" held on V8 and failed on JSC for
+  //   every bound form whose target carries a name, and no probe said so: B7
+  //   asserted one such value and was read as one finding rather than a family.
+  {
+    // The probe must describe the engine it is running on. A realm reporting
+    // `false` while rendering a name selects the reading that cannot fire
+    // there — silently, and for every caller.
+    name: 'B13 · the realm probe agrees with what this engine renders',
+    run: (ns) => {
+      const condense = /** @type {(v: unknown) => string | undefined} */ (
+        /** @type {unknown} */ (ns.getCondensedFunctionSource)
+      );
+      const hasJSCBehavior = /** @type {() => boolean} */ (
+        /** @type {unknown} */ (ns.hasJavaScriptCoreBindBehavior)
+      );
+
+      return holds([
+        [
+          'probe === (a bound form renders non-anonymously)',
+          hasJSCBehavior(),
+          condense(named.bind(null)) !== NATIVE_ANONYMOUS,
+        ],
+        // the control — both sides above are engine-derived, so without a fixed
+        // expectation a stubbed condensate would satisfy the equality
+        ['named (unbound)', condense(named), 'function namedFunction(){}'],
+      ]);
+    },
+  },
+  {
+    // The recall contract. Every genuinely bound form must be admitted by the
+    // conjunction on EVERY engine — that is what the JavaScriptCore-specific
+    // reading exists to restore, and the claim `dSIBF/A1`-`A10` make.
+    name: 'B14 · every genuinely bound form is strongly indicated, on every engine',
+    run: (ns) => {
+      const strongly = ns.doesStronglyIndicateBoundFunction;
+
+      return holds([
+        ['strongly(named.bind)', strongly(named.bind(null)), true],
+        ['strongly(arrow.bind)', strongly(arrow.bind(null)), true],
+        ['strongly(method.bind)', strongly(method.bind(null)), true],
+        ['strongly(namedGenerator.bind)', strongly(namedGenerator.bind(null)), true],
+        ['strongly(NamedClass.bind)', strongly(NamedClass.bind(null)), true],
+        ['strongly(Math.max.bind)', strongly(Math.max.bind(null)), true],
+        ['strongly(Array.bind)', strongly(Array.bind(null)), true],
+        ['strongly(double-bound)', strongly(named.bind(null).bind(null)), true],
+        // the precision half — these must stay refused everywhere, and they are
+        // the negative controls for the eight claims above
+        ['strongly(named)', strongly(named), false],
+        ['strongly(Function.prototype)', strongly(Function.prototype), false],
+        ['strongly(bound, then renamed)', strongly(boundThenRenamed('x')), false],
       ]);
     },
   },
