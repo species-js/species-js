@@ -65,9 +65,19 @@ export function getFunctionSourceCondensate(
  * @param value - the callable whose source to read
  * @returns the condensed source; `undefined` when the source cannot be read
  *
+ * The condensate normalizes LAYOUT, not the name slot. What an engine puts
+ * between `function` and `(` is its own choice, and the results below differ
+ * accordingly — measured on Chromium 151, Firefox 153 and WebKit 26.5.
+ *
  * @example
  * ```ts
- * getCondensedFunctionSource(Proxy.bind()); // 'function(){[native code]}'
+ * // V8 and SpiderMonkey render a bound function anonymously; JavaScriptCore
+ * // renders the bound target's name, so this one is engine-specific:
+ * getCondensedFunctionSource(Proxy.bind());
+ * // 'function(){[native code]}'       on Chromium and Firefox
+ * // 'function Proxy(){[native code]}' on WebKit
+ *
+ * // the same on every engine:
  * getCondensedFunctionSource(Proxy); // 'function Proxy(){[native code]}'
  * getCondensedFunctionSource((a) => a); // '(a)=> a'
  * ```
