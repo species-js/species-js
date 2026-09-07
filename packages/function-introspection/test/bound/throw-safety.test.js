@@ -20,8 +20,18 @@
  * 2. the set scored below === {@link THROW_SAFE_MARKED} (test drift);
  * 3. every marked export × every hostile row returns without throwing.
  *
- * Both predicates take `unknown`, so every hostile value is in contract and the
- * marker's promise covers all of them.
+ * Four of the five marked exports take `unknown`, so every hostile value is in
+ * contract and the marker's promise covers all of them. The fifth declares a
+ * `string` and is scored against a string-only hostile set: the marker promises
+ * totality within the DECLARED parameter type, so feeding it a non-string would
+ * test nothing about the marker and report a defect that is not one
+ * (BOUND.spec.md → Resolved item 1).
+ *
+ * Two of the four are the engine-specific implementations behind
+ * {@link doesStronglyIndicateBoundFunction}. On any single engine that binding
+ * IS one of them, so one implementation is exercised twice and the other only
+ * here — which is the point: the reading this engine did not select still has
+ * to be total, because another engine selects it.
  *
  * Mirrors `docs/spec/BOUND.spec.md` (FROZEN 2026-08-06 · AMENDED 2026-08-07) —
  * `## Throw-safety (axis 5) — completeness oracle`.
@@ -29,19 +39,35 @@
 
 import { describe, it, expect } from 'vitest';
 
-import { doesIndicateBoundFunction, doesStronglyIndicateBoundFunction } from '#index';
+import {
+  createExpectedJSCSpecificFunctionSourceFromBoundName,
+  doesIndicateBoundFunction,
+  doesStronglyIndicateBoundFunction,
+  doesStronglyIndicateNonJSCBoundFunction,
+  doesStronglyIndicateJSCSpecificBoundFunction,
+} from '#index';
 
 import { parseMarkedExports } from '../_marked-exports.js';
 
 import {
   crossCuttingRejections,
+  narrowedStringHostiles,
   THROW_SAFE_MARKED,
   throwSafetyMatrix,
 } from './__config.js';
 
 /** @type {Record<string, (value?: unknown) => boolean>} */
-const marked = { doesIndicateBoundFunction, doesStronglyIndicateBoundFunction };
-const scored = Object.keys(marked).sort();
+const marked = {
+  doesIndicateBoundFunction,
+  doesStronglyIndicateBoundFunction,
+  doesStronglyIndicateNonJSCBoundFunction,
+  doesStronglyIndicateJSCSpecificBoundFunction,
+};
+
+/** @type {Record<string, (boundName: string) => string>} */
+const markedNarrowed = { createExpectedJSCSpecificFunctionSourceFromBoundName };
+
+const scored = [...Object.keys(marked), ...Object.keys(markedNarrowed)].sort();
 
 describe('bound — throw-safety (axis 5)', () => {
   describe('completeness oracle', () => {
@@ -91,6 +117,32 @@ describe('bound — throw-safety (axis 5)', () => {
 
         it('the omitted argument', () => {
           expect(() => predicate()).not.toThrow();
+        });
+      });
+    }
+  });
+
+  describe('the narrowed-parameter export × every hostile string returns', () => {
+    for (const [exportName, assemble] of Object.entries(markedNarrowed)) {
+      describe(exportName, () => {
+        for (const [rowName, make] of Object.entries(narrowedStringHostiles)) {
+          it(`${rowName} — a hostile value of the declared type`, () => {
+            /** @type {string | undefined} */
+            let result;
+
+            expect(() => {
+              result = assemble(make());
+            }).not.toThrow();
+
+            expect(typeof result).toBe('string');
+          });
+        }
+
+        // The positive control. Every row above asserts only "a string came
+        // back", which a function stubbed to return `''` would satisfy — so one
+        // row pins the actual assembly against a name the engine really renders.
+        it('a well-formed bound name assembles the engine form', () => {
+          expect(assemble('bound plain')).toBe('function plain(){[native code]}');
         });
       });
     }

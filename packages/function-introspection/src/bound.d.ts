@@ -9,10 +9,20 @@
  * `[[Construct]]`, an anonymous `[native code]` source, a `'bound '` name
  * prefix.
  *
- * Both exports share one entrance-level and read the same three marks beyond
+ * Both predicates share one entrance-level and read the same three marks beyond
  * it; they differ only in how many marks they require. The `doesIndicate`
  * prefix says the answer is evidence rather than proof, and the qualifier says
  * how much evidence stands behind it.
+ *
+ * One of those marks is read differently per engine. JavaScriptCore — Safari,
+ * and every browser on iOS — renders a bound function's target name into the
+ * native source form where V8 and SpiderMonkey render it anonymously. The
+ * cascade absorbs that in its weakest mark; the conjunction cannot, and is
+ * selected between two implementations by
+ * {@link hasJavaScriptCoreBindBehavior}. So
+ * {@link doesStronglyIndicateBoundFunction} may answer differently on Safari
+ * than on Chrome for the same value, by design: each realm is answered with
+ * the evidence it exposes.
  */
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
@@ -31,11 +41,13 @@
  *    subtracted, so ordinary code cannot produce this mark. It says nothing
  *    either way about bound forms that were never constructable.
  * 2. **The anonymous `[native code]` source.** Compared after whitespace
- *    condensing, which makes it engine-independent. The only mark that
- *    survives a bound function whose `name` was overwritten.
+ *    condensing, which normalizes how engines lay the form out but not what
+ *    they put in its name slot. Where it fires it is the only mark that
+ *    survives a bound function whose `name` was overwritten. It does not fire
+ *    on JavaScriptCore for any bound value whose target carries a name.
  * 3. **A `'bound '` prefix on the own `name`.** Forgeable, and reached only
- *    where the first two miss — the engines whose built-ins stringify
- *    identically whether bound or not.
+ *    where the first two miss — which on JavaScriptCore is most bound values,
+ *    and is why this mark exists.
  *
  * ## Boundaries
  *
@@ -108,10 +120,16 @@ export function doesIndicateBoundFunction(value?: unknown): boolean;
  * ## What it costs, and what still defeats it
  *
  * - **A genuine bound function whose `name` was overwritten** is reported
- *   `false`; `name` is `configurable` on every function.
- * - **Engines that keep a name in the native source form** report `false` for
- *   the bound values affected. This variant degrades to silence where the
- *   cascade degrades to a weaker answer.
+ *   `false`; `name` is `configurable` on every function. This variant degrades
+ *   to silence where the cascade degrades to a weaker answer.
+ * - **On JavaScriptCore the admitted set is not the same one.** There the
+ *   expected native source is reconstructed from the `'bound '`-prefixed name
+ *   rather than compared against the anonymous form, which is the only reading
+ *   that can fire on that engine. It admits the same bound values, and it
+ *   additionally admits a **native built-in renamed to look bound** — on that
+ *   engine such a value is indistinguishable from a genuinely bound built-in,
+ *   so no reading can separate them. A renamed user function is still rejected
+ *   on every engine.
  * - **A `Proxy` that also forges its `name` still passes.** A bare `Proxy` does
  *   not. It satisfies mark 2 for free: with no `[[SourceText]]` slot it
  *   produces the anonymous native source honestly. But it forwards the
@@ -142,5 +160,91 @@ export function doesIndicateBoundFunction(value?: unknown): boolean;
  *  entrance-level) is present; `false` otherwise
  */
 export function doesStronglyIndicateBoundFunction(value?: unknown): boolean;
+
+// ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
+//
+//  Engine Reading of Mark 2
+//
+// ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
+
+/**
+ * Reports whether this realm keeps the target's name in the native source form
+ * of a bound function — the JavaScriptCore behavior, and what selects between
+ * the two implementations of {@link doesStronglyIndicateBoundFunction}.
+ *
+ * Reads a property of the realm, not of a value, so it takes no argument. The
+ * probe runs on the first call and the answer is memoized.
+ *
+ * A consumer needs this to interpret a strong answer, to skip a fixture whose
+ * expectation is engine-specific, or to assert an engine's reading in a smoke
+ * test. It cannot be forged upward: a replaced `parseInt` makes it report
+ * `false`, selecting the stricter reading.
+ *
+ * @example
+ * ```ts
+ * // Safari / iOS: true — Chrome, Firefox, Node: false
+ * hasJavaScriptCoreBindBehavior();
+ * ```
+ *
+ * @returns `true` when this realm renders a bound function's target name into
+ *  the native source form
+ */
+export function hasJavaScriptCoreBindBehavior(): boolean;
+
+/* @@throw-safe */
+/**
+ * The conjunction as an engine that renders the target's name must read it —
+ * mark 2 reconstructed from the own `name` rather than compared against the
+ * anonymous form.
+ *
+ * Exposed for testing and for a smoke probe that must exercise a reading its
+ * host engine does not select. Consumers call
+ * {@link doesStronglyIndicateBoundFunction}, which resolves to this or to
+ * {@link doesStronglyIndicateNonJSCBoundFunction} for the running realm.
+ *
+ * @param value - the value to test; omitted is treated as `undefined`, which
+ *  carries no bound markers
+ * @returns `true` when every bound mark (in addition to the qualifying
+ *  entrance-level) is present; `false` otherwise
+ *
+ * @internal
+ */
+export function doesStronglyIndicateJSCSpecificBoundFunction(value?: unknown): boolean;
+
+/* @@throw-safe */
+/**
+ * The conjunction as an engine that renders a bound function anonymously reads
+ * it — mark 2 compared against `CONDENSED_NATIVE_SOURCE_FOUNDATION`.
+ *
+ * Exposed on the same terms as
+ * {@link doesStronglyIndicateJSCSpecificBoundFunction}.
+ *
+ * @param value - the value to test; omitted is treated as `undefined`, which
+ *  carries no bound markers
+ * @returns `true` when every bound mark (in addition to the qualifying
+ *  entrance-level) is present; `false` otherwise
+ *
+ * @internal
+ */
+export function doesStronglyIndicateNonJSCBoundFunction(value?: unknown): boolean;
+
+/* @@throw-safe */
+/**
+ * Assembles the condensed native source a JavaScriptCore engine renders for a
+ * bound function, from the `'bound '`-prefixed own `name` it derives that form
+ * from.
+ *
+ * Strips exactly one prefix, so a double-bound name yields the target's own
+ * bound form. An empty remainder means an anonymous target, which every engine
+ * renders anonymously, so that case yields the anonymous foundation.
+ *
+ * @param boundName - a `name` of the form `bound ${targetName}`
+ * @returns the condensed source to compare a candidate's against
+ *
+ * @internal
+ */
+export function createExpectedJSCSpecificFunctionSourceFromBoundName(
+  boundName: string,
+): string;
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----

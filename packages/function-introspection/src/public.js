@@ -26,7 +26,11 @@
 
 export { getCondensedFunctionSource } from '#utility';
 
-export { doesIndicateBoundFunction, doesStronglyIndicateBoundFunction } from '#bound';
+export {
+  hasJavaScriptCoreBindBehavior,
+  doesIndicateBoundFunction,
+  doesStronglyIndicateBoundFunction,
+} from '#bound';
 
 export { isArrowFunction, isAsyncArrowFunction, isAnyArrowFunction } from '#arrow';
 

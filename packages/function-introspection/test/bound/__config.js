@@ -440,16 +440,56 @@ export const crossCuttingRejections = {
  *
  * `#utility`'s four marked exports are scored by `test/utility/__config.js`;
  * each module owns its own oracle.
+ *
+ * Four of the five take `unknown` and are fed {@link throwSafetyMatrix}. The
+ * fifth, `createExpectedJSCSpecificFunctionSourceFromBoundName`, declares a
+ * `string`, so its hostile set is {@link narrowedStringHostiles} — the marker
+ * promises totality WITHIN the declared parameter type, and feeding it a
+ * non-string would report a defect that is not one (BOUND.spec.md → Resolved
+ * item 1).
  */
 export const THROW_SAFE_MARKED = [
+  'createExpectedJSCSpecificFunctionSourceFromBoundName',
   'doesIndicateBoundFunction',
   'doesStronglyIndicateBoundFunction',
+  'doesStronglyIndicateNonJSCBoundFunction',
+  'doesStronglyIndicateJSCSpecificBoundFunction',
 ];
 
+// ----- throw-safety (axis 5) — the narrowed-parameter hostile set -----
+
+/**
+ * Hostile inputs for the one marked export whose parameter is narrowed to
+ * `string`. Every value here is IN CONTRACT; the question the rows ask is
+ * whether a string can be shaped so the assembly throws or stops returning a
+ * string, not whether the function rejects a non-string.
+ *
+ * The rows are the string classes the helper's own arithmetic can trip on: a
+ * value shorter than the prefix it slices, an empty remainder, a repeated
+ * prefix, a remainder that already looks like the native form, and the
+ * adversarial `name` from the JavaScriptCore finding — the one shape a caller
+ * can choose freely, since `name` is `configurable` on every function.
+ */
+export const narrowedStringHostiles = {
+  empty: () => '',
+  shorterThanPrefix: () => 'bou',
+  prefixOnly: () => 'bound ',
+  prefixRepeated: () => 'bound bound bound plain',
+  noPrefixAtAll: () => 'plain',
+  remainderIsTheNativeForm: () => 'bound function(){[native code]}',
+  remainderIsTheAdversarialName: () => 'bound (){} evil',
+  loneSurrogate: () => 'bound \ud800',
+  veryLong: () => `bound ${'x'.repeat(100000)}`,
+};
+
 // ----- throw-safety matrix (axis 3): hostile-input class × predicate -----
-// Both predicates take `unknown`, so every value below is IN CONTRACT and the
-// marker's promise applies to all of them (BOUND.spec.md → the marker's
-// contract). Each cell asserts BOTH not-thrown AND the honest verdict.
+// The two PUBLIC predicates take `unknown`, so every value below is IN CONTRACT
+// and the marker's promise applies to all of them (BOUND.spec.md → the marker's
+// contract). Each cell asserts BOTH not-thrown AND the honest verdict, and the
+// `expected` verdicts are those two predicates'. The axis-5 suite additionally
+// routes these rows through the two engine-specific implementations, where it
+// asserts non-propagation only — a verdict there is engine-relative, which is
+// the whole reason both exist.
 
 /**
  * @typedef {object} ThrowSafetyRow
