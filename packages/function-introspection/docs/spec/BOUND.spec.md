@@ -372,21 +372,46 @@ conditional construct mark, and differ in mark 2 alone.
 **Subset law (frozen).**
 `doesStronglyIndicateBoundFunction(v) ⟹ doesIndicateBoundFunction(v)` for every `v`. This
 is what the qualifier claims and it remains structural after the 2026-09-07 amendment: the
-conjunction requires mark 3, and the cascade admits anything carrying it. Verified with
-zero violations over the corpus.
+conjunction requires mark 3, and the cascade admits anything carrying it — which is true
+of both readings, so the law survives the engine split as well. Verified with zero
+violations over the corpus here, and asserted on every engine by browser probe B15.
 
-**The disagreement set — exactly three values** (AMENDED 2026-09-07, was five), all in the
-same direction:
+**The disagreement set — three values, or four, depending on the engine.** The cascade
+column is the same everywhere, because since #100 it reads only what the language
+mandates. All the variation is in the conjunction, which reads the source.
 
-| value                                        | cascade | strong | why the divergence is intended                  |
-| -------------------------------------------- | ------- | ------ | ----------------------------------------------- |
-| an arrow renamed `'bound x'`                 | true    | false  | precision gained — own source fails mark 2      |
-| a bound CONSTRUCTABLE whose `name` was reset | true    | false  | recall lost — the price of requiring every mark |
-| a named native renamed `'bound max'`         | true    | false  | engine-relative — see below                     |
+| value                                                      | cascade | strong · renders anonymously | strong · renders the name |
+| ---------------------------------------------------------- | ------- | ---------------------------- | ------------------------- |
+| an arrow renamed `'bound x'`                               | true    | false                        | false                     |
+| a bound CONSTRUCTABLE whose `name` was reset               | true    | false                        | false                     |
+| a named native renamed `'bound max'`                       | true    | false                        | **true**                  |
+| a `Proxy` over a BOUND function                            | true    | true                         | **false**                 |
+| a bound value renamed AFTER binding to another `'bound …'` | true    | true                         | **false**                 |
 
-Two values left the set when the cascade stopped reading the source: `Function.prototype`
-and a bare `Proxy` over a callable are now refused by both predicates. Neither is a bound
-function, so the pair agreeing on `false` is the correct outcome, not a lost distinction.
+So the set is **three** where a bound function renders anonymously — the first three rows,
+which is what every vector in this file was executed against — and **four** where the
+engine renders the target's name: row three leaves the set, and rows four and five join
+it.
+
+The three that hold everywhere are the intended trades. An arrow renamed to look bound is
+precision gained, since its own source is no native form. A bound constructable whose name
+was erased is recall lost, the price of requiring every mark. A named native renamed
+`'bound max'` is the engine-relative one: a forgery the conjunction refuses where the
+source still distinguishes it, and an admission it cannot refuse where the source does not
+(`dSIBF/B2`).
+
+The two that appear only on a name-rendering engine come from the same cause — there, the
+expected source is RECONSTRUCTED from the own `name`, and both values carry a name the
+engine did not use to render them. A `Proxy` forwards its target's `'bound …'` name while
+the engine renders the proxy itself; a value renamed after binding keeps the name it was
+given while the engine still renders the target's. Measured for the proxy (browser probe
+C2); derived from A9's measurement for the rename, which established that a post-bind
+rename does not move the rendered name.
+
+Two values left the set entirely when the cascade stopped reading the source:
+`Function.prototype` and a bare `Proxy` over a callable are now refused by both predicates
+on every engine. Neither is a bound function, so the pair agreeing on `false` is the
+correct outcome, not a lost distinction.
 
 **The cascade degrades to a weaker answer; the conjunction degrades to silence** — that is
 the choice a consumer makes between them.
@@ -402,12 +427,16 @@ renders `plain.bind(null)` as `'function plain(){[native code]}'`, and the effec
 confined to built-ins — it reaches every bound value whose target carries a name. Before
 the split, that made the conjunction reject essentially every bound value on that engine.
 
-Row three is the value that reads differently by engine even now. On V8 it is a forgery a
-renamed `Math.max` produces; on JavaScriptCore it is indistinguishable from a genuinely
-bound built-in, so the conjunction admits it there. `dIBF/B4` simulates the shape, not the
-provenance — a single-engine runner cannot produce the real value — and the engine claim
-behind it is now asserted by `browser.probes.mjs` rather than by an observation recorded
-in a comment.
+Rows three to five are the values that read differently by engine, and none of them can be
+produced honestly under a single-engine runner. Row three is a forgery where the source
+still distinguishes it and an unavoidable admission where it does not; `dIBF/B4` simulates
+its shape, never its provenance, since only a name-rendering engine makes the two
+collapse. Rows four and five do not diverge here at all — on this engine both predicates
+admit them, and only a name-rendering engine separates them.
+
+The engine claims behind all three now rest on `browser.probes.mjs` rather than on
+observations recorded in comments: layer A records what each engine returns, and layer C
+records what the library answers there.
 
 ## Helper specification (axis 4)
 

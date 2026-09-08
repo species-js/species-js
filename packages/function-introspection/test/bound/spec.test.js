@@ -14,9 +14,12 @@
  * against the DECLARED expectations, so a row that contradicts the law is
  * caught as bad data before it is ever compared to the implementation — the
  * implementation-side law over a wider corpus belongs to `invariants.test.js`.
- * And the disagreement set is pinned by name: the two predicates may differ on
- * exactly five candidates, and any change to that set surfaces here with the
- * offending row named rather than as an anonymous count.
+ * And the disagreement set is pinned by NAME rather than by count, so any
+ * change surfaces with the offending row identified. On this runtime the two
+ * predicates differ on exactly three candidates — the set is engine-relative,
+ * and this suite pins the one that holds wherever a bound function renders
+ * anonymously. Where an engine renders the target's name instead there are
+ * four, and `BOUND.spec.md`'s table carries both columns.
  *
  * Foreign-realm vectors live in `cross-realm.test.js`; the forgery shapes and
  * documented boundaries in `adversarial.test.js`; the `@internal` helpers in

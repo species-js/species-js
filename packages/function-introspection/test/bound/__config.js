@@ -7,12 +7,12 @@
  * (fresh-value factories) plus the axis-1 contract matrix scoring each
  * candidate against both predicates.
  *
- * The two predicates share an entrance-level and read the same three marks,
- * differing only in whether ANY or EVERY mark is required. The matrix therefore
- * scores both in one row, which makes the subset law
+ * The two predicates share an entrance-level. Since ADR #100 the cascade reads
+ * two marks and the conjunction reads three — the source is the one the cascade
+ * dropped — so they differ in WHICH marks as well as in how many are required.
+ * The matrix scores both in one row, which makes the subset law
  * (`doesStronglyIndicateBoundFunction ⟹ doesIndicateBoundFunction`) and the
- * two-value disagreement set auditable at a glance rather than asserted in
- * prose.
+ * disagreement set auditable at a glance rather than asserted in prose.
  *
  * `spec.test.js` drives the matrix; the targeted axis suites (cross-realm,
  * adversarial, invariants) import the specific named factories they need.
@@ -284,18 +284,22 @@ export const specMatrix = {
     vectors: ['dIBF/A12', 'dSIBF/A11'],
   },
 
-  // --- the disagreement set, and the three rows that left it (ADR #100) ---
+  // --- the disagreement set, and the two rows that LEFT it (ADR #100) ---
+  //     `Function.prototype` and a bare `Proxy` are now refused by both, since
+  //     the cascade no longer reads the source that used to admit them. The
+  //     third row below is neither: it is the price #100 charged, a bound
+  //     NON-constructable whose name was erased, which both now refuse.
   functionPrototype: {
     description: '`Function.prototype` — native and unnamed, and never bound',
     make: functionPrototype,
     expected: NEITHER,
-    vectors: ['dIBF/B1', 'dSIBF/R10'],
+    vectors: ['dIBF/R11', 'dSIBF/R10'],
   },
   bareProxyOverArrow: {
     description: "a bare `Proxy` over an arrow — it forwards the target's ordinary name",
     make: bareProxyOverArrow,
     expected: NEITHER,
-    vectors: ['dIBF/B2', 'dSIBF/R13'],
+    vectors: ['dIBF/R12', 'dSIBF/R13'],
   },
   renamedArrow: {
     description: 'an arrow renamed to look bound — mark 3 forged, mark 2 intact',

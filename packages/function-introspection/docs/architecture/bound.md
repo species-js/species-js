@@ -7,9 +7,10 @@ A bound function does not announce itself. `Function.prototype.bind` records its
 Everything reachable is circumstantial.
 
 So this module does not ask "is this bound?" It asks **how much evidence of binding does
-this value carry?**, and it offers that answer at two strengths. Both exports read the
-same three marks past the same entrance-level, and differ only in how many marks they
-require.
+this value carry?**, and it offers that answer at two strengths past one shared
+entrance-level. Since ADR #100 they differ in WHICH marks they read as well as in how many
+they require: the recall-first predicate reads the two the language mandates, the
+precision-first one also reads the function source. The next section is that split.
 
 That framing is the module's whole shape. It is why the exports are named `doesIndicate…`
 rather than `is…`, why they return a plain `boolean`, and why they grant no narrowing: a
