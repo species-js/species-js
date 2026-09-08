@@ -210,23 +210,42 @@ jobs:
           npm install --global bun@1.4.2
           bun --version
           SPECIES_SMOKE_ONLY=esm,cjs bun scripts/check-bundle-smoke.mjs
-          # Diagnostic, not a gate — yet. The probes above assert that the realm
-          # probe AGREES with what this runtime renders, which holds whichever
-          # way it answers, so a green does not by itself prove this job reaches
-          # the JavaScriptCore reading at all. Printing the answer is what turns
-          # that into a recorded fact; once it is known it becomes an assertion,
-          # the same sequence `browser.probes.mjs` uses for a new engine profile.
+          # Asserts this JOB'S PREMISE, not the library's behavior. The probes
+          # above check that the realm probe AGREES with what the runtime
+          # renders, which holds whichever way it answers — so a green there is
+          # consistent with Bun behaving exactly like V8, in which case this
+          # step would cover the JavaScriptCore reading not at all while looking
+          # like it did.
+          #
+          # Measured 2026-09-08 on bun 1.4.2: both answers are `true`, so this
+          # job really does exercise the reading that only a name-rendering
+          # engine selects. Recorded first, then asserted — the sequence
+          # `browser.probes.mjs` uses for a new engine profile.
+          #
+          # A red here does not mean the library broke. It means Bun stopped
+          # rendering the bound target's name, or the realm probe stopped
+          # detecting that it does, and either way this job silently stopped
+          # covering what it was added for.
           bun -e '
             import("./packages/function-introspection/dist/node/public.js").then((m) => {
               const rendersName =
                 m.getCondensedFunctionSource(function named() {}.bind(null)) !==
                 "function(){[native code]}";
+              const selected = m.hasJavaScriptCoreBindBehavior();
               console.log(
-                `realm: hasJavaScriptCoreBindBehavior=${m.hasJavaScriptCoreBindBehavior()} ` +
+                `realm: hasJavaScriptCoreBindBehavior=${selected} ` +
                   `rendersBoundTargetName=${rendersName}`,
               );
+              if (selected !== true || rendersName !== true) {
+                console.error(
+                  "\u2717 this runtime no longer selects the JavaScriptCore reading, so " +
+                    "this job has stopped covering it. Re-measure before relaxing this.",
+                );
+                process.exit(1);
+              }
             }).catch((error) => {
-              console.log(`realm: could not be read — ${error.message}`);
+              console.error(`\u2717 realm could not be read — ${error.message}`);
+              process.exit(1);
             });
           '
 

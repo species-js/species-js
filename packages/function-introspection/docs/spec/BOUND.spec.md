@@ -329,9 +329,14 @@ conditional construct mark, and differ in mark 2 alone.
   reconstruction can match. The one forgery shape neither reading admits anywhere.
 - **Not assertable on V8, and stated so rather than left implied:** what the JSC reading
   ADMITS. Every value it accepts requires a rendered source only a name-rendering engine
-  produces, so its admissions are covered by browser probes B14 and B15 on WebKit and
-  nowhere else. That is the coverage cost of the split, and it is the reason `browser.yml`
-  is not optional for this module.
+  produces, so no vector in this file reaches them. **AMENDED 2026-09-08, hours after
+  being written:** the first draft said those admissions are covered "on WebKit and
+  nowhere else", which was true when written and false by the end of the day. Bun executes
+  JavaScriptCore, and it was measured selecting this reading —
+  `hasJavaScriptCoreBindBehavior=true` — so `smoke:check:bun` covers them too, against the
+  built ESM and CJS artifacts, on every push. WebKit covers them weekly through B14 and
+  B15 against the UMD. Two engines, two artifact sets, two cadences; the split's coverage
+  cost is real but smaller than one day's reasoning made it.
 
 ## Relationship — the two predicates together
 
