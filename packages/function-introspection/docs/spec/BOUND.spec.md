@@ -43,11 +43,12 @@ entrance-level:  isFunction(value) && !hasOwnPrototype(value)
       └── every mark    → doesStronglyIndicateBoundFunction  (precision-first)
 ```
 
-The three marks, in the order the cascade tries them:
+The three marks, numbered as every reference below uses them:
 
 1. **`[[Construct]]`** — a construct slot, with the `Proxy` constructor subtracted.
 2. **Anonymous native source** — the condensed source equals
-   `'function(){[native code]}'`.
+   `'function(){[native code]}'`. **Read by the conjunction alone since 2026-09-07** (ADR
+   #100); the cascade tries marks 1 and 3, in that order.
 3. **`'bound '` name prefix** — the own `name` starts with `'bound '`.
 
 Neither predicate ever invokes the value.
@@ -133,13 +134,19 @@ same on every conforming engine.
 - `dIBF/A2` — `plain.bind(null, 1)` → true — partial application changes `length`, not the
   marks.
 - `dIBF/A3` — `K.bind(null)` (bound class) → true — construct slot preserved.
-- `dIBF/A4` — `(() => {}).bind(null)` → true — no construct slot; carried by marks 2
-  and 3.
+- `dIBF/A4` — `(() => {}).bind(null)` → true — no construct slot; carried by mark 3 alone.
+  **AMENDED 2026-09-07:** mark 2 carried it too until #100. The verdict is unchanged;
+  `dIBF/R10` is where that loss becomes visible.
 - `dIBF/A5` — `obj.concise.bind(null)` → true — same shape as A4.
 - `dIBF/A6` — `(function* () {}).bind(null)` → true — generator functions have no
-  construct slot, so again marks 2 and 3.
-- `dIBF/A7` — `Math.max.bind(null)` → true — a bound built-in loses the target's name from
-  the source, satisfying mark 2.
+  construct slot, so again mark 3 alone (**AMENDED 2026-09-07**, as `dIBF/A4`).
+- `dIBF/A7` — `Math.max.bind(null)` → true — mark 3, from the `'bound max'` name.
+  **AMENDED 2026-09-07:** the rationale used to be mark 2, on the premise that a bound
+  built-in loses the target's name from the source. That is V8's and SpiderMonkey's
+  behavior rather than the language's — JavaScriptCore renders
+  `'function max(){[native code]}'` for `Math.max.bind(null)` and for `Math.max` alike
+  (probe A8, WebKit 26.5), so nothing is lost there. The verdict holds on every engine,
+  because mark 3 carries it.
 - `dIBF/A8` — `Array.bind(null)` → true — bound native constructor.
 - `dIBF/A9` — `Proxy.bind(null)` → true — the subtraction tests for `name === 'Proxy'`; a
   bound `Proxy` is named `'bound Proxy'` and is therefore not subtracted.
@@ -394,3 +401,11 @@ Verified before freezing: no throws across the marked set.
    **Amendment, not an append** — `dIBF/B1`, `dIBF/B2` and the "exactly five" count were
    frozen claims and are now corrected, with the withdrawn vectors kept visible and struck
    through rather than deleted (#054).
+
+   **Rationale sweep, same amendment.** The first pass corrected every vector whose
+   VERDICT changed and left behind four places that merely CITED the removed mark:
+   `dIBF/A4`, `A6` and `A7` credited mark 2 with carrying them, and the Module contract
+   still framed the mark list as the cascade's trial order. All four are corrected above
+   and no verdict among them moves. `A7` was the one worth the trouble: its premise — that
+   a bound built-in loses the target's name from the source — is not merely stale but
+   false on JavaScriptCore, which is the engine the amendment exists for.

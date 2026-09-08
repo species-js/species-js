@@ -48,8 +48,10 @@ Every predicate here draws on one or more of:
 
 1. **`[[SourceText]]`**, read through a realm-fixed `Function.prototype.toString`. The
    only channel that distinguishes an arrow from a concise method, since nothing
-   structural does. Binding, `Proxy`-wrapping and every built-in erase it — they stringify
-   to the anonymous `[native code]` form.
+   structural does. Binding and `Proxy`-wrapping erase it, and a built-in never had one —
+   all three stringify to the `[native code]` grammar instead. Whether that form carries a
+   name is the engine's choice: a built-in keeps its own everywhere, and JavaScriptCore
+   renders a bound function's target name where V8 and SpiderMonkey render nothing.
 2. **The spec-defined tag** — `[object AsyncFunction]` and its siblings. Unforgeable, and
    it travels across realms. Used to settle what source alone cannot.
 3. **Slot and descriptor reads** — an own `prototype`, a `[[Construct]]` slot, an own

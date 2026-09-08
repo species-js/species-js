@@ -4,7 +4,10 @@
 > [type-detection's spec README](../../../type-detection/docs/spec/README.md); this
 > package follows the same model and does not restate it. Vectors are reasoned from the
 > canon (`utility/index.js`, `utility/index.d.ts`, decisions #086 and #088). Status:
-> **FROZEN 2026-08-11 — extracted in full from `BOUND.spec.md`.**
+> **FROZEN 2026-08-11 — extracted in full from `BOUND.spec.md` · AMENDED 2026-09-07.** The
+> amendment is rationale only: no vector was re-derived and no verdict changed. Two claims
+> about what the condensate's preserved name PROVES were falsified by probe A8 on WebKit
+> 26.5 and are corrected in place. See Resolved item 3.
 >
 > No vector was re-derived and no verdict changed. Every one of the eighteen below passed
 > the decidability check for `BOUND.spec.md` on 2026-08-06 and is the live oracle for
@@ -20,8 +23,9 @@ source through. It answers two questions and carries no classification logic of 
 
 - **What does this callable's source look like, normalized?** — a condensed source form in
   which whitespace adjacent to brackets is removed, so engine-specific spellings of the
-  same function collapse onto one string. This is what makes `[native code]` detection
-  portable.
+  same LAYOUT collapse onto one string. That is what makes the `[native code]` marker
+  portable. It reaches no further — the name slot is filled by each engine as it chooses,
+  and no whitespace rule normalizes it.
 - **Is this callable the `Proxy` constructor?** — by identity in this realm, by descriptor
   shape in any other.
 
@@ -118,7 +122,12 @@ intact.
 - `gFSC/A3` — `'function\t()\t{\t[native code]\t}'` (tabs) → the canonical form.
 - `gFSC/A4` — `'function(){[native code]}'` (already condensed) → unchanged.
 - `gFSC/R1` — `'function max() { [native code] }'` → **not** the canonical form; the name
-  survives, which is what separates a bound function from the native it was bound from.
+  survives. **AMENDED 2026-09-07 (rationale only):** the surviving name used to be
+  credited with telling a bound function apart from the native it came from. It does that
+  on V8 and SpiderMonkey, where only the unbound native carries a name. On JavaScriptCore
+  both do — `Math.max.bind(null)` renders character for character what `Math.max` renders
+  (probe A8, WebKit 26.5) — so the transform's verdict stands unchanged while what it
+  proves is engine-relative.
 - `gFSC/R2` — `'m() { [nativecode] }'` → **not** the canonical form. The interior space in
   `[native code]` is preserved deliberately: without it the marker would fuse into the
   legal identifier `[nativecode]`, which a concise method can carry as an array literal —
@@ -196,3 +205,16 @@ so the sets never merge.
    defers the other four to `test/utility/__config.js`. The spec was describing a merged
    oracle the tests never had. Splitting the table brings the spec back in step with the
    test architecture rather than changing either.
+3. **What the preserved name proves is engine-relative (2026-09-07).** Two places here
+   credited the surviving name with telling a bound function apart from the native it came
+   from. That was measured on V8 and assumed to be the language's behavior. It is not:
+   JavaScriptCore renders the bound target's name into the same grammar, so on that engine
+   `Math.max.bind(null)` and `Math.max` are one string and the comparison separates
+   nothing (probe A8, WebKit 26.5). **Rationale only** — `gFSC/R1` takes a STRING and its
+   verdict never depended on the engine, which is why no vector moves. The same claim was
+   corrected in `utility/index.{js,d.ts}`, `architecture/utility.md`,
+   `architecture/README.md` and `BOUND.spec.md` the same day; it had five homes, and the
+   `docs:sweep` claim matcher is what found the two here. The retired sentence is
+   paraphrased above rather than quoted, because that matcher reads a claim's wording
+   wherever it appears and cannot tell a quotation from an assertion — the same reason
+   `bound.js` no longer spells the syntax it avoids.

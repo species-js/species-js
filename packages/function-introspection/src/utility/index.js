@@ -23,13 +23,20 @@ import { getOwnPropertyDescriptors, globalContext } from '#config';
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 
 /**
- * The condensed source every bound function normalizes to — the anonymous
- * `NativeFunction` grammar of ECMA-262 §20.2.3.5 with punctuation-adjacent
- * whitespace removed.
+ * The anonymous `NativeFunction` grammar of ECMA-262 §20.2.3.5, with
+ * punctuation-adjacent whitespace removed.
  *
- * The anonymity is the discriminator. A built-in keeps its name in the same
- * grammar (`function max(){[native code]}`), so an exact comparison against
- * this string separates a bound function from the native it was bound from.
+ * What an exact comparison against it proves is engine-specific, because
+ * `Function.prototype.toString` is implementation-defined for an exotic. Where
+ * a bound function renders anonymously — V8 and SpiderMonkey — the comparison
+ * separates it from the named native it was bound from, since a built-in keeps
+ * its name in the same grammar (`function max(){[native code]}`). On
+ * JavaScriptCore it separates nothing: `Math.max.bind(null)` renders character
+ * for character what `Math.max` renders (probe A8, WebKit 26.5), so neither
+ * equals this string.
+ *
+ * That is why the conjunction is built twice and dispatched per realm, and why
+ * the cascade stopped reading the source at all (ADR #100).
  *
  * @internal
  */

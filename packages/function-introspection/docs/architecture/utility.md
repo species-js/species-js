@@ -20,8 +20,10 @@ use tabs. A comparison against any one of those spellings is a comparison agains
 engine.
 
 Condensing removes whitespace adjacent to `(`, `)`, `{`, `}`, `[`, `]` and leaves every
-other run intact. All the engine spellings then collapse onto one string, and **that is
-what makes `[native code]` detection portable**.
+other run intact. Every engine's LAYOUT then collapses onto one string, and **that is what
+makes the `[native code]` marker portable**. It reaches no further: what an engine puts
+between `function` and `(` is its own choice, and no amount of whitespace condensing
+normalizes a name slot.
 
 Two details of that rule are load-bearing rather than incidental:
 
@@ -29,8 +31,11 @@ Two details of that rule are load-bearing rather than incidental:
   into `[nativecode]`, a legal identifier a concise method can carry as an array literal —
   a forgery needing no `Proxy`.
 - **A name survives condensation.** `function max() { [native code] }` does not reduce to
-  the anonymous form, which is exactly what lets `bound` tell a bound built-in from the
-  native it was bound from.
+  the anonymous form. On V8 and SpiderMonkey that is what lets `bound` tell a bound
+  built-in from the native it was bound from, since only the unbound one carries a name.
+  On JavaScriptCore it does not, because that engine renders the bound target's name too —
+  `Math.max.bind(null)` and `Math.max` are the same string there (probe A8). What the
+  condensate preserves is real; which values it separates is the engine's choice.
 
 ## Two readers, and why both
 
