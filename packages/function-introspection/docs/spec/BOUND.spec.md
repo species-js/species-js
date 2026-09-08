@@ -5,10 +5,10 @@
 > package follows the same model and does not restate it. Vectors are reasoned from the
 > canon (`bound.js`, `bound.d.ts`, `utility/index.{js,d.ts}`, decisions #087 and #088).
 > Status: **FROZEN 2026-08-06 · AMENDED 2026-08-07 · AMENDED 2026-08-11 · AMENDED
-> 2026-09-07** — decidability check passed: every vector below was executed against the
-> real predicates through the `#index` barrel before freezing, including the cross-realm
-> pairs (`node:vm`) and the two forgery shapes. This spec is the base for the axis-1
-> suite; axes 2–5 derive alongside.
+> 2026-09-07 · AMENDED 2026-09-08** — decidability check passed: every vector below was
+> executed against the real predicates through the `#index` barrel before freezing,
+> including the cross-realm pairs (`node:vm`) and the two forgery shapes. This spec is the
+> base for the axis-1 suite; axes 2–5 derive alongside.
 >
 > The 2026-08-07 amendment adds `dIBF/B4` and `dSIBF/R14` — the shape mark 3 exists for,
 > which no vector had covered — and corrects the disagreement set from four values to
@@ -25,6 +25,14 @@
 > affected vectors are marked inline and listed in Resolved item 7. This became possible —
 > and necessary — once `browser.probes.mjs` could execute the engine question instead of
 > citing an observation.
+>
+> The 2026-09-08 amendment completes that split rather than revising it. The exports it
+> introduced are entered in the surface inventory, the two readings and the reconstruction
+> helper are given contracts and vectors, and the one admission the JavaScriptCore reading
+> adds is named at `dSIBF/B2` and accepted with its reasoning. `dSIBF/R14` is corrected in
+> the same pass: it described a rejection on every engine, which stopped being true the
+> moment the split landed. No verdict on an engine that renders bound functions
+> anonymously changes. See Resolved item 8.
 
 ## Module contract
 
@@ -88,13 +96,12 @@ reports a defect that is not one.
 | `globalContext`                                        | `#config`  | `@internal` | n/a (constant) |
 | `getOwnPropertyDescriptors`                            | `#config`  | `@internal` | n/a (capture)  |
 
-**Four rows were added 2026-09-08 — the inventory had drifted.** The engine split of
-2026-09-07 introduced them and this table was not swept in the same commit, so it listed
-two `#bound` exports where the module had six, and one of the four is PUBLISHED. No gate
-reads this table, which is why the drift survived `surface:check`, `entries:check` and
-`docs:sweep` alike. `hasJavaScriptCoreBindBehavior` carries no `@@throw-safe` marker
-deliberately: it takes no argument, so the marker's contract — totality within the
-declared parameter type — has nothing to quantify over.
+The last four rows arrived with the engine split and were entered 2026-09-08. **No gate
+reads this table**, so it is the one part of the spec that can fall behind the module
+without anything going red — worth a glance whenever `#bound` gains or loses an export.
+`hasJavaScriptCoreBindBehavior` carries no `@@throw-safe` marker by design: it takes no
+argument, and the marker promises totality within a declared parameter type it does not
+have.
 
 Only `doesIndicateBoundFunction`, `doesStronglyIndicateBoundFunction`,
 `hasJavaScriptCoreBindBehavior` and `getCondensedFunctionSource` reach a consumer;
@@ -249,8 +256,31 @@ where a slot exists.
 - `dSIBF/A1`–`A10` — every bound form admitted by `dIBF/A1`–`A10`, unchanged.
 - `dSIBF/A11` — the cross-realm bound function and bound `Proxy` of `dIBF/A12` → true.
 - `dSIBF/B1` — a `Proxy` that **also traps `name`** to report `'bound x'` → true —
-  **documented boundary, and the only one that survives the conjunction**. Every mark is
-  satisfied: the source is anonymous native for free, and the trap supplies the name.
+  **documented boundary.** Every mark is satisfied: the source is anonymous native for
+  free, and the trap supplies the name.
+- `dSIBF/B2` — on an engine that renders a bound function's target name, a
+  **non-constructable native renamed to `'bound '` plus its own rendered name** → true —
+  **documented boundary, and the only admission this reading adds.**
+
+  Such an engine renders a bound built-in and its unbound target as the same string, and
+  the two agree on everything else a predicate may read: own `name`, own keys and their
+  attributes, `length`, `[[Prototype]]`, and the absence of a construct slot. Nothing
+  separates them, so admitting the genuine one admits the forgery with it. The only thing
+  that would separate them is renaming the candidate and reading its source again, which a
+  predicate may not do.
+
+  **Accepted rather than closed, and this is where the module's grade is spent.** The
+  alternative is to require a construct slot on that engine, which would refuse every
+  bound arrow, concise method, generator and non-constructable native there — four
+  ordinary shapes surrendered to block one forgery that a caller has to build
+  deliberately, by renaming a native to impersonate its own bound form. The exposure does
+  not reach user functions, which keep their authored source and fail mark 2 wherever they
+  run.
+
+  `concise` makes the opposite trade, because its law L3 forbids a false positive outright
+  and its predicates are named `is…`. This module states no such law and names its exports
+  `doesIndicate…`, which #088 defines as evidence rather than proof. The difference in the
+  two names is exactly the difference in the two decisions.
 
 **Rejects** — everything `doesIndicateBoundFunction` rejects, plus:
 
@@ -262,11 +292,12 @@ where a slot exists.
   price**. Mark 3 fails and there is no weaker gate to fall through to.
 - `dSIBF/R13` — a **bare** `Proxy` over a prototype-less callable → false — it satisfies
   mark 2 honestly but forwards its target's `name`, failing mark 3.
-- `dSIBF/R14` — the named native renamed to `'bound max'` of `dIBF/B4` → false — mark 2
-  fails. On V8 that rejection is a precision gain, because the value is not bound. On an
-  engine that keeps the name in the native source form, the identical rejection is a
-  **recall loss on a genuinely bound built-in**. One vector, read either way depending on
-  the engine — which is why the disagreement table below is engine-relative.
+- `dSIBF/R14` — the named native renamed to `'bound max'` of `dIBF/B4` → false **wherever
+  a bound function renders anonymously**. Its source keeps the target's name, so mark 2
+  fails and the value is refused; since it was never bound, that refusal is a precision
+  gain. Where the engine renders the name instead, the same value is admitted rather than
+  refused — that is `dSIBF/B2` above, and the reason the disagreement table is
+  engine-relative.
 
 ## The engine split (added 2026-09-08)
 
@@ -327,16 +358,14 @@ conditional construct mark, and differ in mark 2 alone.
 - `dSIBF/E3` — an arrow renamed `'bound …'` is refused by BOTH readings on every engine.
   Its own source text is no native form, so neither the anonymous comparison nor the
   reconstruction can match. The one forgery shape neither reading admits anywhere.
-- **Not assertable on V8, and stated so rather than left implied:** what the JSC reading
-  ADMITS. Every value it accepts requires a rendered source only a name-rendering engine
-  produces, so no vector in this file reaches them. **AMENDED 2026-09-08, hours after
-  being written:** the first draft said those admissions are covered "on WebKit and
-  nowhere else", which was true when written and false by the end of the day. Bun executes
-  JavaScriptCore, and it was measured selecting this reading —
-  `hasJavaScriptCoreBindBehavior=true` — so `smoke:check:bun` covers them too, against the
-  built ESM and CJS artifacts, on every push. WebKit covers them weekly through B14 and
-  B15 against the UMD. Two engines, two artifact sets, two cadences; the split's coverage
-  cost is real but smaller than one day's reasoning made it.
+- **What the JavaScriptCore reading ADMITS cannot be asserted here.** Every value it
+  accepts needs a rendered source only a name-rendering engine produces, so no vector in
+  this file reaches one. That coverage sits outside the unit suite by necessity: Bun runs
+  JavaScriptCore and selects this reading, so `smoke:check:bun` exercises those admissions
+  on every push against the built module artifacts, and the browser matrix exercises them
+  weekly against the UMD on WebKit. Said plainly here because a reader who finds no
+  admission vectors above should know where they went, rather than conclude there are
+  none.
 
 ## Relationship — the two predicates together
 
@@ -492,3 +521,28 @@ Verified before freezing: no throws across the marked set.
    and no verdict among them moves. `A7` was the one worth the trouble: its premise — that
    a bound built-in loses the target's name from the source — is not merely stale but
    false on JavaScriptCore, which is the engine the amendment exists for.
+
+8. **The engine split is finished, and the boundary it adds is accepted (2026-09-08).**
+   The 2026-09-07 amendment changed how the module reads a bound function; this one
+   records what that left standing.
+
+   Four exports arrived with the split and are now in the surface inventory, one of them
+   published. The two readings and the reconstruction helper carry contracts and vectors,
+   and the reconstruction helper — a pure string transform that runs the same everywhere —
+   is exercised directly, which it had not been.
+
+   The substantive decision is `dSIBF/B2`. On an engine that renders a bound function's
+   target name, a non-constructable native renamed to impersonate its own bound form is
+   admitted, because that engine leaves nothing to tell the two apart. **We keep it.**
+   Closing it means requiring a construct slot there, which costs every bound arrow,
+   concise method, generator and non-constructable native on that engine — four ordinary
+   shapes lost to block one forgery a caller must build on purpose. A predicate named
+   `doesIndicate…` reports evidence, and evidence a caller has forged is still, honestly
+   reported, evidence. `concise` decides the same question the other way because its law
+   forbids a false positive; the two modules differ in their names and therefore in their
+   answers.
+
+   `dSIBF/R14` is corrected in the same pass. It read as a rejection on every engine,
+   which the split made untrue: on a name-rendering engine the value is admitted, and that
+   is `dSIBF/B2`. **A correction, not a new verdict** — nothing changes where a bound
+   function renders anonymously, which is where every vector in this file was executed.

@@ -321,14 +321,24 @@ export function createExpectedJSCSpecificFunctionSourceFromBoundName(boundName) 
  * passes only if the trapped value matches what the engine renders for the
  * proxy itself, so the sibling's one surviving forgery generally fails here.
  *
- * ## What it newly admits
+ * ## What it newly admits — a decided boundary, not an open cost
  *
  * A native built-in renamed to `'bound '` plus its own rendered name. On such
  * an engine that value and a genuinely bound built-in are indistinguishable —
- * identical own `name`, identical rendered source — so no reading can separate
- * them, and admitting the genuine one admits the forgery with it. The exposure
- * is confined to natives: a user function renamed the same way still carries
- * its own source text and fails mark 2.
+ * identical own `name`, identical rendered source, and neither holds a construct
+ * slot — so no reading can separate them, and admitting the genuine one admits
+ * the forgery with it. The exposure is confined to natives: a user function
+ * renamed the same way still carries its own source text and fails mark 2.
+ *
+ * It is kept deliberately. Closing it means requiring a construct slot here,
+ * which refuses every bound arrow, concise method, generator and
+ * non-constructable native on this engine — four ordinary shapes surrendered to
+ * block one forgery a caller has to build on purpose. A `doesIndicate` predicate
+ * reports evidence, and evidence the caller forged is still evidence honestly
+ * reported (#088). The `concise` module answers the same question the other way
+ * because its law forbids a false positive outright; the difference between the
+ * two modules' names is the difference between their answers. Recorded as
+ * `dSIBF/B2` in `BOUND.spec.md`, beside the `Proxy` boundary it sits next to.
  *
  * @param {unknown} [value] - the value to test; omitted is treated as
  *  `undefined`, which carries no bound markers

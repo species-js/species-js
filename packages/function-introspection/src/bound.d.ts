@@ -132,14 +132,20 @@ export function doesIndicateBoundFunction(value?: unknown): boolean;
  * - **A genuine bound function whose `name` was overwritten** is reported
  *   `false`; `name` is `configurable` on every function. This variant degrades
  *   to silence where the cascade degrades to a weaker answer.
- * - **On JavaScriptCore the admitted set is not the same one.** There the
- *   expected native source is reconstructed from the `'bound '`-prefixed name
- *   rather than compared against the anonymous form, which is the only reading
- *   that can fire on that engine. It admits the same bound values, and it
- *   additionally admits a **native built-in renamed to look bound** — on that
- *   engine such a value is indistinguishable from a genuinely bound built-in,
- *   so no reading can separate them. A renamed user function is still rejected
- *   on every engine.
+ * - **On JavaScriptCore the admitted set is larger, by one accepted case.**
+ *   There the expected native source is reconstructed from the
+ *   `'bound '`-prefixed name rather than compared against the anonymous form —
+ *   the only reading that can fire on that engine, and what keeps bound arrows,
+ *   concise methods and generators detectable there at all. It admits every
+ *   value the other reading admits, and additionally a **native built-in
+ *   renamed to impersonate its own bound form**. That engine renders the two
+ *   identically and they agree on every other readable channel, so no reading
+ *   separates them; refusing the forgery would mean refusing every
+ *   non-constructable bound value on that engine, which costs far more than it
+ *   saves. A renamed user function is refused everywhere, since it keeps its own
+ *   source text. If a caller renaming built-ins is inside your threat model,
+ *   read {@link doesIndicateBoundFunction} instead and add your own check — its
+ *   answer is the same on every engine.
  * - **A `Proxy` that also forges its `name` still passes.** A bare `Proxy` does
  *   not. It satisfies mark 2 for free: with no `[[SourceText]]` slot it
  *   produces the anonymous native source honestly. But it forwards the
@@ -157,11 +163,18 @@ export function doesIndicateBoundFunction(value?: unknown): boolean;
  *
  * doesStronglyIndicateBoundFunction(greet.bind(null, 'Hello')); // true
  * doesStronglyIndicateBoundFunction(Math.max.bind(null)); // true
- * doesStronglyIndicateBoundFunction(Function.prototype); // false — the cascade says true
  * doesStronglyIndicateBoundFunction(greet); // false
  * doesStronglyIndicateBoundFunction(undefined); // false
  *
- * doesStronglyIndicateBoundFunction(new Proxy(() => {}, {})); // false — the cascade says true
+ * // neither predicate admits these — no bind ever happened
+ * doesStronglyIndicateBoundFunction(Function.prototype); // false
+ * doesStronglyIndicateBoundFunction(new Proxy(() => {}, {})); // false
+ *
+ * // where the two differ: a forged name convinces the cascade, not this one
+ * const forged = Object.defineProperty(() => {}, 'name', { value: 'bound greet' });
+ *
+ * doesIndicateBoundFunction(forged); // true
+ * doesStronglyIndicateBoundFunction(forged); // false
  * ```
  *
  * @param value - the value to test; omitted is treated as `undefined`, which
