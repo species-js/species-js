@@ -41,8 +41,23 @@
  *
  * **Layer B is the library CONTRACT**, and it is identical on every engine. A
  * layer-B failure is a DEFECT — the module answering differently depending on
- * where it runs. B9 is the one that remains on WebKit: the false positive in
+ * where it runs. B9 is the standing one on WebKit: the false positive in
  * `concise.js` that breaks CONCISE's law L3.
+ *
+ * **A12 is expected to fail on its first dispatch, by design.** Its `webkit`
+ * profile is deliberately unrecorded so the run reports the observed values,
+ * which are the measurement; record them and it turns green. A7-A10 were added
+ * the same way. So a red run here means B9 plus whatever A12 prints, and NOT
+ * that a second defect has appeared.
+ *
+ * **⚠ The two layers do not cover everything in this file.** A7 and A12 profile
+ * a LIBRARY answer that is engine-relative BY DESIGN — the conjunction is
+ * documented as realm-aware, so its divergence is intended. They sit in layer A
+ * for want of a better home, but a red there would not mean "the engine
+ * changed", which is what layer A otherwise promises. A third category is owed;
+ * until it exists, read A7 and A12 as profiles of the LIBRARY, not the engine.
+ * The distinction bites: a build-level breakage of the realm probe surfaces as
+ * a layer-A red under a label that says the engine moved.
  *
  * Two others were resolved rather than silenced, and in opposite ways. B7
  * failed because the strong predicate could not read mark 2 on JSC at all; it
@@ -164,6 +179,35 @@ const boundThenRenamed = (name) => {
 
   return bound;
 };
+
+/**
+ * A bound function whose TARGET is renamed AFTER the bind.
+ *
+ * The corner neither A5 nor A9 covers. A5 renames the target BEFORE binding and
+ * watches the rendered name follow; A9 renames the BOUND VALUE afterwards and
+ * watches it stay. Between them it was still open whether a name-rendering
+ * engine reads the target's name LIVE at `toString` time or captures it when
+ * `bind` runs — those two readings differ only under this mutation, and the
+ * reconstruction in `bound.js` is sound only under the second.
+ *
+ * Fresh per call: the rename must not leak into A3, B5 or B7, which read the
+ * shared fixtures.
+ *
+ * @param {string} name - the name to install on the target after binding
+ * @returns {{ bound: (...args: unknown[]) => unknown, target: () => void }} both
+ *  halves, so the mutation can be asserted to have applied
+ */
+const bindThenRenameTarget = (name) => {
+  const target = function renameProvenanceTarget() {};
+  const bound = target.bind(null);
+
+  Object.defineProperty(target, 'name', { value: name, configurable: true });
+
+  return { bound, target };
+};
+
+/** A `Proxy` over a genuinely BOUND function — the shape B8 does not cover. */
+const proxyOverBound = new Proxy(plain.bind(null), {});
 
 /**
  * The raw, UNCONDENSED source's line count — the only reading that can settle
@@ -632,6 +676,82 @@ export const probes = [
       ]);
     },
   },
+  {
+    // Whether a name-rendering engine captures the target's name at BIND time
+    // or reads it live. Measured by hand on Safari before it was written here:
+    // renaming the target afterwards moves neither the bound value's own `name`
+    // nor its rendered source, so the capture happens once, when `bind` runs.
+    //
+    // That is the invariant `bound.js`'s reconstruction rests on, and it is
+    // stronger than the source states it. Both strings are frozen from ONE
+    // reading of the target, so no later mutation of the target can pull them
+    // apart — without which the reconstruction would be sound only for targets
+    // nobody touches again.
+    name: 'A11 · whether a rename of the TARGET after binding moves anything, per engine',
+    run: (ns, { engine }) => {
+      const condense = /** @type {(v: unknown) => string | undefined} */ (
+        /** @type {unknown} */ (ns.getCondensedFunctionSource)
+      );
+      const { bound, target } = bindThenRenameTarget('renamed after bind');
+
+      return holds([
+        // set by `bind` from the target's name at bind time, and spec-frozen
+        // thereafter — the same on every engine
+        ['bound name', bound.name, 'bound renameProvenanceTarget'],
+        [
+          'bound source',
+          condense(bound),
+          perEngine(engine, {
+            default: NATIVE_ANONYMOUS,
+            webkit: 'function renameProvenanceTarget(){[native code]}',
+          }),
+        ],
+        // CONTROL — assert the mutation APPLIED, or both claims above pass
+        // against a rename that never happened
+        ['target was renamed', target.name, 'renamed after bind'],
+        // CONTROL — `[[SourceText]]` ignores every rename on every engine
+        ['target source', condense(target), 'function renameProvenanceTarget(){}'],
+      ]);
+    },
+  },
+  {
+    // A `Proxy` over a BOUND function, against the predicate pair. `webkit` is
+    // deliberately UNRECORDED: the first dispatch is expected to fail there and
+    // `holds` prints the observed values, which ARE the measurement (the
+    // protocol A7-A10 were added under). The derivation to be tested is that
+    // JSC renders the proxy's own name rather than the forwarded one, so the
+    // reconstruction misses and the conjunction answers `false` where V8
+    // answers `true`.
+    //
+    // ⚠ CATEGORY: this profiles a LIBRARY answer that is engine-relative BY
+    // DESIGN, so it fits neither layer cleanly — layer A means "the engine
+    // changed", which a red here would not mean. A7 has the same problem and
+    // predates it. Worth a third category rather than a caveat; see the header.
+    name: 'A12 · a Proxy over a bound function, against both predicates, per engine',
+    run: (ns, { engine }) => {
+      const condense = /** @type {(v: unknown) => string | undefined} */ (
+        /** @type {unknown} */ (ns.getCondensedFunctionSource)
+      );
+
+      return holds([
+        [
+          'rendered source',
+          condense(proxyOverBound),
+          perEngine(engine, { default: NATIVE_ANONYMOUS }),
+        ],
+        [
+          'strongly indicated',
+          ns.doesStronglyIndicateBoundFunction(proxyOverBound),
+          perEngine(engine, { default: true }),
+        ],
+        // portable, and frozen as `dIBF/A13`: the proxy forwards the
+        // `'bound …'` name and the value behind it really is bound
+        ['indicated', ns.doesIndicateBoundFunction(proxyOverBound), true],
+        // CONTROL — the forwarded name is what the admission rests on
+        ['forwarded name', proxyOverBound.name, 'bound plain'],
+      ]);
+    },
+  },
 
   // ----- Layer B — the library CONTRACT: identical on every engine -----
   {
@@ -931,6 +1051,55 @@ export const probes = [
         ['strongly(named)', strongly(named), false],
         ['strongly(Function.prototype)', strongly(Function.prototype), false],
         ['strongly(bound, then renamed)', strongly(boundThenRenamed('x')), false],
+      ]);
+    },
+  },
+  {
+    // The subset law, which `BOUND.spec.md` freezes and which no browser probe
+    // has ever asserted on any engine. It is portable by construction — the
+    // conjunction requires mark 3 and the cascade admits anything carrying it —
+    // so unlike either predicate's individual answers it belongs in layer B.
+    //
+    // It is the net the two-implementation split most needs. A JSC reading that
+    // drifted into admitting something the cascade refuses would break the
+    // pair's stated relationship, and nothing else here would notice.
+    name: 'B15 · strong indication implies indication, over the whole corpus',
+    run: (ns) => {
+      const corpus = {
+        'bound arrow': arrow.bind(null),
+        'bound method': method.bind(null),
+        'bound named fn': named.bind(null),
+        'bound generator': namedGenerator.bind(null),
+        'bound class': NamedClass.bind(null),
+        'bound native': Math.max.bind(null),
+        'double bound': named.bind(null).bind(null),
+        'Proxy over bound': proxyOverBound,
+        'Proxy over method': new Proxy(method, {}),
+        'adversarially named bound': boundWithName('(){} evil'),
+        'Function.prototype': Function.prototype,
+        'unbound native': Math.max,
+        'plain arrow': arrow,
+      };
+
+      return holds([
+        ...Object.entries(corpus).map(
+          ([label, value]) =>
+            /** @type {[string, unknown, unknown]} */ ([
+              `subset law · ${label}`,
+              !ns.doesStronglyIndicateBoundFunction(value) ||
+                ns.doesIndicateBoundFunction(value),
+              true,
+            ]),
+        ),
+        // CONTROLS — an implication is satisfied vacuously by a false
+        // antecedent, so a conjunction stubbed to `false` would pass every
+        // claim above. These pin both sides to a real answer.
+        [
+          'strong is not vacuous',
+          ns.doesStronglyIndicateBoundFunction(named.bind(null)),
+          true,
+        ],
+        ['cascade still refuses an arrow', ns.doesIndicateBoundFunction(arrow), false],
       ]);
     },
   },
