@@ -833,6 +833,38 @@ sub-builds dominate) which is why it's not the default — but for the rare "ple
 a CI surprise" moment, it's the one command. The regular `check` stays the fast inner-loop
 default.
 
+### `smoke:check:bun` — the module builds on a second engine
+
+`smoke:check` executes all four built artifacts, and every step that runs it runs on Node.
+`browser:check` reaches three engines but loads the **UMD bundle alone**. Between them the
+ESM and CJS artifacts — the ones a package manager actually installs — had exactly one
+engine behind them.
+
+Bun executes JavaScriptCore and consumes precisely those two, which makes it the cheapest
+non-V8 coverage available for them: one binary, no browser download. It runs the same
+harness and the same `smoke.probes.mjs`, with `SPECIES_SMOKE_ONLY=esm,cjs`.
+
+`umd` is excluded because that path loads through `node:vm`, which Bun implements only in
+part, and the browser matrix already executes the UMD on three engines.
+
+**Why this earns its place rather than duplicating `browser:check`.** Several claims in
+`function-introspection` are engine-relative by construction —
+`hasJavaScriptCoreBindBehavior` selects which reading `doesStronglyIndicateBoundFunction`
+uses. That probe derives its expectations from a module-local function's `name`, which the
+minifier renames, and **on V8 a broken probe and a working one both answer `false`**. Only
+a JavaScriptCore runtime separates them, and until this job existed no gate over the built
+module artifacts could.
+
+**In neither chain, by the same rule as `browser:check`:** `check` and `check:full` must
+run on a contributor's machine with nothing but the workspace toolchain, and Bun is not
+part of it. `gates:check` therefore makes no demand about it. Unlike `browser:check` it
+runs on **every push and PR**, because installing one pinned binary costs seconds where
+three browser engines cost roughly a gigabyte.
+
+Bun is installed by pinned VERSION through npm rather than through a third-party action,
+so there is no extra SHA to track. It is not yet covered by `toolchain:check`, which reads
+the workspace lockfile; that pin lives in `ci.yml` alone and is the one place to bump it.
+
 ### `browser:check` — the one gate in neither chain
 
 Every gate above runs on V8: the suites under Node, `smoke:check` under Node, the

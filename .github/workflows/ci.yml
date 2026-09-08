@@ -182,6 +182,35 @@ jobs:
         if: matrix.os == 'ubuntu-latest'
         run: pnpm run check:publish
 
+      # The module builds had never been executed outside V8. `browser:check`
+      # covers three engines but loads the UMD bundle alone, and every step
+      # above runs on Node — so the ESM and CJS artifacts, which are what a
+      # package manager actually installs, had one engine behind them.
+      #
+      # Bun executes JavaScriptCore and consumes exactly those two artifacts,
+      # which makes it the cheapest non-V8 coverage available for them: one
+      # binary, no browser download. It is what puts a real second engine
+      # behind `hasJavaScriptCoreBindBehavior` and the reading it selects —
+      # and it is the only gate that can catch a BUILD-level break of that
+      # probe, since on V8 a broken probe and a working one both answer
+      # `false`.
+      #
+      # `umd` is excluded: that path loads through `node:vm`, which Bun
+      # implements only in part, and the browser matrix already executes the
+      # UMD on three engines.
+      #
+      # Installed by pinned VERSION through npm rather than through an action,
+      # so there is no third-party SHA to track for a single binary. Not part
+      # of `check` or `check:full`: those must run on a contributor's machine
+      # with nothing but the workspace toolchain, and `gates:check` therefore
+      # makes no demand about it.
+      - name: Execute the module builds on JavaScriptCore (Bun)
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          npm install --global bun@1.4.2
+          bun --version
+          SPECIES_SMOKE_ONLY=esm,cjs bun scripts/check-bundle-smoke.mjs
+
       # Each package declares `engines.node: ">=18"` — the CONSUMER floor of
       # ADR #078. Until now that was a convention held up by an ES2020 source
       # rule and, since today, a syntax scan over the built output. Neither

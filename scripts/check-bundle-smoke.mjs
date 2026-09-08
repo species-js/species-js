@@ -62,7 +62,8 @@ const PACKAGES = join(ROOT, 'packages');
 const require = createRequire(import.meta.url);
 
 /**
- * Restricts the run to ONE artifact kind (`esm` / `cjs` / `umd`), unset for all.
+ * Restricts the run to a comma-separated set of artifact kinds (`esm`, `cjs`,
+ * `umd`), unset for all.
  *
  * The reason this exists: the consumer floor (ADR #078) promises Node 18, and
  * the only way to prove that is to execute there. The module builds import
@@ -71,8 +72,18 @@ const require = createRequire(import.meta.url);
  * root `>=22` floor blocks installing it at all. The UMD inlines every
  * dependency and needs nothing, so `SPECIES_SMOKE_ONLY=umd` is what makes a
  * Node-18 job possible without weakening either floor.
+ *
+ * The LIST form exists for the second runtime. Bun executes JavaScriptCore and
+ * consumes the module builds, so `SPECIES_SMOKE_ONLY=esm,cjs` runs this whole
+ * harness there — which is what puts a non-V8 engine behind the ESM and CJS
+ * artifacts, where previously only the UMD ever left V8. `umd` is excluded
+ * because that path loads through `node:vm`, which Bun implements only in
+ * part; the browser matrix already executes the UMD on three engines.
  */
-const ONLY_KIND = process.env.SPECIES_SMOKE_ONLY;
+const ONLY_KINDS = (process.env.SPECIES_SMOKE_ONLY ?? '')
+  .split(',')
+  .map((kind) => kind.trim())
+  .filter(Boolean);
 
 /** @type {string[]} */
 const problems = [];
@@ -284,7 +295,7 @@ for (const name of readdirSync(PACKAGES)) {
     { kind: 'cjs', label: 'node CJS', target: at(root, ['node', 'require']) },
     { kind: 'esm', label: 'browser ESM', target: at(root, ['browser', 'import']) },
     { kind: 'umd', label: 'UMD', target: manifest.unpkg },
-  ].filter(({ kind }) => ONLY_KIND === undefined || kind === ONLY_KIND);
+  ].filter(({ kind }) => ONLY_KINDS.length === 0 || ONLY_KINDS.includes(kind));
 
   /** @type {Map<string, Record<string, unknown>>} */
   const loaded = new Map();
@@ -456,7 +467,16 @@ if (red) {
   process.exit(1);
 }
 
+// The runtime is NAMED in the success line. This harness now runs under more
+// than one, and a green that does not say where it ran cannot be read as
+// evidence about any particular engine.
+const runtime =
+  typeof globalThis.Bun === 'object' && globalThis.Bun !== null
+    ? `bun ${/** @type {{ version?: string }} */ (globalThis.Bun).version ?? ''}`.trim()
+    : `node ${process.versions.node}`;
+
 console.warn(
-  `✓ built artifacts behave (${packagesChecked} packages, ${artifactsLoaded} artifacts, ` +
-    `${namesChecked} exports, ${probesRun} probes, ${markersScanned} syntax markers)`,
+  `✓ built artifacts behave under ${runtime} (${packagesChecked} packages, ` +
+    `${artifactsLoaded} artifacts, ${namesChecked} exports, ${probesRun} probes, ` +
+    `${markersScanned} syntax markers)`,
 );
