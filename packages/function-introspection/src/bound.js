@@ -35,13 +35,11 @@
  */
 
 import {
+  getVerifiedOwnName,
   isFunction,
   hasConstructSlot,
   hasOwnPrototype,
-  getVerifiedOwnName,
 } from '@species-js/type-detection';
-
-import { globalContext } from '#config';
 
 import {
   CONDENSED_NATIVE_SOURCE_FOUNDATION,
@@ -52,16 +50,6 @@ import {
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 
 /** @typedef {import('@species-js/type-detection').Callable} Callable */
-
-/**
- * A {@link Callable} whose `bind` is additionally readable — the lib-gap
- * acknowledgement needed to probe a native's bound form. Declared locally
- * rather than imported: type-detection's equivalent is `@internal`, and #086
- * makes reaching across a package boundary for one a tracked promotion, not a
- * convenience.
- *
- * @typedef {Callable & { bind: (thisArg?: unknown, ...args: unknown[]) => unknown }} BindableCallable
- */
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 
@@ -95,24 +83,37 @@ const BOUND_NAME_PREFIX_LENGTH = BOUND_NAME_PREFIX.length;
  * Runs the realm probe once, unmemoized — the body
  * {@link hasJavaScriptCoreBindBehavior} caches.
  *
- * Probed through `parseInt` because only a NATIVE's bound and unbound forms
- * collapse onto one string on such an engine. A user function keeps its own
- * source text while unbound, so it would answer `false` everywhere and detect
- * nothing.
+ * Asks the one question that separates the two readings: does this realm render
+ * a bound function's TARGET NAME into the native source form? A local function
+ * is bound and the two forms compared, so the answer comes from the engine and
+ * from nothing a caller can reach.
  *
- * All three clauses are pinned to the literal `parseInt` forms, which makes the
- * probe self-validating rather than merely comparative: a replaced or wrapped
- * `globalContext.parseInt` fails the first clause and the probe reports
- * `false`, selecting the stricter implementation.
+ * No name is written as a literal. The minifier renames `probeTarget` —
+ * measured: esbuild emits `function n(){}` for it in the UMD build — so every
+ * expectation is DERIVED from the probe's own `name` at call time. A literal
+ * would compare the built artifact against a name only the source carries,
+ * answer `false` on every engine there, and silently select the reading
+ * JavaScriptCore cannot use. Nothing local would catch that: on V8 a broken
+ * probe and a working one both answer `false`.
  *
- * The whole body sits in a `try` because `globalContext.parseInt` is a
- * caller-reachable property of the global object — `configurable: true`, so a
- * script running before this module can install an accessor that throws, and
- * `bind` on whatever it returns is reachable the same way. Reading it eagerly
- * would let a hostile global break the module's IMPORT, which no
- * throw-safety marker covers, since those govern exports rather than
- * evaluation. Failing closed keeps the standing property intact: a hostile
- * global can withhold the JavaScriptCore reading; it cannot induce it.
+ * A DECLARATION rather than a function expression, for the same reason measured
+ * one step further. esbuild keeps a declaration's name in `[[SourceText]]`,
+ * while an expression assigned to a `const` keeps only the `name` property and
+ * renders anonymously — which would leave the first clause below comparing two
+ * strings that cannot differ.
+ *
+ * The three clauses are one string read twice. The UNBOUND probe must not
+ * render as that form, which proves the source reader separates authored text
+ * from a native one; without it, a reader returning the native form for
+ * everything would INDUCE the JavaScriptCore reading on an engine unable to use
+ * it, and inducing is the dangerous direction — it is what admits the renamed
+ * native. The BOUND probe must then carry the `'bound '` prefix and render as
+ * exactly that form.
+ *
+ * Reads no global. The probe is closure-local and never escapes, so unlike a
+ * `globalThis` property there is nothing a script running earlier could replace
+ * or trap. The `try` stays because the composed readers are contracted
+ * throw-safe rather than proven so against every host.
  *
  * @returns {boolean} `true` when this realm renders a bound function's target
  *  name into the native source form
@@ -121,14 +122,25 @@ const BOUND_NAME_PREFIX_LENGTH = BOUND_NAME_PREFIX.length;
  */
 function doesRealmKeepBoundTargetName() {
   try {
-    const probe = /** @type {BindableCallable} */ (
-      /** @type {unknown} */ (globalContext.parseInt)
-    );
+    function probeTarget() {
+      /* the head is all that is read; the body only has to be legal */
+    }
+
+    const probeName = getVerifiedOwnName(probeTarget);
+
+    // unreachable for a declaration, which the grammar always names — but
+    // `getVerifiedOwnName` is typed `string | undefined`, and an unnarrowed
+    // `undefined` would be interpolated into the expectations below as text
+    if (!probeName) {
+      return false;
+    }
+    const boundProbe = /** @type {Callable} */ (probeTarget.bind(null));
+    const namedNativeForm = `function ${probeName}(){[native code]}`;
+
     return (
-      getCondensedFunctionSource(probe) === 'function parseInt(){[native code]}' &&
-      getCondensedFunctionSource(/** @type {Callable} */ (probe.bind())) ===
-        'function parseInt(){[native code]}' &&
-      getVerifiedOwnName(probe.bind()) === 'bound parseInt'
+      getCondensedFunctionSource(probeTarget) !== namedNativeForm &&
+      getVerifiedOwnName(boundProbe) === `${BOUND_NAME_PREFIX}${probeName}` &&
+      getCondensedFunctionSource(boundProbe) === namedNativeForm
     );
   } catch {
     return false;
@@ -335,7 +347,7 @@ export function doesStronglyIndicateJSCSpecificBoundFunction(value) {
   return (
     // - spoofable indicator
     fctName.startsWith(BOUND_NAME_PREFIX) &&
-    // - For JavaScriptCore engines, the strongest evidence most be partially
+    // - For JavaScriptCore engines, the strongest evidence must be partially
     //   re-constructed. E.g., Safari does not make a distinction in between
     //   the bound and un-bound function sources of ANY built-in function.
     //   Therefore, we need to assemble the expected function-source-string
