@@ -72,21 +72,34 @@ reports a defect that is not one.
 
 ## Surface inventory
 
-| Export                               | Module     | Visibility  | `@@throw-safe` |
-| ------------------------------------ | ---------- | ----------- | -------------- |
-| `doesIndicateBoundFunction`          | `#bound`   | public      | yes            |
-| `doesStronglyIndicateBoundFunction`  | `#bound`   | public      | yes            |
-| `getCondensedFunctionSource`         | `#utility` | public      | yes            |
-| `getFunctionSourceCondensate`        | `#utility` | `@internal` | yes            |
-| `hasProxyConstructorShape`           | `#utility` | `@internal` | yes            |
-| `doesMatchProxyConstructor`          | `#utility` | `@internal` | yes            |
-| `CONDENSED_NATIVE_SOURCE_FOUNDATION` | `#utility` | `@internal` | n/a (constant) |
-| `globalContext`                      | `#config`  | `@internal` | n/a (constant) |
-| `getOwnPropertyDescriptors`          | `#config`  | `@internal` | n/a (capture)  |
+| Export                                                 | Module     | Visibility  | `@@throw-safe` |
+| ------------------------------------------------------ | ---------- | ----------- | -------------- |
+| `doesIndicateBoundFunction`                            | `#bound`   | public      | yes            |
+| `doesStronglyIndicateBoundFunction`                    | `#bound`   | public      | yes            |
+| `hasJavaScriptCoreBindBehavior`                        | `#bound`   | public      | no             |
+| `doesStronglyIndicateJSCSpecificBoundFunction`         | `#bound`   | `@internal` | yes            |
+| `doesStronglyIndicateNonJSCBoundFunction`              | `#bound`   | `@internal` | yes            |
+| `createExpectedJSCSpecificFunctionSourceFromBoundName` | `#bound`   | `@internal` | yes            |
+| `getCondensedFunctionSource`                           | `#utility` | public      | yes            |
+| `getFunctionSourceCondensate`                          | `#utility` | `@internal` | yes            |
+| `hasProxyConstructorShape`                             | `#utility` | `@internal` | yes            |
+| `doesMatchProxyConstructor`                            | `#utility` | `@internal` | yes            |
+| `CONDENSED_NATIVE_SOURCE_FOUNDATION`                   | `#utility` | `@internal` | n/a (constant) |
+| `globalContext`                                        | `#config`  | `@internal` | n/a (constant) |
+| `getOwnPropertyDescriptors`                            | `#config`  | `@internal` | n/a (capture)  |
 
-Only `doesIndicateBoundFunction`, `doesStronglyIndicateBoundFunction` and
-`getCondensedFunctionSource` reach a consumer; `#utility` and `#config` are re-exported
-nowhere and published as no subpath (#085's barrel rule).
+**Four rows were added 2026-09-08 — the inventory had drifted.** The engine split of
+2026-09-07 introduced them and this table was not swept in the same commit, so it listed
+two `#bound` exports where the module had six, and one of the four is PUBLISHED. No gate
+reads this table, which is why the drift survived `surface:check`, `entries:check` and
+`docs:sweep` alike. `hasJavaScriptCoreBindBehavior` carries no `@@throw-safe` marker
+deliberately: it takes no argument, so the marker's contract — totality within the
+declared parameter type — has nothing to quantify over.
+
+Only `doesIndicateBoundFunction`, `doesStronglyIndicateBoundFunction`,
+`hasJavaScriptCoreBindBehavior` and `getCondensedFunctionSource` reach a consumer;
+`#utility` and `#config` are re-exported nowhere and published as no subpath (#085's
+barrel rule).
 
 The `#utility` rows stay listed here because this module composes from them, but their
 **contracts and vectors live in [`UTILITY.spec.md`](./UTILITY.spec.md)** as of 2026-08-11;
@@ -254,6 +267,71 @@ where a slot exists.
   engine that keeps the name in the native source form, the identical rejection is a
   **recall loss on a genuinely bound built-in**. One vector, read either way depending on
   the engine — which is why the disagreement table below is engine-relative.
+
+## The engine split (added 2026-09-08)
+
+`Function.prototype.toString` is implementation-defined for an exotic, so the conjunction
+is built twice and dispatched per call. What follows specifies the three exports that
+split creates. Their axis-1 coverage is asymmetric BY CONSTRUCTION, and the asymmetry is
+stated rather than hidden: on any one engine only one reading is selected, so the other
+cannot be exercised against real values there.
+
+### `hasJavaScriptCoreBindBehavior(): boolean` — public
+
+Reports whether this realm renders a bound function's target name into the native source
+form. Takes no argument, memoizes after the first call, and reads no global — the probe is
+a module-local function declaration, and every expectation is DERIVED from its own `name`
+at call time so the minifier cannot break it.
+
+- `hJSC/A1` — on V8 and SpiderMonkey → false; on JavaScriptCore → true. Engine-relative by
+  definition, so it is asserted per engine by browser probe A7 and cross-checked against
+  what the engine actually renders by B13.
+- `hJSC/A2` — never throws, and answers `false` rather than propagating if the source
+  readers do. It fails CLOSED: a hostile realm can withhold the JavaScriptCore reading, it
+  cannot induce it — and inducing is the dangerous direction, since that reading admits a
+  renamed native.
+
+### `createExpectedJSCSpecificFunctionSourceFromBoundName(boundName: string): string` — `@internal`
+
+Assembles the condensed source a name-rendering engine produces for a bound function, from
+the `'bound '`-prefixed own name that engine derives it from. A pure string transform, so
+every vector below runs on any engine.
+
+- `cEJSC/A1` — `'bound plainTarget'` → `'function plainTarget(){[native code]}'`.
+- `cEJSC/A2` — `'bound max'` → `'function max(){[native code]}'` — the string probe A8
+  measured on WebKit 26.5 for `Math.max.bind(null)`.
+- `cEJSC/A3` — `'bound bound plainTarget'` →
+  `'function bound plainTarget(){[native code]}'` — **exactly one prefix is stripped**,
+  which is what makes a double-bound value reconstruct correctly. Measured by A8, reasoned
+  before that.
+- `cEJSC/A4` — `'bound '` → the anonymous foundation. An empty remainder means an
+  anonymous target, which every engine renders anonymously, so the form collapses rather
+  than leaving a space where the name would be.
+- `cEJSC/A5` — `'bound (){} evil'` → `'function (){} evil(){[native code]}'` — reassembled
+  verbatim. The helper does not judge the name; the caller's precondition is mark 3.
+
+### The two readings — `@internal`
+
+`doesStronglyIndicateJSCSpecificBoundFunction` and
+`doesStronglyIndicateNonJSCBoundFunction` share the entrance-level, mark 3 and the
+conditional construct mark, and differ in mark 2 alone.
+
+- `dSIBF/E1` — on a realm where `hasJavaScriptCoreBindBehavior()` is false, the public
+  conjunction agrees with the non-JSC reading on EVERY corpus value. Asserted over the
+  whole spec matrix, which is what makes the V8 suite a test of the selected reading
+  rather than of a wrapper.
+- `dSIBF/E2` — the JSC reading refuses every value that fails the entrance-level or mark
+  3, on every engine, because mark 3 is a PRECONDITION there rather than the cheapest
+  read. Engine-independent, therefore assertable on V8: `undefined`, a non-callable, a
+  plain arrow and `Function.prototype` are all refused.
+- `dSIBF/E3` — an arrow renamed `'bound …'` is refused by BOTH readings on every engine.
+  Its own source text is no native form, so neither the anonymous comparison nor the
+  reconstruction can match. The one forgery shape neither reading admits anywhere.
+- **Not assertable on V8, and stated so rather than left implied:** what the JSC reading
+  ADMITS. Every value it accepts requires a rendered source only a name-rendering engine
+  produces, so its admissions are covered by browser probes B14 and B15 on WebKit and
+  nowhere else. That is the coverage cost of the split, and it is the reason `browser.yml`
+  is not optional for this module.
 
 ## Relationship — the two predicates together
 

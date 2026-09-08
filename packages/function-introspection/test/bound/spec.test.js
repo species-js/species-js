@@ -27,9 +27,16 @@
 
 import { describe, it, expect } from 'vitest';
 
-import { doesIndicateBoundFunction, doesStronglyIndicateBoundFunction } from '#index';
+import {
+  doesIndicateBoundFunction,
+  doesStronglyIndicateBoundFunction,
+  hasJavaScriptCoreBindBehavior,
+  createExpectedJSCSpecificFunctionSourceFromBoundName,
+  doesStronglyIndicateJSCSpecificBoundFunction,
+  doesStronglyIndicateNonJSCBoundFunction,
+} from '#index';
 
-import { specMatrix, crossCuttingRejections } from './__config.js';
+import { specMatrix, crossCuttingRejections, reconstructionMatrix } from './__config.js';
 
 /** @type {Record<string, (value?: unknown) => boolean>} */
 const predicates = { doesIndicateBoundFunction, doesStronglyIndicateBoundFunction };
@@ -127,6 +134,70 @@ describe('bound — spec/contract matrix', () => {
     it('omitted argument → false [bound/X2]', () => {
       expect(doesIndicateBoundFunction()).toBe(false);
       expect(doesStronglyIndicateBoundFunction()).toBe(false);
+    });
+  });
+
+  describe('createExpectedJSCSpecificFunctionSourceFromBoundName [cEJSC/*]', () => {
+    it('the matrix is non-empty, so this block cannot pass vacuously', () => {
+      expect(Object.keys(reconstructionMatrix).length).toBeGreaterThan(0);
+    });
+
+    for (const [name, { description, boundName, expected, vector }] of Object.entries(
+      reconstructionMatrix,
+    )) {
+      it(`${name} — ${description} [${vector}]`, () => {
+        expect(createExpectedJSCSpecificFunctionSourceFromBoundName(boundName)).toBe(
+          expected,
+        );
+      });
+    }
+
+    it('strips exactly ONE prefix, never all of them [cEJSC/A3]', () => {
+      const once =
+        createExpectedJSCSpecificFunctionSourceFromBoundName('bound bound bound f');
+
+      expect(once).toBe('function bound bound f(){[native code]}');
+    });
+  });
+
+  describe('the two engine-specific readings [dSIBF/E*]', () => {
+    it('this realm is not a name-rendering one, so V8 selects the non-JSC reading', () => {
+      expect(hasJavaScriptCoreBindBehavior()).toBe(false);
+    });
+
+    it('the public conjunction IS the non-JSC reading here, over the whole corpus', () => {
+      const values = Object.values(specMatrix).map((row) => row.make());
+
+      expect(values.length).toBeGreaterThan(0);
+
+      for (const value of values) {
+        expect(doesStronglyIndicateBoundFunction(value)).toBe(
+          doesStronglyIndicateNonJSCBoundFunction(value),
+        );
+      }
+    });
+
+    it('the JSC reading refuses what no engine may admit, on this engine too', () => {
+      // mark 3 is a PRECONDITION there, so these fail before any source is read
+      // — engine-independent, and therefore assertable on V8
+      expect(doesStronglyIndicateJSCSpecificBoundFunction(undefined)).toBe(false);
+      expect(doesStronglyIndicateJSCSpecificBoundFunction(42)).toBe(false);
+      expect(doesStronglyIndicateJSCSpecificBoundFunction(() => undefined)).toBe(false);
+      expect(doesStronglyIndicateJSCSpecificBoundFunction(Function.prototype)).toBe(
+        false,
+      );
+    });
+
+    it('an arrow renamed to look bound is refused by BOTH readings [dSIBF/R11]', () => {
+      const forged = Object.defineProperty(() => undefined, 'name', {
+        value: 'bound plainTarget',
+        configurable: true,
+      });
+
+      expect(doesStronglyIndicateNonJSCBoundFunction(forged)).toBe(false);
+      // its own source is no native form, so the reconstruction cannot match
+      // either — the one forgery neither reading admits on any engine
+      expect(doesStronglyIndicateJSCSpecificBoundFunction(forged)).toBe(false);
     });
   });
 });

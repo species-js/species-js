@@ -460,6 +460,58 @@ export const crossCuttingRejections = {
  * non-string would report a defect that is not one (BOUND.spec.md → Resolved
  * item 1).
  */
+/**
+ * @typedef {object} ReconstructionRow
+ * @property {string} description - human-readable input description
+ * @property {string} boundName - the `'bound '`-prefixed own name fed in
+ * @property {string} expected - the condensed source it must assemble
+ * @property {string} vector - the spec vector ID this row covers
+ */
+
+/**
+ * `createExpectedJSCSpecificFunctionSourceFromBoundName` inputs.
+ *
+ * A pure string transform, so every vector runs on any engine — which is the
+ * point. It encodes the rule that ONE `'bound '` prefix is stripped, no more,
+ * and that an empty remainder collapses onto the anonymous form rather than
+ * leaving a space where the name would be. Both were reasoned before probe A8
+ * measured them on WebKit 26.5, and neither had a correctness vector until now.
+ *
+ * @type {Record<string, ReconstructionRow>}
+ */
+export const reconstructionMatrix = {
+  userFunction: {
+    description: 'a bound user function',
+    boundName: 'bound plainTarget',
+    expected: 'function plainTarget(){[native code]}',
+    vector: 'cEJSC/A1',
+  },
+  nativeTarget: {
+    description: 'a bound native — A8 measured this exact string on WebKit',
+    boundName: 'bound max',
+    expected: 'function max(){[native code]}',
+    vector: 'cEJSC/A2',
+  },
+  doubleBound: {
+    description: 'double-bound — exactly ONE prefix is stripped',
+    boundName: 'bound bound plainTarget',
+    expected: 'function bound plainTarget(){[native code]}',
+    vector: 'cEJSC/A3',
+  },
+  anonymousTarget: {
+    description: 'an anonymous target — collapses onto the foundation',
+    boundName: 'bound ',
+    expected: 'function(){[native code]}',
+    vector: 'cEJSC/A4',
+  },
+  nameCarryingPunctuation: {
+    description: 'a target named with punctuation — reassembled verbatim',
+    boundName: 'bound (){} evil',
+    expected: 'function (){} evil(){[native code]}',
+    vector: 'cEJSC/A5',
+  },
+};
+
 export const THROW_SAFE_MARKED = [
   'createExpectedJSCSpecificFunctionSourceFromBoundName',
   'doesIndicateBoundFunction',
