@@ -210,6 +210,25 @@ jobs:
           npm install --global bun@1.4.2
           bun --version
           SPECIES_SMOKE_ONLY=esm,cjs bun scripts/check-bundle-smoke.mjs
+          # Diagnostic, not a gate — yet. The probes above assert that the realm
+          # probe AGREES with what this runtime renders, which holds whichever
+          # way it answers, so a green does not by itself prove this job reaches
+          # the JavaScriptCore reading at all. Printing the answer is what turns
+          # that into a recorded fact; once it is known it becomes an assertion,
+          # the same sequence `browser.probes.mjs` uses for a new engine profile.
+          bun -e '
+            import("./packages/function-introspection/dist/node/public.js").then((m) => {
+              const rendersName =
+                m.getCondensedFunctionSource(function named() {}.bind(null)) !==
+                "function(){[native code]}";
+              console.log(
+                `realm: hasJavaScriptCoreBindBehavior=${m.hasJavaScriptCoreBindBehavior()} ` +
+                  `rendersBoundTargetName=${rendersName}`,
+              );
+            }).catch((error) => {
+              console.log(`realm: could not be read — ${error.message}`);
+            });
+          '
 
       # Each package declares `engines.node: ">=18"` — the CONSUMER floor of
       # ADR #078. Until now that was a convention held up by an ES2020 source
