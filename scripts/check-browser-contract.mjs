@@ -157,7 +157,8 @@ function collectTargets() {
  * themselves to `globalThis`: a module's exports are not reachable from
  * `page.evaluate`, which sees the page's global scope only.
  *
- * The engine NAME is threaded through to each probe, because a layer-A probe
+ * The engine NAME is threaded through to each probe, because a layer-A or
+ * layer-C probe
  * asserts an engine PROFILE rather than a portable contract: what JSC returns
  * from `Function.prototype.toString` differs from V8 as a matter of fact, not
  * of correctness, so the expected value is per engine. Layer B stays portable.
@@ -336,11 +337,17 @@ if (failures > 0) {
   console.error(
     `✗ ${failures} of ${executed} probe runs failed across ` +
       `${engines.length} engine(s).\n\n` +
-      '  Read the failure by LAYER. `A` probes assert an engine PROFILE — a\n' +
-      '  recorded fact about what that engine returns — so an `A` failure\n' +
-      '  means THE ENGINE CHANGED, and the profile needs re-recording after\n' +
-      '  you confirm the new value. `B` probes assert the library contract,\n' +
-      '  identically on every engine, so a `B` failure is a DEFECT.\n',
+      '  Read the failure by LAYER.\n\n' +
+      '    A — an engine PROFILE: a recorded fact about what that engine\n' +
+      '        returns. An `A` failure means THE ENGINE CHANGED; confirm the\n' +
+      '        new value, then re-record it.\n\n' +
+      '    B — the portable library CONTRACT, identical on every engine. A\n' +
+      '        `B` failure is a DEFECT.\n\n' +
+      '    C — the DISPATCHED contract: what the library answers on THIS\n' +
+      '        engine, where differing is the design. Read a `C` failure in\n' +
+      '        two steps. If layer A is also red, the engine moved and the\n' +
+      '        fix is to re-record. If layer A is GREEN, the dispatch itself\n' +
+      '        moved and it is a DEFECT.\n',
   );
   process.exit(1);
 }

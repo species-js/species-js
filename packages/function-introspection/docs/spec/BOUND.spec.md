@@ -315,7 +315,7 @@ a module-local function declaration, and every expectation is DERIVED from its o
 at call time so the minifier cannot break it.
 
 - `hJSC/A1` — on V8 and SpiderMonkey → false; on JavaScriptCore → true. Engine-relative by
-  definition, so it is asserted per engine by browser probe A7 and cross-checked against
+  definition, so it is asserted per engine by browser probe C1 and cross-checked against
   what the engine actually renders by B13.
 - `hJSC/A2` — never throws, and answers `false` rather than propagating if the source
   readers do. It fails CLOSED: a hostile realm can withhold the JavaScriptCore reading, it

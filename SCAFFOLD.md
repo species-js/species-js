@@ -894,12 +894,29 @@ resolves it through that package's `exports` map, which routes to `dist/node/`. 
 three dependents cannot be bundled until type-detection's node build exists — the same
 reason `ci.yml` runs `build` ahead of `smoke:check`.
 
-The probes are layered so a failure says what broke. **Layer A** pins the condensed
-function source character for character, including the examples published in
-`function-introspection`'s `.d.ts`; **layer B** pins the predicate verdicts that rest on
-it. A alone failing means the documented strings are V8-specific while classification
-still holds — a documentation defect. A and B together is a real classification bug on
-that engine.
+The probes are layered so a failure says what broke, and there are three layers because
+the library answers three kinds of question.
+
+**Layer A** pins what the ENGINE returns — the condensed function source, character for
+character, including the examples published in `function-introspection`'s `.d.ts`. An A
+failure means the engine changed; confirm the new value and re-record it.
+
+**Layer B** pins the PORTABLE contract, identical everywhere. A B failure is a defect. A
+alone failing means the documented strings are V8-specific while classification still
+holds — a documentation defect; A and B together is a real classification bug on that
+engine.
+
+**Layer C** pins what the library answers ON THIS ENGINE, where differing is the design:
+`doesStronglyIndicateBoundFunction` is built twice and dispatched per realm (ADR #100), so
+its answer is a contract that varies. Two layers could not express that, and the case that
+forced the third is instructive — a build-level break of the realm probe used to surface
+as a layer-A red, under a label that said the platform had moved when in fact the library
+had. **Read a C failure in two steps:** if layer A is also red the engine moved and the
+fix is to re-record; if layer A is green, the dispatch itself moved and it is a defect.
+
+A probe whose per-engine value is not yet known is added with that profile UNRECORDED, so
+the first dispatch reports the observed value rather than asserting a guess. Recording it
+turns the probe green — and only then does a red carry its layer's meaning.
 
 ---
 

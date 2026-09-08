@@ -48,18 +48,24 @@
  * the marker no longer buys an admission. B9 is expected GREEN from here on,
  * and a red from it is a regression rather than the known defect.
  *
- * A12 was added the same way A7-A10 were: dispatched with its `webkit` profile
- * unrecorded, so the run reported the values rather than asserting a guess.
- * They are recorded now, so B9 is once again the only expected red.
+ * **Layer C is the DISPATCHED contract** — what the library answers on THIS
+ * engine, where answering differently is the design.
+ * `doesStronglyIndicateBoundFunction` is built twice and dispatched per realm
+ * (ADR #100), so its answer is a contract that varies by engine, which is
+ * neither an engine fact nor a portable promise.
  *
- * **⚠ The two layers do not cover everything in this file.** A7 and A12 profile
- * a LIBRARY answer that is engine-relative BY DESIGN — the conjunction is
- * documented as realm-aware, so its divergence is intended. They sit in layer A
- * for want of a better home, but a red there would not mean "the engine
- * changed", which is what layer A otherwise promises. A third category is owed;
- * until it exists, read A7 and A12 as profiles of the LIBRARY, not the engine.
- * The distinction bites: a build-level breakage of the realm probe surfaces as
- * a layer-A red under a label that says the engine moved.
+ * Two layers could not hold it. C1 and C2 lived in A, where a red would have
+ * read as "the engine changed" — and the case that motivated the split is
+ * exactly the one that breaks: a build-level breakage of the realm probe
+ * surfaces there, and it means the LIBRARY moved, not the platform. So a C
+ * failure is read in two steps. Check layer A first: a changed engine profile
+ * explains it, and the fix is to re-record. If layer A is green, the dispatch
+ * itself moved and the failure is a defect.
+ *
+ * A new probe whose per-engine value is unknown is added with that profile
+ * UNRECORDED, so the first dispatch reports the observed value instead of
+ * asserting a guess; recording it turns the probe green. A8-A10, A11 and C2
+ * were all added that way.
  *
  * Two others were resolved rather than silenced, and in opposite ways. B7
  * failed because the strong predicate could not read mark 2 on JSC at all; it
@@ -488,7 +494,7 @@ export const probes = [
     },
   },
 
-  // - A7 to A10 record the protocol the earlier profiles left implicit. A3 and
+  // - A8 to A10 record the protocol the earlier profiles left implicit. A3 and
   //   A5 established that JavaScriptCore renders A name into the native form,
   //   but not WHICH name, not what it does for a bound NATIVE or a double-bound
   //   value, and not whether the raw form really spans three lines — a claim
@@ -500,22 +506,6 @@ export const probes = [
   //   observed strings, which ARE the protocol. Recording them turns these
   //   green, after which a red means the engine changed — layer A's usual
   //   meaning.
-  {
-    name: 'A7 · what the realm probe answers, per engine',
-    run: (ns, { engine }) => {
-      const hasJSCBehavior = /** @type {() => boolean} */ (
-        /** @type {unknown} */ (ns.hasJavaScriptCoreBindBehavior)
-      );
-
-      return holds([
-        [
-          'hasJavaScriptCoreBindBehavior()',
-          hasJSCBehavior(),
-          perEngine(engine, { default: false, webkit: true }),
-        ],
-      ]);
-    },
-  },
   {
     // The gap A3 left: it measured two USER functions. A bound native and a
     // double-bound value are the forms `bound.js` reconstructs an expected
@@ -716,6 +706,38 @@ export const probes = [
       ]);
     },
   },
+  // ----- Layer C — the DISPATCHED contract: the library's answer HERE -----
+  //
+  //   What the library answers on THIS engine, where answering differently is
+  //   the design rather than a defect. `doesStronglyIndicateBoundFunction` is
+  //   built twice and dispatched per realm (ADR #100), so its answer is a
+  //   contract that varies — which fits neither layer above.
+  //
+  //   Read a C failure in two steps, because it can mean either thing: check
+  //   layer A first, since a changed engine profile explains it and the fix is
+  //   to re-record; if layer A is green, the library's dispatch moved and the
+  //   failure is a DEFECT.
+  //
+  //   C1 and C2 were A7 and A12. Their numbers were NOT reused and layer A
+  //   keeps the gap: probe ids are cited from `BOUND.spec.md` and from the
+  //   sources, and an id that silently changes meaning is worse than a gap.
+
+  {
+    name: 'C1 · what the realm probe answers, per engine',
+    run: (ns, { engine }) => {
+      const hasJSCBehavior = /** @type {() => boolean} */ (
+        /** @type {unknown} */ (ns.hasJavaScriptCoreBindBehavior)
+      );
+
+      return holds([
+        [
+          'hasJavaScriptCoreBindBehavior()',
+          hasJSCBehavior(),
+          perEngine(engine, { default: false, webkit: true }),
+        ],
+      ]);
+    },
+  },
   {
     // A `Proxy` over a BOUND function, against the predicate pair. Dispatched
     // 2026-09-08 with `webkit` unrecorded so the run would report rather than
@@ -724,11 +746,9 @@ export const probes = [
     // forwarded one, so the reconstruction misses and the conjunction answers
     // `false` where V8 answers `true`.
     //
-    // ⚠ CATEGORY: this profiles a LIBRARY answer that is engine-relative BY
-    // DESIGN, so it fits neither layer cleanly — layer A means "the engine
-    // changed", which a red here would not mean. A7 has the same problem and
-    // predates it. Worth a third category rather than a caveat; see the header.
-    name: 'A12 · a Proxy over a bound function, against both predicates, per engine',
+    // A LIBRARY answer that is engine-relative by design, which is what layer
+    // C exists for. It was A12 until the third layer was opened.
+    name: 'C2 · a Proxy over a bound function, against both predicates, per engine',
     run: (ns, { engine }) => {
       const condense = /** @type {(v: unknown) => string | undefined} */ (
         /** @type {unknown} */ (ns.getCondensedFunctionSource)
