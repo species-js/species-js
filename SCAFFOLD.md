@@ -867,10 +867,11 @@ the workspace lockfile; that pin lives in `ci.yml` alone and is the one place to
 
 ### `browser:check` — the one gate in neither chain
 
-Every gate above runs on V8: the suites under Node, `smoke:check` under Node, the
-consumer-floor job under Node 18. The packages nevertheless declare a browser matrix, and
-that claim was carried by an ES2020 build target and a syntax scan — neither of which
-executes anything.
+Every gate above runs on V8 except `smoke:check:bun` — the suites under Node,
+`smoke:check` under Node, the consumer-floor job under Node 18. And even that exception
+loads the module builds only; the packages declare a BROWSER matrix, and no gate above
+opens a browser at all. That claim was carried by an ES2020 build target and a syntax
+scan, neither of which executes anything.
 
 `browser:check` executes each package's `browser.probes.mjs` against its built UMD bundle
 in **Chromium, Firefox and WebKit**, driven by Playwright. The UMD is what makes this
