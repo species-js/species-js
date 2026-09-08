@@ -37,8 +37,10 @@
  *   non-async twin IS decided: a function expression is constructable and so
  *   carries an own `prototype`.
  * - **Binding or wrapping hides a method.** A bound method, a Proxy-wrapped one
- *   and `Function.prototype` all stringify to the anonymous `[native code]`
- *   form, which carries no head.
+ *   and `Function.prototype` all stringify to the `[native code]` form, which
+ *   carries no head. Whether that form is anonymous is the engine's choice —
+ *   JavaScriptCore writes the bound target's `name` into it — so it is
+ *   recognized by its marker rather than by one engine's spelling.
  * - **A method given an own `prototype` is refused.** That property cannot be
  *   removed from a function expression, which is what makes the boundary above
  *   decidable. It can be added to a method, and doing so costs recall rather
@@ -148,6 +150,31 @@ export function matchesStartSequencesOfConciseMethodNormalForm(source: string): 
 export function matchesStartSequencesOfUnnamedPlainFunctionSource(
   source: string,
 ): boolean;
+
+// ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
+//
+//  Native Source Recognizer
+//
+// ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
+
+/* @@throw-safe */
+/**
+ * Reports whether a source is an engine-rendered native form — a bound
+ * function, a `Proxy`-wrapped callable, a built-in — rather than authored text.
+ *
+ * Condenses first, then anchors on the `[native code]` marker at the END. What
+ * an engine writes between `function` and `(` is its own choice, and on
+ * JavaScriptCore it is the bound target's `name`, which a caller picks — so
+ * everything ahead of the marker is ignored. The marker itself is unforgeable:
+ * its interior space would parse as two identifiers, and condensing preserves
+ * that space precisely so it stays that way.
+ *
+ * @param source - a function's raw source text
+ * @returns `true` when the source is a native form of any name
+ *
+ * @internal
+ */
+export function matchesNativeSourceTail(source: string): boolean;
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 //

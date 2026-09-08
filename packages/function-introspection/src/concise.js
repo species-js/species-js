@@ -56,9 +56,13 @@
  *
  * ## What forgery cannot reach
  *
- * Redefining `name` changes nothing, because no predicate reads it. Installing
- * an own `toString` changes nothing, because the source comes from the
- * realm-fixed intrinsic. Neither the tag nor an own `prototype` is writable.
+ * Redefining `name` changes nothing directly, because no predicate reads it —
+ * but on an engine that renders a bound function's target name into the native
+ * source form it reaches the SOURCE, which every predicate reads. That is why
+ * the native form is recognized by its tail rather than by equality against the
+ * anonymous spelling. Installing an own `toString` changes nothing, because the
+ * source comes from the realm-fixed intrinsic. Neither the tag nor an own
+ * `prototype` is writable.
  *
  * Vectors, laws and the measurements behind the reading order live in
  * `docs/spec/CONCISE.spec.md`.
@@ -73,10 +77,7 @@ import {
   isAsyncGeneratorFunction,
 } from '@species-js/type-detection';
 
-import {
-  CONDENSED_NATIVE_SOURCE_FOUNDATION,
-  getFunctionSourceCondensate,
-} from '#utility';
+import { getFunctionSourceCondensate } from '#utility';
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 //
@@ -219,6 +220,61 @@ export function matchesStartSequencesOfUnnamedPlainFunctionSource(source) {
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 //
+//  Native Source Recognizer
+//
+// ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
+
+/**
+ * The tail every engine's `NativeFunction` form ends with once condensed.
+ *
+ * The marker plus its enclosing braces, matched with `endsWith`, and
+ * deliberately nothing before them.
+ * What an engine writes in the name slot is its own choice — V8 and
+ * SpiderMonkey leave it empty, JavaScriptCore fills it with the bound target's
+ * `name`, which a caller chooses — so anchoring anywhere ahead of the marker
+ * anchors on caller-supplied text.
+ *
+ * @internal
+ */
+const CONDENSED_NATIVE_SOURCE_TAIL = '{[native code]}';
+
+/* @@throw-safe */
+/**
+ * Reports whether a source is an engine-rendered native form — a bound
+ * function, a `Proxy`-wrapped callable, a built-in — rather than authored text.
+ *
+ * Condenses first, then anchors on the `[native code]` marker at the END. The
+ * marker is what no authored source can reproduce: its interior space would
+ * parse as two identifiers, and condensing preserves that space precisely so it
+ * stays unforgeable. Everything before it is ignored, which is the point.
+ *
+ * ## Why not an equality against the anonymous form
+ *
+ * That was the earlier reading, and JavaScriptCore defeats it. There the name
+ * slot carries the bound target's `name`, so a caller who renames a target
+ * `'(){} evil'` produces `function(){}evil(){[native code]}` — not equal to the
+ * anonymous form, admitted as a method, and a false positive in a module whose
+ * every failure is specified to be a miss. Matching the tail catches the form
+ * whatever the engine or the caller put in front of it.
+ *
+ * Tightening the name slot instead — an identifier-shaped character class —
+ * inverts the polarity and makes it worse: a stricter recognizer matches less,
+ * a value it fails to match is treated as authored source, and the same forgery
+ * is admitted for a new reason.
+ *
+ * @param {string} source - a function's raw source text
+ * @returns {boolean} `true` when the source is a native form of any name
+ *
+ * @internal
+ */
+export function matchesNativeSourceTail(source) {
+  return (getFunctionSourceCondensate(source) ?? '').endsWith(
+    CONDENSED_NATIVE_SOURCE_TAIL,
+  );
+}
+
+// ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
+//
 //  Flavor Predicates
 //
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
@@ -247,9 +303,11 @@ export function matchesStartSequencesOfUnnamedPlainFunctionSource(source) {
  * - **an own `prototype`** separates a function expression, which is
  *   constructable and always carries one. The property is `configurable: false`
  *   where it exists, so it can never be stripped to defeat this.
- * - **the anonymous `[native code]` form** separates a bound function, a
+ * - **the `[native code]` form, of any name** separates a bound function, a
  *   Proxy-wrapped callable and `Function.prototype`, none of which has an own
- *   `prototype` either. Authored source cannot reproduce that form.
+ *   `prototype` either. Read as a TAIL rather than as an equality, because an
+ *   engine may put a caller-chosen name in front of the marker
+ *   ({@link matchesNativeSourceTail}). Authored source cannot reproduce it.
  * - **a NAMED native** (`function max() { … }`) never reaches the check at all,
  *   since its name sits between the keyword and the `(` and the pattern
  *   declines it on shape.
@@ -290,10 +348,7 @@ export function isPlainConciseMethod(value) {
   if (!matchesStartSequencesOfUnnamedPlainFunctionSource(source)) {
     return true;
   }
-  return (
-    !hasOwnPrototype(value) &&
-    getFunctionSourceCondensate(source) !== CONDENSED_NATIVE_SOURCE_FOUNDATION
-  );
+  return !hasOwnPrototype(value) && !matchesNativeSourceTail(source);
 }
 
 /* @@throw-safe */
@@ -477,10 +532,7 @@ export function isAnyConciseMethod(value) {
   if (!matchesStartSequencesOfUnnamedPlainFunctionSource(source)) {
     return true;
   }
-  return (
-    !hasOwnPrototype(value) &&
-    getFunctionSourceCondensate(source) !== CONDENSED_NATIVE_SOURCE_FOUNDATION
-  );
+  return !hasOwnPrototype(value) && !matchesNativeSourceTail(source);
 }
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----

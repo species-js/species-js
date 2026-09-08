@@ -18,7 +18,7 @@
  * 3. every marked export × every hostile row returns without throwing.
  *
  * **Hostile values are fed BY DECLARED PARAMETER TYPE.** The five predicates
- * take `unknown`, so every value is in contract. The five helpers take `string`,
+ * take `unknown`, so every value is in contract. The six helpers take `string`,
  * so their hostile set is hostile STRINGS — feeding one a number would exercise
  * a contract the module never made.
  *
@@ -35,6 +35,7 @@ import {
   isConciseAsyncGeneratorMethod,
   isAnyConciseMethod,
   matchesLeadingAsyncToken,
+  matchesNativeSourceTail,
   matchesStartSequencesOfConciseAsyncGeneratorMethodSource,
   matchesStartSequencesOfConciseAsyncMethodSource,
   matchesStartSequencesOfConciseMethodNormalForm,
@@ -57,6 +58,7 @@ const markedPredicates = {
 /** The `string`-taking half. */
 const markedHelpers = {
   matchesLeadingAsyncToken,
+  matchesNativeSourceTail,
   matchesStartSequencesOfConciseAsyncGeneratorMethodSource,
   matchesStartSequencesOfConciseAsyncMethodSource,
   matchesStartSequencesOfConciseMethodNormalForm,

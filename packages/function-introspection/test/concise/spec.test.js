@@ -33,6 +33,7 @@ import {
   isConciseGeneratorMethod,
   isConciseAsyncGeneratorMethod,
   isAnyConciseMethod,
+  matchesNativeSourceTail,
 } from '#index';
 
 import {
@@ -46,6 +47,7 @@ import {
   ACCESSOR_SLOT_VECTORS,
   illegalHeaders,
   materialize,
+  nativeSourceMatrix,
 } from './__config.js';
 
 /** @type {Record<string, (value?: unknown) => boolean>} */
@@ -170,6 +172,27 @@ describe('concise — spec/contract corpus', () => {
         expect(predicate(), name).toBe(false);
       }
     });
+  });
+
+  describe('matchesNativeSourceTail [mNST/*]', () => {
+    it('the matrix is non-empty, so this block cannot pass vacuously', () => {
+      expect(Object.keys(nativeSourceMatrix).length).toBeGreaterThan(0);
+    });
+
+    it('covers both verdicts, so a constant-answer stub cannot pass', () => {
+      const verdicts = Object.values(nativeSourceMatrix).map((row) => row.expected);
+
+      expect(verdicts).toContain(true);
+      expect(verdicts).toContain(false);
+    });
+
+    for (const [name, { description, source, expected, vector }] of Object.entries(
+      nativeSourceMatrix,
+    )) {
+      it(`${name} — ${description} [${vector}]`, () => {
+        expect(matchesNativeSourceTail(source)).toBe(expected);
+      });
+    }
   });
 
   describe('grammar bounds — the illegal headers [concise/G1..G3]', () => {

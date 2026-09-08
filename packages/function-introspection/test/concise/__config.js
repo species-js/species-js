@@ -631,6 +631,78 @@ export const illegalHeaders = {
  *
  * @type {string[]}
  */
+/**
+ * @typedef {object} NativeSourceRow
+ * @property {string} description - human-readable input description
+ * @property {string} source - the raw source fed to the recognizer
+ * @property {boolean} expected - whether it is an engine-rendered native form
+ * @property {string} vector - the spec vector ID this row covers
+ */
+
+/**
+ * `matchesNativeSourceTail` inputs, including the two JavaScriptCore forms that
+ * no value can produce under a single-engine runner.
+ *
+ * This matrix is the reason the recognizer takes a SOURCE rather than a value.
+ * The adversarial row is the exact string WebKit 26.5 renders for a bound
+ * function whose target was renamed `'(){} evil'` — the input behind browser
+ * probe B9 and the false positive it reported. Fed as a string it is reachable
+ * on V8, so the fix has an oracle in the fast suite rather than only in a
+ * weekly browser dispatch.
+ *
+ * @type {Record<string, NativeSourceRow>}
+ */
+export const nativeSourceMatrix = {
+  v8AnonymousForm: {
+    description: 'the anonymous form V8 and SpiderMonkey render',
+    source: 'function () { [native code] }',
+    expected: true,
+    vector: 'mNST/A1',
+  },
+  jscNamedForm: {
+    description: 'the NAMED form JavaScriptCore renders for a bound function',
+    source: 'function plain() {\n    [native code]\n}',
+    expected: true,
+    vector: 'mNST/A2',
+  },
+  jscAdversarialForm: {
+    description: 'JSC, target renamed `(){} evil` — the B9 input',
+    source: 'function (){} evil() {\n    [native code]\n}',
+    expected: true,
+    vector: 'mNST/A3',
+  },
+  namedNative: {
+    description: 'a named built-in',
+    source: 'function max() { [native code] }',
+    expected: true,
+    vector: 'mNST/A4',
+  },
+  methodNamedFunction: {
+    description: 'a method NAMED `function` — authored, and admitted',
+    source: 'function(){}',
+    expected: false,
+    vector: 'mNST/R1',
+  },
+  methodMentioningMarker: {
+    description: 'a method whose body carries the marker inside a string',
+    source: 'function(){ return "[native code]" }',
+    expected: false,
+    vector: 'mNST/R2',
+  },
+  markerLikeIdentifier: {
+    description: 'a body holding `[nativecode]` — no interior space to fuse',
+    source: 'm() { [nativecode] }',
+    expected: false,
+    vector: 'mNST/R3',
+  },
+  plainMethod: {
+    description: 'an ordinary concise method',
+    source: 'foo(a, b) { return a + b; }',
+    expected: false,
+    vector: 'mNST/R4',
+  },
+};
+
 export const THROW_SAFE_MARKED = [
   'isAnyConciseMethod',
   'isConciseAsyncGeneratorMethod',
@@ -638,6 +710,7 @@ export const THROW_SAFE_MARKED = [
   'isConciseGeneratorMethod',
   'isPlainConciseMethod',
   'matchesLeadingAsyncToken',
+  'matchesNativeSourceTail',
   'matchesStartSequencesOfConciseAsyncGeneratorMethodSource',
   'matchesStartSequencesOfConciseAsyncMethodSource',
   'matchesStartSequencesOfConciseMethodNormalForm',
@@ -645,7 +718,7 @@ export const THROW_SAFE_MARKED = [
 ];
 
 /**
- * Hostile values for the `string` parameter of the five source-head helpers.
+ * Hostile values for the `string` parameter of the six source-reading helpers.
  *
  * The marker promises no throw within the DECLARED type, so this set is hostile
  * STRINGS rather than arbitrary junk — a non-string would test out of contract,

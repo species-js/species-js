@@ -41,8 +41,12 @@
  *
  * **Layer B is the library CONTRACT**, and it is identical on every engine. A
  * layer-B failure is a DEFECT — the module answering differently depending on
- * where it runs. B9 is the standing one on WebKit: the false positive in
- * `concise.js` that breaks CONCISE's law L3.
+ * where it runs. **B9 was the standing one on WebKit** — the false positive in
+ * `concise.js` that broke CONCISE's law L3 — and it is FIXED as of 2026-09-08:
+ * the native form is now recognized by its `[native code]` tail rather than by
+ * equality against the anonymous spelling, so a caller-chosen name in front of
+ * the marker no longer buys an admission. B9 is expected GREEN from here on,
+ * and a red from it is a regression rather than the known defect.
  *
  * A12 was added the same way A7-A10 were: dispatched with its `webkit` profile
  * unrecorded, so the run reported the values rather than asserting a guess.

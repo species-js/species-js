@@ -26,9 +26,12 @@
  * ## Boundaries
  *
  * - **Binding or wrapping hides an arrow.** A bound arrow, a Proxy-wrapped one
- *   and every built-in stringify to the anonymous `[native code]` form, which
- *   carries no head. Nothing source-based recovers the original, so all are
- *   refused.
+ *   and every built-in stringify to the `[native code]` form, which carries no
+ *   arrow head. Nothing source-based recovers the original, so all are refused.
+ *   Whether that form carries a name varies — a built-in always keeps its own,
+ *   and JavaScriptCore writes a bound target's name into it — but this module
+ *   never reads the name slot: no native form contains `=>`, so the patterns
+ *   refuse all of them on shape alone, whatever an engine put in front.
  * - **A parameter named `async` is not the modifier.** `async => async` is a
  *   sync arrow whose parameter happens to be called `async`, and is reported as
  *   one. What follows the word distinguishes it, never the word itself.

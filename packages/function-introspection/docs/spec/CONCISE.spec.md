@@ -4,18 +4,28 @@
 > [type-detection's spec README](../../../type-detection/docs/spec/README.md); this
 > package follows the same model and does not restate it. Vectors are reasoned from the
 > canon (`concise.js`, `concise.d.ts`, `UTILITY.spec.md`, decisions #087, #088 and #090).
-> Status: **FROZEN 2026-08-11** — decidability check passed: every vector below was
-> executed against the real predicates through the `#index` barrel before freezing,
-> including all eleven numeric key spellings, the private key, the undecidable and
-> decidable pairs, the accessor-slot law, the five helper contracts, and the three illegal
-> headers asserted to be `SyntaxError`. This spec is the base for the axis-1 suite; axes
-> 2–5 derive alongside.
+> Status: **FROZEN 2026-08-11 · AMENDED 2026-09-08** — decidability check passed: every
+> vector below was executed against the real predicates through the `#index` barrel before
+> freezing, including all eleven numeric key spellings, the private key, the undecidable
+> and decidable pairs, the accessor-slot law, the six helper contracts, and the three
+> illegal headers asserted to be `SyntaxError`. This spec is the base for the axis-1
+> suite; axes 2–5 derive alongside.
 >
 > **One vector was corrected by that run** (`iPCM/R10`): it had claimed a method whose
 > body contains another method's text is refused. It is not — it is admitted on its own
 > head, which is the whole point of reading the head only. The rejection vector uses a
 > non-method host and the admission is stated separately as `iPCM/A9`. See Resolved
 > item 1.
+>
+> **The 2026-09-08 amendment records a standing-law FAILURE and its repair.** Browser
+> probe B9 observed law **L3** break on JavaScriptCore: a bound function whose target was
+> renamed `'(){} evil'` was ADMITTED by `isPlainConciseMethod` and `isAnyConciseMethod` —
+> a false positive, the one failure mode this module is specified never to have. The cause
+> was a reading rather than a pattern: the native form was recognized by EQUALITY against
+> its anonymous spelling, which an engine writing a caller-chosen name into that form
+> defeats. It is now recognized by its `[native code]` tail. `matchesNativeSourceTail`
+> joins the surface, `bnd/B1`'s rationale is corrected, and L3's record is amended to say
+> the law was observed to fail rather than that it never had. See Resolved item 4.
 
 ## Module contract
 
@@ -83,6 +93,7 @@ recall on methods that had merely been GIVEN a `prototype`, for no precision gai
 | `matchesStartSequencesOfConciseAsyncMethodSource`          | `@internal` | yes            |
 | `matchesStartSequencesOfConciseMethodNormalForm`           | `@internal` | yes            |
 | `matchesStartSequencesOfUnnamedPlainFunctionSource`        | `@internal` | yes            |
+| `matchesNativeSourceTail`                                  | `@internal` | yes            |
 
 ## What a key may be
 
@@ -274,9 +285,15 @@ twice** while this module was written: once matching inside a body, once refusin
   every `v`. This law caught the `iAnyCM/A2` regression that the corpus nearly missed —
   only one row exercises that shape.
 - **L2 — mutual exclusivity.** No value is admitted by more than one flavor.
-- **L3 — precision, per #090.** Every failure of this module is a MISS. Across the entire
-  hardening round no defect was ever a false positive, and preserving that asymmetry is a
-  spec requirement, not a preference.
+- **L3 — precision, per #090.** Every failure of this module is a MISS. **AMENDED
+  2026-09-08 — this law was OBSERVED TO FAIL, and the record says so.** From 2026-09-04 to
+  2026-09-08 it did not hold on JavaScriptCore: probe B9 admitted a bound function whose
+  target was renamed `'(){} evil'`. The sentence that follows was true of a V8-only suite
+  and false of the library, and nothing could see the difference until the browser matrix
+  executed it. The law is restored by `matchesNativeSourceTail` — but a frozen law that
+  has once broken is worth recording as broken, because it is the only evidence of what
+  the suites could not reach. Across the entire hardening round no defect was ever a false
+  positive, and preserving that asymmetry is a spec requirement, not a preference.
 - **L4 — never throws**, including on `concise/X3`.
 - **L5 — omitted-argument honesty.**
 
@@ -308,8 +325,13 @@ rather than asserted.
 ### Binding and wrapping
 
 - `bnd/B1` — a bound method, a `Proxy`-wrapped method and `Function.prototype` → false, in
-  every flavor. All stringify to the anonymous `[native code]` form, which carries no
-  head.
+  every flavor. All stringify to the `[native code]` form, which carries no head.
+  **AMENDED 2026-09-08:** this said the ANONYMOUS form, which is V8's and SpiderMonkey's
+  spelling rather than the language's. JavaScriptCore writes the bound target's `name`
+  into the same grammar, so on that engine the verdict held only for names the head
+  pattern rejected earlier — and `'(){} evil'` was not one, which is the B9 false
+  positive. The verdict is unchanged on every engine now that the form is recognized by
+  its marker.
 
 ### Tampering with `prototype`
 
@@ -410,13 +432,47 @@ visible rather than discovered.
   `hasOwnPrototype` next.
 - `mUPFS/R1` — `'function foo(){}'` → false.
 
+### `matchesNativeSourceTail(source: string): boolean` — `@internal`
+
+**Added 2026-09-08.** Condenses, then anchors on the `[native code]` marker at the END. It
+replaces the equality against the anonymous form that `isPlainConciseMethod` and
+`isAnyConciseMethod` used at their `function`-head gate.
+
+Everything before the marker is deliberately ignored. What an engine writes between
+`function` and `(` is its own choice, and on JavaScriptCore it is the bound target's
+`name` — caller-supplied. Anchoring anywhere ahead of the marker anchors on hostile input.
+
+- `mNST/A1` — `'function () { [native code] }'` → true — the V8 / SpiderMonkey form.
+- `mNST/A2` — the JavaScriptCore three-line form of a NAMED bound function → true. No
+  value can produce it under a single-engine runner; it is reachable only because this
+  helper takes a SOURCE, the same reason `gFSC/A2` exists.
+- `mNST/A3` — the JavaScriptCore form for a target renamed `'(){} evil'` → true. **The B9
+  input**, character for character as WebKit 26.5 renders it, and the vector that would
+  have caught the false positive.
+- `mNST/A4` — `'function max() { [native code] }'` → true — a named built-in.
+- `mNST/R1` — `'function(){}'` → false — a method NAMED `function`, which `pair/D1`
+  admits. The recognizer must not reach it; `hasOwnPrototype` is what separates it from an
+  anonymous function expression, and that separation is unchanged.
+- `mNST/R2` — `'function(){ return "[native code]" }'` → false — the marker inside a
+  string literal is not the tail.
+- `mNST/R3` — `'m() { [nativecode] }'` → false — no interior space to fuse, the forgery
+  `gFSC/R2` covers from the condenser's side.
+- `mNST/R4` — `'foo(a, b) { return a + b; }'` → false — an ordinary method.
+
+**Why not a shape-restricted name slot.** The obvious repair — matching the name slot with
+an identifier character class — inverts the polarity and preserves the defect. The gate
+reads "not a native form → ADMIT", so a stricter recognizer matches LESS: `'(){} evil'` is
+not identifier-shaped, would fail the match, be treated as authored source, and be
+admitted again for a new reason. Measured against the strings before the reading was
+chosen.
+
 ## Throw-safety (axis 5) — completeness oracle
 
-Ten exports carry `@@throw-safe`, in both files of the pair — the five predicates and the
-five helpers listed in the surface inventory. The axis-5 suite asserts the triple-lock:
+Eleven exports carry `@@throw-safe`, in both files of the pair — the five predicates and
+the six helpers listed in the surface inventory. The axis-5 suite asserts the triple-lock:
 markers found in source ⟺ the set declared in `test/concise/__config.js` ⟺ the set
 actually exercised. Hostile values are fed **by declared parameter type**: `unknown` for
-the five predicates (unrestricted, including `concise/X3`); `string` for the five helpers.
+the five predicates (unrestricted, including `concise/X3`); `string` for the six helpers.
 
 ## Resolved items
 
@@ -472,6 +528,31 @@ the five predicates (unrestricted, including `concise/X3`); `string` for the fiv
    with "NECESSARY but not sufficient" and enumerates all three coincident shapes. Nothing
    is lost by closing, because nothing was being carried here that the canon does not
    carry better.
+
+4. **Law L3 broke on JavaScriptCore, and the reading that broke it (2026-09-08).** The
+   only standing-law failure this module has had. Browser probe B9 admitted a bound
+   function whose target `name` was set to `'(){} evil'` — a FALSE POSITIVE, which #090
+   prices the `is` prefix on never producing.
+
+   The pattern was not at fault. That name makes JavaScriptCore render
+   `function (){} evil() { [native code] }`, whose head is `function` + trivia + `(` — the
+   shape a method NAMED `function` also wears, so it legitimately reached the gate that
+   settles that head. What failed was the gate's second read: it compared the condensate
+   for EQUALITY against the anonymous native form, and the spliced name made the two
+   unequal, so a value with no authored source at all was treated as authored.
+
+   The repair is `matchesNativeSourceTail` — condense, then anchor on the `[native code]`
+   marker at the END, ignoring whatever precedes it. `hasOwnPrototype` is untouched and
+   still does the other half; it is the only thing separating `pair/D1`'s two members.
+
+   **Three things worth keeping.** The obvious repair is backwards: tightening the name
+   slot to an identifier class makes the recognizer match LESS, so the adversarial string
+   reads as authored source and is admitted again for a new reason. The defect was
+   unreachable on V8 — the string never forms there — so 5,000-plus tests, the smoke check
+   over built bundles and the Node-18 job were all blind to it, and only executing the
+   contract in three engines could find it. And it is now reachable in the fast suite:
+   `mNST/A2` and `mNST/A3` feed the JavaScriptCore strings directly, which is the whole
+   reason this helper takes a SOURCE rather than a value.
 
 ## Open items
 
