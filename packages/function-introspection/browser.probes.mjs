@@ -44,11 +44,9 @@
  * where it runs. B9 is the standing one on WebKit: the false positive in
  * `concise.js` that breaks CONCISE's law L3.
  *
- * **A12 is expected to fail on its first dispatch, by design.** Its `webkit`
- * profile is deliberately unrecorded so the run reports the observed values,
- * which are the measurement; record them and it turns green. A7-A10 were added
- * the same way. So a red run here means B9 plus whatever A12 prints, and NOT
- * that a second defect has appeared.
+ * A12 was added the same way A7-A10 were: dispatched with its `webkit` profile
+ * unrecorded, so the run reported the values rather than asserting a guess.
+ * They are recorded now, so B9 is once again the only expected red.
  *
  * **⚠ The two layers do not cover everything in this file.** A7 and A12 profile
  * a LIBRARY answer that is engine-relative BY DESIGN — the conjunction is
@@ -715,13 +713,12 @@ export const probes = [
     },
   },
   {
-    // A `Proxy` over a BOUND function, against the predicate pair. `webkit` is
-    // deliberately UNRECORDED: the first dispatch is expected to fail there and
-    // `holds` prints the observed values, which ARE the measurement (the
-    // protocol A7-A10 were added under). The derivation to be tested is that
-    // JSC renders the proxy's own name rather than the forwarded one, so the
-    // reconstruction misses and the conjunction answers `false` where V8
-    // answers `true`.
+    // A `Proxy` over a BOUND function, against the predicate pair. Dispatched
+    // 2026-09-08 with `webkit` unrecorded so the run would report rather than
+    // assert; both values below are what it printed, and both confirmed the
+    // derivation exactly — JSC renders the proxy's own name instead of the
+    // forwarded one, so the reconstruction misses and the conjunction answers
+    // `false` where V8 answers `true`.
     //
     // ⚠ CATEGORY: this profiles a LIBRARY answer that is engine-relative BY
     // DESIGN, so it fits neither layer cleanly — layer A means "the engine
@@ -737,12 +734,21 @@ export const probes = [
         [
           'rendered source',
           condense(proxyOverBound),
-          perEngine(engine, { default: NATIVE_ANONYMOUS }),
+          perEngine(engine, {
+            default: NATIVE_ANONYMOUS,
+            // JSC names the EXOTIC — it does not forward the target's rendered
+            // form, exactly as A4 records for a Proxy over a user function
+            webkit: 'function ProxyObject(){[native code]}',
+          }),
         ],
         [
           'strongly indicated',
           ns.doesStronglyIndicateBoundFunction(proxyOverBound),
-          perEngine(engine, { default: true }),
+          // the consequence of the line above: the reconstruction expects
+          // `function plain(){[native code]}` from the forwarded name and gets
+          // the proxy's own rendering, so the conjunction refuses on JSC what
+          // it admits on V8 — a divergence the split intends, not a defect
+          perEngine(engine, { default: true, webkit: false }),
         ],
         // portable, and frozen as `dIBF/A13`: the proxy forwards the
         // `'bound …'` name and the value behind it really is bound
