@@ -184,10 +184,16 @@ conservative and needed narrowing — dissolved. A caller who wants to know whet
 SPECIFIC weaker descriptor would apply still cannot ask: that needs the intended
 descriptor as a parameter plus the `ValidateAndApplyPropertyDescriptor` compatibility
 rules, which is a different function with a different name. No consumer wants it today,
-and both packages still to come (`type-identity`, `custom-namespace`) are sealing packages
-that ask the arbitrary-shape question. Left unbuilt deliberately, not overlooked.
+and the two sealing packages that followed — `custom-namespace`, shipped 2026-09-04, and
+`type-identity` — both ask the arbitrary-shape question. Left unbuilt deliberately, not
+overlooked.
 
-A second, smaller question rides along: `defineStableTypeIdentity` recomputes
+A second, smaller question rode along and is now CLOSED as mistaken (2026-09-09, on
+reading the consumer). It held that `defineStableTypeIdentity` recomputes
 `configurable !== false` inline for `name` and `Symbol.toStringTag` rather than calling
-this predicate, so the two carry the same reasoning in two places — and the inline copy
-lacks the extensibility arm.
+this predicate. It does not, and did not when the note was written: all three slots route
+through `canOwnPropertyBeShaped`. The inline `!descriptor.configurable` reads that
+prompted the note live in `doesCarryStableTypeIdentity`, and they ask the opposite
+question — whether a slot is already SEALED, not whether it can still be shaped. No
+reasoning is duplicated, and the absent extensibility arm is correct there, since a slot
+that was never shaped is not a sealed one.

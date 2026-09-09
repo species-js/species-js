@@ -107,6 +107,23 @@ depend on these packages.
 - **Cached prototype references** — `const hasOwn = Object.prototype.hasOwnProperty;` at
   module top; call as `hasOwn.call(o, k)`. Same pattern for any cross-realm-sensitive
   method. Never call `Object.hasOwn` directly.
+- **Arity is read from a rest parameter, never from `arguments`** — `(...args)` plus
+  `args.length`, the idiom ADR #079 prescribes when presence must be told apart from an
+  explicit `undefined` (`isNullishPrimitive`, `isPrimitiveValue`, `getTypeSignature`,
+  `getTaggedType`, `resolveType`). There is no `arguments` access anywhere in the
+  workspace, and adding one would be the first. The sibling `.d.ts` states the same rule
+  statically as a rest tuple — `...taggedType: [] | [string]` — which refuses an explicit
+  `undefined` at compile time where an optional parameter would admit it. Overloads
+  express it too, but `@typescript-eslint/unified-signatures` (from
+  `stylisticTypeChecked`) rejects them, and switching that rule off workspace-wide to
+  deviate from the house form is not worth a marginally tidier error message.
+- **An internal verifier is a predicate or an `{ error, value }` result, never a tuple** —
+  a predicate (`@returns {value is T}`) when the answer is a classification, so the
+  narrowing survives the call; the `{ error, value }` shape when the answer is a converted
+  value or a reason, discriminated on `error` so the caller reaches the value without a
+  cast. A positional `[failure, value]` return is a third failure vocabulary alongside the
+  package result type and the `{ error, value }` helpers, and it forces a cast at the call
+  site — the same cast-laundering that hides real defects from `tsc`.
 
 ## Commands
 
