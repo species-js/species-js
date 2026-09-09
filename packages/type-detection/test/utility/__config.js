@@ -218,10 +218,8 @@ export const hasInertMatrix = {
   accessorSetter: {
     description: 'an accessor setter `{ set x(v) {} }` at `x`',
     make: () => ({
-      /** @param {unknown} v - ignored setter argument */
-      set x(v) {
-        void v;
-      },
+      /** @param {unknown} _v - ignored setter argument */
+      set x(_v) {},
     }),
     key: 'x',
     expected: {

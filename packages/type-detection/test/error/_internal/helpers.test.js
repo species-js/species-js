@@ -288,9 +288,7 @@ describe('[Internal] doesImplementDOMExceptionPrototypeContract (INVOKES the get
       get name() {
         return 'x';
       },
-      set name(_v) {
-        void _v;
-      },
+      set name(_v) {},
       get message() {
         return 'm';
       },
