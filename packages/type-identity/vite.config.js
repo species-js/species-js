@@ -36,7 +36,7 @@ export default defineConfig({
     // every previous build accumulate, and `files: ["dist", "src"]` packs them.
     emptyOutDir: true,
     lib: {
-      entry: resolve(import.meta.dirname, 'src/index.js'),
+      entry: resolve(import.meta.dirname, 'src/public.js'),
       fileName: (format, entryName) => {
         if (format === 'cjs') {
           return `${entryName}.cjs`;
