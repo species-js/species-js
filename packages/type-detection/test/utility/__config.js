@@ -216,7 +216,7 @@ export const hasInertMatrix = {
     vectors: ['hIM/R3', 'hIG/A1', 'hIV/R1'],
   },
   accessorSetter: {
-    description: 'an accessor setter `{ set x(v) {} }` at `x`',
+    description: 'an accessor setter `{ set x(_v) {} }` at `x`',
     make: () => ({
       /** @param {unknown} _v - ignored setter argument */
       set x(_v) {},

@@ -75,13 +75,8 @@ export default tseslint.config(
     },
     rules: {
       // --- Core JS hardening ---
-      // An empty SETTER is a meaningful shape, not a smell: a write-only sink
-      // that accepts and discards. Test fixtures model exactly that, and with
-      // the rule at its default there is no legal way to write one — dropping
-      // the body trips this rule, and keeping a `void arg;` body trips
-      // `no-meaningless-void-operator`, which typescript-eslint 8.69 tightened.
-      // Narrowed rather than switched off, and by CONSTRUCT rather than by file,
-      // because the judgement is about the construct.
+      // A no-op accessor is a legitimate shape rather than a smell, which is why
+      // the rule ships an `allow` list. Fixtures model a setter that discards.
       '@typescript-eslint/no-empty-function': ['error', { allow: ['setters'] }],
       'no-console': ['warn', { allow: ['warn', 'error'] }],
       'no-unused-vars': 'off',
