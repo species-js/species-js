@@ -164,8 +164,8 @@ Stated positively so the guarantee stays legible: **three slots, and nothing els
 - **The constructor's `prototype` pointer is not frozen.** It is read and never written,
   so an ES3 function's stays assignable — that writability is the property identifying the
   shape. Reassigning it substitutes an unfrozen prototype, which replaces the type rather
-  than unsealing anything: the frozen prototype and every value already built from it keep
-  both tag and verdict (`define/B2`, `carry/B6`).
+  than defeating the freeze: the frozen prototype and every value already built from it
+  keep both tag and verdict (`define/B2`, `carry/B6`).
 - **A value's own tag is not guarded.** An instance may shadow the inherited
   `Symbol.toStringTag` and change what `Object.prototype.toString` answers for itself; the
   verdict, read off the prototype, is unmoved (`carry/B4`).
@@ -180,7 +180,8 @@ Stated positively so the guarantee stays legible: **three slots, and nothing els
 Nothing in the implementation uses `instanceof` or compares constructor identity — the
 read path is descriptor reads, the write path descriptor reads plus three defines
 (`realm/B1`). That is the whole mechanism behind the package's reason to exist, and it is
-checkable by grep as well as by vector.
+checkable by grep: the word occurs twice in `src/index.js`, both times in prose explaining
+why the operator is avoided, and never in code.
 
 Consequences: a constructor made in another realm freezes exactly as a local one does, and
 its name and tag read back from inside that realm as well as from ours (`realm/A1`); a
