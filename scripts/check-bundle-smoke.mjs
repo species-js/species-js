@@ -401,7 +401,7 @@ for (const name of readdirSync(PACKAGES)) {
     );
   }
 
-  // ----- behavioural probes -----
+  // ----- behavioral probes -----
 
   const probeFile = join(packageDir, 'smoke.probes.mjs');
   if (!existsSync(probeFile)) {

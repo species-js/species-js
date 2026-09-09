@@ -47,7 +47,7 @@
 > a determinate one: `isError/A2` (a well-formed `DOMException`) is now
 > **deterministically true on every engine**, where the old raw-native binding left it
 > engine-dependent. No admit/reject vector was LOOSENED and the polyfill-path (Node-22)
-> behaviour the axis-1 suite exercises is unchanged, so the **FROZEN 2026-07-10** oracle
+> behavior the axis-1 suite exercises is unchanged, so the **FROZEN 2026-07-10** oracle
 > stands for the test env; the amendment is a cross-engine determinism guarantee, not a
 > re-decidability event. Recorded in the `## isError` section, the module-contract
 > invariant (now scoped to the deterministic `isAnyError`), and Open/resolved items #3

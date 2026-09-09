@@ -53,7 +53,7 @@ knowing:
   threat model, read `doesIndicateBoundFunction` and add your own check — its answer does
   not vary by engine.
 
-None of this is inferred. The behaviour is asserted by probes executed against the
+None of this is inferred. The behavior is asserted by probes executed against the
 published bundles in Chromium, Firefox and WebKit, and against the module builds on
 JavaScriptCore.
 

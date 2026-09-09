@@ -45,7 +45,7 @@
 > and measurably: `defineProperty` coerces every non-`PropertyKey` key through
 > `ToPropertyKey` and defines successfully, so rejecting `{}` or `NaN` denied a definition
 > that works; and it throws `TypeError` on every primitive target, which the
-> `value === null` test let through. The key validation is deleted rather than optimised —
+> `value === null` test let through. The key validation is deleted rather than optimized —
 > it cost a call to produce a wrong answer — and `trustedData` goes with it, since the
 > parameter existed only to skip that check. **`cOPBS/R5` WITHDRAWN**; `A6`, `R6`, `B3`,
 > `B4` appended.
@@ -647,7 +647,7 @@ inherited-only key on an extensible target answers `true`.
   an object) → `false` (guard, via `isValidPropertyKey`)". The claim was wrong:
   `defineProperty` coerces every such key and defines successfully, so `false` denied a
   definition that demonstrably works. The validation is gone and the vector with it; the
-  corrected behaviour is `cOPBS/A6`.
+  corrected behavior is `cOPBS/A6`.
 - `cOPBS/A6` — a non-`PropertyKey` key on an object target (`{}`, `[]`, `NaN`, `1n`,
   `true`, `null`, `undefined`) → `true`. Each coerces and defines.
 - `cOPBS/R6` — a non-object `value` (`5`, `'s'`, `true`, `1n`, a symbol, `0`, `''`,
@@ -661,7 +661,7 @@ inherited-only key on an extensible target answers `true`.
   ABSENT key → `true`, yet `Object.defineProperty` on that key throws", pinned as a
   documented optimism. The extensibility arm removed the optimism rather than documenting
   it, and an optimistic answer is a false claim, which ADR #081's reliability tenet does
-  not permit a type-detection predicate to make. The corrected behaviour is `cOPBS/A7` and
+  not permit a type-detection predicate to make. The corrected behavior is `cOPBS/A7` and
   `cOPBS/A8`.
 - `cOPBS/A7` — a **non-extensible** target (`Object.preventExtensions` / `seal` /
   `freeze`) with an ABSENT key → `false`. The slot can never be shaped, and
@@ -860,7 +860,7 @@ allocation-free vs a per-call closure.
 4. **Property-key helper retirement + safe own-key family — RESOLVED (2026-06-25).**
    `guardedGetPrototypeOf` → `getSafePrototypeOf` (throw-safe prototype reader); the
    `getOwnPropertyDescriptorsKeys` / `getOwnPropertyDescriptorsKeySet` pair was removed in
-   favour of the public `getOwnPropertyKeys` (own string **and** symbol keys) and the
+   favor of the public `getOwnPropertyKeys` (own string **and** symbol keys) and the
    throw-safe own-key readers. ADR #011 (the `Set` shape-probe decision) stands.
 
 5. **`Inert → Safe` vocabulary disentanglement + `@@throw-safe` marker + public surface —

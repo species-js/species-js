@@ -173,7 +173,7 @@ export const foreignNamedNativeRenamed = () =>
     )
   );
 
-// cross-realm (axis 2) — the `Proxy` subtraction must recognise a foreign
+// cross-realm (axis 2) — the `Proxy` subtraction must recognize a foreign
 // constructor structurally, having no identity match to fall back on
 export const foreignBoundFunction = () =>
   /** @type {Callable} */ (foreignRealmEval('(function f(a){ return a; }).bind(null)'));

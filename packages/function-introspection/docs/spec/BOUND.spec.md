@@ -501,10 +501,10 @@ Verified before freezing: no throws across the marked set.
    decided was a forgery (`dIBF/B3`), so the suite pinned the mechanism but never the
    purpose — and the spec named no engine anywhere, though both source files did. Not a
    correctness hole; the risk was **directional**. Mark 3's only guard asserted "an arrow
-   renamed to look bound is admitted". A maintainer trimming spoofable behaviour would
-   read that test's failure as endorsing the removal rather than blocking it. `dIBF/B4`
-   and `dSIBF/R14` close the gap, and the disagreement set becomes five. **Amendment, not
-   an append** — "exactly four" was a frozen claim in the Relationship section and is now
+   renamed to look bound is admitted". A maintainer trimming spoofable behavior would read
+   that test's failure as endorsing the removal rather than blocking it. `dIBF/B4` and
+   `dSIBF/R14` close the gap, and the disagreement set becomes five. **Amendment, not an
+   append** — "exactly four" was a frozen claim in the Relationship section and is now
    corrected, as is #088's Consequences.
 6. **Axis-4 helpers and the `#utility` half of axis 5 moved out (2026-08-11).** They were
    written here because `bound` was the only consumer; `concise` became the second, which

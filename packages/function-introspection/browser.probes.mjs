@@ -972,10 +972,10 @@ export const probes = [
       ]),
   },
   {
-    // Also asserts CONCISE's law L2 across the flavours — no value is admitted
+    // Also asserts CONCISE's law L2 across the flavors — no value is admitted
     // by more than one — which is the property a shared source reader is most
     // likely to lose if an engine hands it a different string.
-    name: 'B11 · each concise flavour admits its own shape and refuses the others',
+    name: 'B11 · each concise flavor admits its own shape and refuses the others',
     run: (ns) =>
       holds([
         ['async', ns.isConciseAsyncMethod(asyncMethod), true],

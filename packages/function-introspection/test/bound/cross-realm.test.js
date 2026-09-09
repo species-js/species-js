@@ -3,7 +3,7 @@
 /**
  * @module test/bound/cross-realm
  *
- * Axis 2 — foreign-realm behaviour. Both predicates are purely structural: they
+ * Axis 2 — foreign-realm behavior. Both predicates are purely structural: they
  * read descriptors, a construct slot and a source string, and consult no
  * realm-fixed identity of their own. A value from another realm must therefore
  * score exactly as its local twin.
@@ -11,7 +11,7 @@
  * The one place a realm boundary could bite is the `Proxy` subtraction.
  * `doesMatchProxyConstructor` compares against this realm's captured `Proxy`
  * first, and a foreign constructor fails that compare — so a foreign `Proxy` is
- * recognised only by `hasProxyConstructorShape`, the structural arm. If that arm
+ * recognized only by `hasProxyConstructorShape`, the structural arm. If that arm
  * ever regressed, a foreign `Proxy` would be reported as bound while the local
  * one was not, and only this suite would see it.
  *

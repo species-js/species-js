@@ -829,9 +829,9 @@ why it needs a written scope rather than a memory of one.
 
 #### The retired-wording ratchet — deferred work
 
-`docs:sweep`'s claim sweep (check 4) cannot be automated: the phrases are the round's
+`docs:sweep`'s claim sweep (check 5) cannot be automated: the phrases are the round's
 changed wording, known only to whoever changed it. CI therefore runs the script bare, and
-a green build asserts checks 1-3 and nothing about any claim. That leaves one standing gap
+a green build asserts checks 1-4 and nothing about any claim. That leaves one standing gap
 — **a wording retired in one round can creep back in a later one with nobody sweeping for
 it**, because the only sweep that would catch it happened months earlier.
 

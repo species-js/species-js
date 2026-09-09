@@ -19,7 +19,7 @@
  *      does, so a marker added or removed without updating the oracle fails here.
  *   B. DETERMINISM — a reader is a pure function of its input: repeated calls on the
  *      same value agree. This is the spec-free law that guards the #059 posture
- *      (the constructor registries were REMOVED in favour of resolve-once-and-thread)
+ *      (the constructor registries were REMOVED in favor of resolve-once-and-thread)
  *      — a reader that cached across calls, or leaked stateful residue, would break
  *      it. Asserted over a broad value corpus, hostile inputs included.
  *

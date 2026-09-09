@@ -42,11 +42,11 @@
  *    ~78-column wrap split across two lines is still found; see
  *    {@link normalizeProse}.
  *
- * ## Why check 4 cannot be automated, and what that costs
+ * ## Why check 5 cannot be automated, and what that costs
  *
  * The phrases ARE the round's changed wording, which exists only in the head of
  * whoever changed it. Nothing in CI can supply them, so CI runs this bare and
- * checks 1-3 are the whole of what a green build asserts about documentation.
+ * checks 1-4 are the whole of what a green build asserts about documentation.
  * Check 4 is invoked by hand, per round, per claim — the procedure is in
  * `CLAUDE.md` under "Documentation hardening".
  *
@@ -85,7 +85,7 @@
  * ## TRIP CONDITION
  *
  * Delete this script if the `.js` / `.d.ts` pair convention is ever replaced by
- * generated declarations, which would make checks 1–3 the generator's problem.
+ * generated declarations, which would make checks 1–4 the generator's problem.
  *
  * @module scripts/sweep-docs
  */
@@ -403,7 +403,138 @@ for (const file of sourceFiles.filter((f) => f.endsWith('.js') && f.includes('/s
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 //
-//  4 — the claim sweep
+//  4 — US English
+//
+// ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
+
+/**
+ * British spellings and their US replacements.
+ *
+ * CLAUDE.md states the corpus is US English. Nothing enforced it, and fourteen
+ * violations accumulated across four packages before an owner correction to one
+ * file exposed the rest.
+ *
+ * **Explicit pairs, never a suffix rule.** `-ise` is not a British marker:
+ * `concise`, `promise`, `precise`, `otherwise` and `comprise` are all correct
+ * and all appear here — `concise` is a module name. A pattern over the suffix
+ * would flag them, and a gate that cries wolf is uninstalled within a week. The
+ * cost of this shape is a miss, never a false alarm: a word absent from the map
+ * simply is not caught, which is the failure direction to prefer. Extend it
+ * when one gets through.
+ *
+ * The survey that produced this list was itself wrong twice — `analys` matched
+ * `analysis`, which is correct in both dialects, and the first pattern omitted
+ * `recognise` entirely. Hence pairs written out rather than families inferred.
+ */
+const BRITISH_SPELLINGS = new Map([
+  ['behaviour', 'behavior'],
+  ['behaviours', 'behaviors'],
+  ['behavioural', 'behavioral'],
+  ['behaviourally', 'behaviorally'],
+  ['colour', 'color'],
+  ['coloured', 'colored'],
+  ['colours', 'colors'],
+  ['favour', 'favor'],
+  ['favoured', 'favored'],
+  ['flavour', 'flavor'],
+  ['flavours', 'flavors'],
+  ['honour', 'honor'],
+  ['honoured', 'honored'],
+  ['neighbour', 'neighbor'],
+  ['rigour', 'rigor'],
+  ['analyse', 'analyze'],
+  ['analysed', 'analyzed'],
+  ['analyses', 'analyzes'],
+  ['analysing', 'analyzing'],
+  ['recognise', 'recognize'],
+  ['recognised', 'recognized'],
+  ['recognises', 'recognizes'],
+  ['recognising', 'recognizing'],
+  ['initialise', 'initialize'],
+  ['initialised', 'initialized'],
+  ['initialising', 'initializing'],
+  ['normalise', 'normalize'],
+  ['normalised', 'normalized'],
+  ['normalising', 'normalizing'],
+  ['organise', 'organize'],
+  ['organised', 'organized'],
+  ['organisation', 'organization'],
+  ['serialise', 'serialize'],
+  ['serialised', 'serialized'],
+  ['optimise', 'optimize'],
+  ['optimised', 'optimized'],
+  ['minimise', 'minimize'],
+  ['maximise', 'maximize'],
+  ['summarise', 'summarize'],
+  ['categorise', 'categorize'],
+  ['prioritise', 'prioritize'],
+  ['specialise', 'specialize'],
+  ['generalise', 'generalize'],
+  ['memoise', 'memoize'],
+  ['memoised', 'memoized'],
+  ['defence', 'defense'],
+  ['offence', 'offense'],
+  ['licence', 'license'],
+  ['practise', 'practice'],
+  ['centre', 'center'],
+  ['metre', 'meter'],
+  ['whilst', 'while'],
+  ['amongst', 'among'],
+]);
+
+/**
+ * Occurrences that predate this check and cannot be edited.
+ *
+ * **ADR bodies are immutable** — a later decision supersedes an earlier one
+ * with a pointer back, it never rewrites it. Three ADRs carry a British
+ * spelling written before the check existed, and correcting them would break a
+ * stronger convention than the one being enforced. Grandfathering them by PATH
+ * rather than exempting `docs/decisions/` wholesale is deliberate: a newly
+ * written ADR is still gated.
+ */
+const SPELLING_GRANDFATHERED = new Set([
+  'packages/function-introspection/docs/decisions/0093-release-policy.md',
+  'packages/function-introspection/docs/decisions/0100-the-portable-half-reads-no-source.md',
+  'packages/type-detection/docs/decisions/0095-no-host-backed-hardening-tier-resolves-q005.md',
+  'packages/type-detection/docs/decisions/0059-drop-constructor-registries-thread-constructor-get-verified-own-name.md',
+  'packages/type-detection/docs/decisions/0078-delivery-seam-cjs-type-masquerade-accepted-attw-publint-gate.md',
+]);
+
+// - THIS FILE is excluded, and the exclusion is the point rather than an
+//   oversight. A list of words to hunt is a file containing every one of them,
+//   so scanning itself it reports every entry forever — the purest form of the
+//   hazard this script's header already records for the retired-wording
+//   ratchet. Written down there an hour before this check was built, and walked
+//   into anyway on the first run. The cost is that British prose inside this
+//   one script is ungated; the alternative is a check that fails on itself.
+const SPELLING_SELF = relative(ROOT, new URL(import.meta.url).pathname);
+
+for (const file of files) {
+  if (SPELLING_GRANDFATHERED.has(file) || file === SPELLING_SELF) {
+    continue;
+  }
+  const text = readFileSync(join(ROOT, file), 'utf8');
+
+  for (const [british, american] of BRITISH_SPELLINGS) {
+    // - word boundaries on both sides, so `colour` does not fire inside a URL
+    //   fragment and `metre` does not fire inside `parametrized`
+    const pattern = new RegExp(`\\b${british}\\b`, 'gi');
+    const segments = text.split('\n');
+
+    for (let i = 0; i < segments.length; i += 1) {
+      const found = segments[i].match(pattern);
+      if (found !== null) {
+        problems.push(
+          `${file}:${i + 1} — "${found[0]}" is British; this corpus is US English ("${american}")`,
+        );
+      }
+    }
+  }
+}
+
+// ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
+//
+//  5 — the claim sweep
 //
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 

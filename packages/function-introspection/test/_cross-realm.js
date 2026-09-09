@@ -9,7 +9,7 @@
  * intrinsics are distinct objects from this realm's. That is the condition the
  * `bound` module's `Proxy` subtraction has to survive — `doesMatchProxyConstructor`
  * compares against this realm's capture by identity first, so a foreign `Proxy`
- * can only be recognised by the structural arm.
+ * can only be recognized by the structural arm.
  *
  * Each module's fixtures compose `foreignRealmEval` into the specific foreign
  * values its vectors name. This file owns only the realm.
