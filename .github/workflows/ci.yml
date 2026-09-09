@@ -99,8 +99,8 @@ jobs:
       # which Codecov still computes across every flag. The flags are declared
       # in `codecov.yml`, and each package's README carries its own badge.
       #
-      # `type-identity` is deliberately absent — still private, and its single
-      # importability test would only dilute the numbers. `custom-namespace`
+      # `type-identity` is deliberately absent — still private, and its
+      # surface-only suite would only dilute the numbers. `custom-namespace`
       # joined on 2026-09-04 when it met the trigger below.
       #
       # A package joins in FOUR places at once, on the commit that makes it

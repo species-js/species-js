@@ -10,7 +10,7 @@ depend on these packages.
 | ------------------------------------ | ------------------------------------------------------------------------------- | -------------- |
 | `@species-js/type-detection`         | Runtime type checking, cross-realm discrimination                               | none           |
 | `@species-js/function-introspection` | Function classification — bound functions, arrows, concise methods              | type-detection |
-| `@species-js/type-identity`          | Type branding, constructor sealing, multi-layer validation                      | type-detection |
+| `@species-js/type-identity`          | Type branding and tamper-resistant type identity                                | type-detection |
 | `@species-js/custom-namespace`       | Frozen prototype-less namespace objects grouping exports behind one named value | type-detection |
 
 ## Code conventions
@@ -263,7 +263,8 @@ live under `packages/<name>/docs/`:
 - `packages/<name>/docs/architecture/` — the conceptual map (mental model, cross-realm
   safety, predicate composition, open questions). One file per module, indexed by
   `README.md`, which also carries the cross-cutting patterns — but the split earns itself
-  per MODULE (#097's threshold), so a package documenting one puts the map in `README.md`.
+  per MODULE, so a package documenting one puts the map in `README.md` rather than behind
+  an index of length one.
 - `packages/<name>/docs/decisions/` — one ADR file per decision (`NNNN-slug.md`).
   `README.md` indexes by domain and chronologically; `open-questions.md` tracks unresolved
   policy/scope questions.
@@ -272,7 +273,7 @@ live under `packages/<name>/docs/`:
 Key patterns from the sibling project (`es-async-types` / `cadence-js`):
 
 - Cross-realm type detection uses 4-7 layer validation pipelines
-- `defineStableTypeIdentity` seals constructor name, prototype, Symbol.toStringTag
+- `defineStableTypeIdentity` freezes constructor name, prototype, Symbol.toStringTag
 - Smart-alien test pattern: alien mocks defer to real implementations via WeakSet tracking
 - Memoization and context binding are caller concerns, not type concerns
 - Composition/traits rejected for runtime types (V8 inline cache performance)

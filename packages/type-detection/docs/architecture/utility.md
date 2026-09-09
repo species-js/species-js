@@ -184,7 +184,7 @@ conservative and needed narrowing — dissolved. A caller who wants to know whet
 SPECIFIC weaker descriptor would apply still cannot ask: that needs the intended
 descriptor as a parameter plus the `ValidateAndApplyPropertyDescriptor` compatibility
 rules, which is a different function with a different name. No consumer wants it today,
-and the two sealing packages that followed — `custom-namespace`, shipped 2026-09-04, and
+and the two freezing packages that followed — `custom-namespace`, shipped 2026-09-04, and
 `type-identity` — both ask the arbitrary-shape question. Left unbuilt deliberately, not
 overlooked.
 

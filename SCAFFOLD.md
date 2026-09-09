@@ -372,8 +372,10 @@ do so.
 **A subdomain is not automatically a published subpath.** `type-detection`'s `foundation`
 is reachable internally as `#foundation` and stays out of its `exports` map, as does
 `#config` in the three packages that are not `type-detection`. Publication is a separate
-decision from layout — ADR #085 governs what the curated root exposes, and #097 the point
-at which a package earns a barrel/`public` split at all.
+decision from layout — ADR #085 governs what the curated root exposes, and #099 decides
+whether a package needs one at all: a package earns a `public.{js,d.ts}` exactly when its
+entry would otherwise export something `@internal` — which is why `type-identity` has one
+despite having a single module.
 
 ---
 
