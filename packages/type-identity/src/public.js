@@ -17,9 +17,9 @@
  * reads — this list is the enforcement, and `scripts/check-public-surface.mjs`
  * fails the build when the two disagree (ADR #099).
  *
- * Re-export order carries nothing here. The package has one module, and its
- * only load-time work is the error-cause capability probe, which depends on no
- * binding in this file.
+ * Re-export order carries nothing here. The package has one module, and the
+ * load-time work behind it — four realm-fixed captures and the error-cause
+ * capability probe — depends on no binding in this file.
  */
 
 export {

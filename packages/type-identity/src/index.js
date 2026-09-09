@@ -569,6 +569,9 @@ export function doesCarryStableTypeIdentity(value = null) {
  *     `prototype` descriptor at all.
  *  10.–11. `canOwnPropertyBeShaped`, for the prototype's `constructor` and
  *     then its `Symbol.toStringTag`.
+ *  12. the `try` around the three defines, whose caught value becomes the
+ *     `reason` — wrapped by `toReportableError` when it is not an error. The
+ *     next section says why that is a backstop rather than the primary guard.
  *
  *  ## Why the defines run tag, constructor, name
  *
@@ -765,9 +768,9 @@ export function defineStableTypeIdentity(constructor, constructorName, ...args) 
  *  {@link getIdentifierAsSafeResult} on `fctName`, which decides conditions 2
  *  and 3 together and is the same helper the freezing entry verifies its two
  *  identifiers with; then `canOwnNameBeShaped`. The `try` is the backstop for a
- *  hostile callable that
- *  answers the probe truthfully and then refuses the define. A non-error throw
- *  is wrapped and carried as `cause`, so `reason` is always an error.
+ *  hostile callable that answers the probe truthfully and then refuses the
+ *  define. A non-error throw is wrapped and carried as `cause`, so `reason` is
+ *  always an error.
  *
  *  The success arm never carries a `warning`. That field belongs to
  *  {@link defineStableTypeIdentity}'s two-identifier case, which has no

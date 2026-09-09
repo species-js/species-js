@@ -4,8 +4,9 @@
  * The published surface — every export the package documents as part of its
  * contract, named one by one.
  *
- * Curation is the point. `src/index.d.ts` additionally declares the two
- * parameter verifiers and the error-cause seam, so the suite can assert their
+ * Curation is the point. `src/index.d.ts` additionally declares four
+ * `@internal` exports — the two parameter verifiers, the error-cause seam and
+ * its `ErrorWithCauseConstructor` type — so the suite can assert their
  * admissions and refusals directly rather than only through an entry's
  * rejection order; it stays that way because `#index` is what the suite
  * imports. This file is what `package.json`'s `exports["."]` resolves to, so a

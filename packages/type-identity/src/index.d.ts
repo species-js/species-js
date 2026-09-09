@@ -249,9 +249,9 @@ export function doesCarryStableTypeIdentity(value?: unknown): boolean;
  * not. A `class` holds that pointer non-writably by construction, so its pair
  * is closed. An ES3 constructor function holds it writably — the very property
  * that identifies the shape — so a later `F.prototype = …` substitutes an
- * unsealed prototype. That replaces the type rather than unsealing it: the
- * frozen prototype is untouched, and every value already built from it keeps
- * both its tag and its verdict.
+ * unfrozen prototype. That replaces the type rather than defeating the freeze:
+ * the frozen prototype is untouched, and every value already built from it
+ * keeps both its tag and its verdict.
  *
  * Restricted to ES3 constructor functions and `class`-syntax constructors —
  * the feature exists for types you own. The gate is shape, not origin: it turns

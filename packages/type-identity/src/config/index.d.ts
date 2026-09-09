@@ -48,8 +48,11 @@ export declare const globalContext: typeof globalThis;
 /**
  * `Object.getPrototypeOf`, realm-fixed at module-load.
  *
- * Reads the prototype a freezing candidate's `constructor` back-reference is
- * verified against.
+ * Reads the `[[Prototype]]` of a value under verification, on the branch taken
+ * when that value is not itself a newable. The criteria are then read from that
+ * prototype's own descriptors — its `constructor` back-reference and its
+ * `Symbol.toStringTag`. The freezing entries never call it; they read the
+ * constructor's own `prototype` descriptor instead.
  *
  * Retyped from the lib's `(o: any) => any` to
  * `(o: unknown) => object | Callable | null`, matching type-detection's own
