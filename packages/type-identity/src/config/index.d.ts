@@ -7,7 +7,7 @@
  * published subpath — the bundler inlines it into the entry that consumes it.
  *
  * Capturing a member once at module-load, rather than reaching for `Object.x`
- * at each call site, fixes its identity to this realm and shields the sealing
+ * at each call site, fixes its identity to this realm and shields the freezing
  * entries from later tampering with the global `Object`.
  *
  * ADR #086 is why these live here rather than being imported from
@@ -48,7 +48,7 @@ export declare const globalContext: typeof globalThis;
 /**
  * `Object.getPrototypeOf`, realm-fixed at module-load.
  *
- * Reads the prototype a sealing candidate's `constructor` back-reference is
+ * Reads the prototype a freezing candidate's `constructor` back-reference is
  * verified against.
  *
  * Retyped from the lib's `(o: any) => any` to
@@ -67,8 +67,8 @@ export declare const getPrototypeOf: (o: unknown) => object | Callable | null;
 /**
  * `Object.defineProperty`, realm-fixed at module-load.
  *
- * The one write the sealing entries make. Held here so a post-load
- * reassignment of the global `Object` cannot redirect the seal.
+ * The one write the freezing entries make. Held here so a post-load
+ * reassignment of the global `Object` cannot redirect the freeze.
  *
  * @internal
  */

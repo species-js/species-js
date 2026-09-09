@@ -3,15 +3,15 @@
  *
  * Tamper-resistant type identity for userland constructors.
  *
- * {@link defineStableTypeIdentity} seals a constructor's `name`, its
+ * {@link defineStableTypeIdentity} freezes a constructor's `name`, its
  * prototype's `constructor` back-reference, and a `Symbol.toStringTag` getter.
  * That is what makes a userland type detectable across realms, where
- * `instanceof` fails on identity. {@link brandFunctionName} seals `name`
+ * `instanceof` fails on identity. {@link brandFunctionName} freezes `name`
  * alone, for a function whose name must survive a bundler.
  * {@link doesCarryStableTypeIdentity} reports whether a value carries the
- * sealed shape.
+ * frozen shape.
  *
- * Neither sealing entry throws. Both report their rejections as an
+ * Neither freezing entry throws. Both report their rejections as an
  * {@link IdentityDefinitionResult}.
  */
 
@@ -45,8 +45,14 @@ export type ErrorWithCauseConstructor = new (
 /**
  * Resolves the `Error` constructor this package builds its wrapped reasons
  * with: the native one when it already honors the ES2022 options bag,
- * otherwise a stand-in that installs `cause` itself with the same descriptor
- * flags, leaving the two indistinguishable to a consumer.
+ * otherwise a stand-in that installs `cause` itself under the descriptor flags
+ * the native form uses, leaving the errors this package builds
+ * indistinguishable from native ones.
+ *
+ * The stand-in reads `cause` from a plain-object bag's own key, where the
+ * native form takes it from any object and through the prototype chain. No
+ * call path here can reach that difference — every reason is built from an
+ * object literal — so it is visible only to a caller of this seam.
  *
  * The two-argument form parses on every engine, so support cannot be inferred
  * from syntax. An engine without it ignores the second argument silently
@@ -78,7 +84,7 @@ export function resolveErrorWithCause(
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 
 /**
- * The outcome of a sealing attempt that landed: all three slots were shaped.
+ * The outcome of a freezing attempt that landed: all three slots were shaped.
  *
  * `warning` is present only when `taggedType` and `constructorName` differ.
  * That is a supported combination. It is reported because the two identifiers
@@ -91,7 +97,7 @@ export interface IdentityDefinitionSuccess {
 }
 
 /**
- * The outcome of a sealing attempt that was refused, carrying the reason.
+ * The outcome of a freezing attempt that was refused, carrying the reason.
  *
  * A single error, not an aggregate. The checks run in order and the first
  * blocking one ends the attempt, so `reason` is whichever came first. That is
@@ -122,7 +128,7 @@ export type IdentityDefinitionResult =
 /* @@throw-safe */
 /**
  * Whether an already-newable value carries one of the two shapes
- * {@link defineStableTypeIdentity} can seal — an ES3 constructor function or a
+ * {@link defineStableTypeIdentity} can freeze — an ES3 constructor function or a
  * `class`-syntax constructor.
  *
  * A shape gate rather than an origin one: a built-in constructor fails it on
@@ -133,10 +139,11 @@ export type IdentityDefinitionResult =
  * only through the entry's rejection order.
  *
  * @param value - the value to test, already known to be newable
- * @returns `true` when the value carries a sealable shape; `false` otherwise
+ * @returns `true` when the value carries one of those two shapes; `false`
+ *  otherwise
  * @internal
  */
-export function isSealableConstructor<T = NewableFunction>(
+export function isSupportedConstructor<T = NewableFunction>(
   value: T & NewableFunction,
 ): value is T & (ES3Function | ClassConstructor);
 
@@ -187,7 +194,7 @@ export function getIdentifierAsSafeResult(
 //  guard "asserts what the compiler cannot derive".
 //
 //  So the signature promises nothing it cannot keep. The real precondition is
-//  carried by the returned `reason` instead: neither sealing entry throws, and
+//  carried by the returned `reason` instead: neither freezing entry throws, and
 //  both report every rejection as a value, invalid arguments included.
 //
 
@@ -208,10 +215,10 @@ export function getIdentifierAsSafeResult(
  * prototype's `Symbol.toStringTag` is a getter-only, non-configurable,
  * non-enumerable accessor; the prototype's `constructor` is a non-writable,
  * non-configurable, non-enumerable data property; and the constructor's own
- * `name` is likewise sealed.
+ * `name` is likewise frozen.
  *
- * Reports only that the identity is SEALED, never that it is authentic — a
- * third party may seal any name onto any constructor. It is the tamper-resistance
+ * Reports only that the identity is FROZEN, never that it is authentic — a
+ * third party may freeze any name onto any constructor. It is the tamper-resistance
  * guarantee, not a provenance one.
  *
  * @param value - the value to inspect; omitted is treated as `null`, which
@@ -224,19 +231,27 @@ export function doesCarryStableTypeIdentity(value?: unknown): boolean;
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 //
-//  Identity Sealing
+//  Identity Freezing
 //
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 
 /* @@throw-safe */
 /**
- * Seals a stable type identity onto a constructor: a frozen `name`, a frozen
+ * Freezes a stable type identity onto a constructor: a frozen `name`, a frozen
  * `constructor` back-reference on its prototype, and a non-configurable
  * `Symbol.toStringTag` getter returning `taggedType`.
  *
  * This is what makes a userland type reliably detectable across realms, where
- * `instanceof` fails on identity: the sealed tag and name survive as
- * structural evidence no later code can rewrite.
+ * `instanceof` fails on identity: the frozen tag and name survive as structural
+ * evidence, and no later code can rewrite the three slots this freezes.
+ *
+ * Those three are the guarantee; the constructor's own `prototype` pointer is
+ * not. A `class` holds that pointer non-writably by construction, so its pair
+ * is closed. An ES3 constructor function holds it writably — the very property
+ * that identifies the shape — so a later `F.prototype = …` substitutes an
+ * unsealed prototype. That replaces the type rather than unsealing it: the
+ * frozen prototype is untouched, and every value already built from it keeps
+ * both its tag and its verdict.
  *
  * Restricted to ES3 constructor functions and `class`-syntax constructors —
  * the feature exists for types you own. The gate is shape, not origin: it turns
@@ -244,7 +259,7 @@ export function doesCarryStableTypeIdentity(value?: unknown): boolean;
  * stripped of the own `prototype` slot both shapes are read from.
  *
  * @param constructor - the `class` constructor or ES3 constructor function to
- *  seal; anything else is rejected as a `reason` at 1 or 2 below (see the note
+ *  freeze; anything else is rejected as a `reason` at 1 or 2 below (see the note
  *  on parameter types above)
  * @param constructorName - the name to assign to the constructor; trimmed
  *  before assignment, and a boxed `String` unwrapped to its primitive
@@ -292,8 +307,8 @@ export function doesCarryStableTypeIdentity(value?: unknown): boolean;
  *      an error at all, a wrapper carrying it as `cause`.
  *
  *  Arguments are validated before slots are probed, so a bad argument is
- *  reported even against a target that could not have been sealed anyway.
- *  Re-sealing an already-sealed identity fails at 7: the first call froze its
+ *  reported even against a target that could not have been frozen anyway.
+ *  Re-freezing an already-frozen identity fails at 7: the first call froze its
  *  `name`.
  *
  *  A slot is un-shapeable when it is already occupied by a non-configurable
@@ -306,7 +321,7 @@ export function doesCarryStableTypeIdentity(value?: unknown): boolean;
  * doesCarryStableTypeIdentity(Foo);            // true
  * doesCarryStableTypeIdentity(new Foo());      // true — either side works
  *
- * // already sealed — rejected at 7, with the reason attached
+ * // already frozen — rejected at 7, with the reason attached
  * const retry = defineStableTypeIdentity(Foo, 'Foo');
  * retry.success;                               // false
  * retry.reason.message;                        // '…"name" property cannot be redefined.'
@@ -334,11 +349,18 @@ export function defineStableTypeIdentity(
  * on the same callable is refused at 4 below, its slot having been frozen by
  * the first.
  *
- * Narrower than {@link defineStableTypeIdentity}, which additionally seals the
+ * Narrower than {@link defineStableTypeIdentity}, which additionally freezes the
  * prototype's `constructor` and installs the `Symbol.toStringTag` getter. Any
  * callable is admitted, a `class` constructor included; reach for this one when
- * a plain function's name must survive a bundler, and for the sealing entry
+ * a plain function's name must survive a bundler, and for the freezing entry
  * when a type is to become detectable across a realm boundary.
+ *
+ * "Any callable" is literal, built-ins included. Nothing here reads a
+ * prototype, so there is no shape gate for one to fail — the freezing entry's
+ * refusal of built-ins follows from the shape it requires rather than from a
+ * policy this entry omits. Combined with the one-way door, that makes the
+ * caller's own functions the intended targets: whatever is passed keeps the
+ * brand for good.
  *
  * @param fct - the function-type to brand; anything non-callable is rejected
  *  as a `reason` (see the note on parameter types above)
