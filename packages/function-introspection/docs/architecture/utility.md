@@ -86,6 +86,36 @@ reach it.
 Shared-layer code with one consumer is worth re-examining, though it is defensible here:
 it answers a general question about the `Proxy` constructor and is separately testable.
 
-**Whether a second package will want this module.** type-detection has its own `utility`
-with a different surface. If a third package needs source condensation, the pattern moves
-up rather than being copied a third time.
+**Whether this module belongs in type-detection — DECLINED 2026-09-09, with a trigger.**
+
+Raised as: type-detection is the foundation every downstream project depends on, and
+`function-introspection` already imports `getFunctionSource` from it — so wouldn't the
+source-normalization utilities be better placed there, reachable without a second
+dependency?
+
+Declined, on **#087's test**. Placement is decided by structural ROLE — what a package's
+own `src/` composes from — and nothing in type-detection's would compose from a
+NativeFunction-grammar normalizer. It has `getFunctionSource` because two class predicates
+need it; it has no notion of function _forms_, which is this package's whole subject. By
+the same measure the condensate is load-bearing here: `bound` and `concise` both build on
+it.
+
+The argument for moving was **reach**, and #087 considered that criterion by name and
+rejected it: the downstream projects that would supply the evidence do not exist, it makes
+placement a moving target, and it defers the decision until the move is a breaking change
+on two public surfaces. Note that the entry replaced here proposed a version of the same
+thing, promoting the module upward once a third package wanted it — consumer-count
+reasoning wearing an anti-duplication coat. It is paraphrased rather than quoted, so the
+retired wording stays swept. The DRY instinct behind it is sound; the placement rule it
+implied is not.
+
+There is also a coupling argument that stands on its own. The condensate's contract —
+preserve the interior space of `[native code]` so the marker stays unforgeable, collapse
+rather than remove — is justified entirely by this package's threat model. Moving the
+function without `CONDENSED_NATIVE_SOURCE_FOUNDATION` splits one contract across two
+packages; moving both puts bound-function rendering knowledge into the package that does
+not classify function forms.
+
+**The trigger is observable, not event-shaped:** if type-detection's own `src/` ever
+composes from the condensate, role has changed and the question reopens. Reach never
+reopens it, however many downstream projects import it.
