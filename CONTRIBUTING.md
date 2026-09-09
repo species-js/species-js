@@ -29,8 +29,10 @@ pnpm install
 ## Development loop
 
 ```sh
-pnpm run check          # typecheck + lint + format + docs + audit + test:coverage (the canonical gate)
-pnpm run check:full     # everything above + build + pack:check + check:publish (full CI mirror; slower)
+pnpm run check          # the canonical gate: toolchain + CI-coverage + typecheck + lint +
+                        # format + docs + ADR reciprocity + public surface + entry parity +
+                        # audit + test:coverage
+pnpm run check:full     # everything above + build + smoke + pack:check + check:publish
 pnpm run test:watch     # tests in watch mode
 pnpm --filter @species-js/<package> run test  # focused single-package run
 ```
@@ -47,11 +49,11 @@ will depend on them. A convention that wobbles in this repo ripples into every c
 so the bar is deliberately high and the pace deliberately unhurried. A few principles
 explain almost every "why is it done this way?":
 
-- **Nothing is a one-line change.** A change to a module's behaviour usually travels with
+- **Nothing is a one-line change.** A change to a module's behavior usually travels with
   its types, its documentation, its architecture note, a decision record, its spec, and
   its tests (see [What "done" looks like](#what-done-looks-like--the-artifact-stack)). A
-  diff that changes behaviour and nothing else is probably incomplete — not wrong, just
-  not finished to the house standard.
+  diff that changes behavior and nothing else is probably incomplete — not wrong, just not
+  finished to the house standard.
 - **The documentation is load-bearing, not decoration.** The chain is _good docs → a
   trustworthy spec → derived tests_; each link is trusted only because the previous one
   was verified against the real code. The reasoning is the product as much as the code is.
@@ -118,7 +120,7 @@ Most of the house style lives in `CLAUDE.md`; these few bite immediately:
 
 Work on a module follows a repeatable loop — it is what keeps the docs and tests honest:
 
-1. **Implementation first.** Get the behaviour right in the `.js` + `.d.ts`.
+1. **Implementation first.** Get the behavior right in the `.js` + `.d.ts`.
 2. **Derive the spec from the code.** Write `docs/spec/<MODULE>.spec.md` to describe what
    the implementation actually does — what it _admits_, _rejects_, and deliberately
    _refuses to claim_ — as concrete, ID'd vectors.
@@ -140,7 +142,7 @@ Coverage is an _output_ of this loop, not a target you write to.
 
 ## What "done" looks like — the artifact stack
 
-A behavioural change is "done" when the relevant layers agree. Depending on what you
+A behavioral change is "done" when the relevant layers agree. Depending on what you
 touched, that can include:
 
 - the **`.js`** implementation and its **parallel `.d.ts`** contract (both document every
@@ -150,12 +152,12 @@ touched, that can include:
 - an **ADR** (`docs/decisions/NNNN-slug.md`) if you made a real design decision — the log
   is **append-only**: a later decision supersedes an earlier one with an explicit pointer
   back, it does not edit history;
-- a **spec** update (`docs/spec/<MODULE>.spec.md`) if observable behaviour changed;
+- a **spec** update (`docs/spec/<MODULE>.spec.md`) if observable behavior changed;
 - the **tests** across the relevant axes (below);
 - a **changeset** for anything user-visible.
 
-If a PR changes behaviour but leaves these stale, reviewers will ask for them — that is
-the "why does my small PR feel incomplete?" answer, made explicit.
+If a PR changes behavior but leaves these stale, reviewers will ask for them — that is the
+"why does my small PR feel incomplete?" answer, made explicit.
 
 ## Testing model
 
@@ -170,10 +172,12 @@ comes from several axes (defined in `packages/<pkg>/docs/spec/README.md`):
 | Helper-unit     | Does each `@internal` helper do its isolated job?                                                                                                                      | the implementation's helper inventory                                            |
 | Delivery        | Does the package _arrive_? Every published subpath loads as its own entry, and the shipped `.d.ts` resolve under a consumer's compiler — no workspace config in scope. | `test/entry-arena.test.js` + `test/consumer-resolution.test.js` (ADRs #070/#071) |
 | Coverage        | Does every branch execute?                                                                                                                                             | the V8 report (a gate, not an authored suite)                                    |
+| Engine          | Does it answer the same on every engine — or, where it deliberately does not, the answer recorded for each?                                                            | `browser.probes.mjs` (three engines) + `smoke.probes.mjs` under Bun              |
 
-The first four axes interrogate the code's _behaviour_; Delivery interrogates its
-_arrival_. Both delivery fixtures derive their entry set from `exports`, so a newly
-published subpath is covered automatically — you don't wire it up.
+The first four axes interrogate the code's _behavior_; Delivery interrogates its
+_arrival_; Engine asks whether that behavior survives leaving V8, which every other axis
+assumes without checking. Both delivery fixtures derive their entry set from `exports`, so
+a newly published subpath is covered automatically — you don't wire it up.
 
 Where a module fits it, the suite is **config-driven**, one folder per module:
 
@@ -189,7 +193,7 @@ test/<module>/
 
 `test/evented/` and `test/error/` are the exemplars. Conventions that matter:
 
-- **Every behavioural claim is a stable vector ID** (`isPromise/R3`, `dIETC/A4`, …) that
+- **Every behavioral claim is a stable vector ID** (`isPromise/R3`, `dIETC/A4`, …) that
   appears both in the spec and, literally, in the tests — so `spec ↔ test` coverage is
   mechanically auditable (grep both, diff both directions; the diff should be empty except
   for documented, environment-unreachable exclusions). Write IDs out literally — ranges
@@ -202,7 +206,7 @@ test/<module>/
   — those vectors use _foreign synthetics_ (a foreign class carrying the right shape).
   Real intrinsics (`Error`, `Promise`) can be constructed foreign directly.
 - **Import predicates from `#index`** in tests (the barrel) — the house default, so
-  behavioural suites exercise the surface consumers import. The one designed exception is
+  behavioral suites exercise the surface consumers import. The one designed exception is
   the delivery axis: `entry-arena.test.js` loads subpaths directly _on purpose_ — its job
   is the raw entry, and routing it through the barrel would test nothing.
 
@@ -214,7 +218,7 @@ project's standing pre-submission gauntlet, in short form):
 1. **Structural clarity.** Public predicates carry no `@internal`; helpers carry
    `@internal` in _both_ `.js` and `.d.ts`. The exported `@internal` helpers — not only
    the public predicates — are what your tests should exercise.
-2. **Spec mirrors code.** The spec's composition/behaviour matches the current
+2. **Spec mirrors code.** The spec's composition/behavior matches the current
    implementation exactly. Mirroring is itself a bug-finder.
 3. **Spec ↔ test vector diff is empty both ways.** No spec vector without a test (a
    coverage gap); no test vector without a spec entry (an orphan/stale test). Documented
@@ -232,8 +236,17 @@ project's standing pre-submission gauntlet, in short form):
    pass — every published subpath loads as its own entry and every shipped declaration
    resolves from a consumer's position. If you added or renamed a subpath, both fixtures
    pick it up from `exports` automatically; a failure here means the package's _arrival_
-   broke, however green its behaviour is. This project shipped-in-theory twice before this
+   broke, however green its behavior is. This project shipped-in-theory twice before this
    axis existed (ADRs #070/#071) — the checklist remembers so you don't have to.
+9. **The engine axis is green — if you touched anything reading a function's source or
+   another host-defined string.** Every suite above runs on V8, and V8 cannot show you a
+   difference V8 does not have. `pnpm run browser:check` (needs `build` + Playwright) runs
+   the contract in Chromium, Firefox and WebKit; `pnpm run smoke:check:bun` (needs `build`
+   - Bun) runs the module builds on JavaScriptCore. Neither is in `check` or `check:full`,
+     because neither can be required of a contributor's machine — CI runs both, but the
+     browser matrix only weekly, so a divergence can merge green and sit for days. This
+     project shipped a false positive to Safari and every iOS browser before this axis
+     existed; the checklist remembers so you don't have to.
 
 ## Design decisions
 
