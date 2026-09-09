@@ -7,7 +7,9 @@
  *
  * Two sealing entries write frozen descriptors, and one verification entry reads
  * them back inertly. {@link defineStableTypeIdentity} seals a constructor's `name`,
- * its prototype's `constructor` back-reference, and a `Symbol.toStringTag` getter.
+ * its prototype's `constructor` back-reference, and a `Symbol.toStringTag` getter —
+ * the structural evidence a userland type is recognized by once it crosses a realm
+ * boundary, where `instanceof` fails on constructor identity.
  * {@link brandFunctionName} seals `name` alone, and {@link doesCarryStableTypeIdentity}
  * reports whether every criterion holds.
  *
@@ -16,7 +18,9 @@
  * slot reach the caller through one channel.
  *
  * Wrapped reasons are built with a capability-probed `Error`, since the
- * `cause` option post-dates this package's ES2020 floor. See the
+ * `cause` option post-dates this package's ES2020 floor. The resolved
+ * constructor is bound to the module-scoped name `Error`, so every `new Error(…)`
+ * below goes through that seam rather than to the global binding. See the
  * `Error-Cause Capability-Seam` section below.
  *
  * See the sibling `.d.ts` for the contract. This `.js` carries the runtime
@@ -105,13 +109,8 @@ const toStringTagSymbol = globalContext.Symbol.toStringTag;
  * stand-in is the answer in both cases, so the `try` is what makes the probe
  * total rather than a guard bolted onto it. Letting the throw escape would
  * instead fail module evaluation, turning a capability question into a load
- * error.
- *
- * That also settles throw-safety by construction rather than by argument. The
- * marker would hold on the closed input set alone, since the sole production
- * call supplies the realm's own `Error` and a test supplies a deliberately
- * well-behaved graft. Resting it on the `try` costs three lines and removes
- * the need to know any of that.
+ * error — and it earns the `@@throw-safe` marker by construction, rather than
+ * by an argument about which constructors ever reach here.
  *
  * @param {ErrorConstructor} ProvidedError - the constructor to probe, and to
  *  hand back unchanged when it already honors `cause`
@@ -182,7 +181,7 @@ const Error = resolveErrorWithCause(globalContext.Error);
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 //
-//  Utility and Helper Functions (entirely internal and non-testable)
+//  Internal Helpers (module-private; reached only through the entries)
 //
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 
@@ -211,7 +210,7 @@ function toReportableError(reason, message) {
 /**
  * Reads an own property-descriptor without letting a hostile trap escape,
  * reporting the two outcomes side by side rather than collapsing a throw into
- * the same `undefined` an absent descriptor yields.
+ * the same empty answer an absent descriptor yields.
  *
  * The caller needs that distinction. An absent `prototype` descriptor and a
  * `getOwnPropertyDescriptor` trap that threw are different failures, and only
@@ -219,13 +218,15 @@ function toReportableError(reason, message) {
  *
  * @param {object | Callable} value - the target whose own descriptor is read
  * @param {PropertyKey} key - the property key to look up on `value`
- * @returns {{ error: null | AnyError, value: PropertyDescriptor | null }} the
- *  descriptor under `value` with `error` null on a clean read; otherwise the
- *  caught reason under `error`, always an `Error`, a non-error throw being
- *  wrapped and carried as its `cause`
+ * @returns {{ error: null | AnyError, value: PropertyDescriptor | null }} on a
+ *  clean read, `error` is `null` and `value` carries the descriptor — or `null`
+ *  when the target holds no own property under `key`, the native `undefined`
+ *  being normalized so the declared type stays true. On a throw, `value` stays
+ *  `null` and `error` carries the reason — always an error, a non-error throw
+ *  being wrapped and carried as its `cause`
  * @internal
  */
-function getOwnPropertyDescriptorSafeResult(value, key) {
+function getOwnPropertyDescriptorAsSafeResult(value, key) {
   const result =
     /** @type {{ error: null | AnyError, value: PropertyDescriptor | null }} */ ({
       error: null,
@@ -233,9 +234,14 @@ function getOwnPropertyDescriptorSafeResult(value, key) {
     });
 
   try {
-    result.value = /** @type {PropertyDescriptor} */ (
-      getOwnPropertyDescriptor(value, key)
-    );
+    // - `?? null` is what keeps the declared type honest: the native read
+    //   answers `undefined` for an absent own property, and letting that
+    //   through under a `PropertyDescriptor` cast would hand the caller a
+    //   value its own type says it cannot receive.
+    result.value =
+      /** @type {PropertyDescriptor | undefined} */ (
+        getOwnPropertyDescriptor(value, key)
+      ) ?? null;
   } catch (reason) {
     result.error = toReportableError(
       reason,
@@ -260,12 +266,21 @@ function canOwnNameBeShaped(value) {
 
 /* @@throw-safe */
 /**
- * Guarded, local version of an `isES3Function` predicate.
+ * Narrows a value to {@link ES3Function}, the strict ES3-function shape — a
+ * newable whose own `prototype` descriptor is writable. A bound newable is
+ * rejected: `bind` strips the own `prototype` slot, so no ES3 shape remains.
  *
- * Narrows a value to {@link ES3Function}, the strict ES3-function shape.
+ * The predicate type-detection publishes under this name, with its
+ * {@link isNewableFunction} half hoisted out to the call site. That half probes
+ * `[[Construct]]` by allocating a `Proxy` and running a `new` inside a `try`,
+ * and the caller has already established newability before reaching here —
+ * composing the public predicate would repeat that probe on every shape test.
+ * What keeps the shortcut sound is the parameter type rather than a convention:
+ * `T & NewableFunction` states the precondition and `tsc` enforces it. Do not
+ * "tidy" this into the public import.
  *
  * @template [T=NewableFunction]
- * @param {T & NewableFunction} value - the value to test;
+ * @param {T & NewableFunction} value - the value to test, already known newable
  * @returns {value is T & ES3Function} `true` when the value is an
  *  ES3-shaped newable, narrowing to `T & ES3Function`; `false` otherwise
  * @internal
@@ -276,12 +291,19 @@ function isES3Function(value) {
 
 /* @@throw-safe */
 /**
- * Guarded, local version of an `isCustomClass` predicate.
+ * Narrows a value to a custom (`class`-syntax) constructor — a newable whose
+ * own `prototype` descriptor is non-writable and whose source starts with the
+ * `class` keyword. The source read is what separates a custom class from a
+ * built-in one, whose source always takes the form
+ * `function Foo() { [native code] }`. A bound class fails the descriptor half
+ * before the source is ever read, `bind` having stripped the own `prototype`.
  *
- * Narrows a value to a custom (`class`-syntax) constructor.
+ * The predicate type-detection publishes under this name, with its newability
+ * half hoisted out to the call site — see {@link isES3Function} for why, and
+ * for why it must not be tidied into the public import.
  *
  * @template [T=NewableFunction]
- * @param {T & NewableFunction} value - the value to test;
+ * @param {T & NewableFunction} value - the value to test, already known newable
  * @returns {value is T & ClassConstructor} `true` when the value is
  *  a custom-class constructor, narrowing to `T & ClassConstructor`;
  *  `false` otherwise
@@ -296,7 +318,93 @@ function isCustomClass(value) {
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 //
-//  Type Identity Predicate Functions
+//  Parameter Verification
+//
+// ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
+
+/* @@throw-safe */
+/**
+ * Whether an already-newable value carries one of the two shapes
+ * {@link defineStableTypeIdentity} can seal — an ES3 constructor function or a
+ * `class`-syntax constructor.
+ *
+ * The union of {@link isES3Function} and {@link isCustomClass}, which is a
+ * shape gate rather than an origin one. A built-in constructor fails it on the
+ * source read, a bound newable earlier still, `bind` having stripped the own
+ * `prototype` slot both shapes are read from.
+ *
+ * Shaped as a predicate rather than as a verifier returning a reason, so the
+ * narrowing survives the call: the entry needs `constructor` typed as something
+ * whose own descriptors may be read, and a function returning a value cannot
+ * hand that back to a parameter binding.
+ *
+ * Exported so its admissions and refusals can be asserted directly rather than
+ * only through the entry's rejection order.
+ *
+ * @template [T=NewableFunction]
+ * @param {T & NewableFunction} value - the value to test, already known newable
+ * @returns {value is T & (ES3Function | ClassConstructor)} `true` when the
+ *  value carries a sealable shape, narrowing to
+ *  `T & (ES3Function | ClassConstructor)`; `false` otherwise
+ * @internal
+ */
+export function isSealableConstructor(value) {
+  return isES3Function(value) || isCustomClass(value);
+}
+
+/* @@throw-safe */
+/**
+ * Verifies a value as an identifier this module is willing to write into a
+ * `name` slot or a `Symbol.toStringTag` getter, and hands back the normalized
+ * form.
+ *
+ * The `{ error, value }` pair is the shape {@link
+ * getOwnPropertyDescriptorAsSafeResult} already uses for "the value, or the
+ * reason there is none, never a throw". Here the union is discriminated on
+ * `error`, so a caller that has ruled the failing arm out reaches a `string`
+ * without a cast.
+ *
+ * `isString` admits a boxed `String`, so the accepted value is unwrapped to its
+ * primitive before it is trimmed. `new String('') === ''` is false, which would
+ * otherwise walk an empty wrapper straight past the emptiness check, and a
+ * `name` slot holding a wrapper object breaks every consumer reading it as the
+ * string the language specifies it to be.
+ *
+ * `parameterName` appears only inside the rejection messages, which is what
+ * lets one helper serve `constructorName`, `taggedType` and `fctName` while
+ * each keeps naming the parameter its caller actually passed.
+ *
+ * @param {unknown} value - the candidate identifier
+ * @param {string} parameterName - the parameter name to quote in a rejection
+ * @returns {{ error: AnyError, value: null } | { error: null, value: string }}
+ *  the trimmed, unwrapped identifier under `value` with `error` null; otherwise
+ *  the reason under `error` — a `TypeError` when the value is no kind of
+ *  string, a `RangeError` when it trims to empty
+ * @internal
+ */
+export function getIdentifierAsSafeResult(value, parameterName) {
+  if (!isString(value)) {
+    return {
+      error: new TypeError(
+        `The provided "${parameterName}" parameter needs to be a string.`,
+      ),
+      value: null,
+    };
+  }
+  const identifier = String(value).trim();
+
+  if (identifier === '') {
+    return {
+      error: new RangeError(`Invalid string value passed as "${parameterName}".`),
+      value: null,
+    };
+  }
+  return { error: null, value: identifier };
+}
+
+// ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
+//
+//  Public Entries
 //
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 
@@ -308,9 +416,33 @@ function isCustomClass(value) {
 
 /* @@throw-safe */
 /**
- * @param {unknown} [value] - the value to inspect
+ * Whether a value carries a stable type-identity — the shape
+ * {@link defineStableTypeIdentity} installs.
+ *
+ * Resolves the constructor/prototype pair from either side of the relation. A
+ * newable is taken as the constructor itself, and its prototype read out of the
+ * own `prototype` descriptor's `value` rather than through property access. Any
+ * other value is paired with its direct `[[Prototype]]`, its constructor
+ * resolved by `getDefinedConstructor`'s inert descriptor walk.
+ *
+ * The three criteria are then read from descriptors alone — no getter is
+ * invoked and no value coerced, which is what keeps the check inert against a
+ * hostile target. `?? {}` stands in for an absent descriptor, so a missing slot
+ * fails the flag tests instead of throwing on a property of `undefined`.
+ *
+ * The `try` makes rejection total. A verification entry has no second channel
+ * to report through — unlike the sealing entries and their `reason` — so a trap
+ * that throws mid-read is answered exactly as a value that simply lacks the
+ * shape.
+ *
+ * Reports only that the identity is SEALED, never that it is authentic: a third
+ * party may seal any name onto any constructor.
+ *
+ * @param {unknown} [value] - the value to inspect; omitted is treated as
+ *  `null`, which carries no identity
  * @returns {boolean} `true` when the value carries every criterion
- *  of a stable type-identity; `false` otherwise
+ *  of a stable type-identity; `false` otherwise, including for any hostile
+ *  input that makes a descriptor read throw
  */
 export function doesCarryStableTypeIdentity(value = null) {
   if (value === null) {
@@ -369,18 +501,28 @@ export function doesCarryStableTypeIdentity(value = null) {
 
 /* @@throw-safe */
 /**
- * Defines a stable type identity for a constructor by sealing its `name`
- * property and adding a non-configurable `Symbol.toStringTag` getter.
+ * Seals a stable type identity onto a constructor: a frozen `name`, a frozen
+ * `constructor` back-reference on its prototype, and a non-configurable
+ * `Symbol.toStringTag` getter returning `taggedType`.
  *
- * This enables reliable type detection that works across realms
- * (e.g., iframes) by making the constructor's identity immutable.
- * @param {ClassConstructor | ES3Function} constructor
- *  The class constructor or ES3 function to seal.
- * @param {string} constructorName
- *  The name to assign to the constructor.
- * @param {string} [taggedType]
- *  Optional tagged type for `Symbol.toStringTag`.
- *  Defaults to `constructorName` if not provided.
+ * That is what makes a userland type reliably detectable across a realm
+ * boundary (an iframe, a worker), where `instanceof` fails on constructor
+ * identity: the sealed tag and name remain as structural evidence no later code
+ * can rewrite.
+ *
+ * Restricted to ES3 constructor functions and `class`-syntax constructors.
+ *
+ * @param {unknown} constructor - the `class` constructor or ES3 constructor
+ *  function to seal; anything else is reported as a `reason`
+ * @param {string} constructorName - the name to assign to the constructor;
+ *  a boxed `String` is accepted, unwrapped to its primitive and trimmed
+ * @param {[] | [string]} args - the `Symbol.toStringTag` value as `args[0]`,
+ *  or nothing at all. Presence is detected via `args.length` rather than
+ *  `!== undefined`, so an explicitly passed `undefined` counts as supplied and
+ *  is rejected; an omitted one defaults the tag to `constructorName`. When
+ *  supplied it is unwrapped and trimmed exactly as `constructorName` is. The
+ *  `.d.ts` carries the same two arities as `...taggedType: [] | [string]`,
+ *  where an optional parameter would instead admit the `undefined` this refuses
  * @returns {IdentityDefinitionResult} `{ success: true }` once all three slots
  *  are shaped, carrying a `warning` when `taggedType` and `constructorName`
  *  differ; otherwise `{ success: false, reason }` naming the first condition
@@ -394,15 +536,23 @@ export function doesCarryStableTypeIdentity(value = null) {
  *  anyway. The `.d.ts` numbers the conditions; these are the deciders behind
  *  them, in the same order:
  *
- *  1.–2. `isNewableFunction`, then `isES3Function` / `isCustomClass`. The
- *     second pair is what rejects built-ins.
- *  3.–5. `isString` and the trimmed-empty checks on `constructorName`, then
- *     the same pair on `taggedType` when one was supplied.
- *  6. `canOwnNameBeShaped`.
- *  7. the throw-safe `prototype` descriptor read, whose own caught error
+ *  1.–2. `isNewableFunction`, then {@link isSealableConstructor}. The second is
+ *     a shape gate rather than an origin one: a built-in constructor fails it
+ *     on the source read, a bound newable earlier still, `bind` having stripped
+ *     the own `prototype` slot both shapes are read from.
+ *  3.–6. {@link getIdentifierAsSafeResult} twice — once for `constructorName`,
+ *     then for `args[0]`, but only once `args.length` has settled that a third
+ *     argument was supplied at all, presence being decided before validity.
+ *     Each call decides two of the four conditions, the `TypeError` for a value
+ *     that is no kind of string and the `RangeError` for one that trims to
+ *     empty, and returns the unwrapped primitive the sealing writes use.
+ *  7. `canOwnNameBeShaped`.
+ *  8. the throw-safe `prototype` descriptor read, whose own caught error
  *     becomes the `reason`.
- *  8. `isObjectOrCallable` on the resolved prototype.
- *  9.–10. `canOwnPropertyBeShaped`, for the prototype's `constructor` and
+ *  9. `isObjectOrCallable` on the resolved prototype, which is `null` both when
+ *     the descriptor held no `value` and when the constructor carried no own
+ *     `prototype` descriptor at all.
+ *  10.–11. `canOwnPropertyBeShaped`, for the prototype's `constructor` and
  *     then its `Symbol.toStringTag`.
  *
  *  ## Why the defines run tag, constructor, name
@@ -420,8 +570,7 @@ export function doesCarryStableTypeIdentity(value = null) {
  *  The `try` is therefore a backstop for what a probe cannot foresee, not the
  *  primary guard.
  */
-export function defineStableTypeIdentity(constructor, constructorName, taggedType) {
-  // guard.
+export function defineStableTypeIdentity(constructor, constructorName, ...args) {
   if (!isNewableFunction(constructor)) {
     return {
       success: false,
@@ -430,57 +579,65 @@ export function defineStableTypeIdentity(constructor, constructorName, taggedTyp
       ),
     };
   }
-  // guard.
-  if (!isES3Function(constructor) && !isCustomClass(constructor)) {
+  if (!isSealableConstructor(constructor)) {
     return {
       success: false,
       reason: new TypeError(
-        'Built-in constructors are not supported. The "Stable Type Identity" feature anyhow is useful for just ES5 class-constructors and ES3 constructor functions.',
+        'The provided "constructor" parameter needs to be either an ES3 constructor function or a class-syntax constructor. Built-in constructors and bound newables carry neither shape.',
       ),
     };
   }
-  // - Both above local predicates `isES3Function` or `isCustomClass` do grand from
-  //   here a safe direct property-descriptor access for the passed constructor. The
-  //   guards either invoke `hasOwnWritablePrototype` or `hasOwnNonWritablePrototype`,
-  //   and each for itself has proven already the safe access.
+  // - passing the shape gate means the constructor's own `prototype` descriptor
+  //   has already been read once without throwing, through
+  //   `hasOwnWritablePrototype` or `hasOwnNonWritablePrototype`. That is
+  //   evidence about one past read, not a promise about the next — a Proxy is
+  //   free to answer differently each time — which is why the read further
+  //   below still routes through the throw-safe helper rather than going direct.
 
-  // guard.
-  if (!isString(constructorName)) {
+  const verifiedName = getIdentifierAsSafeResult(constructorName, 'constructorName');
+
+  if (verifiedName.error !== null) {
     return {
       success: false,
-      reason: new TypeError(
-        'The provided "constructorName" parameter needs to be a string.',
-      ),
+      reason: verifiedName.error,
     };
   }
-  // - ensure a string value primitive because that is what a name-descriptor will be checked
-  //   for in order to pass as a stable descriptor for the reliable type-identity verification.
-  constructorName = String(constructorName).trim();
+  constructorName = verifiedName.value;
 
-  // guard.
-  if (constructorName === '') {
-    return {
-      success: false,
-      reason: new RangeError('Invalid string value passed as "constructorName".'),
-    };
-  }
-  if (isString(taggedType)) {
-    // - ensure a string value primitive because that is what a `Symbol.toStringTag`-descriptor will be
-    //   checked for in order to pass as a stable descriptor for the reliable type-identity verification.
-    taggedType = String(taggedType).trim();
+  // - presence is decided before validity, and read from the call's ARITY
+  //   rather than from the value: an explicitly passed `undefined` is a
+  //   supplied argument, not an omitted one. Letting `isString` answer both
+  //   questions would instead read every non-string as omitted, so a supplied
+  //   `42` would silently become `constructorName` while a `42` in
+  //   `constructorName` is refused. That is the conflation ADR #079 ruled
+  //   dishonest, in whose own words presence is a property of the CALL. The
+  //   rest parameter is what carries the arity — `args.length`, never
+  //   `arguments.length`, matching the presence-gated readers in `#utility`
+  //   and `#primitive`.
 
-    // guard.
-    if (taggedType === '') {
+  /** @type {string} */
+  let taggedType;
+
+  if (args.length === 0) {
+    taggedType = constructorName;
+  } else {
+    // - the same verification as the name, and the unwrap matters twice over
+    //   here: the getter installed below closes over this value, and
+    //   `Object.prototype.toString` ignores a tag that is not a primitive
+    //   string; and the `taggedType !== constructorName` test that decides the
+    //   warning compares wrapper identities rather than text until both sides
+    //   are primitives.
+    const verifiedTag = getIdentifierAsSafeResult(args[0], 'taggedType');
+
+    if (verifiedTag.error !== null) {
       return {
         success: false,
-        reason: new RangeError('Invalid string value passed as "taggedType".'),
+        reason: verifiedTag.error,
       };
     }
-  } else {
-    taggedType = constructorName;
+    taggedType = verifiedTag.value;
   }
 
-  // guard.
   if (!canOwnNameBeShaped(constructor)) {
     return {
       success: false,
@@ -489,29 +646,22 @@ export function defineStableTypeIdentity(constructor, constructorName, taggedTyp
       ),
     };
   }
-  const { error, value } = getOwnPropertyDescriptorSafeResult(constructor, 'prototype');
+  const { error, value } = getOwnPropertyDescriptorAsSafeResult(constructor, 'prototype');
 
-  // guard.
   if (error !== null) {
     return {
       success: false,
       reason: error,
     };
   }
-  const prototype = /** @type {object | Callable | null } */ (
-    /** @type {PropertyDescriptor & {value: unknown}} */ (
-      /** @type {PropertyDescriptor} */ (value)
-    ).value ?? null
-  );
+  const prototype = /** @type {object | Callable | null} */ (value?.value ?? null);
 
-  // guard.
   if (!isObjectOrCallable(prototype)) {
     return {
       success: false,
       reason: new TypeError('The passed constructor\'s "prototype" property is invalid.'),
     };
   }
-  // guard.
   if (!canOwnPropertyBeShaped(prototype, 'constructor')) {
     return {
       success: false,
@@ -520,7 +670,6 @@ export function defineStableTypeIdentity(constructor, constructorName, taggedTyp
       ),
     };
   }
-  // guard.
   if (!canOwnPropertyBeShaped(prototype, toStringTagSymbol)) {
     return {
       success: false,
@@ -567,18 +716,25 @@ export function defineStableTypeIdentity(constructor, constructorName, taggedTyp
 
 /* @@throw-safe */
 /**
- * Brands a function-type's name so code-minimization cannot rewrite it. It
- * re-defines the callable's own `name` under `frozenEntryDescriptor`, which is
- * non-enumerable, non-writable and non-configurable. That makes the brand a
- * one-way door: a second call on the same callable is refused, its slot having
- * been frozen by the first.
+ * Pins a callable's own `name` to a given string, so the value survives a
+ * minifier that rewrites the identifier the name would otherwise be derived
+ * from. The brand does not prevent that rename — it makes the observable `name`
+ * independent of it.
+ *
+ * Re-defines `name` under `frozenEntryDescriptor` — non-enumerable,
+ * non-writable, non-configurable. That makes the brand a one-way door: a second
+ * call on the same callable is refused, its slot having been frozen by the
+ * first.
  *
  * Narrower than {@link defineStableTypeIdentity}, which additionally seals the
  * prototype's `constructor` and installs the `Symbol.toStringTag` getter. This
- * one touches `name` and nothing else.
+ * one touches `name` and nothing else, and admits any callable — a `class`
+ * constructor included.
  *
- * @param {Callable} fct - the function-type to brand
- * @param {string} fctName - the name to brand it with; trimmed before assignment
+ * @param {unknown} fct - the function-type to brand; anything non-callable is
+ *  reported as a `reason`
+ * @param {string} fctName - the name to brand it with; a boxed `String` is
+ *  accepted, unwrapped to its primitive and trimmed
  * @returns {IdentityDefinitionResult} `{ success: true }` once `name` carries
  *  the brand; otherwise `{ success: false, reason }` naming the first condition
  *  that blocked it. Never throws.
@@ -586,9 +742,11 @@ export function defineStableTypeIdentity(constructor, constructorName, taggedTyp
  *  ## What decides each rejection
  *
  *  Argument validity is settled before the slot is probed, matching
- *  {@link defineStableTypeIdentity}. The deciders, in order: `isCallable`;
- *  then `isString` and the trimmed-empty check on `fctName`; then
- *  `canOwnNameBeShaped`. The `try` is the backstop for a hostile callable that
+ *  {@link defineStableTypeIdentity}. The deciders, in order: `isCallable`; then
+ *  {@link getIdentifierAsSafeResult} on `fctName`, which decides conditions 2
+ *  and 3 together and is the same helper the sealing entry verifies its two
+ *  identifiers with; then `canOwnNameBeShaped`. The `try` is the backstop for a
+ *  hostile callable that
  *  answers the probe truthfully and then refuses the define. A non-error throw
  *  is wrapped and carried as `cause`, so `reason` is always an error.
  *
@@ -603,22 +761,16 @@ export function brandFunctionName(fct, fctName) {
       reason: new TypeError('The provided "fct" parameter needs to be a function-type.'),
     };
   }
-  if (!isString(fctName)) {
-    return {
-      success: false,
-      reason: new TypeError('The provided "fctName" parameter needs to be a string.'),
-    };
-  }
-  // - ensure a string value primitive, because that is what a name-descriptor
-  //   will be checked for by the reliable type-identity verification.
-  fctName = String(fctName).trim();
+  const verifiedName = getIdentifierAsSafeResult(fctName, 'fctName');
 
-  if (fctName === '') {
+  if (verifiedName.error !== null) {
     return {
       success: false,
-      reason: new RangeError('Invalid string value passed as "fctName".'),
+      reason: verifiedName.error,
     };
   }
+  fctName = verifiedName.value;
+
   if (!canOwnNameBeShaped(fct)) {
     return {
       success: false,
