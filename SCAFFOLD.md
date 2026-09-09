@@ -781,6 +781,52 @@ locally, `pnpm run check` is the daily driver. The pre-push Husky hook also call
 `pnpm run check`, so anything that escaped earlier hooks (e.g. `--no-verify` commits,
 files written outside the normal Git workflow) is caught before code leaves the machine.
 
+#### Executable `@example` blocks — deferred work
+
+Every artifact class in this repo has something that contradicts it when it goes wrong.
+Code has `tsc`, `eslint` and the suites; the curated surface has `surface:check`; the
+`exports` map has `entries:check`; the built files have `smoke:check` and the browser
+probes. Prose has `docs:sweep`, which checks structure and hunts wordings already known to
+be retired — neither of which can notice that a true sentence became false.
+
+`@example` blocks are the sharpest case, because they are the one kind of prose that
+_looks_ executable and is not. They ship as the generated public API documentation, which
+makes them the highest-trust thing a consumer reads. On 2026-09-08 two lines in
+`bound.d.ts` were found asserting that `doesIndicateBoundFunction` answers `true` for
+`Function.prototype` and for a bare `Proxy`. Both had been false since ADR #100 landed the
+day before, and nothing could have said so.
+
+**The corpus, measured rather than estimated (2026-09-09):** 115 `@example` tags across
+`packages/*/src`. Fifteen carry a fence (14 `ts, one `js); the other 100 do not — and
+those are the _uniform_ population, rigid `expression; // expected` lines with optional
+prose after the value. The fenced fifteen are the free-form ones: declarations, multi-line
+setup, TypeScript annotations in eight of them.
+
+The design that falls out of those numbers: **the assertable unit is a LINE, not a
+block.** Both populations share the `expr; // literal` idiom, and only the fenced ones
+need their surrounding declarations in scope. Expected values are `true`, `false`,
+`undefined`, `null`, numbers and strings, with trailing commentary tolerated — the
+`bound.d.ts` line that shipped wrong read `// false — the cascade says true`, which parses
+as the literal plus prose.
+
+Three constraints it has to respect:
+
+- **A cheap first slice exists, and it is most of the corpus.** The ~100 unfenced lines
+  need no TypeScript stripping, no block evaluation and no declaration scope. Building
+  only that would cover 87% of the examples for a fraction of the work, and would say
+  whether the remaining fifteen are worth the rest.
+- **Eight blocks need type stripping.** `esbuild` is already a dependency and its
+  transform does this; nothing new is introduced.
+- **Three files carry deliberately engine-specific output** — `bound.d.ts`,
+  `utility/index.{js,d.ts}` — where the printed value is correct but not correct _here_.
+  They need an opt-out marker, and the marker must be recognized by line rather than by
+  substring, for the reason `883ae6e` records: a scanner cannot tell a mention from an
+  occurrence.
+
+Deferred, not declined, and deliberately behind the `type-identity` arc. Unlike the probe
+work, nothing scheduled depends on it — no run goes red for its absence, which is exactly
+why it needs a written scope rather than a memory of one.
+
 #### The retired-wording ratchet — deferred work
 
 `docs:sweep`'s claim sweep (check 4) cannot be automated: the phrases are the round's
@@ -1067,8 +1113,8 @@ material rather than duplicating.
 Adopts Contributor Covenant 2.1 by URL reference rather than inlining the full text. Two
 reasons: (1) the file stays in sync with any clarifications the upstream publishes, (2)
 some content filters and tooling pattern-match unfavourably on the verbatim Covenant text,
-which is paradoxically a _condemnation_ of the behaviours it enumerates. Reporting
-contact: `peter.seliger@googlemail.com`.
+which is paradoxically a _condemnation_ of the behaviors it enumerates. Reporting contact:
+`peter.seliger@googlemail.com`.
 
 ### `CODEOWNERS`
 
