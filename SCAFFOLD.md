@@ -837,6 +837,14 @@ a green build asserts checks 1-4 and nothing about any claim. That leaves one st
 — **a wording retired in one round can creep back in a later one with nobody sweeping for
 it**, because the only sweep that would catch it happened months earlier.
 
+A second failure mode, met on 2026-09-09 and nearer than the first: **a wording can
+survive the round that retired it.** The round's own sweep is hand-aimed, so a needle
+carrying word boundaries misses the morphological neighbours of the term being retired,
+reports clean, and leaves the term standing — twice over in that instance, once in a
+published `.d.ts`. The ratchet catches that case on the very next run, which makes it the
+cheaper argument for building this: the first entries need no history mining, only the
+terms the current round retired.
+
 The fix is a checked-in list of retired wordings, mined from the commit history, swept on
 every run. It is deferred, not declined. Two constraints it has to respect, both learned
 already:

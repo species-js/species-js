@@ -31,6 +31,11 @@ depend on these packages.
     `WeakSet`", or other internal mechanics that don't belong in consumer-facing docs.
   - Descriptions may differ in phrasing or detail, but never in semantics — if they
     diverge, `.d.ts` is the source of truth.
+  - A **numbered list has a twin.** When the conditions in one file grow, the parallel
+    enumeration in the other is obliged to follow — the `.js` may group ranges (`1.–2.`,
+    `3.–6.`) as long as they tile the `.d.ts`'s numbering with no gap and no overlap,
+    which is mechanically checkable. `defineStableTypeIdentity`'s decider list sat at 11
+    for a round after its contract went to 12.
 - **Types live where the file's syntax expects them** — `.js` carries types via JSDoc
   `@param {…}` and `@returns {…}`; `.d.ts` carries types via native TS parameter/return
   signatures with JSDoc `@param name - desc` and `@returns desc` (description only, no
@@ -192,6 +197,15 @@ pnpm run docs:sweep "the old wording"    # + every prose surface still carrying 
 inside one block, no dead `@typedef {import(…)}`, and every value a `.js` exports declared
 in its sibling `.d.ts`. It prints its corpus size and fails on an empty corpus, so a green
 run cannot mean "matched nothing".
+
+**Sweep the STEM through the gate; never hand-roll the residue grep.** `docs:sweep`
+matches a normalized substring, so a stem finds its prefixed and suffixed neighbours too.
+A hand-written `grep -E '\bstem\b'` does not — a word boundary cannot sit between two
+letters — which is how a retired term once survived a green residue check in two homes,
+one of them a published `.d.ts`. Expect to triage a stem sweep: live identifiers and
+unrelated domains will hit, and reading only the paths the round touched is the way
+through. For the same reason, do not quote a retired wording in this file or in
+`SCAFFOLD.md` — both are in the corpus, so a copy here is a phantom hit forever.
 
 **Checklist for a hardening round:**
 
