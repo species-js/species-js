@@ -233,7 +233,21 @@ function normalizeProse(text) {
 
   text.split('\n').forEach((raw, index) => {
     const stripped = raw
+      // - the blockquote gutter, before the list/heading one so `> - item`
+      //   loses both. Every spec's status banner is a blockquote, and a single
+      //   quoted line survived only because `>` sits at the START, where it
+      //   cannot split a needle. Across a WRAP it lands mid-string and does —
+      //   the exact failure `1db222e` closed for the wrap itself, in the one
+      //   gutter character that fix did not add.
+      .replace(/^\s*(?:>\s*)+/, '')
       .replace(/^\s*(?:\*+\/?|#+(?=\s)|[-+]|\d+\.)\s?/, '')
+      // - a link and an inline tag carry CONTENT, so deleting their characters
+      //   is not enough: the label is what a reader read and the target is
+      //   noise. Keep the label, drop the target. These two are the corpus's
+      //   commonest inline markers by a wide margin.
+      .replace(/!?\[([^\]]*)\]\([^)]*\)/g, '$1')
+      .replace(/\[([^\]]*)\]\[[^\]]*\]/g, '$1')
+      .replace(/\{@\w+(?:\s+([^}]*))?\}/g, '$1')
       // - inline emphasis is invisible to a reader and fatal to a needle. The
       //   house style bolds part of a clause, so the markers land INSIDE a
       //   sentence; a needle spanning one matches nothing, and the searcher is
@@ -248,7 +262,12 @@ function normalizeProse(text) {
       //   inline code — by far the commonest here, and the miss found by
       //   probing the fix rather than by trusting it — and strikethrough, which
       //   the specs use to withdraw a vector.
-      .replace(/[*_`~]+/g, '')
+      .replace(/[*_`~|]+/g, '')
+      // - a typographic apostrophe is invisible to a reader and fatal to a
+      //   needle typed on a keyboard. Folded rather than deleted, so the word
+      //   still reads as one.
+      .replace(/[\u2018\u2019]/g, "'")
+      .replace(/[\u201c\u201d]/g, '"')
       .replace(/\s+/g, ' ')
       .trim();
 
@@ -264,6 +283,61 @@ function normalizeProse(text) {
     length += stripped.length;
   });
   return { prose: parts.join('').toLowerCase(), segments };
+}
+
+/**
+ * Every inline shape this corpus writes a claim in, paired with the plain text
+ * a reader would search for.
+ *
+ * Asserted on every run, before any file is read. Three markers were added
+ * across 2026-09-10 and each was found the same way — by someone asking
+ * whether the previous fix had covered the class, never by the fix itself. A
+ * needle that cannot reach a shape reports the claim as SWEPT while it sits in
+ * the file, and a false clean is strictly worse than a miss because it
+ * replaces judgment with a wrong answer. So the shapes are pinned here rather
+ * than remembered, and a new marker owes a row.
+ *
+ * The words are nonsense on purpose: this file is inside the corpus it scans,
+ * so a fixture built from real prose would report itself forever.
+ *
+ * @type {Array<[string, string, string]>} shape, as written, as searched for
+ */
+const NORMALIZATION_FIXTURE = [
+  ['emphasis, single', 'alpha *lorem* omega', 'alpha lorem omega'],
+  ['emphasis, double', 'alpha **lorem** omega', 'alpha lorem omega'],
+  ['emphasis, triple', 'alpha ***lorem*** omega', 'alpha lorem omega'],
+  ['emphasis, underscore', 'alpha __lorem__ omega', 'alpha lorem omega'],
+  ['emphasis, nested', 'alpha **_lorem_** omega', 'alpha lorem omega'],
+  ['inline code', 'alpha `lorem` omega', 'alpha lorem omega'],
+  ['inline code inside bold', 'alpha **`lorem`** omega', 'alpha lorem omega'],
+  ['strikethrough', 'alpha ~~lorem~~ omega', 'alpha lorem omega'],
+  ['line wrap', 'alpha lorem\nipsum omega', 'alpha lorem ipsum omega'],
+  ['jsdoc gutter', ' * alpha lorem\n * ipsum omega', 'alpha lorem ipsum omega'],
+  ['blockquote, one line', '> alpha lorem omega', 'alpha lorem omega'],
+  [
+    'blockquote, across a wrap',
+    '> alpha lorem\n> ipsum omega',
+    'alpha lorem ipsum omega',
+  ],
+  ['blockquote around a list', '> - alpha lorem omega', 'alpha lorem omega'],
+  ['markdown link', 'alpha [lorem](../some/path.md) omega', 'alpha lorem omega'],
+  ['image', 'alpha ![lorem](./x.png) omega', 'alpha lorem omega'],
+  ['reference link', 'alpha [lorem][ref-1] omega', 'alpha lorem omega'],
+  ['jsdoc inline tag', 'alpha {@link Lorem} omega', 'alpha Lorem omega'],
+  ['table cells', '| alpha lorem | ipsum omega |', 'alpha lorem ipsum omega'],
+  ['typographic apostrophe', 'alpha lorem\u2019s omega', "alpha lorem's omega"],
+];
+
+for (const [shape, written, searched] of NORMALIZATION_FIXTURE) {
+  if (!normalizeProse(written).prose.includes(normalizeProse(searched).prose)) {
+    console.error(
+      `\u2717 claim-sweep self-check failed \u2014 ${shape}: a needle for ` +
+        `${JSON.stringify(searched)} cannot reach ${JSON.stringify(written)}.\n` +
+        `  normalizeProse no longer covers a shape the corpus uses, so every ` +
+        `sweep of a claim written that way would report a false clean.`,
+    );
+    process.exit(1);
+  }
 }
 
 /**
