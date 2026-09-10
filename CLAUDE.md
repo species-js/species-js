@@ -206,12 +206,14 @@ pnpm run docs:sweep "the old wording"    # + every prose surface still carrying 
 **A count quoted in more than one file gets an ORACLE, not a rule.** The claim sweep's
 needle has to be remembered, which is what makes it the half that slips; a derivable value
 should instead be re-derived and compared against every home that states it.
-`type-identity`'s `test/vector-coverage.test.js` is the worked example — it computes the
-vector total from the spec's own IDs and fails any live home stating a different number,
-or stating none at all, since rewording out of a check is how a home leaves it silently. A
-DATED record is deliberately outside such an oracle: an ADR annotation states what was
-true when written and must not move. Copy the pattern into any package whose README quotes
-a count.
+`type-identity` and `custom-namespace` both carry `test/vector-coverage.test.js` — it
+computes the vector total from the spec's own IDs and fails any live home stating a
+different number, or stating none at all, since rewording out of a check is how a home
+leaves it silently. A DATED record is deliberately outside such an oracle: an ADR
+annotation states what was true when written and must not move. The same file also holds
+spec and suite to each other in both directions, so a vector added without a test — or a
+test citing a vector that does not exist — turns the run red. Copy it into the next
+package whose README quotes a count; the two that do already have it.
 
 `docs:sweep` asserts what `tsc` and `eslint` structurally cannot: no duplicate `@param`
 inside one block, no dead `@typedef {import(…)}`, and every value a `.js` exports declared
