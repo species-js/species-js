@@ -9,11 +9,23 @@
 > (where captures live), #094 (`canOwnPropertyBeShaped`'s contract) and #099 (the
 > published entry is the surface gate).
 >
-> **Status: FROZEN 2026-09-09** — owner-reviewed. This is the base for the axis-1
-> (contract) suite, which does not exist yet: the package carries the surface guard in
-> `test/index.test.js` and nothing else, so no vector below is asserted anywhere but here.
-> From here on, amend this file in place with a dated banner (#054) rather than rewriting
-> it — a spec that contradicts the code is worse than an amended one.
+> **Status: FROZEN 2026-09-09 · AMENDED 2026-09-10** — owner-reviewed. This is the base
+> for the axis-1 suite, which now exists: every vector below is asserted in `test/`, and
+> `test/vector-coverage.test.js` holds the two sets to each other in both directions, so a
+> vector added here without a test — or cited there without a vector — turns that suite
+> red. Amend this file in place with a dated banner (#054) rather than rewriting it — a
+> spec that contradicts the code is worse than an amended one.
+>
+> The 2026-09-10 amendment adds `carry/R9`, `carry/R10` and `carry/B7`, and is the mirror
+> image of the decidability run's first finding. There, three documented claims were
+> **wider** than the behavior. Here the behavior was wider than the claim: dimension D
+> said the three criteria "must hold together", and the read-back tested each flag with a
+> negation, so a descriptor that was **absent** satisfied every one of them. A `Proxy`
+> withholding the constructor's own `name` therefore answered `true` while freezing
+> nothing — measured, not reasoned. The implementation now compares each flag strictly
+> against `false` and falls back to a prototype-less blank rather than an object literal;
+> both halves are load-bearing, and `carry/B7` says why. No previously specified verdict
+> changed.
 
 ### How to read this
 
@@ -26,7 +38,7 @@ The class letter says what kind of claim it is. `A` — accepted. `R` — refuse
 boundary worth pinning, usually where the specified behavior is the surprising one. `T` —
 a type-level claim, checked by `pnpm run typecheck` rather than at runtime.
 
-This spec holds **112 vectors** — `ident` 9, `define` 32, `ord` 7, `brand` 14, `carry` 19,
+This spec holds **115 vectors** — `ident` 9, `define` 32, `ord` 7, `brand` 14, `carry` 22,
 `shape` 7, `cause` 7, `realm` 4, `cap` 3, `type` 10. The number is derived by grepping the
 IDs out of this file rather than counted by hand, and it is the suite's target.
 
@@ -472,6 +484,29 @@ property; and the constructor's own `name` is likewise frozen.
   `Object.prototype.toString` answers the parent's tag (`define/B6`, from the other side).
 - `carry/B6` — after an ES3 prototype swap (`define/B2`) the constructor answers `false`
   while instances made before the swap still answer `true`.
+- `carry/R9` — **an absent descriptor never satisfies a criterion.** A `Proxy` that
+  withholds the constructor's own `name`, or the prototype's `constructor`, answers
+  `false`. Withholding is legal where the underlying slot is configurable — an unfrozen
+  function's `name` is — so this is reachable rather than theoretical, and it is the one
+  way a value could otherwise report an identity it had never been given: the criteria are
+  written as flag comparisons, and there is no flag on a descriptor that is not there.
+  Against a constructor this package has already frozen the same trap is refused by the
+  engine, `name` having become non-configurable, so the exposure was always to
+  hand-assembled shapes rather than to the package's own. **AMENDED 2026-09-10** — this
+  answered `true` until the flags were compared strictly against `false`.
+- `carry/R10` — the prototype's `constructor` must be a **data** property. An accessor
+  installed under that key answers `false` even when it is non-configurable and
+  non-enumerable, because an accessor carries no `[[Writable]]` attribute for the
+  non-writability criterion to read. The tag is the deliberate exception, and the only
+  one: it is specified as an accessor and read as one (`carry/B1`).
+- `carry/B7` — **the criteria are read without consulting `Object.prototype`.** With
+  `writable`, `configurable` and `enumerable` polluted onto `Object.prototype` as `false`,
+  no verdict changes. Two things together buy that: the absent-descriptor fallback is a
+  prototype-less blank rather than an object literal, and each flag is compared to `false`
+  rather than negated. Either alone leaves the door open — an object literal would inherit
+  the polluted flags and satisfy the strict comparison, and a negation would accept the
+  blank's `undefined` — which is why the pair is specified here rather than left as an
+  implementation detail.
 
 ## E — Helper contracts
 

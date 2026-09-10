@@ -56,7 +56,18 @@ supplies the write-protection that non-writability supplies for a data property.
 **The tag is a getter rather than a data property**, and the value is closed over at
 install time (`define/A7`), so no later code can make it answer differently. The read-back
 requires exactly that shape — getter present, setter absent — and refuses a data-property
-tag or a getter/setter pair (`carry/B1`).
+tag or a getter/setter pair (`carry/B1`). The accessor form is the tag's alone: an
+accessor under the prototype's `constructor` key is refused, having no `[[Writable]]`
+attribute for that criterion to read (`carry/R10`).
+
+**A criterion is a flag COMPARISON, not a flag negation**, and the distinction is the
+whole of what separates "this slot is frozen" from "this slot is not there". A descriptor
+that is absent carries no flags at all, so a negation reads it as satisfying every one of
+them; comparing each flag to `false` refuses it instead (`carry/R9`). The stand-in for an
+absent descriptor is correspondingly a prototype-less blank, because an object literal
+would inherit whatever `Object.prototype` has been given and hand the strict comparison
+the `false` it is looking for (`carry/B7`). The two are a pair — either one alone leaves a
+door open — which is why they are specified rather than left to the reader of the source.
 
 ## Order of operations
 

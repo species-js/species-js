@@ -35,6 +35,7 @@ import {
 } from '#config';
 
 import {
+  objectCreate,
   objectHasOwn,
   frozenEntryDescriptor,
   sealedEntryAccessor,
@@ -435,8 +436,18 @@ export function getIdentifierAsSafeResult(value, parameterName) {
  *
  * The three criteria are then read from descriptors alone — no getter is
  * invoked and no value coerced, which is what keeps the check inert against a
- * hostile target. `?? {}` stands in for an absent descriptor, so a missing slot
- * fails the flag tests instead of throwing on a property of `undefined`.
+ * hostile target.
+ *
+ * Two details of that read are load-bearing together, and neither works alone.
+ * Each flag is compared to `false` rather than negated, because a descriptor
+ * that is absent has no flag to negate — a negation reads its `undefined` as
+ * satisfaction, and a `Proxy` withholding a configurable `name` slot could
+ * report an identity it had never been given (`carry/R9`). And the stand-in for
+ * an absent descriptor is a prototype-less blank rather than an object literal,
+ * because a literal inherits from `Object.prototype`: with `writable` polluted
+ * there as `false`, a literal satisfies the strict comparison the negation
+ * would have failed, and the same door opens from the other side
+ * (`carry/B7`).
  *
  * The `try` makes rejection total. A verification entry has no second channel
  * to report through — unlike the freezing entries and their `reason` — so a trap
@@ -477,24 +488,29 @@ export function doesCarryStableTypeIdentity(value = null) {
     if (constructor === null || !isObjectOrCallable(prototype)) {
       return false;
     }
-    const tagDescriptor = getOwnPropertyDescriptor(prototype, toStringTagSymbol) ?? {};
-    const ctrDescriptor = getOwnPropertyDescriptor(prototype, 'constructor') ?? {};
-    const nameDescriptor = getOwnPropertyDescriptor(constructor, 'name') ?? {};
+    const blankDictionary = objectCreate(null);
+
+    const tagDescriptor =
+      getOwnPropertyDescriptor(prototype, toStringTagSymbol) ?? blankDictionary;
+    const ctrDescriptor =
+      getOwnPropertyDescriptor(prototype, 'constructor') ?? blankDictionary;
+    const nameDescriptor =
+      getOwnPropertyDescriptor(constructor, 'name') ?? blankDictionary;
 
     return (
       // getter-enforced tag-identity
       isCallable(tagDescriptor.get) &&
       !isCallable(tagDescriptor.set) &&
-      !tagDescriptor.configurable &&
-      !tagDescriptor.enumerable &&
+      tagDescriptor.configurable === false &&
+      tagDescriptor.enumerable === false &&
       // constructor-identity
-      !ctrDescriptor.writable &&
-      !ctrDescriptor.configurable &&
-      !ctrDescriptor.enumerable &&
+      ctrDescriptor.writable === false &&
+      ctrDescriptor.configurable === false &&
+      ctrDescriptor.enumerable === false &&
       // constructor-name identity
-      !nameDescriptor.writable &&
-      !nameDescriptor.configurable &&
-      !nameDescriptor.enumerable
+      nameDescriptor.writable === false &&
+      nameDescriptor.configurable === false &&
+      nameDescriptor.enumerable === false
     );
   } catch {
     return false;

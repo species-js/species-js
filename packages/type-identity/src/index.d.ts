@@ -217,6 +217,12 @@ export function getIdentifierAsSafeResult(
  * non-configurable, non-enumerable data property; and the constructor's own
  * `name` is likewise frozen.
  *
+ * Each criterion is an exact flag test, so a slot that is **absent** satisfies
+ * none of them — a value cannot report an identity by withholding a descriptor
+ * rather than by freezing one. The accessor is the tag's alone: an accessor
+ * installed as the prototype's `constructor` is refused, carrying no
+ * `[[Writable]]` attribute for the non-writability criterion to read.
+ *
  * Reports only that the identity is FROZEN, never that it is authentic — a
  * third party may freeze any name onto any constructor. It is the tamper-resistance
  * guarantee, not a provenance one.

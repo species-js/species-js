@@ -125,9 +125,13 @@ export const probes = [
     },
   },
   {
-    // `getDefinedConstructor` + `isNewableFunction` + `canOwnPropertyBeShaped`
-    // all cross the seam here, and the negative side proves it reads the shape
-    // rather than answering true for everything.
+    // `getDefinedConstructor` + `isNewableFunction` + `canOwnPropertyBeShaped` +
+    // `objectCreate` all cross the seam here, and the negative side proves it
+    // reads the shape rather than answering true for everything. `objectCreate`
+    // is the one to watch: it builds the blank the absent-descriptor fallback
+    // compares against, INSIDE the entry's `try`, so a dropped import would be
+    // swallowed as `false` for every value rather than surfacing as a load
+    // error. The positive half of this probe is what makes that loud.
     name: 'reads the frozen identity back from either side, and refuses an unfrozen one',
     run: (ns) => {
       const { defineStableTypeIdentity, doesCarryStableTypeIdentity } = surfaceOf(ns);
