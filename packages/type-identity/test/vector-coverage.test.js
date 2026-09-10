@@ -89,6 +89,22 @@ const citations = (() => {
   return found;
 })();
 
+/**
+ * Every file that states the vector count as a LIVE claim, and must therefore
+ * agree with what the spec's own IDs add up to.
+ *
+ * A dated historical record is deliberately NOT here. ADR #092's 2026-09-10
+ * annotation says the spec was "amended 2026-09-10 to 116 vectors", which
+ * describes the state at graduation and must stay frozen even after the count
+ * moves — an ADR records what was true when it was written. The test is whether
+ * a reader would act on the number TODAY: the spec's headline and the README's
+ * "asserts all N of its vectors" are both read that way, so both are checked.
+ */
+const COUNT_HOMES = ['docs/spec/TYPE-IDENTITY.spec.md', 'README.md'];
+
+/** A number stating a vector count: an integer with `vectors` close behind it. */
+const STATED_COUNT = /(\d+)(?=[^.]{0,24}\bvectors\b)/g;
+
 describe('type-identity — the suite against the frozen spec', () => {
   it('the spec was read, and it carries vectors', () => {
     expect(specSource.length, 'the spec was read as empty').toBeGreaterThan(0);
@@ -121,6 +137,26 @@ describe('type-identity — the suite against the frozen spec', () => {
       throw new Error('the spec states no headline vector count to check against');
     }
     expect(Number(headline[1])).toBe(idsIn(specSource).length);
+  });
+
+  it('every LIVE home of the vector count agrees with the derived total', () => {
+    const derived = idsIn(specSource).length;
+
+    for (const home of COUNT_HOMES) {
+      const source = readFileSync(new URL(`../${home}`, import.meta.url), 'utf8');
+      const stated = [...source.matchAll(STATED_COUNT)].map(([n]) => Number(n));
+
+      // the vacuity guard, and the whole reason this test exists: a home that
+      // REWORDS its way out of stating the count would otherwise drop silently
+      // out of the check and pass forever. Saying nothing is not agreement.
+      expect(stated.length, `${home} states no vector count at all`).toBeGreaterThan(0);
+
+      for (const count of stated) {
+        expect(count, `${home} states a count the spec's IDs do not support`).toBe(
+          derived,
+        );
+      }
+    }
   });
 
   it('the spec’s per-band breakdown is the one its IDs add up to', () => {
