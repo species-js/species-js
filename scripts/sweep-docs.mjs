@@ -243,7 +243,12 @@ function normalizeProse(text) {
       //   false clean on 2026-09-10 — strictly worse than a miss, because it
       //   replaces judgment with a wrong answer. No example is quoted here: a
       //   sweep tool containing the strings it hunts reports itself forever.
-      .replace(/[*_]+/g, '')
+      //   All four inline markers this corpus uses are stripped, not just the
+      //   one that was caught: emphasis in either character and any run length,
+      //   inline code — by far the commonest here, and the miss found by
+      //   probing the fix rather than by trusting it — and strikethrough, which
+      //   the specs use to withdraw a vector.
+      .replace(/[*_`~]+/g, '')
       .replace(/\s+/g, ' ')
       .trim();
 
