@@ -234,6 +234,16 @@ function normalizeProse(text) {
   text.split('\n').forEach((raw, index) => {
     const stripped = raw
       .replace(/^\s*(?:\*+\/?|#+(?=\s)|[-+]|\d+\.)\s?/, '')
+      // - inline emphasis is invisible to a reader and fatal to a needle. The
+      //   house style bolds part of a clause, so the markers land INSIDE a
+      //   sentence; a needle spanning one matches nothing, and the searcher is
+      //   told the claim is gone. Stripped on BOTH sides, so a phrase pasted
+      //   with its markers still matches one typed without them. Same failure
+      //   family as the line-wrap miss `1db222e` closed, and it produced a
+      //   false clean on 2026-09-10 — strictly worse than a miss, because it
+      //   replaces judgment with a wrong answer. No example is quoted here: a
+      //   sweep tool containing the strings it hunts reports itself forever.
+      .replace(/[*_]+/g, '')
       .replace(/\s+/g, ' ')
       .trim();
 

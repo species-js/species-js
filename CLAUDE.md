@@ -216,8 +216,9 @@ test citing a vector that does not exist — turns the run red. Copy it into the
 package whose README quotes a count; the two that do already have it.
 
 `docs:sweep` asserts what `tsc` and `eslint` structurally cannot: no duplicate `@param`
-inside one block, no dead `@typedef {import(…)}`, and every value a `.js` exports declared
-in its sibling `.d.ts`. It prints its corpus size and fails on an empty corpus, so a green
+inside one block, no dead `@typedef {import(…)}`, every value a `.js` exports declared in
+its sibling `.d.ts` with their `@@throw-safe` markers agreeing over the declared set
+(#101), and US English. It prints its corpus size and fails on an empty corpus, so a green
 run cannot mean "matched nothing".
 
 **Sweep the STEM through the gate; never hand-roll the residue grep.** `docs:sweep`

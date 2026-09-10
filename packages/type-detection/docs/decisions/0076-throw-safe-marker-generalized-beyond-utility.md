@@ -2,12 +2,14 @@
 
 **Date:** 2026-07-26
 
-**Clause 2 refined by #101 (2026-09-10).** Parity is over the **declared set**, not the
-marker count: the `.js` may exceed the `.d.ts` by any marked function that has no
+**Clauses 1 and 2 refined by #101 (2026-09-10).** Parity is over the **declared set**, not
+the marker count: the `.js` may exceed the `.d.ts` by any marked function that has no
 declaration of its own — a factory's runtime branches sharing one declaration, or a
 module-private helper having none. Clause 2's enumeration below named the first shape only
 and reads the second as a defect; #101 replaces it with the principle and puts the
-comparison in `docs:sweep`. The rest of this ADR stands.
+comparison in `docs:sweep`. Clause 1's "mirrored identically" describes the marker's FORM
+— the same comment syntax in both files — and not the marked SET, which is clause 2's
+subject and #101's. The rest of this ADR stands.
 
 **Context.** ADR #073 introduced the `/* @@throw-safe */` source marker and scoped it
 **utility-module-only**, with an explicit escape hatch: _"revisit only if a second module
