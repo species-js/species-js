@@ -33,9 +33,12 @@ depend on these packages.
     diverge, `.d.ts` is the source of truth.
   - A **numbered list has a twin.** When the conditions in one file grow, the parallel
     enumeration in the other is obliged to follow — the `.js` may group ranges (`1.–2.`,
-    `3.–6.`) as long as they tile the `.d.ts`'s numbering with no gap and no overlap,
-    which is mechanically checkable. `defineStableTypeIdentity`'s decider list sat at 11
-    for a round after its contract went to 12.
+    `3.–6.`) as long as they tile the `.d.ts`'s numbering with no gap and no overlap.
+    `defineStableTypeIdentity`'s decider list sat at 11 for a round after its contract
+    went to 12 — and since 2026-09-10 that drift is CHECKED rather than merely checkable:
+    `type-identity`'s `test/spec.test.js` parses both dialects, expands the grouped ranges
+    and compares them run for run. Copy that oracle into the next package that grows a
+    numbered contract; a rule held by nobody is the one that slips.
 - **Types live where the file's syntax expects them** — `.js` carries types via JSDoc
   `@param {…}` and `@returns {…}`; `.d.ts` carries types via native TS parameter/return
   signatures with JSDoc `@param name - desc` and `@returns desc` (description only, no

@@ -112,8 +112,10 @@ export function parseMarkedDeclarations(relativePath) {
  *
  * A run starts wherever the numbering returns to `1`, so the two rejection-order
  * lists come back as two runs without this parser needing to know which doc
- * block it is standing in. What a caller then asserts is their LENGTH and their
- * contiguity — the mechanically checkable half of the twin-list rule.
+ * block it is standing in. A caller asserts three things over them: each run's
+ * LENGTH, its CONTIGUITY, and — reading both dialects — that the two agree run
+ * for run. The third is the twin-list rule itself; the first two are what make a
+ * disagreement legible when it happens.
  *
  * A grouped range is EXPANDED, so a `.js` run and its `.d.ts` twin come back as
  * the same list of condition numbers when they agree — which is what makes the

@@ -31,11 +31,15 @@
  *
  * ## The source oracle
  *
- * The first block asserts nothing about behavior. It reads the `.d.ts`'s own
- * numbered lists and checks them against what this suite covers — the
- * mechanically checkable half of CLAUDE.md's twin-list rule, and the drift it
- * names by example: `defineStableTypeIdentity`'s decider list sat at eleven for
- * a round after its contract went to twelve.
+ * The first block asserts nothing about behavior. It reads the numbered lists
+ * out of BOTH dialects — the contract's in `index.d.ts` and the deciders' in
+ * `index.js` — checks each against what this suite covers, and holds the two to
+ * each other. That last check is CLAUDE.md's twin-list rule as an instrument
+ * rather than a convention, and the drift it names by example is the one it
+ * catches: `defineStableTypeIdentity`'s decider list sat at eleven for a round
+ * after its contract went to twelve. The `.js` may GROUP its conditions
+ * (`1.–2.`), so the parser expands a range before comparing; what must hold is
+ * that the expansion tiles the contract's numbering with no gap and no overlap.
  *
  * `ident/*`, `shape/*` and `cause/*` are in `helpers.test.js`; `carry/*` in
  * `verification.test.js`; `realm/*` and the two vectors whose effect is

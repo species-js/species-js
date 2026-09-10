@@ -21,7 +21,7 @@ contributor floor.
 
 Its behavior is pinned by a frozen specification —
 [`docs/spec/TYPE-IDENTITY.spec.md`](./docs/spec/TYPE-IDENTITY.spec.md) — and by the
-contract suite derived from it, which asserts all 115 of its vectors: the runtime ones
+contract suite derived from it, which asserts all 116 of its vectors: the runtime ones
 under `vitest`, and the ten type-level ones under `tsc`, which fails the package's
 typecheck if any of them stops holding. A further suite holds the two to each other, so a
 vector added to the spec without a test — or cited by a test without a vector — turns the

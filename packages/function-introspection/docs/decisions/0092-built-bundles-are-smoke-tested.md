@@ -88,7 +88,7 @@ Reverse it in the same commit that gives either one a real surface.
 
 > **Context updated 2026-09-10 — the decision itself is untouched.** The trigger has now
 > fired for the second and last time. `type-identity` met it — a spec frozen 2026-09-09
-> and amended 2026-09-10 to 115 vectors, the axis-1 suite derived from it (340 tests), and
+> and amended 2026-09-10 to 116 vectors, the axis-1 suite derived from it (340 tests), and
 > coverage of 100% statements / functions / lines with 98.76% branches against thresholds
 > of 85/90/90. Its `private: true` was removed in the same commit that added its Codecov
 > flag, its CI upload step, its own README badge and the root README's Coverage cell.
