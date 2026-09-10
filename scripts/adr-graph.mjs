@@ -456,11 +456,80 @@ for (const adr of [...adrs.values()].sort((a, b) => a.num - b.num)) {
   }
 }
 
+/* R5 — a decision-log index row must carry the ADR's own date */
+
+/**
+ * An index row in a `docs/decisions/README.md` table: the linked number and
+ * file, the title, and the date column.
+ *
+ * The date is the only column checked. A title is deliberately ABRIDGED in the
+ * index — 187 rows carry a summary of the ADR's H1, and holding those to
+ * equality would report the format as a defect. A date is a fact with one
+ * correct value, and the corpus already agrees on which: when this check was
+ * written, 157 of 187 rows matched their file exactly and every mismatch ran
+ * one way, an index row written later than the decision it records.
+ */
+const INDEX_ROW_TITLE_FIRST =
+  /\[(\d{3,4})\]\(\.\/[^)]+\)\s*\|[^|\n]*\|\s*(\d{4}-\d{2}-\d{2})\s*\|/g;
+
+/**
+ * The chronological table inverts the columns — `| Date | # | Summary |`.
+ *
+ * Matched separately rather than by one permissive expression. A pattern loose
+ * enough to read both orders pairs a link with whatever date it can reach,
+ * which is how a hand-rolled survey of these tables reported thirty
+ * disagreements that did not exist: it read the date-first rows through the
+ * title-first mapping and picked up a neighbor's date. Both shapes are
+ * anchored to their row so a column order this parser does not know about
+ * matches nothing and is caught by the row count instead.
+ */
+const INDEX_ROW_DATE_FIRST =
+  /\|\s*(\d{4}-\d{2}-\d{2})\s*\|\s*\[(\d{3,4})\]\(\.\/[^)]+\)/g;
+
+const r5 = [];
+let indexRowsChecked = 0;
+
+for (const dir of findDecisionDirs()) {
+  const readme = join(dir, 'README.md');
+  let text;
+
+  try {
+    text = readFileSync(readme, 'utf8');
+  } catch {
+    continue;
+  }
+  const rows = [
+    ...[...text.matchAll(INDEX_ROW_TITLE_FIRST)].map((m) => [m[1], m[2]]),
+    ...[...text.matchAll(INDEX_ROW_DATE_FIRST)].map((m) => [m[2], m[1]]),
+  ];
+
+  for (const [rawNum, rowDate] of rows) {
+    const num = Number(rawNum);
+    const adr = adrs.get(num);
+
+    indexRowsChecked += 1;
+
+    if (adr === undefined) {
+      r5.push({
+        file: relative(ROOT, readme),
+        num,
+        why: `indexes #${pad(num)}, which has no ADR file`,
+      });
+    } else if (adr.date !== '' && adr.date !== rowDate) {
+      r5.push({
+        file: relative(ROOT, readme),
+        num,
+        why: `index says ${rowDate}, ${adr.file} says ${adr.date}`,
+      });
+    }
+  }
+}
+
 /* ----- ----- ----- report ----- ----- ----- */
 
 if (JSON_OUT) {
-  print(JSON.stringify({ adrs: adrs.size, r1, r2, r3, r4 }, null, 2));
-  process.exit(r1.length || r4.length ? 1 : 0);
+  print(JSON.stringify({ adrs: adrs.size, r1, r2, r3, r4, r5 }, null, 2));
+  process.exit(r1.length || r4.length || r5.length ? 1 : 0);
 }
 
 print(`ADR supersession graph — ${adrs.size} decisions parsed\n`);
@@ -514,8 +583,18 @@ for (const f of r4) {
   print('');
 }
 
+print(`R5  index rows whose date contradicts the ADR (${r5.length})`);
+print(`    ${indexRowsChecked} decision-log index row(s) checked\n`);
+for (const f of r5) {
+  print(`  #${pad(f.num)} ${f.why}`);
+  print(`      ${f.file}`);
+  print('');
+}
+
 print(
-  `summary: R1=${r1.length} R2=${r2.length} R3=${r3.length} R4=${r4.length}` +
-    (r1.length || r4.length ? '  — reciprocity incomplete' : '  — reciprocity complete'),
+  `summary: R1=${r1.length} R2=${r2.length} R3=${r3.length} R4=${r4.length} R5=${r5.length}` +
+    (r1.length || r4.length || r5.length
+      ? '  — reciprocity incomplete'
+      : '  — reciprocity complete'),
 );
-process.exit(r1.length || r4.length ? 1 : 0);
+process.exit(r1.length || r4.length || r5.length ? 1 : 0);
