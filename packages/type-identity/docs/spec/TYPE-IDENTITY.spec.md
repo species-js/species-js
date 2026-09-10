@@ -445,6 +445,13 @@ Three criteria must hold **together**, all read from descriptors: the prototype'
 prototype's `constructor` is a non-writable, non-configurable, non-enumerable data
 property; and the constructor's own `name` is likewise frozen.
 
+Each criterion is an exact flag COMPARISON rather than a negation, which is what makes
+"absent" fail rather than pass: a descriptor that is not there carries no flag to negate
+(`carry/R9`). The accessor form belongs to the tag alone — an accessor under the
+prototype's `constructor` key is refused, having no `[[Writable]]` attribute for that
+criterion to read (`carry/R10`) — and nothing in the read consults `Object.prototype`
+(`carry/B7`).
+
 - `carry/A1` — a frozen constructor → `true`.
 - `carry/A2` — an instance of a frozen constructor → `true`. Either side of the relation
   is accepted: a newable is inspected directly, anything else through its resolved
