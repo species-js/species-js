@@ -63,7 +63,7 @@ jobs:
         if: matrix.os == 'ubuntu-latest'
         run: pnpm run gates:check
 
-      - name: Decisions reciprocity
+      - name: Decision-log integrity
         if: matrix.os == 'ubuntu-latest'
         run: pnpm run decisions:check
 
