@@ -2,6 +2,8 @@
 
 **Date:** 2026-08-12
 
+**Enforced by:** `entries:check`
+
 **Context.** Curating this package's public entry (#085's schema, adopted here on
 2026-08-12) added four `exports` subpaths and moved the root from `src/index.js` to
 `src/public.js`. Three defects came with it, all found by hand:

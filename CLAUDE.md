@@ -303,7 +303,13 @@ live under `packages/<name>/docs/`:
   an index of length one.
 - `packages/<name>/docs/decisions/` — one ADR file per decision (`NNNN-slug.md`).
   `README.md` indexes by domain and chronologically; `open-questions.md` tracks unresolved
-  policy/scope questions.
+  policy/scope questions. **Every ADR from #102 on carries an `Enforced by:` line under
+  `Date:`** — backticked workspace scripts, or the literal `nobody — <reason>`. `nobody`
+  is a first-class answer: a voice or naming decision has no artifact to drift, and the
+  field exists to make that visible, not to demand a gate. `decisions:check` R4 holds the
+  reciprocal half — a named gate's source must cite the ADR back, so a claim nothing
+  supports goes red. It proves the gate knows about the decision, not that it covers it
+  (ADR #102).
 - `packages/<name>/docs/spec/` — behavioral specs per module (test-driving).
 
 Key patterns from the sibling project (`es-async-types` / `cadence-js`):

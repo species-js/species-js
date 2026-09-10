@@ -2,6 +2,8 @@
 
 **Date:** 2026-09-10
 
+**Enforced by:** `docs:sweep`
+
 **Context.** #076 clause 2 states both-files parity as an **enumeration**: the `.js`
 marked set may exceed the `.d.ts` one _"only by factory-internal runtime-branch methods"_,
 and anything else is _"an incomplete state, not a variant"_.

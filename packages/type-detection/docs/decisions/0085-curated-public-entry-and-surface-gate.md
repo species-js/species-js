@@ -2,6 +2,8 @@
 
 **Date:** 2026-08-06
 
+**Enforced by:** `surface:check`
+
 **Enforcement scope superseded by #099 (2026-09-04).** The curated entry and the gate
 below stand. What #099 changes is WHICH packages the gate reaches: `surface:check` keyed
 on the existence of `src/public.d.ts` and skipped every other package in silence, so it

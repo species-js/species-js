@@ -4,6 +4,8 @@
  * Bundle smoke check — loads every BUILT artifact of every publishable package
  * and asserts its exports are present, correctly shaped, and callable.
  *
+ * Enforces ADR #092.
+ *
  * ## Why it exists
  *
  * Nothing else in the pipeline ever executes a built file. The suites import

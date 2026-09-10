@@ -20,9 +20,13 @@
  *   R1  forward edges with no reciprocal inbound annotation
  *   R2  citations, from source and prose, to ADRs that were later acted on
  *   R3  ADR-to-ADR citations that post-date the amendment they ignore
+ *   R4  an ADR's `Enforced by:` gate that does not cite the ADR back (#102)
  *
- * Only R1 is a hard gate — it exits 1, because an unannounced supersession is
- * unambiguously a defect the record can repair. R2 and R3 are a risk radar, not
+ * R1 and R4 are hard gates — they exit 1, because both are defects the record
+ * can repair. R4 checks the RECIPROCAL half of an enforcement claim on purpose:
+ * that a named gate exists proves nothing, so the gate's source must name the
+ * ADR too. It proves the gate knows about the decision, never that it covers
+ * it. R2 and R3 are a risk radar, not
  * an error list: a citation to a superseded decision is often legitimate
  * provenance ("Builds on #054", where #054's model stands and only its registry
  * portion died), and the parser cannot tell provenance from live reliance. They
@@ -256,6 +260,7 @@ for (const dir of findDecisionDirs()) {
       date: /\*\*Date:\*\*\s*([\d-]+)/.exec(body)?.[1] ?? '',
       forward: forwardEdges(body),
       inbound: inboundEdges(body),
+      enforcedBy: /^\*\*Enforced by:\*\*\s*(.+)$/m.exec(body)?.[1]?.trim() ?? '',
     });
   }
 }
@@ -367,11 +372,95 @@ for (const file of files) {
   });
 }
 
+/* R4 — the `Enforced by:` field, and its reciprocal citation (#102) */
+
+/**
+ * ADRs below this number pre-date #102 and are exempt. Four of them are
+ * back-annotated anyway, being the ones a gate demonstrably holds; the field is
+ * still checked wherever it appears, so a back-annotation cannot be wrong.
+ */
+const ENFORCED_BY_FROM = 102;
+
+const packageScripts = JSON.parse(
+  readFileSync(join(ROOT, 'package.json'), 'utf8'),
+).scripts;
+
+/**
+ * The `scripts/*.mjs` files a package.json script actually runs.
+ *
+ * The citation has to land in a file, not in a script NAME — naming a gate is
+ * the presence check #102 rejects. A script that runs no such file therefore
+ * has nowhere to cite from and is reported rather than passed.
+ *
+ * @param {string} name - a package.json script name
+ * @returns {string[] | null} its script files, or null when no such script
+ */
+function scriptSources(name) {
+  const command = packageScripts[name];
+
+  return command === undefined
+    ? null
+    : [...command.matchAll(/(scripts\/[\w-]+\.mjs)/g)].map((m) => m[1]);
+}
+
+const r4 = [];
+let enforcedByInScope = 0;
+
+for (const adr of [...adrs.values()].sort((a, b) => a.num - b.num)) {
+  const exempt = adr.num < ENFORCED_BY_FROM;
+
+  if (exempt && adr.enforcedBy === '') {
+    continue;
+  }
+  enforcedByInScope += 1;
+
+  if (adr.enforcedBy === '') {
+    r4.push({ file: adr.file, num: adr.num, why: 'no **Enforced by:** line' });
+    continue;
+  }
+  if (/^nobody\s+[—–-]\s+\S/.test(adr.enforcedBy)) {
+    continue;
+  }
+  const named = [...adr.enforcedBy.matchAll(/`([\w:-]+)`/g)].map((m) => m[1]);
+
+  if (named.length === 0) {
+    r4.push({
+      file: adr.file,
+      num: adr.num,
+      why: 'names no script and is not `nobody — <reason>`',
+    });
+    continue;
+  }
+  for (const name of named) {
+    const sources = scriptSources(name);
+
+    if (sources === null) {
+      r4.push({ file: adr.file, num: adr.num, why: `no such script: ${name}` });
+    } else if (sources.length === 0) {
+      r4.push({
+        file: adr.file,
+        num: adr.num,
+        why: `${name} runs no scripts/*.mjs file, so it has nowhere to cite #${pad(adr.num)} from`,
+      });
+    } else if (
+      !sources.some((s) =>
+        new RegExp(`#0*${adr.num}\\b`).test(readFileSync(join(ROOT, s), 'utf8')),
+      )
+    ) {
+      r4.push({
+        file: adr.file,
+        num: adr.num,
+        why: `${name} (${sources.join(', ')}) does not cite #${pad(adr.num)}`,
+      });
+    }
+  }
+}
+
 /* ----- ----- ----- report ----- ----- ----- */
 
 if (JSON_OUT) {
-  print(JSON.stringify({ adrs: adrs.size, r1, r2, r3 }, null, 2));
-  process.exit(r1.length ? 1 : 0);
+  print(JSON.stringify({ adrs: adrs.size, r1, r2, r3, r4 }, null, 2));
+  process.exit(r1.length || r4.length ? 1 : 0);
 }
 
 print(`ADR supersession graph — ${adrs.size} decisions parsed\n`);
@@ -415,8 +504,18 @@ for (const h of r3) {
   print('');
 }
 
+print(`R4  enforcement claims (${r4.length})`);
 print(
-  `summary: R1=${r1.length} R2=${r2.length} R3=${r3.length}` +
-    (r1.length ? '  — reciprocity incomplete' : '  — reciprocity complete'),
+  `    ${enforcedByInScope} ADR(s) in scope; a named gate must cite the ADR back (#102)\n`,
 );
-process.exit(r1.length ? 1 : 0);
+for (const f of r4) {
+  print(`  #${pad(f.num)} ${f.why}`);
+  print(`      ${f.file}`);
+  print('');
+}
+
+print(
+  `summary: R1=${r1.length} R2=${r2.length} R3=${r3.length} R4=${r4.length}` +
+    (r1.length || r4.length ? '  — reciprocity incomplete' : '  — reciprocity complete'),
+);
+process.exit(r1.length || r4.length ? 1 : 0);

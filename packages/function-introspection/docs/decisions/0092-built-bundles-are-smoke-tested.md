@@ -2,6 +2,8 @@
 
 **Date:** 2026-08-12
 
+**Enforced by:** `smoke:check`
+
 **Context.** Preparing the first release surfaced a gap nobody had named: **no gate has
 ever executed a built artifact.** The 1674 + 3746 specs import source through `#index`.
 `pack:check` inspects tarball contents. `attw` and `publint` resolve types and metadata.

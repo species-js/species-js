@@ -5,6 +5,8 @@
  * fields and its vite build entries disagree, so a published subpath resolves
  * to a file the build never emits.
  *
+ * Enforces ADR #091.
+ *
  * ## Why it exists
  *
  * `exports[subpath].types` resolves from `src/`, which is always present, while

@@ -5,6 +5,8 @@
  * (`src/public.{js,d.ts}`) disagrees with the `@internal` tagging of the
  * modules it re-exports from.
  *
+ * Enforces ADR #085.
+ *
  * ## Why it exists
  *
  * `@internal` is a JSDoc tag. No module resolver has ever read one, so tagging
