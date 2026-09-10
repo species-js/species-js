@@ -410,6 +410,11 @@ before it stopped being one on paper — it gained ~53 statements of real implem
 against an eleven-line placeholder test, and the gate that had passed vacuously at 0/0
 began failing the whole `check` chain at 7.54%.
 
+**The trip condition has now fired twice and has no remaining subject** —
+`custom-namespace` on 2026-09-04, `type-identity` on 2026-09-10. No package in this
+workspace is `private` any more, so the exemption below is documented for the next package
+rather than describing any current one.
+
 **Trip condition — dropping `private` from a manifest.** That single edit restores the
 workspace thresholds in full, and an untested surface fails the build from that commit on.
 Verified by probe on 2026-08-20: removing `private` from `type-identity` flipped its
@@ -933,6 +938,15 @@ scan, neither of which executes anything.
 in **Chromium, Firefox and WebKit**, driven by Playwright. The UMD is what makes this
 cheap: it inlines every dependency, so a plain `<script>` is the whole loader — the same
 property that lets `smoke:check` evaluate it in a bare `vm`.
+
+**Enrolment is by PROBE FILE, not by the `private` key** — and that is the one thing about
+this gate that surprises. `smoke:check` and `entries:check` both skip `private === true`,
+so un-privating a package enrols it in those two automatically; this gate collects targets
+by scanning for `browser.probes.mjs`, so un-privating enrols it here **not at all**. A
+package can therefore be published, gated everywhere else, and carry no browser-engine
+verification — silently, because a missing probe file produces no target and no target
+produces no failure. Caught on 2026-09-10, when `type-identity` was the last package
+without the file and was one commit from becoming the only published one lacking it.
 
 It sits in **neither `check` nor `check:full`**, and that is a decision. Engine divergence
 changes when engines ship, not when we commit, so it runs from

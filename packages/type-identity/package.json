@@ -1,7 +1,6 @@
 {
   "name": "@species-js/type-identity",
   "version": "0.0.0",
-  "private": true,
   "description": "Type branding and tamper-resistant type identity for JavaScript types.",
   "type": "module",
   "license": "MIT",

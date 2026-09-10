@@ -40,6 +40,9 @@ flag_management:
     - name: function-introspection
       paths:
         - packages/function-introspection/
+    - name: type-identity
+      paths:
+        - packages/type-identity/
     - name: custom-namespace
       paths:
         - packages/custom-namespace/
