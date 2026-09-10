@@ -26,7 +26,7 @@
 import { describe, it, expect } from 'vitest';
 
 import { doesCarryStableTypeIdentity } from '#index';
-import { defineProperty } from '#config';
+import { defineProperty, getOwnPropertyDescriptor } from '#config';
 
 import {
   callDefine,
@@ -36,6 +36,7 @@ import {
 } from './__config.js';
 import {
   accessorConstructorSlotType,
+  descriptorFabricatingProxy,
   descriptorWithholdingPair,
   freshClassHierarchy,
   inertReadProbeType,
@@ -187,6 +188,56 @@ describe('type-identity spec — D: the boundaries (carry/B2, B4, B5, B6)', () =
     expect(descriptor?.enumerable).toBe(false);
 
     expect(doesCarryStableTypeIdentity(Accessor)).toBe(false);
+  });
+
+  it('carry/R11 — a FABRICATED descriptor is refused, and by the engine rather than by us', () => {
+    const liar = descriptorFabricatingProxy();
+
+    expect(doesCarryStableTypeIdentity(liar)).toBe(false);
+
+    // and the REASON, which is the whole point of the vector: every fabricated
+    // report is an invariant violation the RUNTIME raises. Read through the raw
+    // capture, which is deliberately not throw-safe (`cap/A2`), so the throw is
+    // visible here where the entry absorbs it.
+    // read through the RETYPED helper — the `prototype` read is not the subject
+    // here and its descriptor `value` is `any` on the raw capture. The raw one
+    // is used below, where the throw itself is what is being asserted.
+    const lyingPrototype = /** @type {object} */ (
+      ownDescriptorOf(liar, 'prototype')?.value
+    );
+
+    expect(
+      lyingPrototype,
+      'the `prototype` read itself is legal — a writable slot may report a new value',
+    ).toBeTypeOf('object');
+
+    /** @type {[string, () => unknown][]} */
+    const fabrications = [
+      ['the fabricated name', () => getOwnPropertyDescriptor(liar, 'name')],
+      [
+        'the fabricated tag',
+        () => getOwnPropertyDescriptor(lyingPrototype, Symbol.toStringTag),
+      ],
+      [
+        'the fabricated constructor',
+        () => getOwnPropertyDescriptor(lyingPrototype, 'constructor'),
+      ],
+    ];
+
+    expect(fabrications).toHaveLength(3);
+
+    for (const [label, read] of fabrications) {
+      let caught = null;
+
+      try {
+        read();
+      } catch (reason) {
+        caught = /** @type {Error} */ (reason);
+      }
+
+      expect(caught, `${label} — the engine must refuse it`).toBeInstanceOf(TypeError);
+      expect(caught?.message, label).toContain('non-configurability');
+    }
   });
 
   it('carry/B7 — the criteria never consult `Object.prototype`', () => {

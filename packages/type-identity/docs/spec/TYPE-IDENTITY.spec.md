@@ -16,16 +16,19 @@
 > red. Amend this file in place with a dated banner (#054) rather than rewriting it — a
 > spec that contradicts the code is worse than an amended one.
 >
-> The 2026-09-10 amendment adds `carry/R9`, `carry/R10` and `carry/B7`, and is the mirror
-> image of the decidability run's first finding. There, three documented claims were
-> **wider** than the behavior. Here the behavior was wider than the claim: dimension D
-> said the three criteria "must hold together", and the read-back tested each flag with a
-> negation, so a descriptor that was **absent** satisfied every one of them. A `Proxy`
-> withholding the constructor's own `name` therefore answered `true` while freezing
-> nothing — measured, not reasoned. The implementation now compares each flag strictly
-> against `false` and falls back to a prototype-less blank rather than an object literal;
-> both halves are load-bearing, and `carry/B7` says why. No previously specified verdict
-> changed.
+> The 2026-09-10 amendment adds `carry/R9`, `carry/R10`, `carry/B7` and `carry/R11`, and
+> is the mirror image of the decidability run's first finding. There, three documented
+> claims were **wider** than the behavior. Here the behavior was wider than the claim:
+> dimension D said the three criteria "must hold together", and the read-back tested each
+> flag with a negation, so a descriptor that was **absent** satisfied every one of them. A
+> `Proxy` withholding the constructor's own `name` therefore answered `true` while
+> freezing nothing — measured, not reasoned. The implementation now compares each flag
+> strictly against `false` and falls back to a prototype-less blank rather than an object
+> literal; both halves are load-bearing, and `carry/B7` says why. `carry/R11` is the
+> question `carry/R9` raises next — if a descriptor cannot be WITHHELD to buy a verdict,
+> can one be FABRICATED — and its answer moves the guarantee out of this package: the
+> language refuses the fabrication, and all this package has to do is not leak the
+> refusal. No previously specified verdict changed.
 
 ### How to read this
 
@@ -38,7 +41,7 @@ The class letter says what kind of claim it is. `A` — accepted. `R` — refuse
 boundary worth pinning, usually where the specified behavior is the surprising one. `T` —
 a type-level claim, checked by `pnpm run typecheck` rather than at runtime.
 
-This spec holds **115 vectors** — `ident` 9, `define` 32, `ord` 7, `brand` 14, `carry` 22,
+This spec holds **116 vectors** — `ident` 9, `define` 32, `ord` 7, `brand` 14, `carry` 23,
 `shape` 7, `cause` 7, `realm` 4, `cap` 3, `type` 10. The number is derived by grepping the
 IDs out of this file rather than counted by hand, and it is the suite's target.
 
@@ -514,6 +517,18 @@ criterion to read (`carry/R10`) — and nothing in the read consults `Object.pro
   the polluted flags and satisfy the strict comparison, and a negation would accept the
   blank's `undefined` — which is why the pair is specified here rather than left as an
   implementation detail.
+- `carry/R11` — **a fabricated descriptor cannot buy a verdict either, and the refusal is
+  the LANGUAGE's rather than this package's.** A `Proxy` reporting frozen descriptors for
+  slots its target holds loosely — an absent `Symbol.toStringTag`, a configurable
+  `constructor`, a configurable `name` — answers `false`. Measured, each of those three
+  reads throws
+  `TypeError: 'getOwnPropertyDescriptor' on proxy: trap reported non-configurability for property …`,
+  because an exotic object may not claim a non-configurability its target does not have.
+  The package therefore detects nothing here; what it contributes is that the throw does
+  not escape, which is the same `try` behind `carry/R8`. Worth pinning precisely because
+  the opposite is the natural assumption — that a lying trap is a spoof the reader must
+  catch — and acting on it would mean writing a check against a threat the runtime has
+  already closed.
 
 ## E — Helper contracts
 

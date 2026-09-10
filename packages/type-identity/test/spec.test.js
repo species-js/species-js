@@ -194,6 +194,24 @@ describe('type-identity spec — the ordered contract, as the source numbers it'
     }
   });
 
+  it('the `.js` twin tiles the `.d.ts` numbering exactly, run for run', () => {
+    const declared = parseNumberedRuns('index.d.ts');
+    const implemented = parseNumberedRuns('index.js');
+
+    // CLAUDE.md's twin rule, as an instrument rather than a convention: the
+    // implementation side may GROUP (`1.–2.`) but the expansion must cover the
+    // contract's numbering with no gap and no overlap. The drift this catches is
+    // the one CLAUDE.md names by example — a decider list left at eleven after
+    // the contract went to twelve.
+    expect(implemented.length, 'one run per numbered contract list').toBe(
+      declared.length,
+    );
+
+    for (const [index, run] of declared.entries()) {
+      expect(implemented[index], `numbered list ${String(index + 1)}`).toEqual(run);
+    }
+  });
+
   it('the freezing matrix covers all twelve conditions, with no gap', () => {
     expect(coveredConditions(defineRejectionMatrix)).toEqual(
       runOf(CONDITION_COUNTS.defineStableTypeIdentity),

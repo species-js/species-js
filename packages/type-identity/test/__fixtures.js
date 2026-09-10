@@ -871,6 +871,58 @@ export const descriptorWithholdingPair = (unfrozen) => {
 };
 
 /**
+ * A `Proxy` that FABRICATES the three frozen descriptors over a target holding
+ * none of them (`carry/R11`).
+ *
+ * The counterpart to {@link descriptorWithholdingPair}: that one hides a
+ * descriptor to escape a criterion, this one invents descriptors to satisfy
+ * every criterion at once. Neither works, and they fail for opposite reasons —
+ * withholding is refused by the package's own flag comparison, fabricating is
+ * refused by the ENGINE, since an exotic object may not report a
+ * non-configurability its target does not have.
+ *
+ * The target is deliberately loose everywhere: no own tag at all, and
+ * `constructor` and `name` both left configurable. That is what makes each
+ * fabricated report an invariant violation rather than an honest answer.
+ *
+ * @returns {NewableFunction} the lying proxy
+ */
+export const descriptorFabricatingProxy = () => {
+  const target = freshES3();
+  const frozen = { writable: false, enumerable: false, configurable: false };
+
+  const lyingPrototype = new Proxy(prototypeOf(target), {
+    getOwnPropertyDescriptor: (prototype, key) =>
+      key === 'constructor'
+        ? { value: target, ...frozen }
+        : key === Symbol.toStringTag
+          ? // `set` is OMITTED rather than given an explicit `undefined`: under
+            // `exactOptionalPropertyTypes` that assignment is refused, and an
+            // accessor without a setter is getter-only regardless
+            { get: () => 'Forged', enumerable: false, configurable: false }
+          : Reflect.getOwnPropertyDescriptor(prototype, key),
+  });
+
+  return /** @type {NewableFunction} */ (
+    /** @type {unknown} */ (
+      new Proxy(target, {
+        getOwnPropertyDescriptor: (receiver, key) =>
+          key === 'name'
+            ? { value: 'Forged', ...frozen }
+            : key === 'prototype'
+              ? {
+                  value: lyingPrototype,
+                  writable: true,
+                  enumerable: false,
+                  configurable: false,
+                }
+              : Reflect.getOwnPropertyDescriptor(receiver, key),
+      })
+    )
+  );
+};
+
+/**
  * A forged identity whose prototype's `constructor` is an ACCESSOR rather than a
  * data property (`carry/R10`).
  *

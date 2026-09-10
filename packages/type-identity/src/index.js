@@ -780,13 +780,19 @@ export function defineStableTypeIdentity(constructor, constructorName, ...args) 
  *  ## What decides each rejection
  *
  *  Argument validity is settled before the slot is probed, matching
- *  {@link defineStableTypeIdentity}. The deciders, in order: `isCallable`; then
- *  {@link getIdentifierAsSafeResult} on `fctName`, which decides conditions 2
- *  and 3 together and is the same helper the freezing entry verifies its two
- *  identifiers with; then `canOwnNameBeShaped`. The `try` is the backstop for a
- *  hostile callable that answers the probe truthfully and then refuses the
- *  define. A non-error throw is wrapped and carried as `cause`, so `reason` is
- *  always an error.
+ *  {@link defineStableTypeIdentity}. The `.d.ts` numbers the conditions; these
+ *  are the deciders behind them, in the same order:
+ *
+ *  1. `isCallable`.
+ *  2.–3. {@link getIdentifierAsSafeResult} on `fctName`, which decides both
+ *     together — the `TypeError` for a value that is no kind of string and the
+ *     `RangeError` for one that trims to empty. It is the same helper the
+ *     freezing entry verifies its two identifiers with, which is what keeps an
+ *     identifier judged identically wherever it is passed.
+ *  4. `canOwnNameBeShaped`.
+ *  5. the `try` around the define, the backstop for a hostile callable that
+ *     answers the probe truthfully and then refuses the write. A non-error
+ *     throw is wrapped and carried as `cause`, so `reason` is always an error.
  *
  *  The success arm never carries a `warning`. That field belongs to
  *  {@link defineStableTypeIdentity}'s two-identifier case, which has no

@@ -45,8 +45,11 @@ const MARKER_LINE = /^\/\* @@throw-safe \*\/$/gm;
 const MARKED_DECLARATION =
   /^\/\* @@throw-safe \*\/$[\s\S]*?^(export )?(?:declare )?(?:function|const) (\w+)/gm;
 
-/** A numbered item opening a line inside a JSDoc block. */
-const NUMBERED_ITEM = /^\s*\*\s+(\d+)\.\s/gm;
+/**
+ * A numbered item opening a line inside a JSDoc block, in either dialect the
+ * workspace allows: a single `7.`, or the `.js`'s grouped `1.–2.` form.
+ */
+const NUMBERED_ITEM = /^\s*\*\s+(\d+)(?:\.–(\d+))?\.\s/gm;
 
 /**
  * Reads a package source file.
@@ -112,12 +115,15 @@ export function parseMarkedDeclarations(relativePath) {
  * block it is standing in. What a caller then asserts is their LENGTH and their
  * contiguity — the mechanically checkable half of the twin-list rule.
  *
- * Only the `.d.ts` is worth parsing this way. The `.js` twin is permitted to
- * group ranges (`1.–2.`, `3.–6.`) as long as they tile the same numbering, so
- * its items are not one-per-condition and a count there would mean nothing.
+ * A grouped range is EXPANDED, so a `.js` run and its `.d.ts` twin come back as
+ * the same list of condition numbers when they agree — which is what makes the
+ * twin rule checkable rather than merely stated. CLAUDE.md permits the grouping
+ * (`1.–2.`, `3.–6.`) precisely so the implementation side can describe two
+ * conditions decided by one call without inventing a second bullet for it.
  *
  * @param {string} relativePath - a path relative to the package's `src/`
- * @returns {number[][]} each numbered run, in the order the file carries them
+ * @returns {number[][]} each numbered run, expanded, in the order the file
+ *  carries them
  * @throws {Error} when the file carries no numbered item at all — a parser that
  *  matched nothing must say so rather than report an empty corpus as agreement
  */
@@ -128,12 +134,15 @@ export function parseNumberedRuns(relativePath) {
   const runs = [];
 
   for (const match of source.matchAll(NUMBERED_ITEM)) {
-    const item = Number(match[1]);
+    const first = Number(match[1]);
+    const last = match[2] === undefined ? first : Number(match[2]);
 
-    if (item === 1 || runs.length === 0) {
+    if (first === 1 || runs.length === 0) {
       runs.push([]);
     }
-    runs[runs.length - 1]?.push(item);
+    for (let item = first; item <= last; item += 1) {
+      runs[runs.length - 1]?.push(item);
+    }
   }
 
   if (runs.length === 0) {
