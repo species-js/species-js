@@ -220,3 +220,24 @@ type — so their admissions and refusals can be asserted directly. ADR #099 is 
 invariant: whatever `exports["."]` resolves to is the public surface, and nothing
 `@internal` may be exported from it. `surface:check` enforces it statically from the tags;
 `test/index.test.js` asserts it at runtime on the object a consumer imports.
+
+## The throw-safety marker, and why the two dialects carry different sets
+
+`src/index.js` marks eleven functions `/* @@throw-safe */`; `src/index.d.ts` marks six.
+The gap is not drift — it is the five module-private helpers (`toReportableError`,
+`getOwnPropertyDescriptorAsSafeResult`, `canOwnNameBeShaped`, `isES3Function`,
+`isCustomClass`), which have no declaration in the `.d.ts` to carry a marker.
+
+The marker is a promise about a **function**, and a function does not stop making it by
+staying module-local, so the `.js` marks all eleven. A `.d.ts` describes the
+consumer-facing surface, so it can only mark what it declares. Promoting the five to
+`@internal` exports purely to buy a declaration would contradict the spec's surface
+inventory, which rules them unexported and requires their branches to be reachable through
+the public entries instead.
+
+ADR #101 is the rule: parity is over the **declared** set — the `.d.ts` marked set equals
+the `.js` marked **export** set, and marked non-exports are the sanctioned excess. #073
+owns the marker's form, #076 its scope. `docs:sweep` compares the two sets on every source
+pair in the workspace, so this is checked rather than described;
+`test/throw-safety.test.js` pins both halves locally, asserting the `.d.ts`'s internal
+count is zero rather than leaving it unexamined.

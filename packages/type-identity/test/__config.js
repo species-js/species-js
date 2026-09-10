@@ -248,7 +248,9 @@ export const THROW_SAFE_EXPORTS = [
  *
  * They have no `.d.ts` twin — a marker is a promise about a function, and a
  * function does not stop making it by staying local — so this is the half of
- * the marked set the two dialects are specified to DISAGREE on.
+ * the marked set the two dialects are specified to DISAGREE on. ADR #101 is
+ * that specification: parity is owed over the DECLARED set, and a marked
+ * function with no declaration to sit on is the sanctioned excess.
  */
 export const THROW_SAFE_MODULE_LOCALS = [
   'canOwnNameBeShaped',

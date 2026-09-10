@@ -29,13 +29,19 @@
  * 2. **No dead `@typedef {import(…)} X`.** `noUnusedLocals` does not reach JSDoc
  *    typedefs. A typedef whose name appears nowhere else in the file is residue
  *    from a removed cast.
- * 3. **Every value a `.js` exports is declared in its sibling `.d.ts`.** The
- *    `.d.ts` is the canonical surface; a value it omits is undocumented in the
- *    generated API docs and absent from the typed contract.
+ * 3. **Every value a `.js` exports is declared in its sibling `.d.ts`, and the
+ *    two agree on their `@@throw-safe` markers.** The `.d.ts` is the canonical
+ *    surface; a value it omits is undocumented in the generated API docs and
+ *    absent from the typed contract. Marker parity is the same claim about the
+ *    same pair, so it rides this check rather than taking a number of its own:
+ *    per ADR #101 the two dialects must carry the same marked EXPORTS, while the
+ *    `.js` may exceed that set by marked functions with no declaration to sit on
+ *    (a factory's runtime branches, a module-private helper).
+ * 4. **US English.** The corpus states it; nothing enforced it until this check.
  *
  * Additionally, when phrases are supplied as arguments:
  *
- * 4. **No prose surface still carries the OLD claim.** Module blocks, JSDoc,
+ * 5. **No prose surface still carries the OLD claim.** Module blocks, JSDoc,
  *    both READMEs, `package.json` descriptions, `CLAUDE.md`, the workflows and
  *    `codecov.yml` — and project-local tool config that git ignores. Matched
  *    against a whitespace-flattened form of each file, so a claim the
@@ -47,7 +53,7 @@
  * The phrases ARE the round's changed wording, which exists only in the head of
  * whoever changed it. Nothing in CI can supply them, so CI runs this bare and
  * checks 1-4 are the whole of what a green build asserts about documentation.
- * Check 4 is invoked by hand, per round, per claim — the procedure is in
+ * Check 5 is invoked by hand, per round, per claim — the procedure is in
  * `CLAUDE.md` under "Documentation hardening".
  *
  * The success line therefore names which half ran. A bare run must not read as
@@ -371,7 +377,58 @@ for (const file of sourceFiles) {
 
 const DECLARED = /^export\s+(?:async\s+)?(?:function|const|class)\s+([A-Za-z_$][\w$]*)/gm;
 
+/**
+ * The `@@throw-safe` marker in its canonical line-form, at column 0 — the whole
+ * line, nothing else on it.
+ *
+ * Anchored rather than matching the bare token anywhere: a doc block that
+ * MENTIONS the marker is not a marker, and an unanchored token silently
+ * enlarges the parsed set. The indented form is deliberately NOT counted here;
+ * it is the factory-branch shape ADR #101 admits, which binds to no declaration
+ * of its own and so cannot be held to the binding guard below.
+ */
+const MARKER_AT_COLUMN_0 = /^\/\* @@throw-safe \*\/$/gm;
+
+/** A column-0 marker and the first declaration below it, `export` captured apart. */
+const MARKED_DECLARATION =
+  /^\/\* @@throw-safe \*\/$[\s\S]*?^(export )?(?:declare )?(?:function|const|class)\s+([A-Za-z_$][\w$]*)/gm;
+
+/**
+ * Splits a file's `@@throw-safe`-marked declarations by whether they are
+ * exported.
+ *
+ * @param {string} text - the file's contents
+ * @param {string} file - its repo-relative path, for the binding-guard message
+ * @returns {{ exported: string[], internal: string[] }} the marked names, sorted
+ */
+function markedDeclarations(text, file) {
+  /** @type {string[]} */
+  const exported = [];
+  /** @type {string[]} */
+  const internal = [];
+
+  for (const match of text.matchAll(MARKED_DECLARATION)) {
+    (match[1] === undefined ? internal : exported).push(match[2]);
+  }
+
+  // - a narrowed expression is exactly how a parser starts matching too little.
+  //   Every column-0 marker must have bound to a declaration, so one this
+  //   expression no longer reaches is a finding rather than a shorter list.
+  const markerLines = text.match(MARKER_AT_COLUMN_0)?.length ?? 0;
+  const bound = exported.length + internal.length;
+
+  if (markerLines !== bound) {
+    problems.push(
+      `${file} — carries ${markerLines} @@throw-safe marker line(s) at column 0 but ` +
+        `${bound} bound to a declaration; the declaration form drifted past this parser`,
+    );
+  }
+
+  return { exported: exported.sort(), internal: internal.sort() };
+}
+
 let pairsCompared = 0;
+let markedPairsCompared = 0;
 let barrelsSkipped = 0;
 
 for (const file of sourceFiles.filter((f) => f.endsWith('.js') && f.includes('/src/'))) {
@@ -398,6 +455,30 @@ for (const file of sourceFiles.filter((f) => f.endsWith('.js') && f.includes('/s
         `${file} — exports '${name}' but the sibling .d.ts does not declare it`,
       );
     }
+  }
+
+  // - marker parity is declaration parity, so it rides the pair walk already in
+  //   hand rather than becoming a sixth numbered check whose number would have
+  //   to be carried in six homes. ADR #101 is the rule: the two dialects agree
+  //   over the DECLARED set, and the .js may exceed it by marked functions with
+  //   no declaration of their own — which is why `internal` is counted, not
+  //   compared.
+  const siblingFile = file.replace(/\.js$/, '.d.ts');
+  const jsMarked = markedDeclarations(jsText, file);
+  const dtsMarked = markedDeclarations(sibling, siblingFile);
+
+  if (jsMarked.exported.length + dtsMarked.exported.length > 0) {
+    markedPairsCompared += 1;
+  }
+  if (jsMarked.exported.join() !== dtsMarked.exported.join()) {
+    const onlyJs = jsMarked.exported.filter((n) => !dtsMarked.exported.includes(n));
+    const onlyDts = dtsMarked.exported.filter((n) => !jsMarked.exported.includes(n));
+
+    problems.push(
+      `${file} — @@throw-safe marked EXPORTS differ from ${siblingFile} (ADR #101)` +
+        (onlyJs.length > 0 ? `; marked only in .js: ${onlyJs.join(', ')}` : '') +
+        (onlyDts.length > 0 ? `; marked only in .d.ts: ${onlyDts.join(', ')}` : ''),
+    );
   }
 }
 
@@ -567,7 +648,7 @@ const scanned =
   (phrases.length > 0
     ? ` (${presentFiles.length} incl. git-ignored, for the claim sweep)`
     : '') +
-  `, ${pairsCompared} .js/.d.ts pairs` +
+  `, ${pairsCompared} .js/.d.ts pairs (${markedPairsCompared} carrying @@throw-safe)` +
   `${barrelsSkipped > 0 ? `, ${barrelsSkipped} re-export barrel${barrelsSkipped === 1 ? '' : 's'} left to surface:check` : ''}`;
 
 if (problems.length > 0 || claimHits.length > 0) {
