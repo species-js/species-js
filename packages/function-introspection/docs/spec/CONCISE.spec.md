@@ -26,6 +26,23 @@
 > defeats. It is now recognized by its `[native code]` tail. `matchesNativeSourceTail`
 > joins the surface, `bnd/B1`'s rationale is corrected, and L3's record is amended to say
 > the law was observed to fail rather than that it never had. See Resolved item 4.
+>
+> **Its suite does not yet cite these vector IDs — an omission, not a decision.** The
+> `bound` suite, written five days earlier in this same package, carries the IDs in its
+> matrix's `vectors:` fields from its first commit; the commit that added this one
+> (`2a03d80`, 2026-08-11) documents the corpus design at length and never mentions vector
+> IDs. So the canonical rule in the
+> [spec README](../../../type-detection/docs/spec/README.md) — that a test asserting a
+> vector should reference its ID — stands unchanged and is simply unmet here. The corpus
+> corpus is a superset — it carries more candidates than the spec pins — and many vectors
+> do correspond to a single row, so this is not a structural impossibility. It is also not
+> a mechanical rename: comparing every vector that states a literal input against the
+> corpus sources, roughly half of `arrow`'s and under a third of `concise`'s match a row
+> exactly, the rest differing because a row materializes a member from a host expression
+> or spells the candidate another way. Closing it is real work requiring judgment per
+> vector, and it is unscheduled. Until then, an amendment to this file owes a note naming
+> the rows that cover the new vector, because nothing will catch a vector asserted by
+> nothing.
 
 ## Module contract
 
