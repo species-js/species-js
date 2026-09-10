@@ -175,6 +175,13 @@ Run tests for a single package: `pnpm --filter @species-js/type-detection run te
 - Run only affected tests, not the full suite
 - After contract changes, run downstream tests empirically — never claim compatibility
   from code-trace alone
+- **Never mutate a shared intrinsic you cannot revert within the run.** There is one
+  `Math.max` per realm, and both of `type-identity`'s freezing entries are one-way doors —
+  a branded `name` is non-configurable, so nothing restores it. A vector that must act on
+  a built-in runs against a PRIVATE `vm` realm (`createForeignRealm`) and asserts this
+  realm's copy is untouched, which turns the isolation into a claim rather than a hope.
+  The same rule governs any corpus-wide law: filter the shared intrinsics out BY
+  DECLARATION before a mutator sees them, never by a `typeof` guess.
 
 ## Documentation hardening
 
