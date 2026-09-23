@@ -141,7 +141,7 @@ jobs:
       # yet, to buy a coverage delta that is always zero.
       - name: Upload type-detection coverage to Codecov
         if: matrix.os == 'ubuntu-latest' && github.actor != 'dependabot[bot]'
-        uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # v7.0.0
+        uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1
         with:
           files: ./packages/type-detection/coverage/lcov.info
           flags: type-detection
@@ -150,7 +150,7 @@ jobs:
 
       - name: Upload function-introspection coverage to Codecov
         if: matrix.os == 'ubuntu-latest' && github.actor != 'dependabot[bot]'
-        uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # v7.0.0
+        uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1
         with:
           files: ./packages/function-introspection/coverage/lcov.info
           flags: function-introspection
@@ -159,7 +159,7 @@ jobs:
 
       - name: Upload type-identity coverage to Codecov
         if: matrix.os == 'ubuntu-latest' && github.actor != 'dependabot[bot]'
-        uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # v7.0.0
+        uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1
         with:
           files: ./packages/type-identity/coverage/lcov.info
           flags: type-identity
@@ -168,7 +168,7 @@ jobs:
 
       - name: Upload custom-namespace coverage to Codecov
         if: matrix.os == 'ubuntu-latest' && github.actor != 'dependabot[bot]'
-        uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # v7.0.0
+        uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1
         with:
           files: ./packages/custom-namespace/coverage/lcov.info
           flags: custom-namespace
