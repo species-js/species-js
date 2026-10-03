@@ -233,9 +233,13 @@ export function hasOwnPrototype(value) {
  * input and a hostile descriptor trap yield `false` — and additionally
  * reads the descriptor's `writable` field, requiring it to be `true`.
  *
- * This is the structural tell of an {@link ES3Function} versus a
- * {@link ClassConstructor}, whose own `prototype` is read-only; its exact
- * complement is {@link hasOwnNonWritablePrototype}.
+ * Over newables, `true` is conclusive for an {@link ES3Function}: a
+ * {@link ClassConstructor}'s own `prototype` is read-only by spec. `false` is
+ * not conclusive for a class — a frozen ES3 function, or one whose
+ * `prototype` was locked through `defineProperty`, answers `false` too, which
+ * is why `#function`'s `isES3Function` and `isClass` follow it with a source
+ * read (ADR #103). Its exact complement over own-`prototype` bearers is
+ * {@link hasOwnNonWritablePrototype}.
  *
  * @param {unknown} [value] - the value to test; omitted is treated as
  *  `undefined`, which has no own prototype
@@ -256,9 +260,12 @@ export function hasOwnWritablePrototype(value) {
  * descriptor is NOT writable (`writable: false`).
  *
  * The exact complement of {@link hasOwnWritablePrototype} over values that
- * own a `prototype`: a {@link ClassConstructor}, whose own `prototype` is
- * read-only, answers `true`; an {@link ES3Function}, whose own `prototype`
- * is writable, answers `false`. A value with no own `prototype` at all (an
+ * own a `prototype`: every {@link ClassConstructor} answers `true`, and so
+ * does a frozen {@link ES3Function} or one whose `prototype` was locked
+ * through `defineProperty` — necessary for a class, not sufficient, so
+ * `#function`'s `isClass` follows it with a source read (ADR #103). An
+ * ordinary {@link ES3Function}, whose own `prototype` is writable, answers
+ * `false`. A value with no own `prototype` at all (an
  * arrow function, a plain object) also answers `false` — the missing
  * descriptor's `?.writable` is `undefined`, not `false`.
  *

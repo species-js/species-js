@@ -30,15 +30,18 @@ inheritance chain — to answer the ES3-function-versus-class question structura
 `hasOwnPrototype` reports whether an own `prototype` descriptor exists at all (an arrow
 function, whose `prototype` is inherited from `Function.prototype`, answers `false`).
 `hasOwnWritablePrototype` and `hasOwnNonWritablePrototype` are the exact complements over
-values that own one: an `ES3Function`'s own `prototype` is `writable: true`, a
-`ClassConstructor`'s (custom or built-in) is `writable: false` — the sole spec-given
-discriminator between the two. A value with no own `prototype` answers `false` to both (a
-missing descriptor's `?.writable` is `undefined`, matching neither).
+values that own one. An ordinary `ES3Function`'s own `prototype` is `writable: true`, and
+a `ClassConstructor`'s (custom or built-in) is always `writable: false` — but so is a
+frozen ES3 function's, or one whose `prototype` was locked through `defineProperty`. So
+writability settles the ES3 shape when `true` and does not settle the class shape when
+`false`. A value with no own `prototype` answers `false` to both (a missing descriptor's
+`?.writable` is `undefined`, matching neither).
 
-These are the structural tells that `#function`'s `isES3Function` (→
-`hasOwnWritablePrototype`) and `isClass` (→ `hasOwnNonWritablePrototype`) delegate to.
-Like every read here the descriptor access is throw-safe: nullish input and a hostile
-`getOwnPropertyDescriptor` trap alike yield `false`, never a throw.
+These are the descriptor halves of `#function`'s `isES3Function` (→
+`hasOwnWritablePrototype`) and `isClass` (→ `hasOwnNonWritablePrototype`), which complete
+the readonly case with a source read (decision #103). Like every read here the descriptor
+access is throw-safe: nullish input and a hostile `getOwnPropertyDescriptor` trap alike
+yield `false`, never a throw.
 
 ## Own-property shapeability
 

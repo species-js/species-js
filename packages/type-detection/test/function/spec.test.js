@@ -24,9 +24,13 @@
  * Mirrors `docs/spec/FUNCTION.spec.md`.
  */
 
+import { readFileSync } from 'node:fs';
+
 import { describe, it, expect } from 'vitest';
 
 import {
+  doesUnboundNewableSourceMatchEitherClassSignature,
+  doesUnboundNewableSourceMatchNeitherClassSignature,
   isCallable,
   isFunction,
   hasConstructSlot,
@@ -49,6 +53,7 @@ import {
   ASYNC_PREDICATES,
   GENERATOR_PREDICATES,
   PUBLIC_PREDICATE_NAMES,
+  sourceSignatureMatrix,
 } from './__config.js';
 
 /** @type {Record<string, (value?: unknown) => boolean>} */
@@ -152,5 +157,73 @@ describe('function — spec/contract matrices', () => {
         expect(predicateByName(name)(), `${name}()`).toBe(false);
       }
     });
+  });
+});
+
+/** The vector IDs this block exercises outside the matrix rows. */
+const SOURCE_SIGNATURE_EXTRA_VECTORS = ['dUNSMECS/B2', 'dUNSMNCS/L1'];
+
+/**
+ * Every `dUNSMECS/*` and `dUNSMNCS/*` ID the spec names.
+ * @returns {string[]} the sorted, de-duplicated IDs
+ */
+function sourceSignatureVectorsFromSpec() {
+  const spec = readFileSync(
+    new URL('../../docs/spec/FUNCTION.spec.md', import.meta.url),
+    'utf8',
+  );
+  return [
+    ...new Set(
+      [...spec.matchAll(/`(dUNSM[EN]CS\/[A-Z]\d+)`/g)].flatMap((m) =>
+        m[1] === undefined ? [] : [m[1]],
+      ),
+    ),
+  ].sort();
+}
+
+describe('function — the source-signature predicates (dUNSMECS / dUNSMNCS)', () => {
+  it('completeness: the suite exercises exactly the vectors the spec names', () => {
+    const cited = new Set(SOURCE_SIGNATURE_EXTRA_VECTORS);
+    for (const { vectors } of Object.values(sourceSignatureMatrix)) {
+      for (const vector of vectors) {
+        cited.add(vector);
+      }
+    }
+    const fromSpec = sourceSignatureVectorsFromSpec();
+    // positive control: the parser must find the IDs it is checking against
+    expect(fromSpec.length, 'no dNSM* vector parsed from the spec').toBeGreaterThan(0);
+    expect([...cited].sort()).toEqual(fromSpec);
+  });
+
+  for (const [key, { description, source, expected, vectors }] of Object.entries(
+    sourceSignatureMatrix,
+  )) {
+    describe(`${key} — ${description}`, () => {
+      it(`either → ${String(expected)}  [${vectors.join(', ')}]`, () => {
+        expect(doesUnboundNewableSourceMatchEitherClassSignature(source)).toBe(expected);
+      });
+
+      it('neither → the exact negation  [dUNSMNCS/L1]', () => {
+        expect(doesUnboundNewableSourceMatchNeitherClassSignature(source)).toBe(
+          !expected,
+        );
+      });
+    });
+  }
+
+  // dUNSMECS/B2 — a long source that fails LATE is answered in linear time. A
+  // catastrophically backtracking pattern takes seconds at this length; the
+  // budget is two orders of magnitude above what a linear read needs.
+  it('a 100 000-character source failing late is answered in linear time  [dUNSMECS/B2]', () => {
+    const body = '{ x; }'.repeat(16_667);
+    const source = `function f() {${body}\n// { [native code]\n}`;
+    expect(source.length).toBeGreaterThanOrEqual(100_000);
+
+    const start = performance.now();
+    const answer = doesUnboundNewableSourceMatchEitherClassSignature(source);
+    const elapsed = performance.now() - start;
+
+    expect(answer).toBe(false);
+    expect(elapsed, `${elapsed.toFixed(1)} ms`).toBeLessThan(250);
   });
 });

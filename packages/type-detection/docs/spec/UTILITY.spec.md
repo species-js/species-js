@@ -76,6 +76,16 @@
 > measure; loosening the present-key arm to admit a writable non-configurable slot
 > (`|| descriptor.writable === true`) reddens `B5` plus the two `R7` rows; and dropping a
 > vector from the completeness guard's list reddens the guard.
+>
+> **Amended 2026-10-03 — the `prototype` writability is no longer called the class/ES3
+> discriminator.** `#function` now reads the source where the own `prototype` is readonly
+> (ADR #103), because a frozen ES3 function, or one whose `prototype` was locked through
+> `defineProperty`, carries a class's descriptor. No verdict here moved — both predicates
+> read a descriptor, and still read it exactly. What changed is the framing:
+> `hasOwnWritablePrototype` is conclusive for the ES3 shape over newables,
+> `hasOwnNonWritablePrototype` is necessary for a class and no longer sufficient.
+> `hOWP/R4` and `hONWP/A2` were appended to pin the locked ES3 function on both. See
+> Resolved item #8.
 
 ## Module contract
 
@@ -273,15 +283,20 @@ prototype reader; no memoization (#057). `@@throw-safe`.
 
 - `hOWP/A1` — `function f() {}`, `function* () {}`, `async function* () {}` → true (own
   writable `prototype`).
-- `hOWP/R1` — `class C {}`, `Array`, `Map`, `Symbol` → false (own `prototype` is readonly
-  — the ES3-vs-class tell).
+- `hOWP/R1` — `class C {}`, `Array`, `Map`, `Symbol` → false (own `prototype` is
+  readonly).
 - `hOWP/R2` — `() => {}`, `async function () {}` → false (no own `prototype`).
 - `hOWP/R3` — `(function () {}).bind(null)`, `{}`, CC/nullish → false.
+- `hOWP/R4` — `Object.freeze(function f() {})`, and a `function f() {}` whose `prototype`
+  was redefined `{ writable: false }` → false — still an ES3 function, but its own
+  `prototype` is no longer writable. Why `false` here does not mean "class".
 - `hOWP/B1` — a `Proxy` whose `getOwnPropertyDescriptor` trap throws → false, **not
   thrown**.
 
-**Cross-realm (axis 2):** realm-safe. **Composition note:** the structural discriminator
-`isES3Function` (`#function`) drives this.
+**Cross-realm (axis 2):** realm-safe. **Composition note:** `isES3Function` (`#function`)
+reads this first; `true` settles the ES3 shape over newables, since a class's `prototype`
+is non-writable by spec. `false` hands over to `hasOwnNonWritablePrototype` and the source
+read (ADR #103).
 
 ---
 
@@ -290,12 +305,16 @@ prototype reader; no memoization (#057). `@@throw-safe`.
 `hasOwnNonWritablePrototype(value?: unknown): boolean` —
 `try { return getOwnPropertyDescriptor(value, 'prototype')?.writable === false; } catch { return false; }`.
 The named complement of `hasOwnWritablePrototype` over own-`prototype` bearers; the
-class-vs-ES3 tell that drives `isClass` (`#function`). `@@throw-safe`.
+descriptor half of `isClass` (`#function`) — necessary for a class, not sufficient, since
+`isClass` also reads the source (ADR #103). `@@throw-safe`.
 
 - `hONWP/A1` — `class C {}`, `Array`, `Map`, `Symbol` → true (own `prototype` is
-  non-writable — a `ClassConstructor`).
+  non-writable, as every `ClassConstructor`'s is).
+- `hONWP/A2` — `Object.freeze(function f() {})`, and a `function f() {}` whose `prototype`
+  was redefined `{ writable: false }` → true — an `ES3Function` with a class's descriptor,
+  which is why `isClass` does not stop here.
 - `hONWP/R1` — `function f() {}`, `function* () {}` → false (own writable `prototype` — an
-  `ES3Function`).
+  ordinary `ES3Function`, or a generator function).
 - `hONWP/R2` — `() => {}`, `{}`, `[]`, CC/nullish → false — **no own `prototype` at all**,
   so `?.writable` is `undefined` and `undefined === false` is `false` (pin this:
   `hasOwnWritablePrototype` and `hasOwnNonWritablePrototype` are NOT exhaustive — a value
@@ -907,6 +926,15 @@ allocation-free vs a per-call closure.
    state would break it). The oracle is the 21-mark set: the 20 public functions above
    PLUS the sole `@internal` `getValidatedStandardConstructorAndPrototypeTuple`. No
    behavioral vector changed.
+
+8. **The `prototype` writability stops being the class/ES3 discriminator — AMENDED
+   2026-10-03 (ADR #103).** A frozen ES3 function, or one whose `prototype` was locked
+   through `defineProperty`, answers like a class here, and `#function` used to classify
+   it as one. `#function` now completes the readonly case with a source read. Both
+   predicates in this module are unchanged and still exact about the descriptor; only the
+   claim that the descriptor decides the species was retracted, here and in the module's
+   docs. `hOWP/R4` and `hONWP/A2` pin the locked ES3 function so the retraction cannot
+   quietly reverse.
 
 ## Open items
 

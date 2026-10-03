@@ -37,6 +37,21 @@
 > `hostile × marked-export` matrix) is now authored and green — the 24 `@@throw-safe`
 > markers are verified for non-propagation and cross-checked against the markers parsed
 > from `src/function.js`. The freeze's decidability guarantee is restored.
+>
+> **AMENDED 2026-10-03 — the class/ES3 split reads the source (ADR #103).** A read-only
+> own `prototype` no longer settles the split on its own: a frozen ES3 function, or one
+> whose `prototype` was locked through `defineProperty`, carries the same descriptor as a
+> class. `isClass` now also requires a class signature in the source — the `class` keyword
+> prefix, or the native-source form — and `isES3Function` admits a read-only `prototype`
+> when the source carries neither. Two public string predicates carry that test,
+> `doesUnboundNewableSourceMatchEitherClassSignature` and its negation, specified below
+> with their unbound-newable precondition. Verdicts changed for locked ES3 functions only
+> (`isES3Function/A2` to `A4`, `isClass/R5`, `R6`); every other existing vector stands,
+> the boundaries a `Proxy` creates are now pinned (`isClass/B2`, `isCustomClass/B1`,
+> `isBuiltInClass/B1`, `B2`), and a class with a comment after its keyword is pinned as
+> admitted (`isClass/A4`). Re-deriving the surface inventory also corrected one older
+> drift: `getFunctionSource` has been public since the curated entry of 2026-08-06, not
+> `@internal`. See Resolved items #8.
 
 ## Module contract
 
@@ -49,8 +64,8 @@ species (ES3, class, async, generator, async-generator).
 Callable                                  (isCallable)            — typeof === 'function' floor
   └── VerifiedFunction                    (isFunction)            — own call/apply/bind callable
         ├── NewableFunction               (isNewableFunction)     — + [[Construct]] (lenient gate)
-        │     ├── ES3Function             (isES3Function)         — own WRITABLE prototype
-        │     └── ClassConstructor        (isClass)               — own READONLY prototype
+        │     ├── ES3Function             (isES3Function)         — own WRITABLE prototype, or READONLY + no class signature
+        │     └── ClassConstructor        (isClass)               — own READONLY prototype + class signature
         │           ├── [class-syntax]    (isCustomClass)         — source startsWith 'class'
         │           └── [native]          (isBuiltInClass)        — source does NOT
         ├── AsyncFunction                 (isAsyncFunction)       — %AsyncFunction% intrinsic
@@ -63,7 +78,11 @@ Callable                                  (isCallable)            — typeof ===
 non-newable side, and the spec gives each a different discriminator:
 
 - **Newable side** discriminates on _own-instance descriptors_ — the `writable` flag on
-  the own `prototype` descriptor (`ES3Function` writable, `ClassConstructor` readonly).
+  the own `prototype` descriptor — refined by the _source_ where the descriptor is
+  readonly. Writable settles `ES3Function`; readonly is shared by every class and by a
+  locked ES3 function, so the source decides: a class signature (`class` prefix or
+  native-source form) makes it a `ClassConstructor`, its absence an `ES3Function` (ADR
+  #103).
 - **Non-newable side** discriminates on _prototype-chain values_ — `Symbol.toStringTag`
   resolved through the chain, the resolved constructor name, and the proto-side own-key
   surface (`constructor` only for async; `constructor` + `prototype` for the generators).
@@ -94,16 +113,23 @@ decision.
 `hasConstructSlot(value?): boolean` — the Proxy-`construct`-trap `[[Construct]]` probe.
 Carries no `@internal` tag in either `.js` or `.d.ts` **by design**: it is a first-class
 public export, not an internal helper, even though the newable predicates are built on top
-of it. (Contrast `getFunctionSource`, which is `@internal`.) It is the package's
-standalone `[[Construct]]`-presence probe — axis 1, returning a plain `boolean` rather
-than narrowing.
+of it. It is the package's standalone `[[Construct]]`-presence probe — axis 1, returning a
+plain `boolean` rather than narrowing.
 
-**Exported `@internal` helpers (axis 4) — 12:**
+**Public source reader and source-signature predicates — 3:**
 
 - `getFunctionSource(value: Callable): string | undefined` — trimmed source via the
   realm-fixed `toFunctionString.call`, wrapped in `try`/`catch`; preserves `[native code]`
   markers. Throw-safe: a non-callable receiver yields `undefined` rather than throwing
-  (see `gFS/B1`).
+  (see `gFS/B1`). Public since the curated entry of 2026-08-06 (#085); this inventory
+  listed it as `@internal` until the 2026-10-03 amendment.
+- `doesUnboundNewableSourceMatchEitherClassSignature(value: string): boolean` and
+  `doesUnboundNewableSourceMatchNeitherClassSignature(value: string): boolean` — whether a
+  newable function's source carries a class signature, and its exact negation (#103).
+  String-typed and deliberately not `@@throw-safe`: the type contract is the guarantee.
+
+**Exported `@internal` helpers (axis 4) — 11:**
+
 - Async family: `hasAsyncFunctionIdentitySignal`, `hasAsyncFunctionPrototypeSurface`,
   `isAlienRealmAsyncFunction` (the cross-realm structural arm; was
   `hasAsyncFunctionShape`), `isCurrentRealmAsyncFunctionInstance` (the same-realm
@@ -127,8 +153,9 @@ Per #080 every realm arm is a generic guard (`value is T & X`), not a plain `boo
 `Generator`, `AsyncGenerator`, `GeneratorFunction`, `AsyncGeneratorFunction`,
 `AnyGeneratorFunction`.
 
-Re-confirmation gate: 24 `.js` value exports = 24 `.d.ts` declarations (21 + the three
-`isCurrentRealm*Instance` arms, #080); 12 type exports match; `architecture/function.md`
+Re-confirmation gate: 26 `.js` value exports = 26 `.d.ts` declarations (15 public + 11
+`@internal`; the two source-signature predicates of #103 raised it from 24); 12 public
+type exports match, plus the `@internal` `CallableWith`; `architecture/function.md`
 matches the code (no drift). The three captured intrinsic constructors
 (`AsyncFunctionConstructor`, `GeneratorFunctionConstructor`,
 `AsyncGeneratorFunctionConstructor`) are module-local `const`s, not exports — no #053
@@ -291,40 +318,58 @@ makes no prototype promise. Narrow to `isES3Function` / `isClass` to reach a `pr
 ## `isES3Function`
 
 `isES3Function<T = unknown>(value?: T): value is T & ES3Function` —
-`isNewableFunction(value) && hasOwnWritablePrototype(value)`. The strict ES3 shape: a
-newable with an own **writable** `prototype` descriptor.
+`isNewableFunction(value) && (hasOwnWritablePrototype(value) || (hasOwnNonWritablePrototype(value) && doesUnboundNewableSourceMatchNeitherClassSignature(getFunctionSource(value) ?? '')))`.
+The strict ES3 shape: a newable with an own **writable** `prototype` descriptor, or with a
+**readonly** one and a source carrying neither class signature (#103).
 
 - `isES3Function/A1` — `function f() {}`, `function () {}` → true.
-- `isES3Function/R1` — `class C {}`, `Array`, `Map`, `Date` → false (own `prototype` is
-  readonly — that is `isClass`).
+- `isES3Function/A2` — `Object.freeze(function f() {})` → **true** — freezing makes the
+  own `prototype` readonly, but the source carries no class signature. _Amended
+  2026-10-03; was `false` under the descriptor-only rule._
+- `isES3Function/A3` — a `function f() {}` whose `prototype` was redefined
+  `{ writable: false }` through `defineProperty`, without freezing → **true**, for the
+  same reason.
+- `isES3Function/A4` — a frozen ES3 function from a foreign realm → true (the source read
+  goes through the realm-fixed capture).
+- `isES3Function/R1` — `class C {}`, `Array`, `Map`, `Date`, and the frozen `class C {}` →
+  false (readonly own `prototype` and a class signature — that is `isClass`).
 - `isES3Function/R2` — `(function () {}).bind(null)` → false — bound ES3 lost its own
   `prototype` slot; still newable but no longer an ES3 shape. `[Q.002]`
 - `isES3Function/R3` — `() => {}`, `({ m() {} }).m` → false (not newable).
 - `isES3Function/R4` — `async function () {}`, `function* () {}`, `async function* () {}`
   → false.
-- `isES3Function/R5` — `Symbol`, `BigInt` → false (newable, but readonly own `prototype` →
-  class side, not ES3).
+- `isES3Function/R5` — `Symbol`, `BigInt` → false (newable, readonly own `prototype` and a
+  native source → class side, not ES3).
+- `isES3Function/R6` — a `Proxy` around an ES3 function whose `prototype` is locked →
+  **false** — a callable `Proxy` renders in the native form whatever it wraps, so the
+  source carries a class signature. A boundary, not a defect: no standard read sees
+  through a `Proxy`. Around an unlocked ES3 function the writable descriptor is read
+  through the `Proxy`, and the answer is `true`.
 - (plus CC vectors.)
 
 **Refuses to claim:** bound ES3 functions (no own `prototype` → no ES3 shape; the package
 does not name the bound-newable species — Q.003). **Cross-realm (axis 2):** realm-safe —
-the own-`prototype`-writable descriptor read is realm-independent. **Spoof (axis 3):** the
-own-descriptor `writable === true` read is the spec-given discriminator; a value cannot
-fake a writable own `prototype` while being a class (class `prototype` is non-writable by
-spec). **Composition note (axis 4):** `isNewableFunction` → `hasOwnWritablePrototype`
-(`#utility`).
+the descriptor read is realm-independent, and the source read goes through the realm-fixed
+`toFunctionString` capture. **Spoof (axis 3):** a writable own `prototype` is conclusive —
+a class's `prototype` is non-writable by spec, so no class carries one. A readonly one is
+read together with the source, which is spec-defined (#013) and immune to instance
+`toString` tampering. **Composition note (axis 4):** `isNewableFunction` →
+`hasOwnWritablePrototype`, then `hasOwnNonWritablePrototype` (`#utility`) →
+`getFunctionSource` → `doesUnboundNewableSourceMatchNeitherClassSignature`; the writable
+case never reads the source.
 
 ---
 
 ## `isClass`
 
 `isClass<T = unknown>(value?: T): value is T & ClassConstructor` —
-`isNewableFunction(value) && hasOwnNonWritablePrototype(value)`. The strict class shape: a
-newable with an own **readonly** `prototype` descriptor. Covers both custom
-(`class`-syntax) and built-in class constructors. The `prototype` descriptor read routes
-through the throw-safe `hasOwnNonWritablePrototype` (`#utility`; wraps
-`getNextAvailableSafeDescriptor`, #073), so a hostile constructor cannot make the read
-throw — see Resolved items #3.
+`isNewableFunction(value) && hasOwnNonWritablePrototype(value) && doesUnboundNewableSourceMatchEitherClassSignature(getFunctionSource(value) ?? '')`.
+The strict class shape: a newable with an own **readonly** `prototype` descriptor and a
+source carrying a class signature — the `class` keyword prefix, or the native-source form
+(#103). Covers both custom (`class`-syntax) and built-in class constructors. The
+`prototype` descriptor read routes through the throw-safe `hasOwnNonWritablePrototype`
+(`#utility`; wraps `getNextAvailableSafeDescriptor`, #073), so a hostile constructor
+cannot make the read throw — see Resolved items #3.
 
 - `isClass/A1` — `class C {}`, `class Foo extends Array {}` → true (custom).
 - `isClass/A2` — `Array`, `Map`, `Date`, `Number`, `Object` → true (built-in classes; own
@@ -348,15 +393,30 @@ throw — see Resolved items #3.
   `hasOwnNonWritablePrototype` (#073, wrapping `getNextAvailableSafeDescriptor` #056).
   Exercised by the `#object` cross-realm round (a hostile constructor reached through the
   plain-object contract walk); to be covered directly in the `function` round.
+- `isClass/A4` — a class whose keyword is followed by a comment of any kind —
+  `class/*c*/C {}`, `class// c\nC {}`, `class<!-- c\nC {}` — → true. The prefix read stops
+  at `class`, so nothing after it is parsed.
+- `isClass/A5` — `Object.freeze(class C {})`, and a frozen class from a foreign realm →
+  true (readonly `prototype` and the `class` prefix, as before freezing).
+- `isClass/R5` — `Object.freeze(function f() {})` → **false** — the readonly own
+  `prototype` is shared, but the source carries no class signature. _Amended 2026-10-03;
+  was `true` under the descriptor-only rule._
+- `isClass/R6` — a `function f() {}` whose `prototype` was redefined `{ writable: false }`
+  through `defineProperty` → **false**, for the same reason.
+- `isClass/B2` — a `Proxy` around an ES3 function whose `prototype` is locked → **true** —
+  the boundary `isES3Function/R6` describes from the other side.
 - (plus CC vectors.)
 
 **Refuses to claim:** bound classes (own `prototype` stripped). **Cross-realm (axis 2):**
-realm-safe — the own-`prototype`-readonly descriptor read is realm-independent; built-in
-classes from a foreign realm still expose a readonly own `prototype`. **Spoof (axis 3):**
-the `writable === false` own-descriptor read is the only spec-given class/ES3
-discriminator; routed through the throw-safe `hasOwnNonWritablePrototype` so a hostile
-constructor yields `false`, not a throw. **Composition note (axis 4):**
-`isNewableFunction` → `hasOwnNonWritablePrototype` (`#utility`).
+realm-safe — the own-`prototype`-readonly descriptor read is realm-independent, and the
+source read goes through the realm-fixed `toFunctionString` capture; built-in classes from
+a foreign realm still expose a readonly own `prototype` and a native source. **Spoof (axis
+3):** the `writable === false` own-descriptor read is necessary but no longer treated as
+sufficient — a locked ES3 function carries it too — so the spec-defined source signature
+(#013) completes it. Routed through the throw-safe `hasOwnNonWritablePrototype` and
+`getFunctionSource`, so a hostile constructor yields `false`, not a throw. **Composition
+note (axis 4):** `isNewableFunction` → `hasOwnNonWritablePrototype` (`#utility`) →
+`getFunctionSource` → `doesUnboundNewableSourceMatchEitherClassSignature`.
 
 ---
 
@@ -371,6 +431,8 @@ constructor yields `false`, not a throw. **Composition note (axis 4):**
   (built-in source is `function Foo() { [native code] }`, not the `class` keyword).
 - `isCustomClass/R2` — `(class C {}).bind(null)` → false (rejected upstream by `isClass`).
 - `isCustomClass/R3` — `function () {}`, `() => {}` → false (fail `isClass`).
+- `isCustomClass/B1` — `new Proxy(class C {}, {})` → **false** — the `Proxy` renders in
+  the native form, so it lands on `isBuiltInClass` (`isBuiltInClass/B1`).
 - (plus CC vectors.)
 
 **Refuses to claim:** built-in classes (the disjoint dual). **Cross-realm (axis 2):**
@@ -398,12 +460,77 @@ instance `toString` tampering; reconstructing a function whose source literally 
   starts with `class`).
 - `isBuiltInClass/R2` — `(class C {}).bind(null)`, `Array.bind(null)` → false (rejected
   upstream by `isClass` — bound forms lost the own readonly `prototype`).
-- `isBuiltInClass/R3` — `function () {}`, `Math.max` → false (fail `isClass`).
+- `isBuiltInClass/R3` — `function () {}`, `Math.max`, `Object.freeze(function () {})` →
+  false (fail `isClass`; the last only since 2026-10-03, see `isClass/R5`).
+- `isBuiltInClass/B1` — `new Proxy(class C {}, {})`, `new Proxy(Map, {})` → **true** —
+  "built-in" is read from the native form, which a `Proxy` reports whatever it wraps.
+- `isBuiltInClass/B2` — a `Proxy` around an ES3 function whose `prototype` is locked →
+  **true**, for the same reason (`isClass/B2`).
 - (plus CC vectors.)
 
-**Refuses to claim:** custom classes (the disjoint dual). **Cross-realm / spoof (axes 2,
-3):** as `isCustomClass`, inverted. **Composition note (axis 4):** `isClass` →
-`getFunctionSource`.
+**Refuses to claim:** custom classes (the disjoint dual). Nor that a `true` value is an
+engine intrinsic: the native form is all it reads (`B1`, `B2`).
+
+---
+
+## `doesUnboundNewableSourceMatchEitherClassSignature`
+
+`doesUnboundNewableSourceMatchEitherClassSignature(value: string): boolean` —
+`value.startsWith('class') || /^function\b[^{]*\{\s*\[native code]\s*}$/.test(value)`
+(#103). Public; not `@@throw-safe` by design — the `string` parameter is the contract
+(owner ruling 2026-10-03). **Precondition:** `value` is the source of an **unbound**
+newable function, as `getFunctionSource` reads it from a newable that owns a non-writable
+`prototype` — which is what `isClass` and `isES3Function` establish before calling it, and
+which no bound function satisfies, `bind` having stripped that slot.
+
+- `dUNSMECS/A1` — `'class C {}'`, `'class{}'`, `'class extends Array {}'` → true.
+- `dUNSMECS/A2` — a comment of any kind between `class` and what follows —
+  `'class/*c*/C {}'`, `'class// c\nC {}'`, `'class<!-- c\nC {}'` → true. The prefix read
+  ignores everything after the keyword.
+- `dUNSMECS/A3` — `'function Map() { [native code] }'`, `'function () { [native code] }'`
+  → true (the V8 layout; the second is a `Proxy`).
+- `dUNSMECS/A4` — `'function Map() {\n    [native code]\n}'` → true (the three-line layout
+  of JavaScriptCore and SpiderMonkey).
+- `dUNSMECS/R1` — `'function f() {}'`, `'function f({ a }) {}'`, `'function f(a = {}) {}'`
+  → false.
+- `dUNSMECS/R2` — an ES3 source whose body ends in a line comment reading
+  `{ [native code]` — `'function f() { // { [native code]\n}'` — → false. The native form
+  is matched from the `function` keyword on, and an ES3 function's first `{` opens its
+  parameters' object or its own body, never a `[native code]` one.
+- `dUNSMECS/R3` — `'function f() { /* { [native code] */ }'`,
+  `'function f() { return "{ [native code] }"; }'` → false.
+- `dUNSMECS/B1` — `'class() {}'`, the source of a concise method named `class` → **true**
+  — outside the precondition (a concise method is not newable), so the answer is not a
+  claim. Recorded so the boundary is visible, not because the value is promised.
+- `dUNSMECS/B2` — a source of 100 000 characters that fails late → answered in time linear
+  in its length (both tests are anchored at the start; the native form stops at the first
+  `{`).
+
+**Refuses to claim:** anything about a string that is not an unbound newable's source —
+the contract is the precondition, and no argument is verified (`B1`). A bound function's
+native source is the case the precondition exists to exclude: some engines render the
+bound target's caller-chosen `name` ahead of the native body, so its header may hold a
+`{`. **Cross-realm (axis 2):** reads a string only; realm-free. **Spoof (axis 3):** within
+the precondition, a source cannot be authored to match either signature without being one:
+an authored newable starts with `function`, and the native form's body, `[native code]`,
+is not valid code. Every unbound native newable — a built-in or a `Proxy` — renders a
+fixed header. **Composition note (axis 4):** called by `isClass` after the
+readonly-`prototype` read.
+
+---
+
+## `doesUnboundNewableSourceMatchNeitherClassSignature`
+
+`doesUnboundNewableSourceMatchNeitherClassSignature(value: string): boolean` —
+`!doesUnboundNewableSourceMatchEitherClassSignature(value)`. Same contract and
+precondition.
+
+- `dUNSMNCS/L1` — for every string of the `dUNSMECS` vectors, the answer is the exact
+  negation of `doesUnboundNewableSourceMatchEitherClassSignature`'s.
+
+**Composition note (axis 4):** called by `isES3Function` after the readonly-`prototype`
+read. **Cross-realm / spoof (axes 2, 3):** as `isCustomClass`, inverted. **Composition
+note (axis 4):** `isClass` → `getFunctionSource`.
 
 ---
 
@@ -529,7 +656,7 @@ alien-realm arms (`isAlienRealm{Generator,AsyncGenerator}Function`).
 
 ## Helper specification (axis 4)
 
-### `getFunctionSource(value: Callable): string | undefined` — `@internal`
+### `getFunctionSource(value: Callable): string | undefined` — public since 2026-08-06 (#085)
 
 `try { toFunctionString.call(value).trim() } catch { undefined }` — throw-safe
 (`@@throw-safe`, #073).
@@ -783,6 +910,33 @@ narrows `value is T & GeneratorFunction`.
    `function-introspection`'s bind-closure invariant (`BOUND.spec.md` vector `bound/X6`),
    which is where the same fact is recorded for the `bound` module's own entrance-level.
 
+8. **A locked ES3 function is ES3 — AMENDED 2026-10-03 (ADR #103).** Under the
+   descriptor-only rule, `Object.freeze(function f() {})` answered `isClass === true` and
+   `isES3Function === false`: freezing makes the own `prototype` readonly, which was the
+   whole class test. `defineProperty(f, 'prototype', { writable: false })` did the same
+   without freezing anything, and a future stable type identity that locks the slot would
+   too. No descriptor read can tell why a `prototype` is readonly, so the readonly case
+   now reads the source. This is an **amendment**, not an append: `isES3Function/A2`–`A4`
+   and `isClass/R5`–`R6` flipped, every other existing verdict stands.
+
+   The design passed through two discarded steps before it settled, and both are worth
+   keeping. An `Object.isFrozen` gate came first; it covered only the freeze route, and it
+   made both predicates throw on a `Proxy` whose `isExtensible` trap throws — which the
+   curated hostile corpus could not see (see the throw-safety section). Then a cascade of
+   comment-aware class regexes for raw strings; scoping the two source-signature
+   predicates to an **unbound newable** source, and saying so in their names, made a plain
+   `startsWith('class')` exact and every comment form free. The native form needed the
+   same anchoring: an unanchored match admitted an ES3 body ending in a line comment
+   (`dUNSMECS/R2`). A tail-only variant, written so JavaScriptCore's rendering of a bound
+   function with a `{` in its target name would match, was withdrawn the same day: no
+   predicate here ever passes a bound source, since `bind` strips the own `prototype` they
+   read first, so the precondition was tightened to unbound instead.
+
+   Re-deriving the surface inventory for this amendment also found that
+   `getFunctionSource` had been listed `@internal` since 2026-08-06, when the curated
+   entry (#085) made it public; corrected above. The two new predicates raise the gate to
+   26 = 26.
+
 ## Throw-safety (axis 5) — completeness oracle
 
 The module marks **24** exports `@@throw-safe` (ADRs #073, #076): each must not propagate
@@ -799,6 +953,18 @@ test round builds must score exactly this set:
 `isAlienRealmAsyncGeneratorFunction`, `isCurrentRealmGeneratorFunctionInstance`,
 `isCurrentRealmAsyncGeneratorFunctionInstance`, `isGeneratorFunction`,
 `isAsyncGeneratorFunction`, `isAnyGeneratorFunction`.
+
+The two source-signature predicates are deliberately outside this set: they take a
+`string`, and a primitive string cannot carry a trap. Their safety is the respected type
+contract (owner ruling 2026-10-03), not a sentinel.
+
+**The hostile corpus is generated, not curated (2026-10-03).** One `Proxy` row per handler
+trap of ECMA-262's closed set of thirteen, each throwing, over an extensible and a frozen
+target, plus the earlier hand-built rows. A curated list follows the reads the code makes
+today, so a new trap-running read finds no row: an `Object.isFrozen` gate tried during the
+#103 work fired `isExtensible` first, and only reached `ownKeys` and
+`getOwnPropertyDescriptor` on a target that could no longer be extended. No row had either
+property, and all 146 matrix tests passed while both predicates threw.
 
 ## Open items
 
@@ -822,7 +988,8 @@ test round builds must score exactly this set:
    (`isClass ≡ isCustomClass ⊎ isBuiltInClass` — the law named under `isBuiltInClass`
    above, now machine-checked) · the newable ladder
    (`isNewableFunction ≡ isFunction ∧ hasConstructSlot`, with `isES3Function ⊎ isClass`
-   disjoint by own-`prototype` writability) · the generator umbrella
+   disjoint — by own-`prototype` writability, and since #103 by the source signature where
+   the `prototype` is readonly) · the generator umbrella
    (`isAnyGeneratorFunction ≡ the two arms`, disjoint) · coroutine-family exclusivity (an
    async generator is NOT an async function) · the coroutine families are never newable ·
    cross-realm verdict symmetry over the full 12-predicate surface · determinism ·

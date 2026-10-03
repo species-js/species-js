@@ -23,6 +23,8 @@
  */
 
 export {
+  doesUnboundNewableSourceMatchEitherClassSignature,
+  doesUnboundNewableSourceMatchNeitherClassSignature,
   getFunctionSource,
   hasConstructSlot,
   isAnyGeneratorFunction,

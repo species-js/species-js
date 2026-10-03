@@ -36,6 +36,8 @@ Open architectural questions live in [open-questions.md](./open-questions.md).
 | [084](./0084-drop-utility-trusted-data-confirmation-re-export.md)             | Drop `utility`'s consumerless `TRUSTED_DATA_CONFIRMATION` re-export — it was the sentinel's only path onto the typed surface; amends #070's byte-identical-surface clause | 2026-08-05 |
 | [085](./0085-curated-public-entry-and-surface-gate.md)                        | Curated `src/public.{js,d.ts}` becomes the package root; `#index` stays wide for tests; `surface:check` makes `@internal` enforceable; overturns #084's deferral          | 2026-08-06 |
 | [086](./0086-realm-fixed-captures-stay-internal.md)                           | Realm-fixed captures of platform natives stay `@internal`; each package captures its own — a cross-package edge is earned by identity or a value-add, not by convenience  | 2026-08-06 |
+| [101](./0101-throw-safe-parity-over-the-declared-set.md)                      | `@@throw-safe` parity is over the declared set (amends #076)                                                                                                              | 2026-09-10 |
+| [102](./0102-adrs-declare-what-enforces-them.md)                              | ADRs declare what enforces them — `Enforced by:`, checked by reciprocity (R4)                                                                                             | 2026-09-10 |
 
 ### type-detection / function
 
@@ -59,6 +61,7 @@ Open architectural questions live in [open-questions.md](./open-questions.md).
 | [036](./0036-generic-predicate-extended-thenable-evented-error.md)   | Generic-predicate pattern extended to thenable / evented / error (value-only exclusion superseded by #039)                                       | 2026-06-05 |
 | [080](./0080-async-family-realm-decomposition-naming.md)             | Function realm decomposition (async + generator): `isCurrentRealm*Instance` / `isAlienRealm*`; intrinsic casts `NewableFunction` (restores #007) | 2026-07-28 |
 | [081](./0081-bound-admission-asymmetry-settled-reliability-tenet.md) | Bound-admission asymmetry settled (closes Q.002): spoofable signals stay out of type-detection                                                   | 2026-07-28 |
+| [103](./0103-the-source-completes-the-class-es3-split.md)            | A read-only `prototype` no longer decides the class/ES3 split; the source completes it (amends #003)                                             | 2026-10-03 |
 
 ### type-detection / thenable
 
@@ -243,3 +246,6 @@ order with one-line summaries:
 | 2026-08-21 | [094](./0094-shapeability-not-definability-predicate-contract.md)                     | A slot's SHAPE, not a prediction of `defineProperty`: `canOwnPropertyBeShaped`, an extensibility arm, exact 13/13; withdraws the optimistic absent-key vector        |
 | 2026-08-21 | [095](./0095-no-host-backed-hardening-tier-resolves-q005.md)                          | No host-backed hardening tier for `isPromise` — a non-standard native installs permanent divergence; resolves Q.005, upholds #052                                    |
 | 2026-09-04 | [099](./0099-the-published-entry-is-the-surface-gate.md)                              | Whatever `exports["."]` resolves to is the public surface; `surface:check` goes universal — retires #085's enforcement scope and #097's per-MODULE threshold         |
+| 2026-09-10 | [101](./0101-throw-safe-parity-over-the-declared-set.md)                              | `@@throw-safe` parity is over the declared set (amends #076)                                                                                                         |
+| 2026-09-10 | [102](./0102-adrs-declare-what-enforces-them.md)                                      | ADRs declare what enforces them — `Enforced by:`, checked by reciprocity (R4)                                                                                        |
+| 2026-10-03 | [103](./0103-the-source-completes-the-class-es3-split.md)                             | A read-only `prototype` no longer decides the class/ES3 split; the source completes it (amends #003)                                                                 |

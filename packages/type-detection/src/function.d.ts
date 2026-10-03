@@ -175,20 +175,23 @@ export interface VerifiedFunction<
  * that is both callable and newable.
  *
  * Unlike a class, an `ES3Function` may be invoked with or without `new`.
- * The structural tell that separates it from {@link ClassConstructor} is
- * a **writable** `prototype`
- * (`Object.getOwnPropertyDescriptor(fn, 'prototype').writable === true`).
- * TypeScript types a plain `function` declaration as call-only, so this
- * handwritten shape is what asserts the construct signature ES3 functions
- * carry at runtime.
+ * What separates it from {@link ClassConstructor} is its own `prototype`
+ * descriptor, read together with its source. A **writable** `prototype`
+ * (`Object.getOwnPropertyDescriptor(fn, 'prototype').writable === true`)
+ * marks an ES3 function on its own, since no class carries one. A read-only
+ * one marks it too when the source carries neither class signature — the
+ * case of a frozen ES3 function, or one whose `prototype` was locked through
+ * `defineProperty`. TypeScript types a plain `function` declaration as
+ * call-only, so this handwritten shape is what asserts the construct
+ * signature ES3 functions carry at runtime.
  *
  * Bound ES3 functions are deliberately excluded. Binding strips the
- * function's own `prototype` slot, which removes the writable-prototype
- * tell entirely, so the value is no longer an ES3 shape. It remains
+ * function's own `prototype` slot, which removes the descriptor the tell is
+ * read from, so the value is no longer an ES3 shape. It remains
  * newable and still passes {@link isNewableFunction}, but it has become a
  * third species — a bound-newable — that this package does not name as
  * its own type. The matching guard {@link isES3Function} reflects this by
- * rejecting bound variants via the `hasOwnWritablePrototype` check.
+ * rejecting bound variants on the descriptor read.
  *
  * @template ThisType - the dynamic `this` context, resolved at the call site
  * @template Args - the parameter / constructor-argument tuple
@@ -205,7 +208,7 @@ export interface ES3Function<
   (this: ThisType, ...args: Args): R;
   /** Construct signature — `this` is the new instance. */
   new (...args: Args): T;
-  /** Mutable prototype — the structural tell vs. {@link ClassConstructor}. */
+  /** The constructor's `prototype` — writable unless the function was frozen or the slot locked. */
   prototype: T;
   /** The function's `name`. */
   readonly name: string;
@@ -227,13 +230,16 @@ export interface ES3Function<
  * and {@link isCallable} accepts it. But it must be invoked with `new`.
  * Calling it without `new` throws `TypeError` via the
  * `[[IsClassConstructor]]` slot, so the call signature returns `never`.
- * The structural tell that separates it from {@link ES3Function} is a
+ * What separates it from {@link ES3Function} takes two reads: a
  * **readonly** `prototype`
- * (`Object.getOwnPropertyDescriptor(cls, 'prototype').writable === false`).
+ * (`Object.getOwnPropertyDescriptor(cls, 'prototype').writable === false`),
+ * and a source carrying a class signature — the `class` keyword prefix, or
+ * the native-source form of a built-in. The descriptor alone is shared by a
+ * frozen ES3 function.
  *
  * Bound class constructors are deliberately excluded. Once bound, the
- * result has lost its own `prototype` slot entirely, so the structural
- * tell of a class is gone and the value is no longer a class shape. It
+ * result has lost its own `prototype` slot entirely, so the descriptor a
+ * class is read from is gone and the value is no longer a class shape. It
  * remains newable (still passes {@link isNewableFunction}, since
  * `[[Construct]]` survives `bind`), but it has become a third species —
  * a bound-newable. The matching guard {@link isClass} reflects this by
@@ -247,7 +253,7 @@ export interface ClassConstructor<Args extends unknown[] = unknown[], T = object
   (...args: Args): never;
   /** Construct signature — the only non-throwing invocation. */
   new (...args: Args): T;
-  /** Readonly prototype — the structural tell vs. {@link ES3Function}. */
+  /** Readonly prototype — necessary for a class, though a frozen {@link ES3Function} shares it. */
   readonly prototype: T;
   /** The class's `name`. */
   readonly name: string;
@@ -583,6 +589,51 @@ export type AnyGeneratorFunction = GeneratorFunction | AsyncGeneratorFunction;
 //
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 
+/**
+ * Whether an unbound newable function's source carries either class signature —
+ * the `class` keyword prefix of a custom class, or the native-source form
+ * `function Name() { [native code] }` every built-in constructor reports, with
+ * any whitespace inside the braces.
+ *
+ * Exact for the source of any unbound newable function, on every engine,
+ * including a custom class with comments of any kind between `class` and its
+ * name or body. An ES3 function's source never matches — not even one whose body
+ * ends in a line comment reading `{ [native code]`, since the native form is
+ * matched from the `function` keyword on.
+ *
+ * Expects the source of an unbound newable function and verifies none of that:
+ * the `string` type is the contract, and outside the precondition the answer is
+ * not a claim. The source of a concise method named `class`, which is not
+ * newable, matches; a bound function's may not, since some engines render its
+ * target's name ahead of the native body. {@link getFunctionSource} applied to a
+ * newable that owns a non-writable `prototype` satisfies the precondition — which
+ * is what {@link isClass} and {@link isES3Function} establish before calling it.
+ *
+ * @example
+ * ```ts
+ * doesUnboundNewableSourceMatchEitherClassSignature('class // note\nFoo {}'); // true
+ * doesUnboundNewableSourceMatchEitherClassSignature('function Map() { [native code] }'); // true
+ * doesUnboundNewableSourceMatchEitherClassSignature('function Foo() {}'); // false
+ * ```
+ *
+ * @param value - the source of an unbound newable function
+ * @returns `true` when either class signature matches; `false` otherwise
+ */
+export function doesUnboundNewableSourceMatchEitherClassSignature(value: string): boolean;
+
+/**
+ * Whether an unbound newable function's source carries neither class signature,
+ * which leaves the ES3 shape — the exact negation of
+ * {@link doesUnboundNewableSourceMatchEitherClassSignature}, under the same
+ * contract.
+ *
+ * @param value - the source of an unbound newable function
+ * @returns `true` when neither class signature matches; `false` otherwise
+ */
+export function doesUnboundNewableSourceMatchNeitherClassSignature(
+  value: string,
+): boolean;
+
 /* @@throw-safe */
 /**
  * Returns a function's source string with surrounding whitespace trimmed.
@@ -739,14 +790,27 @@ export function isNewableFunction<T = unknown>(value?: T): value is T & NewableF
 /**
  * Narrows a value to {@link ES3Function}, the strict ES3-function shape.
  *
- * Builds on {@link isNewableFunction} and adds the structural tell: an
- * own `prototype` descriptor whose `writable` is `true`, verified through
- * `hasOwnWritablePrototype`.
+ * Builds on {@link isNewableFunction} and reads the own `prototype`
+ * descriptor. A writable one answers `true` at once — no class carries one.
+ * A read-only one answers `true` only when the source carries neither class
+ * signature ({@link doesUnboundNewableSourceMatchNeitherClassSignature}), which is
+ * how a frozen ES3 function, or one whose `prototype` was locked through
+ * `defineProperty`, is still recognized.
  *
  * Bound ES3 functions are deliberately rejected. They remain newable but
  * have lost their own `prototype` slot, so what remains is no longer an
  * ES3 shape. The {@link NewableFunction} gate still admits them; this
  * guard does not.
+ *
+ * A `Proxy` around an ES3 function whose `prototype` is locked is rejected:
+ * a `Proxy` reports native source whatever it wraps, so it reads as a class.
+ *
+ * @example
+ * ```ts
+ * isES3Function(function Foo() {}); // true
+ * isES3Function(Object.freeze(function Foo() {})); // true — read-only prototype, ES3 source
+ * isES3Function(class Foo {}); // false
+ * ```
  *
  * Generic in `T` per the family-pattern. The narrow returns
  * `T & ES3Function`. `T = unknown` collapses to `ES3Function`.
@@ -763,11 +827,13 @@ export function isES3Function<T = unknown>(value?: T): value is T & ES3Function;
  * Narrows a value to {@link ClassConstructor}, the strict class shape.
  *
  * Covers both custom (`class`-syntax) constructors and built-in class
- * constructors such as `Array`, `Date`, and `Map`. Both share the same
- * structural tell: an own `prototype` descriptor whose `writable` is
- * `false`. This is the only spec-given discriminator between a class
- * constructor (frozen own `prototype`) and a good-old ES3 function
- * (writable own `prototype`). To tell the two class families apart, use
+ * constructors such as `Array`, `Date`, and `Map`. Two reads decide it: an
+ * own `prototype` descriptor whose `writable` is `false`, and a source
+ * carrying a class signature ({@link doesUnboundNewableSourceMatchEitherClassSignature}) —
+ * the `class` keyword prefix, or the native-source form of a built-in. The
+ * descriptor alone is not enough: a frozen ES3 function, or one whose
+ * `prototype` was locked through `defineProperty`, carries it too, and its
+ * source is what keeps it out. To tell the two class families apart, use
  * {@link isCustomClass} or {@link isBuiltInClass} — disjoint refinements
  * that together partition this surface.
  *
@@ -778,11 +844,23 @@ export function isES3Function<T = unknown>(value?: T): value is T & ES3Function;
  * `false`. The {@link NewableFunction} gate still admits bound newables;
  * this guard does not.
  *
+ * A `Proxy` reports native source whatever it wraps, so a `Proxy` around an
+ * ES3 function whose `prototype` is locked is admitted as a class. No
+ * standard read sees through a `Proxy`.
+ *
  * Throw-safe: the own `prototype` descriptor read routes through the throw-safe
  * `hasOwnNonWritablePrototype`, so a hostile `getOwnPropertyDescriptor` Proxy-trap on
- * `value` yields `false` rather than propagating — extending the decision #056
+ * `value` yields `false` rather than propagating, and the source read absorbs a
+ * throw as well — extending the decision #056
  * constructor-resolution throw-safety to `isClass` and every consumer (notably
  * the cross-realm `#object` plain-object contract).
+ *
+ * @example
+ * ```ts
+ * isClass(class Foo {}); // true
+ * isClass(Map); // true
+ * isClass(Object.freeze(function Foo() {})); // false — read-only prototype, ES3 source
+ * ```
  *
  * Generic in `T` per the family-pattern. The narrow returns
  * `T & ClassConstructor`. `T = unknown` collapses to `ClassConstructor`.
@@ -800,14 +878,16 @@ export function isClass<T = unknown>(value?: T): value is T & ClassConstructor;
  *
  * Builds on {@link isClass} and adds the source-prefix check. A custom
  * class's stringified source starts with the literal `'class'` keyword.
- * A built-in class constructor's source does not; it always takes the
- * form `function Foo() { [native code] }`.
+ * A built-in class constructor's source does not; it takes the native form,
+ * `function Foo() { [native code] }` on V8 and a three-line layout of the
+ * same tail elsewhere.
  *
  * `isCustomClass` and {@link isBuiltInClass} are disjoint refinements of
  * {@link isClass}. Together they partition the class surface into
  * authored-via-`class`-syntax and built-in. Both narrow to
  * {@link ClassConstructor}. A bound class fails {@link isClass} upstream,
- * so neither variant admits it.
+ * so neither variant admits it. A `Proxy` around a custom class reports the
+ * native form, so it lands on {@link isBuiltInClass} instead.
  *
  * Generic in `T` per the family-pattern. The narrow returns
  * `T & ClassConstructor`. `T = unknown` collapses to `ClassConstructor`.
@@ -824,14 +904,18 @@ export function isCustomClass<T = unknown>(value?: T): value is T & ClassConstru
  * Narrows a value to a built-in class constructor.
  *
  * Builds on {@link isClass} and adds the inverse source-prefix check.
- * A built-in class constructor's stringified source always takes the
- * form `function Foo() { [native code] }`. A custom (`class`-syntax)
- * constructor's source does not; it starts with the literal `'class'`
- * keyword.
+ * A built-in class constructor's stringified source takes the native form,
+ * `function Foo() { [native code] }` on V8 and a three-line layout of the
+ * same tail elsewhere. A custom (`class`-syntax) constructor's source does
+ * not; it starts with the literal `'class'` keyword.
  *
  * The dual of {@link isCustomClass}. Both narrow to {@link ClassConstructor};
  * together they partition the {@link isClass} surface. Neither admits bound
  * variants, which are rejected upstream by {@link isClass}.
+ *
+ * "Built-in" is read from the native form, which a `Proxy` reports whatever
+ * it wraps: a `Proxy` around any class answers `true`, and so does one around
+ * an ES3 function whose `prototype` is locked.
  *
  * Generic in `T` per the family-pattern. The narrow returns
  * `T & ClassConstructor`. `T = unknown` collapses to `ClassConstructor`.

@@ -39,6 +39,8 @@
  * Mirrors `docs/spec/FUNCTION.spec.md`.
  */
 
+import { runInThisContext } from 'node:vm';
+
 import { objectCreate } from '#index';
 
 import { foreignRealmEval } from '../_cross-realm.js';
@@ -72,9 +74,11 @@ export const GENERATOR_PREDICATES = [
 ];
 
 /**
- * Every public predicate — the throw-safety completeness oracle (12 total: the
- * 11 narrowing predicates + the non-narrowing `hasConstructSlot`). The `@internal`
- * arms/sub-helpers carry their own throw-safety coverage in `_internal/`.
+ * Every public VALUE predicate — the throw-safety completeness oracle (12 total:
+ * the 11 narrowing predicates + the non-narrowing `hasConstructSlot`). The
+ * `@internal` arms/sub-helpers carry their own throw-safety coverage in
+ * `_internal/`. The two public source-signature predicates take a `string`, not a
+ * value, so they are driven by {@link sourceSignatureMatrix} instead.
  */
 export const PUBLIC_PREDICATE_NAMES = [
   ...CALLABLE_PREDICATES,
@@ -193,6 +197,58 @@ export const boundClass = () =>
 // orthogonal (spec `hCS/A4`, `isClass/A3`, `isBuiltInClass/A2`).
 export const symbolCtor = () => Symbol;
 export const bigintCtor = () => BigInt;
+
+// --- Newable: a readonly own `prototype` that is NOT a class's (ADR #103) ---
+// Freezing an ES3 function, or redefining its `prototype` `{ writable: false }`,
+// gives it exactly a class's descriptor; only the source tells them apart
+// (spec `isES3Function/A2`–`A3`, `isClass/R5`–`R6`, `isClass/A5`).
+export const frozenFunction = () =>
+  Object.freeze(function () {
+    return undefined;
+  });
+export const lockedPrototypeFunction = () => {
+  const fn = function () {
+    return undefined;
+  };
+  Object.defineProperty(fn, 'prototype', { writable: false });
+  return fn;
+};
+export const frozenClass = () =>
+  Object.freeze(
+    class C {
+      m() {
+        return undefined;
+      }
+    },
+  );
+
+// A comment right after the `class` keyword — block, line and HTML-like. The last
+// is a syntax error in module code, so all three are evaluated as SCRIPT code in
+// THIS realm (`runInThisContext`, not a foreign one), which keeps the intrinsics
+// local and the source exactly as written (spec `isClass/A4`).
+/**
+ * Evaluates script code in THIS realm and returns the value it produces.
+ *
+ * @param {string} source - a script expression
+ * @returns {unknown} the local-realm value
+ */
+const localScriptEval = (source) => /** @type {unknown} */ (runInThisContext(source));
+
+export const blockCommentedClass = () => localScriptEval('(class/*c*/C { m() {} })');
+export const lineCommentedClass = () => localScriptEval('(class// c\nC { m() {} })');
+export const htmlCommentedClass = () => localScriptEval('(class<!-- c\nC { m() {} })');
+
+// --- Newable `Proxy` wrappers: the native-source boundary (ADR #103) ---
+// `Function.prototype.toString` renders any callable `Proxy` in the native form,
+// whatever it wraps, while descriptor reads pass through to the target (spec
+// `isES3Function/R6`, `isClass/B2`, `isCustomClass/B1`, `isBuiltInClass/B1`–`B2`).
+export const proxiedFunction = () =>
+  new Proxy(function () {
+    return undefined;
+  }, {});
+export const proxiedLockedFunction = () => new Proxy(lockedPrototypeFunction(), {});
+export const proxiedCustomClass = () => new Proxy(customClass(), {});
+export const proxiedMapCtor = () => new Proxy(Map, {});
 
 // --- Callable-but-not-newable built-ins (no `[[Construct]]` slot at all) ---
 export const mathMax = () => Math.max;
@@ -590,6 +646,261 @@ export const newableMatrix = {
     },
     vectors: ['hCS/R3', 'isNewableFunction/R3', 'isClass/R4'],
   },
+  frozenFunction: {
+    description: '`Object.freeze(function () {})` — readonly own `prototype`, ES3 source',
+    make: frozenFunction,
+    expected: {
+      hasConstructSlot: T,
+      isNewableFunction: T,
+      isES3Function: T,
+      isClass: F,
+      isCustomClass: F,
+      isBuiltInClass: F,
+    },
+    vectors: ['isES3Function/A2', 'isClass/R5', 'isBuiltInClass/R3'],
+  },
+  lockedPrototypeFunction: {
+    description:
+      'a `function () {}` whose `prototype` was redefined `{ writable: false }`',
+    make: lockedPrototypeFunction,
+    expected: {
+      hasConstructSlot: T,
+      isNewableFunction: T,
+      isES3Function: T,
+      isClass: F,
+      isCustomClass: F,
+      isBuiltInClass: F,
+    },
+    vectors: ['isES3Function/A3', 'isClass/R6'],
+  },
+  frozenClass: {
+    description: '`Object.freeze(class C {})` — still a custom class',
+    make: frozenClass,
+    expected: {
+      hasConstructSlot: T,
+      isNewableFunction: T,
+      isES3Function: F,
+      isClass: T,
+      isCustomClass: T,
+      isBuiltInClass: F,
+    },
+    vectors: ['isClass/A5', 'isES3Function/R1'],
+  },
+  blockCommentedClass: {
+    description: '`class/*c*/C {}` — a block comment right after the keyword',
+    make: blockCommentedClass,
+    expected: {
+      hasConstructSlot: T,
+      isNewableFunction: T,
+      isES3Function: F,
+      isClass: T,
+      isCustomClass: T,
+      isBuiltInClass: F,
+    },
+    vectors: ['isClass/A4'],
+  },
+  lineCommentedClass: {
+    description: '`class// c\\nC {}` — a line comment right after the keyword',
+    make: lineCommentedClass,
+    expected: {
+      hasConstructSlot: T,
+      isNewableFunction: T,
+      isES3Function: F,
+      isClass: T,
+      isCustomClass: T,
+      isBuiltInClass: F,
+    },
+    vectors: ['isClass/A4'],
+  },
+  htmlCommentedClass: {
+    description: '`class<!-- c\\nC {}` — an HTML-like comment right after the keyword',
+    make: htmlCommentedClass,
+    expected: {
+      hasConstructSlot: T,
+      isNewableFunction: T,
+      isES3Function: F,
+      isClass: T,
+      isCustomClass: T,
+      isBuiltInClass: F,
+    },
+    vectors: ['isClass/A4'],
+  },
+  proxiedFunction: {
+    description:
+      'a `Proxy` around an unlocked ES3 function — the writable read passes through',
+    make: proxiedFunction,
+    expected: {
+      hasConstructSlot: T,
+      isNewableFunction: T,
+      isES3Function: T,
+      isClass: F,
+      isCustomClass: F,
+      isBuiltInClass: F,
+    },
+    vectors: ['isES3Function/R6'],
+  },
+  proxiedLockedFunction: {
+    description:
+      'a `Proxy` around a locked ES3 function — native source, read as a class',
+    make: proxiedLockedFunction,
+    expected: {
+      hasConstructSlot: T,
+      isNewableFunction: T,
+      isES3Function: F,
+      isClass: T,
+      isCustomClass: F,
+      isBuiltInClass: T,
+    },
+    vectors: ['isES3Function/R6', 'isClass/B2', 'isBuiltInClass/B2'],
+  },
+  proxiedCustomClass: {
+    description: 'a `Proxy` around `class C {}` — native source, so built-in by reading',
+    make: proxiedCustomClass,
+    expected: {
+      hasConstructSlot: T,
+      isNewableFunction: T,
+      isES3Function: F,
+      isClass: T,
+      isCustomClass: F,
+      isBuiltInClass: T,
+    },
+    vectors: ['isCustomClass/B1', 'isBuiltInClass/B1'],
+  },
+  proxiedMapCtor: {
+    description: 'a `Proxy` around `Map`',
+    make: proxiedMapCtor,
+    expected: {
+      hasConstructSlot: T,
+      isNewableFunction: T,
+      isES3Function: F,
+      isClass: T,
+      isCustomClass: F,
+      isBuiltInClass: T,
+    },
+    vectors: ['isBuiltInClass/B1'],
+  },
+};
+
+// ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
+//
+//  Axis-1 Source-signature matrix — sources × the two string predicates
+//
+// ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
+
+/**
+ * @typedef {object} SourceSignatureRow
+ * @property {string} description - human-readable source description
+ * @property {string} source - the function source, exactly as an engine renders it
+ * @property {boolean} expected - `doesUnboundNewableSourceMatchEitherClassSignature`'s answer
+ * @property {string[]} vectors - spec vector IDs this row covers
+ */
+
+/**
+ * Sources × `doesUnboundNewableSourceMatchEitherClassSignature`, with
+ * `doesUnboundNewableSourceMatchNeitherClassSignature` asserted as its exact negation on
+ * every row (`dUNSMNCS/L1`). The sources are literal strings, so the three-line
+ * layouts of JavaScriptCore and SpiderMonkey are exercised on V8 — the reason
+ * the predicates take a source rather than a value.
+ *
+ * @type {Record<string, SourceSignatureRow>}
+ */
+export const sourceSignatureMatrix = {
+  customClass: {
+    description: 'a custom class',
+    source: 'class C {}',
+    expected: T,
+    vectors: ['dUNSMECS/A1'],
+  },
+  anonymousClass: {
+    description: 'an anonymous class',
+    source: 'class{}',
+    expected: T,
+    vectors: ['dUNSMECS/A1'],
+  },
+  derivedClass: {
+    description: 'an anonymous derived class',
+    source: 'class extends Array {}',
+    expected: T,
+    vectors: ['dUNSMECS/A1'],
+  },
+  blockComment: {
+    description: 'a block comment after `class`',
+    source: 'class/*c*/C {}',
+    expected: T,
+    vectors: ['dUNSMECS/A2'],
+  },
+  lineComment: {
+    description: 'a line comment after `class`',
+    source: 'class// c\nC {}',
+    expected: T,
+    vectors: ['dUNSMECS/A2'],
+  },
+  htmlComment: {
+    description: 'an HTML-like comment after `class`',
+    source: 'class<!-- c\nC {}',
+    expected: T,
+    vectors: ['dUNSMECS/A2'],
+  },
+  v8Named: {
+    description: 'V8, a named built-in',
+    source: 'function Map() { [native code] }',
+    expected: T,
+    vectors: ['dUNSMECS/A3'],
+  },
+  v8Anonymous: {
+    description: 'V8, a `Proxy`',
+    source: 'function () { [native code] }',
+    expected: T,
+    vectors: ['dUNSMECS/A3'],
+  },
+  threeLine: {
+    description: 'JavaScriptCore / SpiderMonkey, a named built-in',
+    source: 'function Map() {\n    [native code]\n}',
+    expected: T,
+    vectors: ['dUNSMECS/A4'],
+  },
+  es3: {
+    description: 'an ES3 function',
+    source: 'function f() {}',
+    expected: F,
+    vectors: ['dUNSMECS/R1'],
+  },
+  es3Destructured: {
+    description: 'an ES3 function with a destructured parameter',
+    source: 'function f({ a }) {}',
+    expected: F,
+    vectors: ['dUNSMECS/R1'],
+  },
+  es3Default: {
+    description: 'an ES3 function with an object default',
+    source: 'function f(a = {}) {}',
+    expected: F,
+    vectors: ['dUNSMECS/R1'],
+  },
+  lineCommentTrap: {
+    description: 'an ES3 body ending in a line comment reading `{ [native code]`',
+    source: 'function f() { // { [native code]\n}',
+    expected: F,
+    vectors: ['dUNSMECS/R2'],
+  },
+  blockCommentMarker: {
+    description: 'an ES3 body whose block comment holds the marker',
+    source: 'function f() { /* { [native code] */ }',
+    expected: F,
+    vectors: ['dUNSMECS/R3'],
+  },
+  stringMarker: {
+    description: 'an ES3 body returning the marker as a string',
+    source: 'function f() { return "{ [native code] }"; }',
+    expected: F,
+    vectors: ['dUNSMECS/R3'],
+  },
+  conciseMethodNamedClass: {
+    description: 'a concise method named `class` — outside the precondition',
+    source: 'class() {}',
+    expected: T,
+    vectors: ['dUNSMECS/B1'],
+  },
 };
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
@@ -870,6 +1181,9 @@ export const foreignAsyncGeneratorFunction = () =>
 export const foreignPlainFunction = () => foreignRealmEval('(function () {})');
 export const foreignArrowFunction = () => foreignRealmEval('(() => {})');
 export const foreignClass = () => foreignRealmEval('(class C {})');
+export const foreignFrozenFunction = () =>
+  foreignRealmEval('Object.freeze(function () {})');
+export const foreignFrozenClass = () => foreignRealmEval('Object.freeze(class C {})');
 
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 //
@@ -937,6 +1251,70 @@ export const classWithTamperedInstanceToString = () => {
 //     `instanceof` is wrapped; and the alien arms' `getSafePrototypeOf` absorbs it.
 //   - getOwnPropertyDescriptor-trap on a newable → `isClass === false` (isClass/B1)
 //     — routed through the throw-safe `hasOwnNonWritablePrototype`.
+
+/**
+ * ECMA-262's closed set of `Proxy` handler traps (§10.5) — all thirteen. The
+ * hand-built rows of {@link throwSafetyMatrix} were curated from the reads the code
+ * made when they were written; the generated ones do not depend on that, so a read
+ * added later meets every trap.
+ */
+export const HANDLER_TRAPS = /** @type {const} */ ([
+  'getPrototypeOf',
+  'setPrototypeOf',
+  'isExtensible',
+  'preventExtensions',
+  'getOwnPropertyDescriptor',
+  'defineProperty',
+  'has',
+  'get',
+  'set',
+  'deleteProperty',
+  'ownKeys',
+  'apply',
+  'construct',
+]);
+
+/**
+ * The targets each generated trap wraps. Frozen as well as extensible, because
+ * some reads stop at the first trap on one and run on to others on the other:
+ * `Object.isFrozen` fires only `isExtensible` on an extensible target, but
+ * `ownKeys` and `getOwnPropertyDescriptor` on one that is not.
+ *
+ * @type {Record<string, () => object>}
+ */
+export const TRAP_TARGETS = {
+  'an extensible ES3 function': plainFunction,
+  'a frozen ES3 function': frozenFunction,
+  'an extensible class': customClass,
+  'a frozen class': frozenClass,
+};
+
+/**
+ * One throwing-trap row per handler trap and target (spec `## Throw-safety`,
+ * 2026-10-03). Declared above `throwSafetyMatrix`, which spreads it at evaluation.
+ *
+ * @returns {Record<string, ThrowSafetyRow & { trap: string }>} the generated rows
+ */
+function generatedTrapRows() {
+  /** @type {Record<string, ThrowSafetyRow & { trap: string }>} */
+  const rows = {};
+
+  for (const trap of HANDLER_TRAPS) {
+    for (const [targetLabel, makeTarget] of Object.entries(TRAP_TARGETS)) {
+      rows[`trap:${trap}:${targetLabel}`] = {
+        trap,
+        surface: `generated: a \`Proxy\` whose \`${trap}\` trap throws, over ${targetLabel}`,
+        make: () =>
+          new Proxy(makeTarget(), {
+            [trap]() {
+              throw new Error(`${trap}-trap`);
+            },
+          }),
+      };
+    }
+  }
+  return rows;
+}
 
 /**
  * @typedef {object} ThrowSafetyRow
@@ -1033,4 +1411,5 @@ export const throwSafetyMatrix = {
       return proxy;
     },
   },
+  ...generatedTrapRows(),
 };

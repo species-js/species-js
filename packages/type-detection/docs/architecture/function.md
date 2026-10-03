@@ -26,11 +26,14 @@ Callable
 The lattice has two structural sides — the newable family and the non-newable family —
 that the spec gives different discriminators for. The newable side discriminates on
 _own-instance descriptors_ (the `writable` flag on `prototype`, the back-reference
-soundness on `prototype.constructor`). The non-newable side discriminates on
-_prototype-chain values_ (`Symbol.toStringTag` resolved through the chain, the resolved
-constructor name). The implementation lets each side use the discriminators the spec
-actually provides, rather than forcing one shape across both. See decisions #003 and #005
-for the rationale.
+soundness on `prototype.constructor`), completed by the _source_ where the descriptor
+alone cannot decide: a readonly `prototype` belongs to every class, but also to a frozen
+ES3 function or one whose `prototype` was locked, so the class signature in the source —
+the `class` prefix, or the native-source form — settles it (decision #103). The
+non-newable side discriminates on _prototype-chain values_ (`Symbol.toStringTag` resolved
+through the chain, the resolved constructor name). The implementation lets each side use
+the discriminators the spec actually provides, rather than forcing one shape across both.
+See decisions #003 and #005 for the rationale.
 
 Bound variants land asymmetrically across this split _because of the spec_, not by choice.
 `bind` strips the function's own slots while preserving its `[[Prototype]]`. Newable-side
@@ -61,11 +64,24 @@ boundary-retyping pattern these captures use to close lib `any`-gaps.
 
 The newable side discriminates on a small fingerprint per row:
 
-| Species            | newable | own_prototype      | own_writable_prototype | `[[Class]]` |
-| ------------------ | ------- | ------------------ | ---------------------- | ----------- |
-| `ES3Function`      | ✓       | ✓                  | ✓                      | `Function`  |
-| `ClassConstructor` | ✓       | ✓                  | ✗                      | `Function`  |
-| Bound newable      | ✓       | (no own prototype) | (no own prototype)     | `Function`  |
+| Species                | newable | own_prototype      | own_writable_prototype | class signature in source | `[[Class]]` |
+| ---------------------- | ------- | ------------------ | ---------------------- | ------------------------- | ----------- |
+| `ES3Function`          | ✓       | ✓                  | ✓                      | (not read)                | `Function`  |
+| `ES3Function` (locked) | ✓       | ✓                  | ✗                      | ✗                         | `Function`  |
+| `ClassConstructor`     | ✓       | ✓                  | ✗                      | ✓                         | `Function`  |
+| Bound newable          | ✓       | (no own prototype) | (no own prototype)     | (not read)                | `Function`  |
+
+A writable own `prototype` settles the ES3 shape without reading the source — no class
+carries one. A readonly one is where the source is read, and only there: "locked" covers a
+frozen ES3 function and one whose `prototype` was redefined `{ writable: false }`. The
+source reading belongs to `doesUnboundNewableSourceMatchEitherClassSignature` and its
+negation, public string predicates whose unbound-newable precondition is in their names —
+the bound row never reaches them, its descriptor read having failed first. Under it, a
+`class` prefix is exact and needs no parsing past the keyword, and the native form is
+matched anchored from the `function` keyword, since every unbound native newable renders a
+fixed header; an authored body ending in a line comment cannot imitate it. A callable
+`Proxy` renders in the native form whatever it wraps, so a `Proxy` around a locked ES3
+function reads as a class — a boundary no standard read crosses.
 
 The non-newable side adds the proto-side own-key surface as a second discriminator:
 

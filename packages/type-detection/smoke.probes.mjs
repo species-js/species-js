@@ -6,7 +6,7 @@
  * Behavioral probes for the built artifacts, run by `scripts/check-bundle-smoke.mjs`
  * against every bundle this package publishes.
  *
- * These are NOT a second test suite — the 3746 specs test the source. These ask
+ * These are NOT a second test suite — the specs test the source. These ask
  * the narrower question no spec can: does the code still work after bundling?
  *
  * So the selection is deliberate rather than representative. One probe per

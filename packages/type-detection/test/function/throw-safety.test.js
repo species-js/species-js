@@ -27,8 +27,16 @@
  * `isClass/B1 → false`) live in `adversarial.test.js` and
  * `_internal/helpers.test.js` where the individual arms are exercised white-box.
  *
- * The hostile set is re-derived from function's own read surface — the trap
- * classes a marked export could route a throw through: the `get` trap (the
+ * The hostile set has two halves. The GENERATED half (2026-10-03) is one throwing
+ * `Proxy` per handler trap of ECMA-262's closed set of thirteen, over an extensible
+ * and a frozen ES3 function and class — it does not depend on which reads the code
+ * makes, so a read added later meets every trap; the corpus and liveness checks
+ * below prove all thirteen are present and every one actually fires. It exists
+ * because the curated half missed a regression: an `Object.isFrozen` gate fired
+ * `isExtensible` first, which no curated row threw from, and all 146 tests passed
+ * while two predicates threw. The CURATED half was re-derived from function's own
+ * read surface — the trap classes a marked export could route a throw through: the
+ * `get` trap (the
  * `.bind`/`.call`/`.apply` reads in `isFunction`), `getPrototypeOf` (the
  * `instanceof` arms + the alien arms' `getSafePrototypeOf`),
  * `getOwnPropertyDescriptor` (`hasOwnNonWritablePrototype` in `isClass`),
@@ -67,7 +75,39 @@ import {
   isAnyGeneratorFunction,
 } from '#index';
 
-import { throwSafetyMatrix, THROW_SAFE_MARKED } from './__config.js';
+import {
+  throwSafetyMatrix,
+  THROW_SAFE_MARKED,
+  HANDLER_TRAPS,
+  TRAP_TARGETS,
+} from './__config.js';
+
+/**
+ * The operation that fires each handler trap on a `Proxy`, so a generated row
+ * can be shown to be LIVE — a row whose trap never fired would make every
+ * throw-safety assertion over it pass vacuously.
+ *
+ * Each entry only FIRES its trap, so none returns the operation's result.
+ *
+ * @type {Record<string, (proxy: object) => void>}
+ */
+const FIRE_TRAP = {
+  getPrototypeOf: (p) => void Reflect.getPrototypeOf(p),
+  setPrototypeOf: (p) => void Reflect.setPrototypeOf(p, null),
+  isExtensible: (p) => void Reflect.isExtensible(p),
+  preventExtensions: (p) => void Reflect.preventExtensions(p),
+  getOwnPropertyDescriptor: (p) => void Reflect.getOwnPropertyDescriptor(p, 'prototype'),
+  defineProperty: (p) => void Reflect.defineProperty(p, 'x', { value: 1 }),
+  has: (p) => void Reflect.has(p, 'x'),
+  get: (p) => void Reflect.get(p, 'x'),
+  set: (p) => void Reflect.set(p, 'x', 1),
+  deleteProperty: (p) => void Reflect.deleteProperty(p, 'x'),
+  ownKeys: (p) => void Reflect.ownKeys(p),
+  apply: (p) =>
+    void Reflect.apply(/** @type {(...args: unknown[]) => unknown} */ (p), undefined, []),
+  construct: (p) =>
+    void Reflect.construct(/** @type {new (...args: unknown[]) => unknown} */ (p), []),
+};
 
 // The 24 marked exports, keyed by name. The heterogeneous surface (a
 // `Callable`-param source-reader alongside boolean predicates) is coerced through
@@ -121,6 +161,37 @@ describe('function — throw-safety invariant (axis 5, hostile × marked-export 
 
   it('completeness (test): the scored function set === the 24-name oracle', () => {
     expect(Object.keys(markedFns).sort()).toEqual(markedSorted);
+  });
+
+  it('completeness (corpus): every one of the 13 handler traps, over every target', () => {
+    expect(HANDLER_TRAPS.length).toBe(13);
+    expect(Object.keys(FIRE_TRAP).sort()).toEqual([...HANDLER_TRAPS].sort());
+
+    const generated = Object.keys(throwSafetyMatrix).filter((key) =>
+      key.startsWith('trap:'),
+    );
+    expect(generated.length).toBe(
+      HANDLER_TRAPS.length * Object.keys(TRAP_TARGETS).length,
+    );
+  });
+
+  it('liveness: every generated row throws when its own trap fires', () => {
+    let fired = 0;
+    for (const [key, row] of Object.entries(throwSafetyMatrix)) {
+      if (!key.startsWith('trap:')) {
+        continue;
+      }
+      const trap = key.split(':')[1] ?? '';
+      const fire = FIRE_TRAP[trap];
+      if (!fire) {
+        throw new Error(`no firing operation for trap "${trap}"`);
+      }
+      expect(() => {
+        fire(/** @type {object} */ (row.make()));
+      }, key).toThrow(`${trap}-trap`);
+      fired += 1;
+    }
+    expect(fired).toBe(HANDLER_TRAPS.length * Object.keys(TRAP_TARGETS).length);
   });
 
   for (const [, { surface, make }] of Object.entries(throwSafetyMatrix)) {

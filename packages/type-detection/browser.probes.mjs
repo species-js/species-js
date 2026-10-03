@@ -22,7 +22,13 @@
  * A stand-in that behaves identically proves the claim; one that does not is
  * exactly what this file exists to surface.
  *
- * Layer A is host objects, layer B the iframe realm.
+ * B6–B9 chase an engine difference after all: the class signature reads a
+ * function's SOURCE, and only V8's rendering ever reaches the Node suites.
+ * JavaScriptCore and SpiderMonkey lay a native source out on three lines, and
+ * JavaScriptCore names a `Proxy` `ProxyObject`. Each asserts the portable
+ * contract — the runner's layer B — so a red there is a defect, not a difference.
+ *
+ * Layer A is host objects; layer B the iframe realm and engine-rendered sources.
  */
 
 /**
@@ -223,6 +229,72 @@ export const probes = [
           ns.isGenericError(foreign) === false
         );
       }),
+  },
+
+  // ----- Layer B, continued — the same portable contract over the sources each
+  // ENGINE renders, which V8 cannot (ADR #103) -----
+  {
+    name: 'B6 · a built-in renders a native source that carries the class signature',
+    run: (ns) =>
+      [Map, Object, Promise].every(
+        (ctor) =>
+          ns.doesUnboundNewableSourceMatchEitherClassSignature(
+            Function.prototype.toString.call(ctor),
+          ) === true && ns.isBuiltInClass(ctor) === true,
+      ),
+  },
+  {
+    name: 'B7 · a Proxy around a locked ES3 function reads native, and so as a class',
+    run: (ns) => {
+      // an unbound native newable: V8 and SpiderMonkey render it anonymously and
+      // JavaScriptCore as `ProxyObject` — a fixed header either way, which is what
+      // lets the native form be matched from the `function` keyword on
+      const locked = function () {};
+      Object.defineProperty(locked, 'prototype', { writable: false });
+      const proxied = new Proxy(locked, {});
+
+      return (
+        ns.doesUnboundNewableSourceMatchEitherClassSignature(
+          Function.prototype.toString.call(proxied),
+        ) === true &&
+        ns.isClass(proxied) === true &&
+        ns.isES3Function(proxied) === false
+      );
+    },
+  },
+  {
+    name: 'B8 · an ES3 body ending in a line comment reading `{ [native code]` is not native',
+    run: (ns) => {
+      const authored = function () {
+        // { [native code]
+      };
+
+      return (
+        ns.doesUnboundNewableSourceMatchEitherClassSignature(
+          Function.prototype.toString.call(authored),
+        ) === false
+      );
+    },
+  },
+  {
+    name: 'B9 · a frozen ES3 function is ES3, and a frozen class a class',
+    run: (ns) =>
+      ns.isES3Function(Object.freeze(function () {})) === true &&
+      ns.isClass(Object.freeze(function () {})) === false &&
+      ns.isClass(
+        Object.freeze(
+          class {
+            m() {}
+          },
+        ),
+      ) === true &&
+      ns.isES3Function(
+        Object.freeze(
+          class {
+            m() {}
+          },
+        ),
+      ) === false,
   },
 ];
 

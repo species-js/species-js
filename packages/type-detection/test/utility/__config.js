@@ -60,6 +60,20 @@ export const customClass = () =>
 export const builtinClassArray = () => Array;
 export const plainObject = () => ({});
 
+// A frozen ES3 function, and one whose `prototype` was locked through
+// `defineProperty` — an `ES3Function` carrying a class's descriptor (ADR #103).
+export const frozenEs3Function = () =>
+  Object.freeze(function f() {
+    return undefined;
+  });
+export const lockedPrototypeEs3Function = () => {
+  const fn = function f() {
+    return undefined;
+  };
+  Object.defineProperty(fn, 'prototype', { writable: false });
+  return fn;
+};
+
 // ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- ----- -----
 //
 //  `hasOwn*` prototype-predicate matrix (axis 1)
@@ -149,6 +163,26 @@ export const hasOwnMatrix = {
       hasOwnNonWritablePrototype: false,
     },
     vectors: ['hOP/R3', 'hOWP/R3', 'hONWP/R2'],
+  },
+  frozenEs3Function: {
+    description: "a frozen ES3 function — still ES3, with a class's descriptor",
+    make: frozenEs3Function,
+    expected: {
+      hasOwnPrototype: true,
+      hasOwnWritablePrototype: false,
+      hasOwnNonWritablePrototype: true,
+    },
+    vectors: ['hOP/A1', 'hOWP/R4', 'hONWP/A2'],
+  },
+  lockedPrototypeEs3Function: {
+    description: 'an ES3 function whose `prototype` was redefined `{ writable: false }`',
+    make: lockedPrototypeEs3Function,
+    expected: {
+      hasOwnPrototype: true,
+      hasOwnWritablePrototype: false,
+      hasOwnNonWritablePrototype: true,
+    },
+    vectors: ['hOP/A1', 'hOWP/R4', 'hONWP/A2'],
   },
 };
 

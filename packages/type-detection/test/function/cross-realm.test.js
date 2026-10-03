@@ -51,6 +51,8 @@ import {
   foreignPlainFunction,
   foreignArrowFunction,
   foreignClass,
+  foreignFrozenFunction,
+  foreignFrozenClass,
 } from './__config.js';
 
 /**
@@ -158,6 +160,21 @@ describe('function — cross-realm (axis 2)', () => {
       expect(isClass(foreign), 'isClass').toBe(true);
       expect(isCustomClass(foreign), 'isCustomClass').toBe(true);
       expect(isBuiltInClass(foreign), 'isBuiltInClass').toBe(false);
+      expect(isES3Function(foreign), 'isES3Function').toBe(false);
+    });
+
+    it('isES3Function/A4: a foreign frozen ES3 function is still ES3, not a class', () => {
+      const foreign = foreignFrozenFunction();
+      expect(Object.isFrozen(foreign), 'the fixture is frozen').toBe(true);
+      expect(isES3Function(foreign), 'isES3Function').toBe(true);
+      expect(isClass(foreign), 'isClass').toBe(false);
+    });
+
+    it('isClass/A5: a foreign frozen `class C {}` is still a custom class', () => {
+      const foreign = foreignFrozenClass();
+      expect(Object.isFrozen(foreign), 'the fixture is frozen').toBe(true);
+      expect(isClass(foreign), 'isClass').toBe(true);
+      expect(isCustomClass(foreign), 'isCustomClass').toBe(true);
       expect(isES3Function(foreign), 'isES3Function').toBe(false);
     });
 

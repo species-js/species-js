@@ -2,6 +2,12 @@
 
 **Date:** 2026-06-01
 
+**Species definitions amended by #103 (2026-10-03).** The descriptor read below no longer
+decides alone: a read-only own `prototype` is also what a frozen or locked ES3 function
+carries, so `ClassConstructor` now also requires a class signature in the source, and an
+`ES3Function` may own a read-only `prototype` when its source carries none. The lattice —
+lenient base, two strict refinements, bound-newable as the unnamed third — stands.
+
 **Context.** TypeScript types a plain `function` as call-only, so the runtime
 `[[Construct]]` slot has to be asserted by the handwritten `.d.ts`. The question was how
 to model the newable surface: as the union `ES3Function | ClassConstructor`, or as a

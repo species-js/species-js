@@ -14,7 +14,7 @@
  *   isCallable                                    the floor — the [[Call]] slot
  *     isFunction                                  + the bind/call/apply surface
  *       isNewableFunction  ≡  isFunction ∧ hasConstructSlot
- *         isES3Function    ⊎  isClass             (own prototype: writable ⊎ non-writable)
+ *         isES3Function    ⊎  isClass             (own prototype writable ⇒ ES3; readonly splits by source)
  *                             isClass  ≡  isCustomClass ⊎ isBuiltInClass
  *       isAsyncFunction  |  isGeneratorFunction  ⊎  isAsyncGeneratorFunction
  *                           isAnyGeneratorFunction ≡ the two generator arms
@@ -28,9 +28,11 @@
  *      || isBuiltInClass(v)`, and the two arms are DISJOINT.
  *   C. THE NEWABLE LADDER — `isNewableFunction ≡ isFunction ∧ hasConstructSlot`;
  *      `isES3Function ⇒ isNewableFunction`; `isClass ⇒ isNewableFunction`; and
- *      `isES3Function` ⊎ `isClass` are disjoint (own `prototype` writable vs
- *      non-writable — a value cannot be both, and a bound constructor, owning no
- *      `prototype` at all, is neither).
+ *      `isES3Function` ⊎ `isClass` are disjoint — a writable own `prototype` is ES3,
+ *      and a readonly one is split by the source signature (ADR #103), so a value
+ *      cannot be both; a bound constructor, owning no `prototype` at all, is
+ *      neither. And they are EXHAUSTIVE over newables that own a `prototype`:
+ *      exactly one holds, so a locked ES3 function cannot fall between them.
  *   D. THE GENERATOR UMBRELLA — `isAnyGeneratorFunction(v) === isGeneratorFunction(v)
  *      || isAsyncGeneratorFunction(v)`, and the two arms are disjoint.
  *   E. ASYNC/GENERATOR EXCLUSIVITY — at most one of `isAsyncFunction`,
@@ -75,6 +77,7 @@ import {
   isGeneratorFunction,
   isAsyncGeneratorFunction,
   isAnyGeneratorFunction,
+  hasOwnPrototype,
 } from '#index';
 
 import {
@@ -132,6 +135,18 @@ import {
   arrowWithSpoofedPrototype,
   shadowedBindFunction,
   classWithTamperedInstanceToString,
+  frozenFunction,
+  lockedPrototypeFunction,
+  frozenClass,
+  blockCommentedClass,
+  lineCommentedClass,
+  htmlCommentedClass,
+  proxiedFunction,
+  proxiedLockedFunction,
+  proxiedCustomClass,
+  proxiedMapCtor,
+  foreignFrozenFunction,
+  foreignFrozenClass,
   throwSafetyMatrix,
 } from './__config.js';
 
@@ -230,6 +245,18 @@ const corpus = [
   ['arrowWithSpoofedPrototype', arrowWithSpoofedPrototype],
   ['shadowedBindFunction', shadowedBindFunction],
   ['classWithTamperedInstanceToString', classWithTamperedInstanceToString],
+  ['frozenFunction', frozenFunction],
+  ['lockedPrototypeFunction', lockedPrototypeFunction],
+  ['frozenClass', frozenClass],
+  ['blockCommentedClass', blockCommentedClass],
+  ['lineCommentedClass', lineCommentedClass],
+  ['htmlCommentedClass', htmlCommentedClass],
+  ['proxiedFunction', proxiedFunction],
+  ['proxiedLockedFunction', proxiedLockedFunction],
+  ['proxiedCustomClass', proxiedCustomClass],
+  ['proxiedMapCtor', proxiedMapCtor],
+  ['foreignFrozenFunction', foreignFrozenFunction],
+  ['foreignFrozenClass', foreignFrozenClass],
   ...Object.entries(throwSafetyMatrix).map(
     /** @returns {[string, () => unknown]} the labelled hostile-value row */
     ([key, row]) => [`hostile:${key}`, row.make],
@@ -285,9 +312,15 @@ describe('function — structural invariants (C: the newable ladder)', () => {
       expect(!isClass(v) || isNewableFunction(v), 'class but not newable').toBe(true);
     });
 
-    it(`${label}: isES3Function and isClass are disjoint (prototype writability)`, () => {
+    it(`${label}: isES3Function and isClass are disjoint`, () => {
       const v = make();
       expect(isES3Function(v) && isClass(v)).toBe(false);
+    });
+
+    it(`${label}: a newable owning a prototype is exactly one of isES3Function, isClass`, () => {
+      const v = make();
+      const ownsNewablePrototype = isNewableFunction(v) && hasOwnPrototype(v);
+      expect(!ownsNewablePrototype || isES3Function(v) !== isClass(v)).toBe(true);
     });
   }
 });
