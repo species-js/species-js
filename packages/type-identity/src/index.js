@@ -279,8 +279,13 @@ function canOwnNameBeShaped(value) {
  * newable whose own `prototype` descriptor is writable. A bound newable is
  * rejected: `bind` strips the own `prototype` slot, so no ES3 shape remains.
  *
- * The predicate type-detection publishes under this name, with its
- * {@link isNewableFunction} half hoisted out to the call site. That half probes
+ * The writable-descriptor half of the predicate type-detection publishes under
+ * this name, with its {@link isNewableFunction} half hoisted out to the call
+ * site. Type-detection's predicate also admits an ES3 function whose
+ * `prototype` is read-only — frozen, or locked through `defineProperty` — by
+ * reading its source (type-detection ADR #103); this copy does not, so such a
+ * constructor is refused here as unsupported. Following the public predicate
+ * there is a decision for this package, not a drift to tidy. The hoisted half probes
  * `[[Construct]]` by allocating a `Proxy` and running a `new` inside a `try`,
  * and the caller has already established newability before reaching here —
  * composing the public predicate would repeat that probe on every shape test.
@@ -303,8 +308,8 @@ function isES3Function(value) {
  * Narrows a value to a custom (`class`-syntax) constructor — a newable whose
  * own `prototype` descriptor is non-writable and whose source starts with the
  * `class` keyword. The source read is what separates a custom class from a
- * built-in one, whose source always takes the form
- * `function Foo() { [native code] }`. A bound class fails the descriptor half
+ * built-in one, whose source takes the native form —
+ * `function Foo() { [native code] }` on V8. A bound class fails the descriptor half
  * before the source is ever read, `bind` having stripped the own `prototype`.
  *
  * The predicate type-detection publishes under this name, with its newability
